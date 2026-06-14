@@ -11,22 +11,27 @@ from bs4 import BeautifulSoup
 
 
 TARGET_CLASSES = {
-    "PartHeading": "part",
-    "Level1": "level1",
-    "Level1Bold": "level1",
-    "Level2": "level2",
-    "Level2Bold": "level2",
-    "Level3": "level3",
-    "Level3Bold": "level3",
-    "Level4": "content",
-    "Bullet1": "content",
-    "Bullet2": "content",
-    "Bullet 1": "content",
-    "Bullet 2": "content",
+    "partheading": "part",
+    "level1": "level1",
+    "level1bold": "level1",
+    "level2": "level2",
+    "level2bold": "level2",
+    "level3": "level3",
+    "level3bold": "level3",
+    "level4": "content",
+    "bullet1": "content",
+    "bullet2": "content",
+    "block1": "content",
 }
 
 CONTENT_KEY = "_content"
-CLASS_KEY = "_classes"
+SECTION_PATTERN = re.compile(
+    r"^("
+    r"(?:[A-Z]?\d+(?:\.\d+)+[A-Z]?)"
+    r"|(?:\([a-z]{1,3}\))"
+    r"|(?:[A-Z]\.\d+(?:\.\d+)*)"
+    r")\s*(.*)$"
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -62,21 +67,25 @@ def unique_key(mapping: OrderedDict, key: str) -> str:
 def node() -> OrderedDict:
     item = OrderedDict()
     item[CONTENT_KEY] = []
-    item[CLASS_KEY] = []
     return item
 
 
 def target_class(classes: list[str]) -> tuple[str, str] | tuple[None, None]:
     for class_name in classes:
-        normalized = class_name.replace(" ", "")
-        if class_name in TARGET_CLASSES:
-            return class_name, TARGET_CLASSES[class_name]
+        normalized = class_name.replace(" ", "").lower()
         if normalized in TARGET_CLASSES:
             return class_name, TARGET_CLASSES[normalized]
     return None, None
 
 
-def add_content(current: dict, text: str, class_name: str) -> None:
+def split_section_heading(text: str) -> tuple[str, str]:
+    match = SECTION_PATTERN.match(text)
+    if match is None:
+        return text, ""
+    return match.group(1).strip(), match.group(2).strip()
+
+
+def add_content(current: dict, text: str) -> None:
     target = (
         current.get("level3")
         or current.get("level2")
@@ -88,7 +97,6 @@ def add_content(current: dict, text: str, class_name: str) -> None:
         return
 
     target[CONTENT_KEY].append(text)
-    target[CLASS_KEY].append(class_name)
 
 
 def extract_award(main_content) -> OrderedDict:
@@ -135,8 +143,11 @@ def extract_award(main_content) -> OrderedDict:
             current["level1"] = current["part"][level1_key]
 
         if kind == "level2":
-            level2_key = unique_key(current["level1"], text)
+            level2_key, content = split_section_heading(text)
+            level2_key = unique_key(current["level1"], level2_key)
             current["level1"][level2_key] = node()
+            if content:
+                current["level1"][level2_key][CONTENT_KEY].append(content)
             current["level2"] = current["level1"][level2_key]
             current["level3"] = None
             continue
@@ -147,12 +158,15 @@ def extract_award(main_content) -> OrderedDict:
             current["level2"] = current["level1"][level2_key]
 
         if kind == "level3":
-            level3_key = unique_key(current["level2"], text)
+            level3_key, content = split_section_heading(text)
+            level3_key = unique_key(current["level2"], level3_key)
             current["level2"][level3_key] = node()
+            if content:
+                current["level2"][level3_key][CONTENT_KEY].append(content)
             current["level3"] = current["level2"][level3_key]
             continue
 
-        add_content(current, text, class_name)
+        add_content(current, text)
 
     return award
 
@@ -192,7 +206,7 @@ def iter_heading_rows(award: OrderedDict):
 
 def child_nodes(mapping: OrderedDict):
     for key, value in mapping.items():
-        if key in {CONTENT_KEY, CLASS_KEY}:
+        if key == CONTENT_KEY:
             continue
         if isinstance(value, dict):
             yield key, value
