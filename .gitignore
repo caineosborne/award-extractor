@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+.venv/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Mac
+.DS_Store
+
+# VS Code
+.vscode/
+
+# Environment variables
+.env
+
+# Project data
+data/raw/
+data/parsed/
+
+# Testing
+.pytest_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Jupyter
+*.ipynb
+.ipynb_checkpoints/
+jupyter/
+
