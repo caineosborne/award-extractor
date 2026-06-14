@@ -22,6 +22,7 @@ __pycache__/
 data/raw/
 data/parsed/
 data/processed/
+data/
 
 # Testing
 .pytest_cache/
