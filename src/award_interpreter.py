@@ -12,8 +12,8 @@ from src.award_interpreter_prompt import SYSTEM_PROMPT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SECTIONS_PATH = PROJECT_ROOT / "data" / "processed" / "MA000120_sections.json"
-DEFAULT_MODEL = "gpt-5.2"
+DEFAULT_SECTIONS_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018_sections.json"
+DEFAULT_MODEL = "gpt-5.4"
 
 
 class AwardInterpreterError(RuntimeError):
@@ -126,6 +126,40 @@ def build_messages(
     ]
 
 
+def lookup_clause_text(
+    clause_reference: str,
+    sections_path: Path | str = DEFAULT_SECTIONS_PATH,
+) -> str:
+    sections = load_sections(sections_path)
+    clause_node = get_clause_node(clause_reference, sections)
+    clause_text = flatten_clause(clause_reference, clause_node)
+    if not clause_text:
+        raise AwardInterpreterError(f"Clause reference has no text: {clause_reference}")
+    return clause_text
+
+
+def extract_response_text(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    output = getattr(response, "output", None)
+    if not isinstance(output, list):
+        return ""
+
+    text_parts: list[str] = []
+    for item in output:
+        content = getattr(item, "content", None)
+        if not isinstance(content, list):
+            continue
+        for content_item in content:
+            text = getattr(content_item, "text", None)
+            if isinstance(text, str) and text.strip():
+                text_parts.append(text)
+
+    return "\n".join(text_parts)
+
+
 def interpret_clause(
     clause_reference: str,
     guidelines: str | None = None,
@@ -134,11 +168,7 @@ def interpret_clause(
 ) -> str:
     load_environment()
     selected_model = model or os.getenv("AWARD_INTERPRETER_MODEL", DEFAULT_MODEL)
-    sections = load_sections(sections_path)
-    clause_node = get_clause_node(clause_reference, sections)
-    clause_text = flatten_clause(clause_reference, clause_node)
-    if not clause_text:
-        raise AwardInterpreterError(f"Clause reference has no text: {clause_reference}")
+    clause_text = lookup_clause_text(clause_reference, sections_path)
 
     client = OpenAI()
     messages = build_messages(clause_reference, clause_text, guidelines)
@@ -148,11 +178,27 @@ def interpret_clause(
     except Exception as exc:
         raise AwardInterpreterError("OpenAI request failed.") from exc
 
-    output_text = getattr(response, "output_text", None)
+    output_text = extract_response_text(response)
     if not output_text:
         raise AwardInterpreterError("OpenAI response did not include output text.")
 
     return output_text
+
+
+def interpret_clause_with_text(
+    clause_reference: str,
+    guidelines: str | None = None,
+    sections_path: Path | str = DEFAULT_SECTIONS_PATH,
+    model: str | None = None,
+) -> tuple[str, str]:
+    clause_text = lookup_clause_text(clause_reference, sections_path)
+    llm_response = interpret_clause(
+        clause_reference=clause_reference,
+        guidelines=guidelines,
+        sections_path=sections_path,
+        model=model,
+    )
+    return clause_text, llm_response
 
 
 def parse_args() -> argparse.Namespace:
