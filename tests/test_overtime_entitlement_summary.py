@@ -32,8 +32,8 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
     def test_filter_overtime_clauses_matches_requested_filter(self):
         data = {
             "classified_clauses": {
-                "10.1": {"tags": ["Ordinary Hours"], "text": "ordinary"},
-                "20.1": {"tags": ["Overtime"], "text": "overtime"},
+                "10.1": {"tags": ["Ordinary Hours & Overtime"], "text": "ordinary"},
+                "20.1": {"tags": ["Ordinary Hours & Overtime"], "text": "overtime"},
                 "30.1": {"tags": ["Penalty"], "text": "penalty"},
             }
         }
@@ -53,7 +53,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
     def test_build_messages_includes_glossary_and_clause_references(self):
         messages = build_messages(
             "classification.json",
-            {"20.1": {"tags": ["Overtime"], "text": "Paid overtime."}},
+            {"20.1": {"tags": ["Ordinary Hours & Overtime"], "text": "Paid overtime."}},
         )
 
         self.assertIn("ordinary hours", messages[0]["content"])
@@ -65,9 +65,8 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         data = {
             "classified_clauses": {
                 "20.1": {
-                    "tags": ["Overtime"],
+                    "tags": ["Ordinary Hours & Overtime"],
                     "text": "Employees are paid overtime after ordinary hours.",
-                    "payment_effects": ["multiplier_impact"],
                     "reason": "Creates overtime entitlement.",
                 },
                 "30.1": {"tags": ["Penalty"], "text": "Weekend penalty."},

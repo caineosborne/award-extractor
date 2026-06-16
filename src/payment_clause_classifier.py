@@ -4,6 +4,7 @@ import os
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,6 @@ from openai import OpenAI
 
 from src.payment_clause_classifier_prompt import (
     ALLOWED_TAGS,
-    PAYMENT_EFFECTS,
     SYSTEM_PROMPT,
     build_user_prompt,
 )
@@ -21,13 +21,13 @@ from src.payment_clause_classifier_prompt import (
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AWARD_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018.json"
 DEFAULT_MODEL = "gpt-5.4-mini"
-SCHEMA_VERSION = "payment-classification-v1"
+SCHEMA_VERSION = "payment-classification-v2"
 CONTENT_KEY = "_content"
 PLACEHOLDER_PREFIX = "No Level"
 
 
 class PaymentClauseClassifierError(RuntimeError):
-    """Base exception for payment clause classifier failures."""
+    """Raised when the classifier cannot continue with the current award."""
 
 
 @dataclass(frozen=True)
@@ -56,19 +56,8 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
 
 def load_award(award_path: Path | str = DEFAULT_AWARD_PATH) -> OrderedDict[str, Any]:
     path = Path(award_path)
-    if not path.exists():
-        raise PaymentClauseClassifierError(f"Award JSON not found: {path}")
-
-    try:
-        with path.open(encoding="utf-8") as award_file:
-            award = json.load(award_file, object_pairs_hook=OrderedDict)
-    except json.JSONDecodeError as exc:
-        raise PaymentClauseClassifierError(f"Award JSON is not valid JSON: {path}") from exc
-
-    if not isinstance(award, OrderedDict):
-        raise PaymentClauseClassifierError(f"Award JSON must contain an object: {path}")
-
-    return award
+    with path.open(encoding="utf-8") as award_file:
+        return json.load(award_file, object_pairs_hook=OrderedDict)
 
 
 def output_path_for_award(award_path: Path | str) -> Path:
@@ -76,7 +65,15 @@ def output_path_for_award(award_path: Path | str) -> Path:
     return path.with_name(f"{path.stem}_payment_classification.json")
 
 
+def timestamped_output_path(output_path: Path | str, timestamp: datetime | None = None) -> Path:
+    path = Path(output_path)
+    selected_timestamp = timestamp or datetime.now()
+    suffix = selected_timestamp.strftime("%Y%m%d_%H%M%S")
+    return path.with_name(f"{path.stem}_{suffix}{path.suffix}")
+
+
 def child_nodes(mapping: Mapping[str, Any]):
+    """Yield nested clause dictionaries and skip the text-only _content entry."""
     for key, value in mapping.items():
         if key == CONTENT_KEY:
             continue
@@ -85,6 +82,7 @@ def child_nodes(mapping: Mapping[str, Any]):
 
 
 def is_placeholder_key(key: str) -> bool:
+    # The award JSON sometimes inserts "No Level ..." wrappers that are not real clauses.
     return key.startswith(PLACEHOLDER_PREFIX)
 
 
@@ -93,6 +91,7 @@ def is_lettered_key(key: str) -> bool:
 
 
 def format_child_reference(parent_reference: str, child_key: str) -> str:
+    # Lettered children are stored as "a", "b", etc. but cited as "24.1(a)".
     if is_lettered_key(child_key):
         return f"{parent_reference}({child_key})"
     return child_key
@@ -120,6 +119,7 @@ def clause_title(node: Mapping[str, Any]) -> str:
 
 
 def flatten_clause(reference: str, node: Mapping[str, Any]) -> str:
+    """Convert a clause subtree into labelled text for the model prompt."""
     lines: list[str] = []
 
     def walk(current_reference: str, current_node: Mapping[str, Any]) -> None:
@@ -137,12 +137,17 @@ def flatten_clause(reference: str, node: Mapping[str, Any]) -> str:
 
 
 def collect_descendants(parent_reference: str, node: Mapping[str, Any]) -> tuple[ClauseItem, ...]:
+    """Collect direct L2 clauses below a top-level clause.
+
+    Each returned item contains the full flattened subtree for that L2 clause, so lower-level
+    subclauses are considered under the L2 tags without being returned as separate classifications.
+    """
     descendants: list[ClauseItem] = []
 
-    def walk(current_reference: str, current_node: Mapping[str, Any]) -> None:
+    def collect_direct(current_reference: str, current_node: Mapping[str, Any]) -> None:
         for child_key, child_node in child_nodes(current_node):
             if is_placeholder_key(child_key):
-                walk(current_reference, child_node)
+                collect_direct(current_reference, child_node)
                 continue
 
             child_reference = format_child_reference(current_reference, child_key)
@@ -154,13 +159,13 @@ def collect_descendants(parent_reference: str, node: Mapping[str, Any]) -> tuple
                     node=child_node,
                 )
             )
-            walk(child_reference, child_node)
 
-    walk(parent_reference, node)
+    collect_direct(parent_reference, node)
     return tuple(descendants)
 
 
 def iter_top_level_groups(award: Mapping[str, Any]) -> tuple[TopLevelGroup, ...]:
+    """Build one model request group for each top-level clause under each award Part."""
     groups: list[TopLevelGroup] = []
     for _part_heading, part_node in child_nodes(award):
         for top_reference, top_node in child_nodes(part_node):
@@ -184,7 +189,7 @@ def top_level_payload(group: TopLevelGroup) -> dict[str, Any]:
             "title": group.title,
             "text": group.text,
         },
-        "descendants": [
+        "direct_l2_clauses": [
             {
                 "reference": descendant.reference,
                 "title": descendant.title,
@@ -213,18 +218,17 @@ def response_json_schema() -> dict[str, Any]:
                 "properties": {
                     "reference": {"type": "string"},
                     "title": {"type": "string"},
-                    "payment_effects": {
-                        "type": "array",
-                        "items": {"type": "string", "enum": list(PAYMENT_EFFECTS)},
-                    },
-                    "requires_descendant_classification": {"type": "boolean"},
+                    "payment_relevant": {"type": "boolean"},
+                    "definition_relevant": {"type": "boolean"},
+                    "requires_l2_classification": {"type": "boolean"},
                     "reason": {"type": "string"},
                 },
                 "required": [
                     "reference",
                     "title",
-                    "payment_effects",
-                    "requires_descendant_classification",
+                    "payment_relevant",
+                    "definition_relevant",
+                    "requires_l2_classification",
                     "reason",
                 ],
             },
@@ -239,13 +243,9 @@ def response_json_schema() -> dict[str, Any]:
                             "type": "array",
                             "items": {"type": "string", "enum": list(ALLOWED_TAGS)},
                         },
-                        "payment_effects": {
-                            "type": "array",
-                            "items": {"type": "string", "enum": list(PAYMENT_EFFECTS)},
-                        },
                         "reason": {"type": "string"},
                     },
-                    "required": ["reference", "tags", "payment_effects", "reason"],
+                    "required": ["reference", "tags", "reason"],
                 },
             },
         },
@@ -276,90 +276,61 @@ def extract_response_text(response: Any) -> str:
 
 
 def parse_response_json(output_text: str) -> Mapping[str, Any]:
-    try:
-        parsed = json.loads(output_text)
-    except json.JSONDecodeError as exc:
-        raise PaymentClauseClassifierError("OpenAI response was not valid JSON.") from exc
-
-    if not isinstance(parsed, Mapping):
-        raise PaymentClauseClassifierError("OpenAI response JSON must be an object.")
-    return parsed
+    return json.loads(output_text)
 
 
-def normalize_effects(value: Any, context: str) -> list[str]:
-    if not isinstance(value, list) or not value:
-        raise PaymentClauseClassifierError(f"{context} payment_effects must be a non-empty array.")
-
-    effects: list[str] = []
+def unique_items(value: list[str]) -> list[str]:
+    """Preserve model order while removing duplicates."""
+    unique: list[str] = []
     for item in value:
-        if item not in PAYMENT_EFFECTS:
-            raise PaymentClauseClassifierError(f"{context} has invalid payment effect: {item}")
-        if item not in effects:
-            effects.append(item)
-
-    if "none" in effects and len(effects) > 1:
-        effects = [effect for effect in effects if effect != "none"]
-    return effects
-
-
-def normalize_tags(value: Any, context: str) -> list[str]:
-    if not isinstance(value, list) or not value:
-        raise PaymentClauseClassifierError(f"{context} tags must be a non-empty array.")
-
-    tags: list[str] = []
-    for item in value:
-        if item not in ALLOWED_TAGS:
-            raise PaymentClauseClassifierError(f"{context} has invalid tag: {item}")
-        if item not in tags:
-            tags.append(item)
-    return tags
+        if item not in unique:
+            unique.append(item)
+    return unique
 
 
 def validate_group_classification(
     group: TopLevelGroup,
     classification: Mapping[str, Any],
 ) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
+    """Attach model output back to the clause text it classified.
+
+    The OpenAI JSON schema handles shape and tag validation. This function only
+    checks references that are specific to the current group and normalizes duplicate values.
+    """
     top = classification.get("top_level_clause")
-    if not isinstance(top, Mapping):
-        raise PaymentClauseClassifierError("OpenAI response missing top_level_clause object.")
     if top.get("reference") != group.reference:
         raise PaymentClauseClassifierError(
             f"Expected top-level reference {group.reference}, got {top.get('reference')}."
         )
 
-    top_effects = normalize_effects(top.get("payment_effects"), f"Clause {group.reference}")
-    requires_descendants = bool(top.get("requires_descendant_classification"))
-    if top_effects == ["none"]:
-        requires_descendants = False
+    payment_relevant = bool(top.get("payment_relevant"))
+    definition_relevant = bool(top.get("definition_relevant"))
+    requires_l2_classification = payment_relevant or definition_relevant
 
     top_result = {
         "title": str(top.get("title") or group.title),
-        "payment_effects": top_effects,
-        "requires_descendant_classification": requires_descendants,
+        "payment_relevant": payment_relevant,
+        "definition_relevant": definition_relevant,
+        "requires_l2_classification": requires_l2_classification,
         "reason": str(top.get("reason") or ""),
     }
 
     descendants_by_reference = {item.reference: item for item in group.descendants}
-    classified_raw = classification.get("classified_clauses")
-    if not isinstance(classified_raw, list):
-        raise PaymentClauseClassifierError("classified_clauses must be an array.")
-    if top_effects == ["none"] and classified_raw:
+    classified_raw = classification["classified_clauses"]
+    if not payment_relevant and not definition_relevant and classified_raw:
         raise PaymentClauseClassifierError(
-            f"Clause {group.reference} has no payment effects but returned classified clauses."
+            f"Clause {group.reference} is not payment or definition relevant but returned classified clauses."
         )
 
     classified: OrderedDict[str, dict[str, Any]] = OrderedDict()
     for item in classified_raw:
-        if not isinstance(item, Mapping):
-            raise PaymentClauseClassifierError("Each classified clause must be an object.")
-        reference = item.get("reference")
-        if not isinstance(reference, str) or reference not in descendants_by_reference:
+        reference = item["reference"]
+        if reference not in descendants_by_reference:
             raise PaymentClauseClassifierError(f"Unknown classified clause reference: {reference}")
 
         classified[reference] = {
             "text": descendants_by_reference[reference].text,
-            "tags": normalize_tags(item.get("tags"), f"Clause {reference}"),
-            "payment_effects": normalize_effects(item.get("payment_effects"), f"Clause {reference}"),
+            "tags": unique_items(item["tags"]),
             "reason": str(item.get("reason") or ""),
         }
 
@@ -371,23 +342,18 @@ def classify_group(
     client: Any,
     model: str,
 ) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
-    try:
-        response = client.responses.create(
-            model=model,
-            input=build_messages(group),
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "payment_clause_classification",
-                    "schema": response_json_schema(),
-                    "strict": True,
-                }
-            },
-        )
-    except Exception as exc:
-        raise PaymentClauseClassifierError(
-            f"OpenAI request failed for clause {group.reference}."
-        ) from exc
+    response = client.responses.create(
+        model=model,
+        input=build_messages(group),
+        text={
+            "format": {
+                "type": "json_schema",
+                "name": "payment_clause_classification",
+                "schema": response_json_schema(),
+                "strict": True,
+            }
+        },
+    )
 
     output_text = extract_response_text(response)
     if not output_text:
@@ -411,9 +377,9 @@ def classify_award(
 
     source_path = Path(award_path)
     award = load_award(source_path)
+    # Each group is one top-level clause plus its direct L2 clauses. The model classifies
+    # the top-level clause first, then returns any payment- or definition-relevant L2 clauses.
     groups = iter_top_level_groups(award)
-    if not groups:
-        raise PaymentClauseClassifierError(f"No top-level clauses found in award JSON: {source_path}")
 
     top_level_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
     classified_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -431,7 +397,9 @@ def classify_award(
     result["classified_clauses"] = classified_clauses
 
     destination = Path(output_path) if output_path else output_path_for_award(source_path)
-    destination.write_text(json.dumps(result, indent=2, ensure_ascii=False), encoding="utf-8")
+    output_json = json.dumps(result, indent=2, ensure_ascii=False)
+    destination.write_text(output_json, encoding="utf-8")
+    timestamped_output_path(destination).write_text(output_json, encoding="utf-8")
     return result
 
 

@@ -3,7 +3,7 @@ from pathlib import Path
 
 import gradio as gr
 
-from src.award_interpreter import (
+from src.Archive.award_interpreter import (
     DEFAULT_MODEL,
     DEFAULT_SECTIONS_PATH,
     AwardInterpreterError,

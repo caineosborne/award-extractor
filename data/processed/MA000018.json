@@ -22,19 +22,12 @@
       },
       "2.3": {
         "_content": [
-          "This award contains transitional arrangements which specify when particular parts of the award come into effect. Some of the transitional arrangements are in clauses in the main part of the award. There are also transitional arrangements in Schedule A . The arrangements in Schedule A deal with:"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              " minimum wages and piecework rates",
-              " casual or part-time loadings",
-              " Saturday, Sunday, public holiday, evening or other penalties",
-              " shift allowances/penalties."
-            ]
-          }
-        }
+          "This award contains transitional arrangements which specify when particular parts of the award come into effect. Some of the transitional arrangements are in clauses in the main part of the award. There are also transitional arrangements in Schedule A . The arrangements in Schedule A deal with:",
+          "- minimum wages and piecework rates",
+          "- casual or part-time loadings",
+          "- Saturday, Sunday, public holiday, evening or other penalties",
+          "- shift allowances/penalties."
+        ]
       },
       "2.4": {
         "_content": [
@@ -78,18 +71,11 @@
       ],
       "3.1": {
         "_content": [
-          "In this award, unless the contrary intention appears:"
+          "In this award, unless the contrary intention appears:",
+          "Act means the Fair Work Act 2009 (Cth)",
+          "adult apprentice means an apprentice who is 21 years of age or over at the commencement of their apprenticeship",
+          "aged care employee—direct care is an employee whose primary responsibility is to directly provide:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Act means the Fair Work Act 2009 (Cth)",
-              "adult apprentice means an apprentice who is 21 years of age or over at the commencement of their apprenticeship",
-              "aged care employee—direct care is an employee whose primary responsibility is to directly provide:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "personal care services to residents under the supervision of a registered or enrolled nurse, or"
@@ -97,44 +83,40 @@
         },
         "b": {
           "_content": [
-            "recreational/lifestyle activity services to residents;"
-          ],
-          "No Level 4": {
-            "_content": [
-              "including but not limited to undertaking duties of the following kind:",
-              " assisting with daily living activities;",
-              " attending to personal hygiene, physical, administrative and cognitive needs;",
-              " providing emotional care and social support;",
-              " assisting with participation in social and recreational activities; or",
-              " assisting with clinical care and provision of medical treatments and procedures where qualified to do so.",
-              "aged carer experience means previous employment experience as an aged care employee—direct care under this award or as a home care employee in aged care.",
-              "aged care industry means the provision of accommodation and care services for aged persons in a hostel, nursing home, aged care independent living units, aged care serviced apartments, garden settlement, retirement village or any other residential accommodation facility",
-              "agreement-based transitional instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "apprentice means an employee who is bound by a contract of training registered with the appropriate State or Territory training authority",
-              "award-based transitional instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "casual employee has the meaning given by section 15A of the Act",
-              "NOTE: Section 15A of the Act was amended with effect from 26 August 2024. Under clause 102(3) of Schedule 1 to the Act , an existing employee who was a casual employee of an employer under section 15A as it was immediately before that date is taken to be a casual employee of the employer for the purposes of section 15A after that date.",
-              "day shift means a shift worked between 6.00 am and 6.00 pm Monday to Friday",
-              "default fund employee means an employee who has no chosen fund within the meaning of the Superannuation Guarantee (Administration) Act 1992 (Cth)",
-              "defined benefit member has the meaning given by the Superannuation Guarantee (Administration) Act 1992 (Cth)",
-              "Division 2B State award has the meaning in Schedule 3A of the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "Division 2B State employment agreement has the meaning in Schedule 3A of the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "employee means national system employee within the meaning of the Act",
-              "employee organisation has the meaning given by section 12 of the Act .",
-              "employer means national system employer within the meaning of the Act",
-              "enterprise has the meaning given by section 12 of the Act .",
-              "enterprise award - based instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "exempt public sector superannuation scheme has the meaning given by the Superannuation Industry (Supervision) Act 1993 (Cth)",
-              "MySuper product has the meaning given by the Superannuation Industry (Supervision) Act 1993 (Cth)",
-              "NES means the National Employment Standards as contained in sections 59 to 131 of the Fair Work Act 2009 (Cth)",
-              "on-hire means the on-hire of an employee by their employer to a client, where such employee works under the general guidance and instruction of the client or a representative of the client",
-              "regular casual employee has the meaning given by section 12 of the Act",
-              "small business employer has the meaning given by section 23 of the Act .",
-              "standard rate means the minimum wage for an Aged care employee—general—level 6 in clause 14.1 .",
-              "transitional minimum wage instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
-              "workplace delegate has the meaning given by section 350C(1) of the Act ."
-            ]
-          }
+            "recreational/lifestyle activity services to residents;",
+            "including but not limited to undertaking duties of the following kind:",
+            "- assisting with daily living activities;",
+            "- attending to personal hygiene, physical, administrative and cognitive needs;",
+            "- providing emotional care and social support;",
+            "- assisting with participation in social and recreational activities; or",
+            "- assisting with clinical care and provision of medical treatments and procedures where qualified to do so.",
+            "aged carer experience means previous employment experience as an aged care employee—direct care under this award or as a home care employee in aged care.",
+            "aged care industry means the provision of accommodation and care services for aged persons in a hostel, nursing home, aged care independent living units, aged care serviced apartments, garden settlement, retirement village or any other residential accommodation facility",
+            "agreement-based transitional instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "apprentice means an employee who is bound by a contract of training registered with the appropriate State or Territory training authority",
+            "award-based transitional instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "casual employee has the meaning given by section 15A of the Act",
+            "NOTE: Section 15A of the Act was amended with effect from 26 August 2024. Under clause 102(3) of Schedule 1 to the Act , an existing employee who was a casual employee of an employer under section 15A as it was immediately before that date is taken to be a casual employee of the employer for the purposes of section 15A after that date.",
+            "day shift means a shift worked between 6.00 am and 6.00 pm Monday to Friday",
+            "default fund employee means an employee who has no chosen fund within the meaning of the Superannuation Guarantee (Administration) Act 1992 (Cth)",
+            "defined benefit member has the meaning given by the Superannuation Guarantee (Administration) Act 1992 (Cth)",
+            "Division 2B State award has the meaning in Schedule 3A of the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "Division 2B State employment agreement has the meaning in Schedule 3A of the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "employee means national system employee within the meaning of the Act",
+            "employee organisation has the meaning given by section 12 of the Act .",
+            "employer means national system employer within the meaning of the Act",
+            "enterprise has the meaning given by section 12 of the Act .",
+            "enterprise award - based instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "exempt public sector superannuation scheme has the meaning given by the Superannuation Industry (Supervision) Act 1993 (Cth)",
+            "MySuper product has the meaning given by the Superannuation Industry (Supervision) Act 1993 (Cth)",
+            "NES means the National Employment Standards as contained in sections 59 to 131 of the Fair Work Act 2009 (Cth)",
+            "on-hire means the on-hire of an employee by their employer to a client, where such employee works under the general guidance and instruction of the client or a representative of the client",
+            "regular casual employee has the meaning given by section 12 of the Act",
+            "small business employer has the meaning given by section 23 of the Act .",
+            "standard rate means the minimum wage for an Aged care employee—general—level 6 in clause 14.1 .",
+            "transitional minimum wage instrument has the meaning in the Fair Work (Transitional Provisions and Consequential Amendments) Act 2009 (Cth)",
+            "workplace delegate has the meaning given by section 350C(1) of the Act ."
+          ]
         }
       },
       "3.2": {
@@ -179,16 +161,9 @@
       },
       "4.7": {
         "_content": [
-          "Where an employer is covered by more than one award, an employee of that employer is covered by the award classification which is most appropriate to the work performed by the employee and to the environment in which the employee normally performs the work."
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "NOTE: Where there is no classification for a particular employee in this award it is possible that the employer and that employee are covered by an award with occupational coverage."
-            ]
-          }
-        }
+          "Where an employer is covered by more than one award, an employee of that employer is covered by the award classification which is most appropriate to the work performed by the employee and to the environment in which the employee normally performs the work.",
+          "NOTE: Where there is no classification for a particular employee in this award it is possible that the employer and that employee are covered by an award with occupational coverage."
+        ]
       }
     },
     "5": {
@@ -336,13 +311,9 @@
         },
         "b": {
           "_content": [
-            "by the employer or employee giving 13 weeks’ written notice to the other party (reduced to 4 weeks if the agreement was entered into before the first full pay period starting on or after 4 December 2013)."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Note: If an employer and employee agree to an arrangement that purports to be an individual flexibility arrangement under this award term and the arrangement does not meet a requirement set out in s.144 then the employee or the employer may terminate the arrangement by giving written notice of not more than 28 days (see s.145 of the Act )."
-            ]
-          }
+            "by the employer or employee giving 13 weeks’ written notice to the other party (reduced to 4 weeks if the agreement was entered into before the first full pay period starting on or after 4 December 2013).",
+            "Note: If an employer and employee agree to an arrangement that purports to be an individual flexibility arrangement under this award term and the arrangement does not meet a requirement set out in s.144 then the employee or the employer may terminate the arrangement by giving written notice of not more than 28 days (see s.145 of the Act )."
+          ]
         }
       },
       "7.12": {
@@ -365,16 +336,9 @@
       ],
       "7A": {
         "_content": [
-          "1 Clause 7A provides for the exercise of the rights of workplace delegates set out in section 350C of the Act ."
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "NOTE: Under section 350C(4) of the Act , the employer is taken to have afforded a workplace delegate the rights mentioned in section 350C(3) if the employer has complied with clause 7A."
-            ]
-          }
-        }
+          "1 Clause 7A provides for the exercise of the rights of workplace delegates set out in section 350C of the Act .",
+          "NOTE: Under section 350C(4) of the Act , the employer is taken to have afforded a workplace delegate the rights mentioned in section 350C(3) if the employer has complied with clause 7A."
+        ]
       },
       "7A [2]": {
         "_content": [
@@ -408,16 +372,9 @@
       },
       "7A [5]": {
         "_content": [
-          "5 Right of representation"
+          "5 Right of representation",
+          "A workplace delegate may represent the industrial interests of eligible workers who wish to be represented by the workplace delegate in matters including:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "A workplace delegate may represent the industrial interests of eligible workers who wish to be represented by the workplace delegate in matters including:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "consultation about major workplace change;"
@@ -516,16 +473,9 @@
       },
       "7A [7]": {
         "_content": [
-          "8 Entitlement to reasonable access to training"
+          "8 Entitlement to reasonable access to training",
+          "Unless the employer is a small business employer, the employer must provide a workplace delegate with access to up to 5 days of paid time during normal working hours for initial training and at least one day each subsequent year, to attend training related to representation of the industrial interests of eligible workers, subject to the following conditions:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Unless the employer is a small business employer, the employer must provide a workplace delegate with access to up to 5 days of paid time during normal working hours for initial training and at least one day each subsequent year, to attend training related to representation of the industrial interests of eligible workers, subject to the following conditions:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "In each year commencing 1 July, the employer is not required to provide access to paid time for training to more than one workplace delegate per 50 eligible workers."
@@ -613,13 +563,9 @@
         },
         "d": {
           "_content": [
-            "Clause 7A does not require an eligible worker to be represented by a workplace delegate without the worker’s agreement."
+            "Clause 7A does not require an eligible worker to be represented by a workplace delegate without the worker’s agreement.",
+            "NOTE: Under section 350A of the Act , the employer must not:"
           ],
-          "No Level 4": {
-            "_content": [
-              "NOTE: Under section 350A of the Act , the employer must not:"
-            ]
-          },
           "a": {
             "_content": [
               "unreasonably fail or refuse to deal with a workplace delegate; or"
@@ -709,16 +655,9 @@
       },
       "8.5": {
         "_content": [
-          "In clause 8 :"
+          "In clause 8 :",
+          "significant effects , on employees, includes any of the following:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "significant effects , on employees, includes any of the following:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "termination of employment; or"
@@ -909,27 +848,16 @@
         },
         "c": {
           "_content": [
-            "casual."
-          ],
-          "No Level 4": {
-            "_content": [
-              "At the time of engagement an employer will inform each employee whether they are employed on a full-time, part-time or casual basis. An employer may direct an employee to carry out such duties that are within the limits of the employee’s skill, competence and training, consistent with the respective classification."
-            ]
-          }
+            "casual.",
+            "At the time of engagement an employer will inform each employee whether they are employed on a full-time, part-time or casual basis. An employer may direct an employee to carry out such duties that are within the limits of the employee’s skill, competence and training, consistent with the respective classification."
+          ]
         }
       },
       "10.2": {
         "_content": [
-          "Full-time employees"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "A full-time employee is one who is engaged to work 38 hours per week or an average of 38 hours per week pursuant to clause 22.1 of this award."
-            ]
-          }
-        }
+          "Full-time employees",
+          "A full-time employee is one who is engaged to work 38 hours per week or an average of 38 hours per week pursuant to clause 22.1 of this award."
+        ]
       },
       "10.3": {
         "_content": [
@@ -983,17 +911,10 @@
       },
       "10.5": {
         "_content": [
-          "Changes to casual employment status"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "A pathway for employees to change from casual employment to full-time or part-time employment is provided for in the NES . See sections 66A to 66MA of the Act .",
-              "NOTE: Disputes about changes to casual employment status may be dealt with under sections 66M and 66MA of the Act and/or under clause 9 — Dispute resolution ."
-            ]
-          }
-        }
+          "Changes to casual employment status",
+          "A pathway for employees to change from casual employment to full-time or part-time employment is provided for in the NES . See sections 66A to 66MA of the Act .",
+          "NOTE: Disputes about changes to casual employment status may be dealt with under sections 66M and 66MA of the Act and/or under clause 9 — Dispute resolution ."
+        ]
       }
     },
     "11": {
@@ -1011,39 +932,35 @@
         },
         "b": {
           "_content": [
-            "An employee must give the employer notice of termination in accordance with Table 1—Period of notice of at least the period specified in column 2 according to the period of continuous service of the employee specified in column 1."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Table 1—Period of notice",
-              {
-                "type": "table",
-                "headers": [
-                  "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given",
-                  "Column 2 Period of notice"
-                ],
-                "rows": [
-                  {
-                    "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "Not more than 1 year",
-                    "Column 2 Period of notice": "1 week"
-                  },
-                  {
-                    "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 1 year but not more than 3 years",
-                    "Column 2 Period of notice": "2 weeks"
-                  },
-                  {
-                    "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 3 years but not more than 5 years",
-                    "Column 2 Period of notice": "3 weeks"
-                  },
-                  {
-                    "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 5 years",
-                    "Column 2 Period of notice": "4 weeks"
-                  }
-                ]
-              },
-              "Note: The notice of termination required to be given by an employee is the same as that required of an employer except that the employee does not have to give additional notice based on the age of the employee."
-            ]
-          }
+            "An employee must give the employer notice of termination in accordance with Table 1—Period of notice of at least the period specified in column 2 according to the period of continuous service of the employee specified in column 1.",
+            "Table 1—Period of notice",
+            {
+              "type": "table",
+              "headers": [
+                "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given",
+                "Column 2 Period of notice"
+              ],
+              "rows": [
+                {
+                  "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "Not more than 1 year",
+                  "Column 2 Period of notice": "1 week"
+                },
+                {
+                  "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 1 year but not more than 3 years",
+                  "Column 2 Period of notice": "2 weeks"
+                },
+                {
+                  "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 3 years but not more than 5 years",
+                  "Column 2 Period of notice": "3 weeks"
+                },
+                {
+                  "Column 1 Employee’s period of continuous service with the employer at the end of the day the notice is given": "More than 5 years",
+                  "Column 2 Period of notice": "4 weeks"
+                }
+              ]
+            },
+            "Note: The notice of termination required to be given by an employee is the same as that required of an employer except that the employee does not have to give additional notice based on the age of the employee."
+          ]
         },
         "c": {
           "_content": [
@@ -1068,16 +985,9 @@
       },
       "11.2": {
         "_content": [
-          "Job search entitlement"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Where an employer has given notice of termination to an employee, the employee must be allowed time off without loss of pay of up to one day for the purpose of seeking other employment."
-            ]
-          }
-        }
+          "Job search entitlement",
+          "Where an employer has given notice of termination to an employee, the employee must be allowed time off without loss of pay of up to one day for the purpose of seeking other employment."
+        ]
       },
       "11.3": {
         "_content": [
@@ -1184,193 +1094,165 @@
       ],
       "14.1": {
         "_content": [
-          "Aged care employee—general"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "The following minimum wages apply to employees in the classifications listed in clause B.1 , other than senior food services employees paid in accordance with clause 14.2 .",
+          "Aged care employee—general",
+          "The following minimum wages apply to employees in the classifications listed in clause B.1 , other than senior food services employees paid in accordance with clause 14.2 .",
+          {
+            "type": "table",
+            "headers": [
+              "Classification",
+              "Per week"
+            ],
+            "rows": [
               {
-                "type": "table",
-                "headers": [
-                  "Classification",
-                  "Per week"
-                ],
-                "rows": [
-                  {
-                    "Classification": "",
-                    "Per week": "$"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 1",
-                    "Per week": "1007.50"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 2",
-                    "Per week": "1047.40"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 3",
-                    "Per week": "1087.70"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 4",
-                    "Per week": "1100.50"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 5",
-                    "Per week": "1137.80"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 6",
-                    "Per week": "1199.00"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 7",
-                    "Per week": "1220.60"
-                  }
-                ]
+                "Classification": "",
+                "Per week": "$"
+              },
+              {
+                "Classification": "Aged care employee—general—level 1",
+                "Per week": "1007.50"
+              },
+              {
+                "Classification": "Aged care employee—general—level 2",
+                "Per week": "1047.40"
+              },
+              {
+                "Classification": "Aged care employee—general—level 3",
+                "Per week": "1087.70"
+              },
+              {
+                "Classification": "Aged care employee—general—level 4",
+                "Per week": "1100.50"
+              },
+              {
+                "Classification": "Aged care employee—general—level 5",
+                "Per week": "1137.80"
+              },
+              {
+                "Classification": "Aged care employee—general—level 6",
+                "Per week": "1199.00"
+              },
+              {
+                "Classification": "Aged care employee—general—level 7",
+                "Per week": "1220.60"
               }
             ]
           }
-        }
+        ]
       },
       "14.2": {
         "_content": [
-          "Aged care employee—general—most senior food services employee"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "The following minimum wages apply to an employee in the classifications Aged care employee—general—levels 4 to 7 listed in clause B.1 , if that employee is the single most senior food services employee engaged by any employer at the facility or site.",
+          "Aged care employee—general—most senior food services employee",
+          "The following minimum wages apply to an employee in the classifications Aged care employee—general—levels 4 to 7 listed in clause B.1 , if that employee is the single most senior food services employee engaged by any employer at the facility or site.",
+          {
+            "type": "table",
+            "headers": [
+              "Classification",
+              "Per week"
+            ],
+            "rows": [
               {
-                "type": "table",
-                "headers": [
-                  "Classification",
-                  "Per week"
-                ],
-                "rows": [
-                  {
-                    "Classification": "",
-                    "Per week": "$"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 4",
-                    "Per week": "1228.60"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 5",
-                    "Per week": "1270.40"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 6",
-                    "Per week": "1338.90"
-                  },
-                  {
-                    "Classification": "Aged care employee—general—level 7",
-                    "Per week": "1362.80"
-                  }
-                ]
+                "Classification": "",
+                "Per week": "$"
+              },
+              {
+                "Classification": "Aged care employee—general—level 4",
+                "Per week": "1228.60"
+              },
+              {
+                "Classification": "Aged care employee—general—level 5",
+                "Per week": "1270.40"
+              },
+              {
+                "Classification": "Aged care employee—general—level 6",
+                "Per week": "1338.90"
+              },
+              {
+                "Classification": "Aged care employee—general—level 7",
+                "Per week": "1362.80"
               }
             ]
           }
-        }
+        ]
       },
       "14.3": {
         "_content": [
-          "Aged care employee—direct care"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "The following minimum wages apply to employees in the classifications listed in clause B.2 .",
+          "Aged care employee—direct care",
+          "The following minimum wages apply to employees in the classifications listed in clause B.2 .",
+          {
+            "type": "table",
+            "headers": [
+              "Classification",
+              "Per week"
+            ],
+            "rows": [
               {
-                "type": "table",
-                "headers": [
-                  "Classification",
-                  "Per week"
-                ],
-                "rows": [
-                  {
-                    "Classification": "",
-                    "Per week": "$"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 1—Introductory",
-                    "Per week": "1182.80"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 2—Direct Carer",
-                    "Per week": "1248.50"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 3—Qualified",
-                    "Per week": "1314.30"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 4—Senior",
-                    "Per week": "1366.90"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 5—Specialist",
-                    "Per week": "1419.40"
-                  },
-                  {
-                    "Classification": "Aged care employee—direct care—level 6—Team Leader",
-                    "Per week": "1472.00"
-                  }
-                ]
+                "Classification": "",
+                "Per week": "$"
               },
-              "NOTE: See Schedule I —Classification Translation Arrangements for the minimum rate of pay applicable to employees who were classified as an Aged care employee—direct care under this award on or before 31 December 2024 and employees covered by the Nurses Award 2020 on 31 December 2024 who became covered by this award as a result of PR779152 ."
+              {
+                "Classification": "Aged care employee—direct care—level 1—Introductory",
+                "Per week": "1182.80"
+              },
+              {
+                "Classification": "Aged care employee—direct care—level 2—Direct Carer",
+                "Per week": "1248.50"
+              },
+              {
+                "Classification": "Aged care employee—direct care—level 3—Qualified",
+                "Per week": "1314.30"
+              },
+              {
+                "Classification": "Aged care employee—direct care—level 4—Senior",
+                "Per week": "1366.90"
+              },
+              {
+                "Classification": "Aged care employee—direct care—level 5—Specialist",
+                "Per week": "1419.40"
+              },
+              {
+                "Classification": "Aged care employee—direct care—level 6—Team Leader",
+                "Per week": "1472.00"
+              }
             ]
-          }
-        }
+          },
+          "NOTE: See Schedule I —Classification Translation Arrangements for the minimum rate of pay applicable to employees who were classified as an Aged care employee—direct care under this award on or before 31 December 2024 and employees covered by the Nurses Award 2020 on 31 December 2024 who became covered by this award as a result of PR779152 ."
+        ]
       },
       "14.4": {
         "_content": [
-          "Cooking apprentices"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "An employee apprenticed in the cooking trade will be paid the percentage of the minimum wage for an aged care employee—general—level 4 in clause 14.1 set out in the following table:",
+          "Cooking apprentices",
+          "An employee apprenticed in the cooking trade will be paid the percentage of the minimum wage for an aged care employee—general—level 4 in clause 14.1 set out in the following table:",
+          {
+            "type": "table",
+            "headers": [
+              "Year of apprenticeship",
+              "% of Level 4 rate for apprentices who have not completed year 12",
+              "% of Level 4 rate for apprentices who have completed year 12"
+            ],
+            "rows": [
               {
-                "type": "table",
-                "headers": [
-                  "Year of apprenticeship",
-                  "% of Level 4 rate for apprentices who have not completed year 12",
-                  "% of Level 4 rate for apprentices who have completed year 12"
-                ],
-                "rows": [
-                  {
-                    "Year of apprenticeship": "1st year",
-                    "% of Level 4 rate for apprentices who have not completed year 12": "55",
-                    "% of Level 4 rate for apprentices who have completed year 12": "55"
-                  },
-                  {
-                    "Year of apprenticeship": "2nd year",
-                    "% of Level 4 rate for apprentices who have not completed year 12": "65",
-                    "% of Level 4 rate for apprentices who have completed year 12": "65"
-                  },
-                  {
-                    "Year of apprenticeship": "3rd year",
-                    "% of Level 4 rate for apprentices who have not completed year 12": "80",
-                    "% of Level 4 rate for apprentices who have completed year 12": "80"
-                  },
-                  {
-                    "Year of apprenticeship": "4th year",
-                    "% of Level 4 rate for apprentices who have not completed year 12": "95",
-                    "% of Level 4 rate for apprentices who have completed year 12": "95"
-                  }
-                ]
+                "Year of apprenticeship": "1st year",
+                "% of Level 4 rate for apprentices who have not completed year 12": "55",
+                "% of Level 4 rate for apprentices who have completed year 12": "55"
+              },
+              {
+                "Year of apprenticeship": "2nd year",
+                "% of Level 4 rate for apprentices who have not completed year 12": "65",
+                "% of Level 4 rate for apprentices who have completed year 12": "65"
+              },
+              {
+                "Year of apprenticeship": "3rd year",
+                "% of Level 4 rate for apprentices who have not completed year 12": "80",
+                "% of Level 4 rate for apprentices who have completed year 12": "80"
+              },
+              {
+                "Year of apprenticeship": "4th year",
+                "% of Level 4 rate for apprentices who have not completed year 12": "95",
+                "% of Level 4 rate for apprentices who have completed year 12": "95"
               }
             ]
           }
-        }
+        ]
       },
       "14.5": {
         "_content": [
@@ -1684,16 +1566,9 @@
       },
       "15.6": {
         "_content": [
-          "Tool allowance"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "A tool allowance of $13.41 per week for the supply and maintenance of tools will be paid to chefs and cooks who are not provided with all necessary tools by the employer."
-            ]
-          }
-        }
+          "Tool allowance",
+          "A tool allowance of $13.41 per week for the supply and maintenance of tools will be paid to chefs and cooks who are not provided with all necessary tools by the employer."
+        ]
       },
       "15.7": {
         "_content": [
@@ -1732,16 +1607,9 @@
       },
       "17.2": {
         "_content": [
-          "Method of payment"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Subject to clause 17.4 , by no later than payday, wages must be paid by cash or electronic funds transfer, the latter into the bank or financial institutional account nominated by the employee."
-            ]
-          }
-        }
+          "Method of payment",
+          "Subject to clause 17.4 , by no later than payday, wages must be paid by cash or electronic funds transfer, the latter into the bank or financial institutional account nominated by the employee."
+        ]
       },
       "17.3": {
         "_content": [
@@ -1759,29 +1627,18 @@
         },
         "c": {
           "_content": [
-            "The requirement to pay wages and other amounts under clauses 17.3(a) and (b) is subject to further order of the Commission and the employer making deductions authorised by this award or the Act ."
-          ],
-          "No Level 4": {
-            "_content": [
-              "NOTE 1: Section 117(2) of the Act provides that an employer must not terminate an employee’s employment unless the employer has given the required minimum period of notice or “has paid” to the employee payment instead of giving them notice.",
-              "NOTE 2: Clause 17.3(c) allows the Commission to make an order delaying the requirement to make a payment under clause 17.3(a) or 17.3(b) . For example, the Commission could make an order delaying the requirement to pay redundancy pay if an employer makes an application under section 120 of the Act for the Commission to reduce the amount of redundancy pay an employee is entitled to under the NES .",
-              "NOTE 3: State and Territory long service leave laws or long service leave entitlements under section 113 of the Act , may require an employer to pay an employee for accrued long service leave on the day on which the employee’s employment terminates or shortly after."
-            ]
-          }
+            "The requirement to pay wages and other amounts under clauses 17.3(a) and (b) is subject to further order of the Commission and the employer making deductions authorised by this award or the Act .",
+            "NOTE 1: Section 117(2) of the Act provides that an employer must not terminate an employee’s employment unless the employer has given the required minimum period of notice or “has paid” to the employee payment instead of giving them notice.",
+            "NOTE 2: Clause 17.3(c) allows the Commission to make an order delaying the requirement to make a payment under clause 17.3(a) or 17.3(b) . For example, the Commission could make an order delaying the requirement to pay redundancy pay if an employer makes an application under section 120 of the Act for the Commission to reduce the amount of redundancy pay an employee is entitled to under the NES .",
+            "NOTE 3: State and Territory long service leave laws or long service leave entitlements under section 113 of the Act , may require an employer to pay an employee for accrued long service leave on the day on which the employee’s employment terminates or shortly after."
+          ]
         }
       },
       "17.4": {
         "_content": [
-          "Delay"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Notwithstanding the above, an employer will not be held liable for any unforeseen event outside the control of the employer which prevents the employer’s ability to meet the requirements of this clause, for example bank error or delay."
-            ]
-          }
-        }
+          "Delay",
+          "Notwithstanding the above, an employer will not be held liable for any unforeseen event outside the control of the employer which prevents the employer’s ability to meet the requirements of this clause, for example bank error or delay."
+        ]
       }
     },
     "18": {
@@ -1791,19 +1648,9 @@
     },
     "19": {
       "_content": [
-        "Supported wage system"
-      ],
-      "No Level 2": {
-        "_content": [],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "See Schedule C"
-            ]
-          }
-        }
-      }
+        "Supported wage system",
+        "See Schedule C"
+      ]
     },
     "20": {
       "_content": [
@@ -1835,47 +1682,36 @@
         },
         "b": {
           "_content": [
-            "The rights and obligations in clause 21 supplement those in superannuation legislation and the NES ."
+            "The rights and obligations in clause 21 supplement those in superannuation legislation and the NES .",
+            "NOTE: Under superannuation legislation:"
           ],
-          "No Level 4": {
+          "a": {
             "_content": [
-              "NOTE: Under superannuation legislation:"
-            ],
-            "a": {
-              "_content": [
-                "Individual employees generally have the opportunity to choose their own superannuation fund."
-              ]
-            },
-            "b": {
-              "_content": [
-                "If a new employee does not choose a superannuation fund, the employer must ask the Australian Taxation Office (ATO) whether the employee is an existing member of a stapled superannuation fund and, if stapled fund details are provided by the ATO, make contributions to the stapled fund."
-              ]
-            },
-            "c": {
-              "_content": [
-                "If an employee does not choose a superannuation fund and does not have a stapled fund, the choice of superannuation fund requirements will be satisfied by contributions made to a superannuation fund nominated in the award covering the employee, provided the fund is able to accept contributions for the benefit of the employee."
-              ]
-            },
-            "d": {
-              "_content": [
-                "A fund may not be able to accept contributions for the benefit of an employee if the employee would be a new member of the fund’s MySuper product and the MySuper product is closed to new members because it has failed the performance tests of Australian Prudential Regulation Authority (APRA) for 2 consecutive years."
-              ]
-            }
+              "Individual employees generally have the opportunity to choose their own superannuation fund."
+            ]
+          },
+          "b": {
+            "_content": [
+              "If a new employee does not choose a superannuation fund, the employer must ask the Australian Taxation Office (ATO) whether the employee is an existing member of a stapled superannuation fund and, if stapled fund details are provided by the ATO, make contributions to the stapled fund."
+            ]
+          },
+          "c": {
+            "_content": [
+              "If an employee does not choose a superannuation fund and does not have a stapled fund, the choice of superannuation fund requirements will be satisfied by contributions made to a superannuation fund nominated in the award covering the employee, provided the fund is able to accept contributions for the benefit of the employee."
+            ]
+          },
+          "d": {
+            "_content": [
+              "A fund may not be able to accept contributions for the benefit of an employee if the employee would be a new member of the fund’s MySuper product and the MySuper product is closed to new members because it has failed the performance tests of Australian Prudential Regulation Authority (APRA) for 2 consecutive years."
+            ]
           }
         }
       },
       "21.2": {
         "_content": [
-          "Employer contributions"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "An employer must make such superannuation contributions to a superannuation fund for the benefit of an employee as will avoid the employer being required to pay the superannuation guarantee charge under superannuation legislation with respect to that employee."
-            ]
-          }
-        }
+          "Employer contributions",
+          "An employer must make such superannuation contributions to a superannuation fund for the benefit of an employee as will avoid the employer being required to pay the superannuation guarantee charge under superannuation legislation with respect to that employee."
+        ]
       },
       "21.3": {
         "_content": [
@@ -1899,16 +1735,9 @@
       },
       "21.4": {
         "_content": [
-          "Superannuation fund"
+          "Superannuation fund",
+          "Unless, to comply with superannuation legislation, the employer is required to make the superannuation contributions provided for in clause 21.2 to another superannuation fund, the employer must make the superannuation contributions provided for in clause 21.2 and pay any amount authorised under clauses 21.3(a) or 21.3(b) to one of the following superannuation funds or its successor, provided that, in respect of new employees, the fund is able to accept new beneficiaries:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Unless, to comply with superannuation legislation, the employer is required to make the superannuation contributions provided for in clause 21.2 to another superannuation fund, the employer must make the superannuation contributions provided for in clause 21.2 and pay any amount authorised under clauses 21.3(a) or 21.3(b) to one of the following superannuation funds or its successor, provided that, in respect of new employees, the fund is able to accept new beneficiaries:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "Aware Super;"
@@ -1970,16 +1799,9 @@
       ],
       "22.1": {
         "_content": [
-          "Ordinary hours of work"
+          "Ordinary hours of work",
+          "The ordinary hours of work will be 38 hours per week, or an average of 38 hours per week worked over 76 hours per fortnight or 114 hours per 21 days or 152 hours per four week period, and will be worked either:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "The ordinary hours of work will be 38 hours per week, or an average of 38 hours per week worked over 76 hours per fortnight or 114 hours per 21 days or 152 hours per four week period, and will be worked either:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "in a period of 28 calendar days of not more than 20 work days in a roster cycle;"
@@ -2013,16 +1835,9 @@
       },
       "22.3": {
         "_content": [
-          "Rostered days off"
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Employees, other than a casual employee, will be free from duty for not less than two full days in each week or four full days in each fortnight or eight full days in each 28 day cycle. Where practicable, days off will be consecutive."
-            ]
-          }
-        }
+          "Rostered days off",
+          "Employees, other than a casual employee, will be free from duty for not less than two full days in each week or four full days in each fortnight or eight full days in each 28 day cycle. Where practicable, days off will be consecutive."
+        ]
       },
       "22.4": {
         "_content": [
@@ -2126,16 +1941,9 @@
       },
       "22.8": {
         "_content": [
-          "Broken shifts"
+          "Broken shifts",
+          "With respect to broken shifts:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "With respect to broken shifts:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "Broken shift for the purposes of this clause means a shift worked by a casual or permanent part-time employee that includes breaks (other than a meal break) totalling not more than four hours and where the span of hours is not more than 12 hours."
@@ -2169,17 +1977,10 @@
       },
       "22.9": {
         "_content": [
-          "Sleepovers"
+          "Sleepovers",
+          "Employees may, in addition to normal rostered shifts, be required to sleepover. A sleepover means sleeping in at night in order to be on call for emergencies.",
+          "The following conditions will apply to each night of sleepover:"
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Employees may, in addition to normal rostered shifts, be required to sleepover. A sleepover means sleeping in at night in order to be on call for emergencies.",
-              "The following conditions will apply to each night of sleepover:"
-            ]
-          }
-        },
         "a": {
           "_content": [
             "The span for a sleepover will be not less than eight hours and not more than 10 hours on any one night."
@@ -2266,23 +2067,16 @@
       ],
       "22A": {
         "_content": [
-          "1 Clause 22A provides for the exercise of an employee’s right to disconnect under section 333M of the Act ."
-        ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "NOTE:",
-              "(a) Section 333M provides that, unless it is unreasonable to do so, an employee may refuse to monitor, read or respond to contact, or attempted contact, from:",
-              "(1) their employer outside of the employee’s working hours,",
-              "(2) a third party if the contact or attempted contact relates to, their work and is outside of the employee's working hours.",
-              "(b) Section 333M(3) lists matters that must be taken into account in determining whether an employee’s refusal is unreasonable.",
-              "(c) Section 333M(5) provides that an employee’s refusal will be unreasonable if the contact or attempted contact is required under a law of the Commonwealth, a State or a Territory.",
-              "(d) Section 333N provides for the resolution of disputes about whether an employee’s refusal is unreasonable and about the operation of section 333M.",
-              "(e) The general protections in Part 3–1 of the Act prohibit an employer taking adverse action against an employee because of the employee’s right to disconnect under section 333M of the Act ."
-            ]
-          }
-        }
+          "1 Clause 22A provides for the exercise of an employee’s right to disconnect under section 333M of the Act .",
+          "NOTE:",
+          "(a) Section 333M provides that, unless it is unreasonable to do so, an employee may refuse to monitor, read or respond to contact, or attempted contact, from:",
+          "(1) their employer outside of the employee’s working hours,",
+          "(2) a third party if the contact or attempted contact relates to, their work and is outside of the employee's working hours.",
+          "(b) Section 333M(3) lists matters that must be taken into account in determining whether an employee’s refusal is unreasonable.",
+          "(c) Section 333M(5) provides that an employee’s refusal will be unreasonable if the contact or attempted contact is required under a law of the Commonwealth, a State or a Territory.",
+          "(d) Section 333N provides for the resolution of disputes about whether an employee’s refusal is unreasonable and about the operation of section 333M.",
+          "(e) The general protections in Part 3–1 of the Act prohibit an employer taking adverse action against an employee because of the employee’s right to disconnect under section 333M of the Act ."
+        ]
       },
       "22A [2]": {
         "_content": [
@@ -2546,13 +2340,9 @@
         },
         "e": {
           "_content": [
-            "Recall to work overtime"
-          ],
-          "No Level 4": {
-            "_content": [
-              "An employee recalled to work overtime after leaving the employer’s premises will be paid for a minimum of four hours’ work at the appropriate rate for each time so recalled. If the work required is completed in less than four hours, the employee will be released from duty."
-            ]
-          }
+            "Recall to work overtime",
+            "An employee recalled to work overtime after leaving the employer’s premises will be paid for a minimum of four hours’ work at the appropriate rate for each time so recalled. If the work required is completed in less than four hours, the employee will be released from duty."
+          ]
         },
         "f": {
           "_content": [
@@ -2612,13 +2402,9 @@
         },
         "d": {
           "_content": [
-            "The period of time off that an employee is entitled to take is the same as the number of overtime hours worked."
-          ],
-          "No Level 4": {
-            "_content": [
-              "EXAMPLE: By making an agreement under clause 25.2 an employee who worked 2 overtime hours is entitled to 2 hours’ time off."
-            ]
-          }
+            "The period of time off that an employee is entitled to take is the same as the number of overtime hours worked.",
+            "EXAMPLE: By making an agreement under clause 25.2 an employee who worked 2 overtime hours is entitled to 2 hours’ time off."
+          ]
         },
         "e": {
           "_content": [
@@ -2657,23 +2443,15 @@
         },
         "j": {
           "_content": [
-            "An employee may, under section 65 of the Act, request to take time off, at a time or times specified in the request or to be subsequently agreed by the employer and the employee, instead of being paid for overtime worked by the employee. If the employer agrees to the request then clause 25.2 will apply, including the requirement for separate written agreements under paragraph (b) for overtime that has been worked."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Note: If an employee makes a request under section 65 of the Act for a change in working arrangements, the employer may only refuse that request on reasonable business grounds (see section 65A(3) of the Act )."
-            ]
-          }
+            "An employee may, under section 65 of the Act, request to take time off, at a time or times specified in the request or to be subsequently agreed by the employer and the employee, instead of being paid for overtime worked by the employee. If the employer agrees to the request then clause 25.2 will apply, including the requirement for separate written agreements under paragraph (b) for overtime that has been worked.",
+            "Note: If an employee makes a request under section 65 of the Act for a change in working arrangements, the employer may only refuse that request on reasonable business grounds (see section 65A(3) of the Act )."
+          ]
         },
         "k": {
           "_content": [
-            "If, on the termination of the employee’s employment, time off for overtime worked by the employee to which clause 25.2 applies has not been taken, the employer must pay the employee for the overtime at the overtime rate applicable to the overtime when worked."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Note: Under section 345(1) of the Act, a person must not knowingly or recklessly make a false or misleading representation about the workplace rights of another person under clause 25.2 ."
-            ]
-          }
+            "If, on the termination of the employee’s employment, time off for overtime worked by the employee to which clause 25.2 applies has not been taken, the employer must pay the employee for the overtime at the overtime rate applicable to the overtime when worked.",
+            "Note: Under section 345(1) of the Act, a person must not knowingly or recklessly make a false or misleading representation about the workplace rights of another person under clause 25.2 ."
+          ]
         }
       }
     },
@@ -2683,16 +2461,9 @@
       ],
       "26.1": {
         "_content": [
-          "Shift allowances and penalty rates"
+          "Shift allowances and penalty rates",
+          "Employees working afternoon or night shift will be paid the following percentages in addition to the ordinary rate for such shift. Provided that employees who work less than 38 hours per week will only be entitled to the additional rates where their shift commence prior to 6.00 am or finish subsequent to 6.00 pm."
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Employees working afternoon or night shift will be paid the following percentages in addition to the ordinary rate for such shift. Provided that employees who work less than 38 hours per week will only be entitled to the additional rates where their shift commence prior to 6.00 am or finish subsequent to 6.00 pm."
-            ]
-          }
-        },
         "a": {
           "_content": [
             "Afternoon shift commencing at 10.00 am and before 1.00 pm—10% of the ordinary hourly rate"
@@ -2803,13 +2574,9 @@
         },
         "b": {
           "_content": [
-            "An employee subject to this clause is entitled to the same quantum of annual leave as if they were covered by the Nurses Award 2020 ."
-          ],
-          "No Level 4": {
-            "_content": [
-              "NOTE: In addition to the entitlements in the NES , an employee under the Nurses Award 2020 is entitled to an additional week of annual leave on the same terms and conditions."
-            ]
-          }
+            "An employee subject to this clause is entitled to the same quantum of annual leave as if they were covered by the Nurses Award 2020 .",
+            "NOTE: In addition to the entitlements in the NES , an employee under the Nurses Award 2020 is entitled to an additional week of annual leave on the same terms and conditions."
+          ]
         }
       },
       "28.4": {
@@ -2924,29 +2691,18 @@
         },
         "i": {
           "_content": [
-            "The employer must keep a copy of any agreement under clause 28.6 as an employee record."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Note 1: Under section 344 of the Fair Work Act , an employer must not exert undue influence or undue pressure on an employee to make, or not make, an agreement under clause 28.6 .",
-              "Note 2: Under section 345(1) of the Fair Work Act , a person must not knowingly or recklessly make a false or misleading representation about the workplace rights of another person under clause 28.6 .",
-              "Note 3: An example of the type of agreement required by clause 28.6 is set out at Schedule G . There is no requirement to use the form of agreement set out at Schedule G ."
-            ]
-          }
+            "The employer must keep a copy of any agreement under clause 28.6 as an employee record.",
+            "Note 1: Under section 344 of the Fair Work Act , an employer must not exert undue influence or undue pressure on an employee to make, or not make, an agreement under clause 28.6 .",
+            "Note 2: Under section 345(1) of the Fair Work Act , a person must not knowingly or recklessly make a false or misleading representation about the workplace rights of another person under clause 28.6 .",
+            "Note 3: An example of the type of agreement required by clause 28.6 is set out at Schedule G . There is no requirement to use the form of agreement set out at Schedule G ."
+          ]
         }
       },
       "28.7": {
         "_content": [
-          "Excessive leave accruals: general provision"
+          "Excessive leave accruals: general provision",
+          "Note: Clauses 28.7 to 28.9 contain provisions, additional to the National Employment Standards, about the taking of paid annual leave as a way of dealing with the accrual of excessive paid annual leave. See Part 2.2, Division 6 of the Fair Work Act ."
         ],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "Note: Clauses 28.7 to 28.9 contain provisions, additional to the National Employment Standards, about the taking of paid annual leave as a way of dealing with the accrual of excessive paid annual leave. See Part 2.2, Division 6 of the Fair Work Act ."
-            ]
-          }
-        },
         "a": {
           "_content": [
             "An employee has an excessive leave accrual if the employee has accrued more than 8 weeks’ paid annual leave (or 10 weeks’ paid annual leave for a shiftworker, as defined by clause 28.2(a) )."
@@ -3009,14 +2765,10 @@
         },
         "d": {
           "_content": [
-            "An employee to whom a direction has been given under paragraph (a) may request to take a period of paid annual leave as if the direction had not been given."
-          ],
-          "No Level 4": {
-            "_content": [
-              "Note 1: Paid annual leave arising from a request mentioned in paragraph (d) may result in the direction ceasing to have effect. See clause 28.8(b)(i) .",
-              "Note 2: Under section 88(2) of the Fair Work Act , the employer must not unreasonably refuse to agree to a request by the employee to take paid annual leave."
-            ]
-          }
+            "An employee to whom a direction has been given under paragraph (a) may request to take a period of paid annual leave as if the direction had not been given.",
+            "Note 1: Paid annual leave arising from a request mentioned in paragraph (d) may result in the direction ceasing to have effect. See clause 28.8(b)(i) .",
+            "Note 2: Under section 88(2) of the Fair Work Act , the employer must not unreasonably refuse to agree to a request by the employee to take paid annual leave."
+          ]
         }
       },
       "28.9": {
@@ -3095,13 +2847,9 @@
         ],
         "a": {
           "_content": [
-            "Full-time day workers"
+            "Full-time day workers",
+            "A full-time employee who will, in addition to their ordinary pay for work performed on a public holiday, elect to receive one of the following:"
           ],
-          "No Level 4": {
-            "_content": [
-              "A full-time employee who will, in addition to their ordinary pay for work performed on a public holiday, elect to receive one of the following:"
-            ]
-          },
           "i": {
             "_content": [
               "payment of an additional sum equal to 150% for hours worked; or"
@@ -3187,433 +2935,419 @@
     },
     "33": {
       "_content": [
-        "Family and domestic violence leave"
-      ],
-      "No Level 2": {
-        "_content": [],
-        "No Level 3": {
-          "_content": [],
-          "No Level 4": {
-            "_content": [
-              "by a transitional minimum wage instrument and/or an award-based transitional instrument to pay a minimum wage lower than that in this award for any classification of employee.",
-              {
-                "type": "table",
-                "headers": [
-                  "First full pay period on or after",
-                  ""
-                ],
-                "rows": [
-                  [
-                    "1 July 2010",
-                    "80%"
-                  ],
-                  [
-                    "1 July 2011",
-                    "60%"
-                  ],
-                  [
-                    "1 July 2012",
-                    "40%"
-                  ],
-                  [
-                    "1 July 2013",
-                    "20%"
-                  ]
-                ]
-              },
-              "by a transitional minimum wage instrument and/or an award-based transitional instrument to pay a minimum wage higher than that in this award for any classification of employee.",
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "First full pay period on or after",
-                    ""
-                  ],
-                  [
-                    "1 July 2010",
-                    "80%"
-                  ],
-                  [
-                    "1 July 2011",
-                    "60%"
-                  ],
-                  [
-                    "1 July 2012",
-                    "40%"
-                  ],
-                  [
-                    "1 July 2013",
-                    "20%"
-                  ]
-                ]
-              },
-              "For the purposes of this schedule loading or penalty means a:",
-              " casual or part-time loading;",
-              " Saturday, Sunday, public holiday, evening or other penalty;",
-              " shift allowance/penalty.",
-              "by the terms of a transitional minimum wage instrument or an award-based transitional instrument to pay a particular loading or penalty at a lower rate than the equivalent loading or penalty in this award for any classification of employee.",
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "First full pay period on or after",
-                    ""
-                  ],
-                  [
-                    "1 July 2010",
-                    "80%"
-                  ],
-                  [
-                    "1 July 2011",
-                    "60%"
-                  ],
-                  [
-                    "1 July 2012",
-                    "40%"
-                  ],
-                  [
-                    "1 July 2013",
-                    "20%"
-                  ]
-                ]
-              },
-              "by the terms of a transitional minimum wage instrument or an award-based transitional instrument to pay a particular loading or penalty at a higher rate than the equivalent loading or penalty in this award, or to pay a particular loading or penalty and there is no equivalent loading or penalty in this award, for any classification of employee.",
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "First full pay period on or after",
-                    ""
-                  ],
-                  [
-                    "1 July 2010",
-                    "80%"
-                  ],
-                  [
-                    "1 July 2011",
-                    "60%"
-                  ],
-                  [
-                    "1 July 2012",
-                    "40%"
-                  ],
-                  [
-                    "1 July 2013",
-                    "20%"
-                  ]
-                ]
-              },
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "First full pay period on or after",
-                    ""
-                  ],
-                  [
-                    "1 July 2010",
-                    "20%"
-                  ],
-                  [
-                    "1 July 2011",
-                    "40%"
-                  ],
-                  [
-                    "1 July 2012",
-                    "60%"
-                  ],
-                  [
-                    "1 July 2013",
-                    "80%"
-                  ]
-                ]
-              },
-              " works within established routines, methods and procedures;",
-              " has minimal responsibility, accountability or discretion;",
-              " works under direct or routine supervision, either individually or in a team; and",
-              " requires no previous experience or training.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services",
-                  "Food services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "General clerk Laundry hand Cleaner Assistant gardener",
-                    "Food services": "Food services assistant"
-                  }
-                ]
-              },
-              " is capable of prioritising work within established routines, methods and procedures;",
-              " is responsible for work performed with a limited level of accountability or discretion;",
-              " works under limited supervision, either individually or in a team;",
-              " possesses sound communication skills; and",
-              " requires specific on-the-job training and/or relevant skills training or experience.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "General clerk/Typist (between 3 months’ and less than 1 year’s service) Gardener (non-trade) Maintenance/Handyperson (unqualified) Driver (less than 3 ton)"
-                  }
-                ]
-              },
-              " is capable of prioritising work within established routines, methods and procedures (non admin/clerical);",
-              " is responsible for work performed with a medium level of accountability or discretion (non admin/clerical);",
-              " works under limited supervision, either individually or in a team (non admin/clerical);",
-              " possesses sound communication and/or arithmetic skills (non admin/clerical);",
-              " requires specific on-the-job training and/or relevant skills training or experience (non admin/clerical); and",
-              " In the case of an admin/clerical employee, undertakes a range of basic clerical functions within established routines, methods and procedures.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services",
-                  "Food services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "General clerk/Typist (second and subsequent years of service) Receptionist Pay clerk Driver (less than 3 ton) who is required to hold a St John Ambulance first aid certificate Laundry hand Cleaner",
-                    "Food services": "Cook Food services assistant"
-                  }
-                ]
-              },
-              " is capable of prioritising work within established policies, guidelines and procedures;",
-              " is responsible for work performed with a medium level of accountability or discretion;",
-              " works under limited supervision, either individually or in a team;",
-              " possesses good communication, interpersonal and/or arithmetic skills; and",
-              " requires specific on-the-job training, may require formal qualifications and/or relevant skills training or experience.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services",
-                  "Food services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "Senior clerk Senior receptionist Maintenance/Handyperson (qualified) Driver (3 ton and over) Gardener (trade or TAFE Certificate III or above)",
-                    "Food services": "Senior cook (trade)"
-                  }
-                ]
-              },
-              " is capable of functioning semi-autonomously, and prioritising their own work within established policies, guidelines and procedures;",
-              " is responsible for work performed with a substantial level of accountability;",
-              " works either individually or in a team;",
-              " may assist with supervision of others;",
-              " requires a comprehensive knowledge of medical terminology and/or a working knowledge of health insurance schemes (admin/clerical);",
-              " may require basic computer knowledge or be required to use a computer on a regular basis;",
-              " possesses administrative skills and problem solving abilities;",
-              " possesses well developed communication, interpersonal and/or arithmetic skills; and",
-              " requires substantial on-the-job training, may require formal qualifications at trade or certificate level and/or relevant skills training or experience.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services",
-                  "Food services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "Secretary interpreter (unqualified)",
-                    "Food services": "Chef"
-                  }
-                ]
-              },
-              " is capable of functioning with a high level of autonomy, and prioritising their work within established policies, guidelines and procedures;",
-              " is responsible for work performed with a substantial level of accountability and responsibility;",
-              " works either individually or in a team;",
-              " may require comprehensive computer knowledge or be required to use a computer on a regular basis;",
-              " possesses administrative skills and problem solving abilities;",
-              " possesses well developed communication, interpersonal and/or arithmetic skills; and",
-              " may require formal qualifications at post-trade or Advanced Certificate or Associate Diploma level and/or relevant skills training or experience.",
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "General and administrative services",
-                    "Food services"
-                  ],
-                  [
-                    "Maintenance tradesperson (advanced) Gardener (advanced)",
-                    "Senior chef"
-                  ]
-                ]
-              },
-              " is capable of functioning autonomously, and prioritising their work and the work of others within established policies, guidelines and procedures;",
-              " is responsible for work performed with a substantial level of accountability and responsibility;",
-              " may supervise the work of others, including work allocation, rostering and guidance;",
-              " works either individually or in a team;",
-              " may require comprehensive computer knowledge or be required to use a computer on a regular basis;",
-              " possesses developed administrative skills and problem solving abilities;",
-              " possesses well developed communication, interpersonal and/or arithmetic skills; and",
-              " may require formal qualifications at trade or Advanced Certificate or Associate Diploma level and/or relevant skills training or experience.",
-              {
-                "type": "table",
-                "headers": [
-                  "General and administrative services",
-                  "Food services"
-                ],
-                "rows": [
-                  {
-                    "General and administrative services": "Clerical supervisor Interpreter (qualified) Gardener superintendent General services supervisor",
-                    "Food services": "Chef /Food services supervisor"
-                  }
-                ]
-              },
-              "An employee whose primary role is to provide direct care to residents and who has less than 3 months’ aged carer experience.",
-              "An employee whose primary role is to provide direct care to residents and who has 3 months’ or more aged carer experience.",
-              "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate III in Individual Support (Ageing) or equivalent qualification.",
-              "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate III in Individual Support (Ageing) or equivalent qualification and has obtained 4 years’ experience classified at level 3 after 1 January 2025 .",
-              "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate IV in Ageing Support or equivalent qualification as a requirement for the performance of their duties by the employer.",
-              "A direct care employee who has obtained a Certificate IV in Ageing Support or equivalent qualification as a requirement for the performance of their duties by the employer and is required to supervise and train other direct care employees.",
-              "approved assessor means a person accredited by the management unit established by the Commonwealth under the supported wage system to perform assessments of an individual’s productive capacity within the supported wage system",
-              "assessment instrument means the tool provided for under the supported wage system that records the assessment of the productive capacity of the person to be employed under the supported wage system",
-              "disability support pension means the Commonwealth pension scheme to provide income security for persons with a disability as provided under the Social Security Act 1991 , as amended from time to time, or any successor to that scheme",
-              "relevant minimum wage means the minimum wage prescribed in this award for the class of work for which an employee is engaged",
-              "supported wage system means the Commonwealth Government system to promote employment for people who cannot work at full award wages because of a disability, as documented in the Supported Wage System Handbook. The Handbook is available from the following website: www.jobaccess.gov.au",
-              "SWS wage assessment agreement means the document in the form required by the Department of Social Services that records the employee’s productive capacity and agreed wage rate",
-              {
-                "type": "table",
-                "headers": [
-                  "Assessed capacity (clause C.5 ) %",
-                  "Relevant minimum wage %"
-                ],
-                "rows": [
-                  {
-                    "Assessed capacity (clause C.5 ) %": "10",
-                    "Relevant minimum wage %": "10"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "20",
-                    "Relevant minimum wage %": "20"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "30",
-                    "Relevant minimum wage %": "30"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "40",
-                    "Relevant minimum wage %": "40"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "50",
-                    "Relevant minimum wage %": "50"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "60",
-                    "Relevant minimum wage %": "60"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "70",
-                    "Relevant minimum wage %": "70"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "80",
-                    "Relevant minimum wage %": "80"
-                  },
-                  {
-                    "Assessed capacity (clause C.5 ) %": "90",
-                    "Relevant minimum wage %": "90"
-                  }
-                ]
-              },
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "[If the employee is under 18 years of age - include:] I agree that: if, on termination of the employee’s employment, the employee has not accrued an entitlement to all of a period of paid annual leave already taken under this agreement, then the employer may deduct from any money due to the employee on termination an amount equal to the amount that was paid to the employee in respect of any part of the period of annual leave taken in advance to which an entitlement has not been accrued. Name of parent/guardian: ________________________________________ Signature of parent/guardian: ________________________________________ Date signed: ___/___/20___"
-                  ]
-                ]
-              },
-              {
-                "type": "table",
-                "headers": [],
-                "rows": [
-                  [
-                    "Include if the employee is under 18 years of age: Name of parent/guardian: ________________________________________ Signature of parent/guardian: ________________________________________ Date signed: ___/___/20___"
-                  ]
-                ]
-              },
-              {
-                "type": "table",
-                "headers": [
-                  "Previous classification",
-                  "Translated classification"
-                ],
-                "rows": [
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 1",
-                    "Translated classification": "Aged care employee—direct care—level 1—Introductory"
-                  },
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 2 Aged care employee—direct care—level 3*",
-                    "Translated classification": "Aged care employee—direct care—level 2—Direct Carer"
-                  },
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 4",
-                    "Translated classification": "Aged care employee—direct care—level 3—Qualified"
-                  },
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 5 (without relevant Certificate IV qualification)",
-                    "Translated classification": "Aged care employee—direct care—level 4—Senior"
-                  },
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 5 (with relevant Certificate IV qualification) Aged care employee—direct care—level 6",
-                    "Translated classification": "Aged care employee—direct care—level 5—Specialist"
-                  },
-                  {
-                    "Previous classification": "Aged care employee—direct care—level 7",
-                    "Translated classification": "Aged care employee—direct care—level 6—Team Leader"
-                  }
-                ]
-              },
-              "The minimum rate of pay applicable to an employee previously classified as an Aged care employee—direct care—level 3 and translated to Aged care employee—direct care—level 2—Direct Carer under clause I.1.1 is the higher of:"
+        "Family and domestic violence leave",
+        "by a transitional minimum wage instrument and/or an award-based transitional instrument to pay a minimum wage lower than that in this award for any classification of employee.",
+        {
+          "type": "table",
+          "headers": [
+            "First full pay period on or after",
+            ""
+          ],
+          "rows": [
+            [
+              "1 July 2010",
+              "80%"
+            ],
+            [
+              "1 July 2011",
+              "60%"
+            ],
+            [
+              "1 July 2012",
+              "40%"
+            ],
+            [
+              "1 July 2013",
+              "20%"
             ]
-          }
-        },
-        "a": {
-          "_content": [
-            "the minimum rate of pay that applies to the employee’s translated classification of Aged care employee—direct care—level 2—Direct Carer; and"
           ]
         },
-        "b": {
-          "_content": [
-            "the minimum rate of pay previously applicable to the employee under the award as at 31 December 2024, which is $1173.30 per week."
+        "by a transitional minimum wage instrument and/or an award-based transitional instrument to pay a minimum wage higher than that in this award for any classification of employee.",
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "First full pay period on or after",
+              ""
+            ],
+            [
+              "1 July 2010",
+              "80%"
+            ],
+            [
+              "1 July 2011",
+              "60%"
+            ],
+            [
+              "1 July 2012",
+              "40%"
+            ],
+            [
+              "1 July 2013",
+              "20%"
+            ]
+          ]
+        },
+        "For the purposes of this schedule loading or penalty means a:",
+        "- casual or part-time loading;",
+        "- Saturday, Sunday, public holiday, evening or other penalty;",
+        "- shift allowance/penalty.",
+        "by the terms of a transitional minimum wage instrument or an award-based transitional instrument to pay a particular loading or penalty at a lower rate than the equivalent loading or penalty in this award for any classification of employee.",
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "First full pay period on or after",
+              ""
+            ],
+            [
+              "1 July 2010",
+              "80%"
+            ],
+            [
+              "1 July 2011",
+              "60%"
+            ],
+            [
+              "1 July 2012",
+              "40%"
+            ],
+            [
+              "1 July 2013",
+              "20%"
+            ]
+          ]
+        },
+        "by the terms of a transitional minimum wage instrument or an award-based transitional instrument to pay a particular loading or penalty at a higher rate than the equivalent loading or penalty in this award, or to pay a particular loading or penalty and there is no equivalent loading or penalty in this award, for any classification of employee.",
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "First full pay period on or after",
+              ""
+            ],
+            [
+              "1 July 2010",
+              "80%"
+            ],
+            [
+              "1 July 2011",
+              "60%"
+            ],
+            [
+              "1 July 2012",
+              "40%"
+            ],
+            [
+              "1 July 2013",
+              "20%"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "First full pay period on or after",
+              ""
+            ],
+            [
+              "1 July 2010",
+              "20%"
+            ],
+            [
+              "1 July 2011",
+              "40%"
+            ],
+            [
+              "1 July 2012",
+              "60%"
+            ],
+            [
+              "1 July 2013",
+              "80%"
+            ]
+          ]
+        },
+        "- works within established routines, methods and procedures;",
+        "- has minimal responsibility, accountability or discretion;",
+        "- works under direct or routine supervision, either individually or in a team; and",
+        "- requires no previous experience or training.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services",
+            "Food services"
           ],
-          "No Level 4": {
-            "_content": [
-              "An employee who was covered by the Nurses Award 2020 on 31 December 2024 and who became covered by this award as a result of PR779152 is classified as follows:",
+          "rows": [
+            {
+              "General and administrative services": "General clerk Laundry hand Cleaner Assistant gardener",
+              "Food services": "Food services assistant"
+            }
+          ]
+        },
+        "- is capable of prioritising work within established routines, methods and procedures;",
+        "- is responsible for work performed with a limited level of accountability or discretion;",
+        "- works under limited supervision, either individually or in a team;",
+        "- possesses sound communication skills; and",
+        "- requires specific on-the-job training and/or relevant skills training or experience.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services"
+          ],
+          "rows": [
+            {
+              "General and administrative services": "General clerk/Typist (between 3 months’ and less than 1 year’s service) Gardener (non-trade) Maintenance/Handyperson (unqualified) Driver (less than 3 ton)"
+            }
+          ]
+        },
+        "- is capable of prioritising work within established routines, methods and procedures (non admin/clerical);",
+        "- is responsible for work performed with a medium level of accountability or discretion (non admin/clerical);",
+        "- works under limited supervision, either individually or in a team (non admin/clerical);",
+        "- possesses sound communication and/or arithmetic skills (non admin/clerical);",
+        "- requires specific on-the-job training and/or relevant skills training or experience (non admin/clerical); and",
+        "- In the case of an admin/clerical employee, undertakes a range of basic clerical functions within established routines, methods and procedures.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services",
+            "Food services"
+          ],
+          "rows": [
+            {
+              "General and administrative services": "General clerk/Typist (second and subsequent years of service) Receptionist Pay clerk Driver (less than 3 ton) who is required to hold a St John Ambulance first aid certificate Laundry hand Cleaner",
+              "Food services": "Cook Food services assistant"
+            }
+          ]
+        },
+        "- is capable of prioritising work within established policies, guidelines and procedures;",
+        "- is responsible for work performed with a medium level of accountability or discretion;",
+        "- works under limited supervision, either individually or in a team;",
+        "- possesses good communication, interpersonal and/or arithmetic skills; and",
+        "- requires specific on-the-job training, may require formal qualifications and/or relevant skills training or experience.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services",
+            "Food services"
+          ],
+          "rows": [
+            {
+              "General and administrative services": "Senior clerk Senior receptionist Maintenance/Handyperson (qualified) Driver (3 ton and over) Gardener (trade or TAFE Certificate III or above)",
+              "Food services": "Senior cook (trade)"
+            }
+          ]
+        },
+        "- is capable of functioning semi-autonomously, and prioritising their own work within established policies, guidelines and procedures;",
+        "- is responsible for work performed with a substantial level of accountability;",
+        "- works either individually or in a team;",
+        "- may assist with supervision of others;",
+        "- requires a comprehensive knowledge of medical terminology and/or a working knowledge of health insurance schemes (admin/clerical);",
+        "- may require basic computer knowledge or be required to use a computer on a regular basis;",
+        "- possesses administrative skills and problem solving abilities;",
+        "- possesses well developed communication, interpersonal and/or arithmetic skills; and",
+        "- requires substantial on-the-job training, may require formal qualifications at trade or certificate level and/or relevant skills training or experience.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services",
+            "Food services"
+          ],
+          "rows": [
+            {
+              "General and administrative services": "Secretary interpreter (unqualified)",
+              "Food services": "Chef"
+            }
+          ]
+        },
+        "- is capable of functioning with a high level of autonomy, and prioritising their work within established policies, guidelines and procedures;",
+        "- is responsible for work performed with a substantial level of accountability and responsibility;",
+        "- works either individually or in a team;",
+        "- may require comprehensive computer knowledge or be required to use a computer on a regular basis;",
+        "- possesses administrative skills and problem solving abilities;",
+        "- possesses well developed communication, interpersonal and/or arithmetic skills; and",
+        "- may require formal qualifications at post-trade or Advanced Certificate or Associate Diploma level and/or relevant skills training or experience.",
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "General and administrative services",
+              "Food services"
+            ],
+            [
+              "Maintenance tradesperson (advanced) Gardener (advanced)",
+              "Senior chef"
+            ]
+          ]
+        },
+        "- is capable of functioning autonomously, and prioritising their work and the work of others within established policies, guidelines and procedures;",
+        "- is responsible for work performed with a substantial level of accountability and responsibility;",
+        "- may supervise the work of others, including work allocation, rostering and guidance;",
+        "- works either individually or in a team;",
+        "- may require comprehensive computer knowledge or be required to use a computer on a regular basis;",
+        "- possesses developed administrative skills and problem solving abilities;",
+        "- possesses well developed communication, interpersonal and/or arithmetic skills; and",
+        "- may require formal qualifications at trade or Advanced Certificate or Associate Diploma level and/or relevant skills training or experience.",
+        {
+          "type": "table",
+          "headers": [
+            "General and administrative services",
+            "Food services"
+          ],
+          "rows": [
+            {
+              "General and administrative services": "Clerical supervisor Interpreter (qualified) Gardener superintendent General services supervisor",
+              "Food services": "Chef /Food services supervisor"
+            }
+          ]
+        },
+        "An employee whose primary role is to provide direct care to residents and who has less than 3 months’ aged carer experience.",
+        "An employee whose primary role is to provide direct care to residents and who has 3 months’ or more aged carer experience.",
+        "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate III in Individual Support (Ageing) or equivalent qualification.",
+        "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate III in Individual Support (Ageing) or equivalent qualification and has obtained 4 years’ experience classified at level 3 after 1 January 2025 .",
+        "An employee whose primary role is to provide direct care to residents and who has obtained a Certificate IV in Ageing Support or equivalent qualification as a requirement for the performance of their duties by the employer.",
+        "A direct care employee who has obtained a Certificate IV in Ageing Support or equivalent qualification as a requirement for the performance of their duties by the employer and is required to supervise and train other direct care employees.",
+        "approved assessor means a person accredited by the management unit established by the Commonwealth under the supported wage system to perform assessments of an individual’s productive capacity within the supported wage system",
+        "assessment instrument means the tool provided for under the supported wage system that records the assessment of the productive capacity of the person to be employed under the supported wage system",
+        "disability support pension means the Commonwealth pension scheme to provide income security for persons with a disability as provided under the Social Security Act 1991 , as amended from time to time, or any successor to that scheme",
+        "relevant minimum wage means the minimum wage prescribed in this award for the class of work for which an employee is engaged",
+        "supported wage system means the Commonwealth Government system to promote employment for people who cannot work at full award wages because of a disability, as documented in the Supported Wage System Handbook. The Handbook is available from the following website: www.jobaccess.gov.au",
+        "SWS wage assessment agreement means the document in the form required by the Department of Social Services that records the employee’s productive capacity and agreed wage rate",
+        {
+          "type": "table",
+          "headers": [
+            "Assessed capacity (clause C.5 ) %",
+            "Relevant minimum wage %"
+          ],
+          "rows": [
+            {
+              "Assessed capacity (clause C.5 ) %": "10",
+              "Relevant minimum wage %": "10"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "20",
+              "Relevant minimum wage %": "20"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "30",
+              "Relevant minimum wage %": "30"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "40",
+              "Relevant minimum wage %": "40"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "50",
+              "Relevant minimum wage %": "50"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "60",
+              "Relevant minimum wage %": "60"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "70",
+              "Relevant minimum wage %": "70"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "80",
+              "Relevant minimum wage %": "80"
+            },
+            {
+              "Assessed capacity (clause C.5 ) %": "90",
+              "Relevant minimum wage %": "90"
+            }
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "[If the employee is under 18 years of age - include:] I agree that: if, on termination of the employee’s employment, the employee has not accrued an entitlement to all of a period of paid annual leave already taken under this agreement, then the employer may deduct from any money due to the employee on termination an amount equal to the amount that was paid to the employee in respect of any part of the period of annual leave taken in advance to which an entitlement has not been accrued. Name of parent/guardian: ________________________________________ Signature of parent/guardian: ________________________________________ Date signed: ___/___/20___"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [],
+          "rows": [
+            [
+              "Include if the employee is under 18 years of age: Name of parent/guardian: ________________________________________ Signature of parent/guardian: ________________________________________ Date signed: ___/___/20___"
+            ]
+          ]
+        },
+        {
+          "type": "table",
+          "headers": [
+            "Previous classification",
+            "Translated classification"
+          ],
+          "rows": [
+            {
+              "Previous classification": "Aged care employee—direct care—level 1",
+              "Translated classification": "Aged care employee—direct care—level 1—Introductory"
+            },
+            {
+              "Previous classification": "Aged care employee—direct care—level 2 Aged care employee—direct care—level 3*",
+              "Translated classification": "Aged care employee—direct care—level 2—Direct Carer"
+            },
+            {
+              "Previous classification": "Aged care employee—direct care—level 4",
+              "Translated classification": "Aged care employee—direct care—level 3—Qualified"
+            },
+            {
+              "Previous classification": "Aged care employee—direct care—level 5 (without relevant Certificate IV qualification)",
+              "Translated classification": "Aged care employee—direct care—level 4—Senior"
+            },
+            {
+              "Previous classification": "Aged care employee—direct care—level 5 (with relevant Certificate IV qualification) Aged care employee—direct care—level 6",
+              "Translated classification": "Aged care employee—direct care—level 5—Specialist"
+            },
+            {
+              "Previous classification": "Aged care employee—direct care—level 7",
+              "Translated classification": "Aged care employee—direct care—level 6—Team Leader"
+            }
+          ]
+        },
+        "The minimum rate of pay applicable to an employee previously classified as an Aged care employee—direct care—level 3 and translated to Aged care employee—direct care—level 2—Direct Carer under clause I.1.1 is the higher of:"
+      ],
+      "a": {
+        "_content": [
+          "the minimum rate of pay that applies to the employee’s translated classification of Aged care employee—direct care—level 2—Direct Carer; and"
+        ]
+      },
+      "b": {
+        "_content": [
+          "the minimum rate of pay previously applicable to the employee under the award as at 31 December 2024, which is $1173.30 per week.",
+          "An employee who was covered by the Nurses Award 2020 on 31 December 2024 and who became covered by this award as a result of PR779152 is classified as follows:",
+          {
+            "type": "table",
+            "headers": [
+              "Previous classification",
+              "Translated classification"
+            ],
+            "rows": [
               {
-                "type": "table",
-                "headers": [
-                  "Previous classification",
-                  "Translated classification"
-                ],
-                "rows": [
-                  {
-                    "Previous classification": "First year if less than 3 months’ work experience in the industry",
-                    "Translated classification": "Aged care employee—direct care—level 1"
-                  },
-                  {
-                    "Previous classification": "First year if 3 months’ or more work experience in the industry Second year Third year",
-                    "Translated classification": "Aged care employee—direct care—level 2"
-                  },
-                  {
-                    "Previous classification": "Experienced (the holder of a relevant Certificate III qualification)",
-                    "Translated classification": "Aged care employee—direct care—level 3"
-                  }
-                ]
+                "Previous classification": "First year if less than 3 months’ work experience in the industry",
+                "Translated classification": "Aged care employee—direct care—level 1"
+              },
+              {
+                "Previous classification": "First year if 3 months’ or more work experience in the industry Second year Third year",
+                "Translated classification": "Aged care employee—direct care—level 2"
+              },
+              {
+                "Previous classification": "Experienced (the holder of a relevant Certificate III qualification)",
+                "Translated classification": "Aged care employee—direct care—level 3"
               }
             ]
           }
-        }
+        ]
       }
     }
   }

@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from src.award_interpreter import (
+from src.Archive.award_interpreter import (
     ClauseNotFoundError,
     build_messages,
     extract_response_text,
@@ -10,7 +10,7 @@ from src.award_interpreter import (
     load_sections,
     lookup_clause_text,
 )
-from src.award_interpreter_prompt import PSEUDOCODE_FIELDS, SYSTEM_PROMPT
+from src.Archive.award_interpreter_prompt import PSEUDOCODE_FIELDS, SYSTEM_PROMPT
 
 
 class AwardInterpreterTests(unittest.TestCase):

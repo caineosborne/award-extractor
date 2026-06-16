@@ -8,7 +8,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.award_interpreter_prompt import SYSTEM_PROMPT
+from src.Archive.award_interpreter_prompt import SYSTEM_PROMPT
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

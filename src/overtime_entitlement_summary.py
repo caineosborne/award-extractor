@@ -17,7 +17,7 @@ DEFAULT_CLASSIFICATION_PATH = (
     PROJECT_ROOT / "data" / "processed" / "MA000018_payment_classification.json"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
-OVERTIME_TAGS = ("Ordinary Hours", "Overtime")
+OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
 
 
 class OvertimeEntitlementSummaryError(RuntimeError):
@@ -66,10 +66,7 @@ def filter_overtime_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
         clause_id: clause
         for clause_id, clause in classified_clauses.items()
         if isinstance(clause, Mapping)
-        and (
-            "Ordinary Hours" in clause.get("tags", [])
-            or "Overtime" in clause.get("tags", [])
-        )
+        and any(tag in clause.get("tags", []) for tag in OVERTIME_TAGS)
     }
 
 
@@ -91,8 +88,8 @@ Use the glossary below:
 Task:
 - Produce concise markdown bullet points explaining when employees are entitled to overtime.
 - Include additional breakdowns where needed, such as employee type, day worker/shiftworker, ordinary-hours thresholds, day of week, public holiday, recall, breaks, roster changes, or other conditions.
-- Treat Ordinary Hours and Overtime clauses as a combined source set.
-- Use Ordinary Hours clauses to identify the boundary for overtime: any hours that are not ordinary hours are overtime.
+- Treat Ordinary Hours & Overtime clauses as a combined source set.
+- Use Ordinary Hours & Overtime clauses to identify the boundary for overtime: any hours that are not ordinary hours are overtime.
 - Do not calculate dollar amounts.
 - Do not invent rules that are not supported by the supplied clauses.
 - Cite clause references inline in each bullet.
