@@ -122,15 +122,15 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
     return path.with_name(f"{stem}_core_overtime_pseudocode.md")
 
 
-def build_messages(source_file: str, core_overtime_rules: str) -> list[dict[str, str]]:
+def build_messages(source_file: str, overtime_summary_markdown: str) -> list[dict[str, str]]:
     fields = "\n".join(
         f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
     )
     system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
     user_prompt = (
         f"Source overtime entitlement summary: {source_file}\n\n"
-        "Overtime entitlement bullets to convert:\n"
-        f"{core_overtime_rules}"
+        "Complete overtime entitlement markdown to convert:\n"
+        f"{overtime_summary_markdown}"
     )
     return [
         {"role": "system", "content": system_prompt},
@@ -151,12 +151,11 @@ def generate_core_overtime_pseudocode(
 
     source_path = Path(summary_path)
     summary_text = load_overtime_summary(source_path)
-    core_overtime_rules = overtime_rule_bullets(summary_text)
 
     try:
         response = client.responses.create(
             model=selected_model,
-            input=build_messages(str(source_path), core_overtime_rules),
+            input=build_messages(str(source_path), summary_text),
         )
     except Exception as exc:
         raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc

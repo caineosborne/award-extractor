@@ -61,7 +61,12 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertIn("Overtime - for working in excess of fortnightly hours", messages[0]["content"])
         self.assertIn("Overtime - for working in excess of daily hours", messages[0]["content"])
         self.assertIn("Overtime - for working outside the span of hours", messages[0]["content"])
-        self.assertIn("must begin exactly with these labels, in this order", messages[0]["content"])
+        self.assertIn("Where supported by the supplied clauses", messages[0]["content"])
+        self.assertIn("Do not write these labels as headings", messages[0]["content"])
+        self.assertIn("Do not create a top-level overtime entitlement bullet or heading", messages[0]["content"])
+        self.assertIn("## Plain-English overtime triggers", messages[0]["content"])
+        self.assertIn("## Overtime-related payment consequences", messages[0]["content"])
+        self.assertIn("## Other considerations", messages[0]["content"])
         self.assertIn("Do not write \"All employees\"", messages[0]["content"])
         self.assertIn('"20.1"', messages[1]["content"])
 

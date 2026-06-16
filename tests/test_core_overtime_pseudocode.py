@@ -76,18 +76,30 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertNotIn("Ordinary hours note", selected)
 
     def test_build_messages_include_available_fields_and_constraints(self):
+        summary_markdown = (
+            "# Overtime entitlements\n\n"
+            "## Plain-English overtime triggers\n\n"
+            "- Daily excess rule: Part-time employees...\n\n"
+            "## Clause interpretation table\n\n"
+            "| Clause | Relevance |\n"
+            "|---|---|\n"
+            "| 25.1 | Overtime trigger |\n"
+        )
         messages = build_messages(
             "summary.md",
-            "- Overtime - for working in excess of daily hours: Part-time employees...",
+            summary_markdown,
         )
 
         for field, description in PSEUDOCODE_FIELDS.items():
             self.assertIn(field, messages[0]["content"])
             self.assertIn(description, messages[0]["content"])
         self.assertIn("any hours that are not ordinary hours are overtime", messages[0]["content"])
-        self.assertIn("Preserve the business meaning", messages[0]["content"])
+        self.assertIn("even if headings or bullet formatting have been edited", messages[0]["content"])
+        self.assertIn("Do not rely on a rule having an exact markdown heading", messages[0]["content"])
         self.assertIn("Required additional inputs", messages[0]["content"])
-        self.assertIn("Overtime - for working in excess of daily hours", messages[1]["content"])
+        self.assertIn("Complete overtime entitlement markdown to convert", messages[1]["content"])
+        self.assertIn("Daily excess rule", messages[1]["content"])
+        self.assertIn("Clause interpretation table", messages[1]["content"])
 
     def test_generate_core_overtime_pseudocode_writes_markdown_with_mocked_client(self):
         summary = """# Overtime entitlements
@@ -117,7 +129,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
 
         self.assertEqual(result, written)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
-        self.assertNotIn(
+        self.assertIn(
             "Meal break note",
             fake_client.responses.calls[0]["input"][1]["content"],
         )
