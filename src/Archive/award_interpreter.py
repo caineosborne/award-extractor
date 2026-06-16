@@ -11,7 +11,7 @@ from openai import OpenAI
 from src.Archive.award_interpreter_prompt import SYSTEM_PROMPT
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_SECTIONS_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018_sections.json"
 DEFAULT_MODEL = "gpt-5.4"
 

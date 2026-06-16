@@ -7,6 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from src.Overtime_System_Prompt import CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE
 from src.payment_clause_classifier import extract_response_text
 
 
@@ -83,6 +84,36 @@ def first_top_level_bullets(markdown: str, count: int = 5) -> str:
     return "\n".join(selected[:count])
 
 
+def overtime_rule_bullets(markdown: str) -> str:
+    selected: list[str] = []
+    current: list[str] = []
+
+    for line in markdown.splitlines():
+        if line.startswith("- Overtime - "):
+            if current:
+                selected.append("\n".join(current))
+            current = [line]
+            continue
+
+        if current and (line.startswith("  ") or not line.strip()):
+            current.append(line)
+            continue
+
+        if current and line.startswith("- "):
+            selected.append("\n".join(current))
+            current = []
+
+    if current:
+        selected.append("\n".join(current))
+
+    if not selected:
+        raise CoreOvertimePseudocodeError(
+            "Expected at least one top-level 'Overtime - ' entitlement bullet."
+        )
+
+    return "\n".join(selected)
+
+
 def output_path_for_summary(summary_path: Path | str) -> Path:
     path = Path(summary_path)
     stem = path.stem
@@ -95,28 +126,10 @@ def build_messages(source_file: str, core_overtime_rules: str) -> list[dict[str,
     fields = "\n".join(
         f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
     )
-    system_prompt = f"""You write implementation-oriented payroll pseudocode.
-
-Goal:
-- Convert the supplied core overtime entitlement bullets into bullet-point pseudocode.
-- Only classify whether worked hours are Ordinary_Hours or Overtime_Hours.
-- Treat Unallocated_Hours as the total hours worked that still need ordinary/overtime classification.
-- For this task, any hours that are not ordinary hours are overtime.
-
-Available fields:
-{fields}
-
-Constraints:
-- Only use the supplied first five entitlement bullets.
-- Focus on core payments only: if an hour is worked, decide whether it is ordinary or overtime.
-- Do not cover meal breaks, recall, rest periods, sleepovers, broken shifts, time off instead of payment, allowances, or dollar/rate calculations.
-- Do not calculate penalty amounts or overtime multipliers.
-- If a rule needs an input that is not in the available fields, name it under Required additional inputs.
-- Return markdown only.
-"""
+    system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
     user_prompt = (
         f"Source overtime entitlement summary: {source_file}\n\n"
-        "Core overtime entitlement bullets to convert:\n"
+        "Overtime entitlement bullets to convert:\n"
         f"{core_overtime_rules}"
     )
     return [
@@ -138,7 +151,7 @@ def generate_core_overtime_pseudocode(
 
     source_path = Path(summary_path)
     summary_text = load_overtime_summary(source_path)
-    core_overtime_rules = first_top_level_bullets(summary_text, count=5)
+    core_overtime_rules = overtime_rule_bullets(summary_text)
 
     try:
         response = client.responses.create(

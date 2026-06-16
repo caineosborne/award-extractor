@@ -58,7 +58,11 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
         self.assertIn("ordinary hours", messages[0]["content"])
         self.assertIn("overtime", messages[0]["content"])
-        self.assertIn("any hours that are not ordinary hours are overtime", messages[0]["content"])
+        self.assertIn("Overtime - for working in excess of fortnightly hours", messages[0]["content"])
+        self.assertIn("Overtime - for working in excess of daily hours", messages[0]["content"])
+        self.assertIn("Overtime - for working outside the span of hours", messages[0]["content"])
+        self.assertIn("must begin exactly with these labels, in this order", messages[0]["content"])
+        self.assertIn("Do not write \"All employees\"", messages[0]["content"])
         self.assertIn('"20.1"', messages[1]["content"])
 
     def test_summarize_overtime_entitlements_writes_markdown_with_mocked_client(self):

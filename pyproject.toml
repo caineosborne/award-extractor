@@ -20,6 +20,7 @@ dependencies = [
 classify-payments = "src.payment_clause_classifier:main"
 summarize-overtime = "src.overtime_entitlement_summary:main"
 generate-overtime-pseudocode = "src.core_overtime_pseudocode:main"
+generate-overtime-clause = "src.overtime_clause_generator:main"
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

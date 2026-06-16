@@ -10,6 +10,7 @@ from src.core_overtime_pseudocode import (
     first_top_level_bullets,
     generate_core_overtime_pseudocode,
     output_path_for_summary,
+    overtime_rule_bullets,
 )
 
 
@@ -55,27 +56,49 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             Path("data/processed/MA000018_core_overtime_pseudocode.md"),
         )
 
+    def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
+        markdown = """# Overtime entitlements
+
+## Plain-English overtime rules
+
+- Overtime - for working in excess of fortnightly hours: Applies to part-time and casual employees. [25.1]
+- Overtime - for working in excess of daily hours: Applies after 10 hours.
+  - This keeps related detail with the rule.
+- Ordinary hours note that should not be converted.
+
+## Clause interpretation table
+"""
+
+        selected = overtime_rule_bullets(markdown)
+
+        self.assertIn("for working in excess of fortnightly hours", selected)
+        self.assertIn("This keeps related detail", selected)
+        self.assertNotIn("Ordinary hours note", selected)
+
     def test_build_messages_include_available_fields_and_constraints(self):
-        messages = build_messages("summary.md", "- Full-time employees...")
+        messages = build_messages(
+            "summary.md",
+            "- Overtime - for working in excess of daily hours: Part-time employees...",
+        )
 
         for field, description in PSEUDOCODE_FIELDS.items():
             self.assertIn(field, messages[0]["content"])
             self.assertIn(description, messages[0]["content"])
         self.assertIn("any hours that are not ordinary hours are overtime", messages[0]["content"])
-        self.assertIn("Only use the supplied first five entitlement bullets", messages[0]["content"])
+        self.assertIn("Preserve the business meaning", messages[0]["content"])
         self.assertIn("Required additional inputs", messages[0]["content"])
-        self.assertIn("- Full-time employees...", messages[1]["content"])
+        self.assertIn("Overtime - for working in excess of daily hours", messages[1]["content"])
 
     def test_generate_core_overtime_pseudocode_writes_markdown_with_mocked_client(self):
-        summary = """# Overtime
+        summary = """# Overtime entitlements
 
-- Full-time rule.
-- Part-time rule:
+- Overtime - for working in excess of rostered ordinary hours: Full-time rule.
+- Overtime - for working in excess of fortnightly hours: Part-time rule:
   - over 38 hours
-- Casual rule.
-- Day worker span rule.
-- Weekend/public holiday rule.
-- Meal break rule.
+- Overtime - for working in excess of daily hours: Casual rule.
+- Overtime - for working outside the span of hours: Day worker span rule.
+- Overtime - for recall to work: Recall rule.
+- Meal break note that is not an overtime-labelled rule.
 """
         fake_client = FakeClient("# Core overtime pseudocode\n- Split Unallocated_Hours.")
 
@@ -94,7 +117,10 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
 
         self.assertEqual(result, written)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
-        self.assertNotIn("Meal break rule", fake_client.responses.calls[0]["input"][1]["content"])
+        self.assertNotIn(
+            "Meal break note",
+            fake_client.responses.calls[0]["input"][1]["content"],
+        )
 
 
 if __name__ == "__main__":

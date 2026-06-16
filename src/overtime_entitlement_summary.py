@@ -8,8 +8,8 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from src.Overtime_System_Prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
 from src.payment_clause_classifier import extract_response_text
-from src.payment_clause_classifier_prompt import DEFINITIONS
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -80,30 +80,13 @@ def output_path_for_classification(classification_path: Path | str) -> Path:
 
 def build_messages(source_file: str, overtime_clauses: Mapping[str, Any]) -> list[dict[str, str]]:
     clauses_json = json.dumps(overtime_clauses, indent=2, ensure_ascii=False)
-    system_prompt = f"""You summarise Australian modern award overtime entitlements for payroll implementation.
-
-Use the glossary below:
-{DEFINITIONS}
-
-Task:
-- Produce concise markdown bullet points explaining when employees are entitled to overtime.
-- Include additional breakdowns where needed, such as employee type, day worker/shiftworker, ordinary-hours thresholds, day of week, public holiday, recall, breaks, roster changes, or other conditions.
-- Treat Ordinary Hours & Overtime clauses as a combined source set.
-- Use Ordinary Hours & Overtime clauses to identify the boundary for overtime: any hours that are not ordinary hours are overtime.
-- Do not calculate dollar amounts.
-- Do not invent rules that are not supported by the supplied clauses.
-- Cite clause references inline in each bullet.
-- Include ordinary-hours rules in the summary where they define when overtime starts.
-
-Return markdown only, with a heading and bullet points.
-"""
     user_prompt = (
         f"Source classification file: {source_file}\n\n"
         "Filtered clauses tagged Ordinary Hours or Overtime:\n"
         f"{clauses_json}"
     )
     return [
-        {"role": "system", "content": system_prompt},
+        {"role": "system", "content": OVERTIME_ENTITLEMENT_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
 
