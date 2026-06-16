@@ -38,6 +38,7 @@ This is not an award interpreter. Do not produce rules, pseudocode, pay calculat
 
 Classify whether the supplied top-level clause is relevant to payment and/or payroll definitions.
 Then classify only the supplied direct L2 clauses when the top-level clause is payment-relevant or definition-relevant.
+L2 relevance is independent: a direct L2 clause can be irrelevant even when its L1 clause is relevant.
 
 Top-level relevance:
 - payment_relevant: true when any part of the L1 clause can affect the amount an employee is paid, including rates, ordinary/overtime boundaries, penalties, loadings, allowances, paid breaks, leave payments, termination payments, redundancy payments, deductions, or any other employee payment amount.
@@ -77,6 +78,7 @@ Rules:
 - Return only direct L2 references in classified_clauses.
 - If payment_relevant and definition_relevant are both false, set requires_l2_classification to false and return an empty classified_clauses array.
 - If payment_relevant or definition_relevant is true, classify direct L2 clauses that are relevant to payment and/or definitions.
+- Do not include an L2 clause merely because its parent L1 clause is relevant. Omit direct L2 clauses that do not themselves affect payment or define payroll-relevant terms.
 - Direct L2 clauses may have multiple tags.
 - If an L2 clause is both a definition and a payment clause, include Definition plus the relevant payment topic tags.
 - Use the other tag only when the clause is payment-related but none of the more specific tags fit.

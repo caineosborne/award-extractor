@@ -293,6 +293,8 @@ class PaymentClauseClassifierTests(unittest.TestCase):
         self.assertIn("shiftworker", SYSTEM_PROMPT)
         self.assertIn("Definition", SYSTEM_PROMPT)
         self.assertIn("Ordinary Hours & Overtime", SYSTEM_PROMPT)
+        self.assertIn("L2 relevance is independent", SYSTEM_PROMPT)
+        self.assertIn("Omit direct L2 clauses", SYSTEM_PROMPT)
 
         prompt = build_user_prompt({"top_level_clause": {"reference": "25"}})
 
