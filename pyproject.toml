@@ -19,6 +19,7 @@ dependencies = [
 
 [project.scripts]
 classify-payments = "src.payment_clause_classifier:main"
+interpret-overtime = "src.overtime_interpretation:main"
 summarize-overtime = "src.overtime_entitlement_summary:main"
 generate-overtime-pseudocode = "src.core_overtime_pseudocode:main"
 generate-overtime-clause = "src.overtime_clause_generator:main"

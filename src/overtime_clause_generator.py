@@ -12,10 +12,14 @@ from src.core_overtime_pseudocode import (
     output_path_for_summary,
 )
 from src.overtime_entitlement_summary import (
-    DEFAULT_CLASSIFICATION_PATH,
     load_environment,
     output_path_for_classification,
     summarize_overtime_entitlements,
+)
+from src.overtime_interpretation import (
+    DEFAULT_CLASSIFICATION_PATH,
+    generate_overtime_interpretation,
+    output_path_for_classification as interpretation_path_for_classification,
 )
 
 
@@ -24,14 +28,17 @@ DEFAULT_MODEL = "gpt-5.4-mini"
 
 @dataclass(frozen=True)
 class OvertimeClauseArtifacts:
+    interpretation_path: Path
     entitlements_path: Path
     pseudocode_path: Path
+    interpretation_markdown: str
     entitlements_markdown: str
     pseudocode_markdown: str
 
 
 def generate_overtime_clause_artifacts(
     classification_path: Path | str = DEFAULT_CLASSIFICATION_PATH,
+    interpretation_output_path: Path | str | None = None,
     entitlements_output_path: Path | str | None = None,
     pseudocode_output_path: Path | str | None = None,
     model: str | None = None,
@@ -43,6 +50,11 @@ def generate_overtime_clause_artifacts(
         client = OpenAI()
 
     source_path = Path(classification_path)
+    interpretation_path = (
+        Path(interpretation_output_path)
+        if interpretation_output_path
+        else interpretation_path_for_classification(source_path)
+    )
     entitlements_path = (
         Path(entitlements_output_path)
         if entitlements_output_path
@@ -54,8 +66,14 @@ def generate_overtime_clause_artifacts(
         else output_path_for_summary(entitlements_path)
     )
 
-    entitlements_markdown = summarize_overtime_entitlements(
+    interpretation_markdown = generate_overtime_interpretation(
         classification_path=source_path,
+        output_path=interpretation_path,
+        model=selected_model,
+        client=client,
+    )
+    entitlements_markdown = summarize_overtime_entitlements(
+        interpretation_path=interpretation_path,
         output_path=entitlements_path,
         model=selected_model,
         client=client,
@@ -68,8 +86,10 @@ def generate_overtime_clause_artifacts(
     )
 
     return OvertimeClauseArtifacts(
+        interpretation_path=interpretation_path,
         entitlements_path=entitlements_path,
         pseudocode_path=pseudocode_path,
+        interpretation_markdown=interpretation_markdown,
         entitlements_markdown=entitlements_markdown,
         pseudocode_markdown=pseudocode_markdown,
     )
@@ -85,8 +105,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_CLASSIFICATION_PATH),
         help=(
             "Path to a payment classification JSON file, for example "
-            "data/processed/MA000018_payment_classification.json."
+            "data/processed/2_payment_clause_identifier/MA000018_payment_classification.json."
         ),
+    )
+    parser.add_argument(
+        "--interpretation-output-path",
+        default=None,
+        help="Optional path for the markdown overtime interpretation output.",
     )
     parser.add_argument(
         "--entitlements-output-path",
@@ -110,10 +135,12 @@ def main() -> None:
     args = parse_args()
     artifacts = generate_overtime_clause_artifacts(
         classification_path=args.classification_path,
+        interpretation_output_path=args.interpretation_output_path,
         entitlements_output_path=args.entitlements_output_path,
         pseudocode_output_path=args.pseudocode_output_path,
         model=args.model,
     )
+    print(f"Overtime interpretation saved to {artifacts.interpretation_path}")
     print(f"Overtime entitlement summary saved to {artifacts.entitlements_path}")
     print(f"Overtime pseudocode saved to {artifacts.pseudocode_path}")
 

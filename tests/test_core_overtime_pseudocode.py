@@ -53,7 +53,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_output_path_for_summary(self):
         self.assertEqual(
             output_path_for_summary(Path("data/processed/MA000018_overtime_entitlements.md")),
-            Path("data/processed/overtime_entitlements/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md"),
         )
 
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):

@@ -6,9 +6,10 @@ The project is designed to produce audit-readable artifacts from Australian mode
 
 1. Fetch and structure the award.
 2. Classify payment-relevant clauses.
-3. Summarise overtime entitlements in plain English.
-4. Convert the entitlement summary into core ordinary/overtime pseudocode.
-5. Review the generated artifacts for quality.
+3. Generate an overtime interpretation working document.
+4. Summarise overtime entitlements in plain English from the interpretation.
+5. Convert the entitlement summary into core ordinary/overtime pseudocode.
+6. Review the generated artifacts for quality.
 
 ## 1. Fetch award
 
@@ -63,11 +64,11 @@ Purpose:
 Command:
 
 ```bash
-uv run classify-payments data/processed/MA000018.json
+uv run classify-payments data/processed/1_fetch_award/MA000018.json
 ```
 
 Main output:
-- `data/processed/MA000018_payment_classification.json`
+- `data/processed/2_payment_clause_identifier/MA000018_payment_classification.json`
 - A timestamped copy is also written, for example `MA000018_payment_classification_YYYYMMDD_HHMMSS.json`.
 
 Main functions:
@@ -87,48 +88,94 @@ Current status:
 - Current schema version is `payment-classification-v2`.
 - The classifier only classifies direct L2 clauses under a relevant top-level clause; lower-level clauses are included in the L2 text rather than returned as separate records.
 
-## 3. Overtime entitlement summary
+## 3. Overtime interpretation working document
 
 Files:
-- `src/overtime_entitlement_summary.py`
+- `src/overtime_interpretation.py`
 - `src/Overtime_System_Prompt.py`
 
 Purpose:
 - Read the payment classification JSON.
 - Filter to clauses tagged `Ordinary Hours & Overtime`.
-- Ask the LLM to create a reviewer-facing markdown summary of overtime entitlements.
-- Separate overtime triggers from overtime-related payment consequences and other considerations.
+- Ask the LLM to create a working interpretation document before reviewer-facing output is generated.
+- Separate the legal interpretation questions from the final entitlement summary format.
 
 Command:
 
 ```bash
-uv run summarize-overtime data/processed/MA000018_payment_classification.json
+uv run interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
 Main output:
-- `data/processed/MA000018_overtime_entitlements.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md`
 
 Main functions:
 - `load_classification(classification_path)`: loads and validates the classification JSON.
 - `filter_overtime_clauses(data)`: keeps only clauses tagged `Ordinary Hours & Overtime`.
-- `output_path_for_classification(classification_path)`: derives the markdown output path.
-- `build_messages(source_file, overtime_clauses)`: creates the entitlement-summary prompt.
-- `summarize_overtime_entitlements(...)`: orchestrates filtering, model call, response extraction, and markdown writing.
+- `output_path_for_classification(classification_path)`: derives the interpretation markdown output path.
+- `build_messages(source_file, overtime_clauses)`: creates the interpretation prompt.
+- `generate_overtime_interpretation(...)`: orchestrates filtering, model call, response extraction, and markdown writing.
 
 Current status:
 - Implemented and covered by tests.
-- Prompt has been updated for v2 so the model does not invent unsupported top-level overtime categories.
+- The working document uses this required structure:
+  - `Relevant Rules`
+  - `When does overtime occur?`
+  - `What happens when overtime occurs?`
+  - `What extra consequences exist?`
+  - `What data is required?`
+  - `What assumptions are being made?`
+- This is a working artifact, not the end-user format.
+- Downstream code should not depend on exact bullet formatting.
+
+## 4. Overtime entitlement summary
+
+Files:
+- `src/overtime_entitlement_summary.py`
+- `src/Overtime_System_Prompt.py`
+- `resources/overtime_example.md`
+
+Purpose:
+- Read the overtime interpretation working document.
+- Read `resources/overtime_example.md` as the default template for structure, formatting, wording, and level of detail.
+- Ask the LLM to create a reviewer-facing markdown summary of overtime entitlements.
+- Separate overtime triggers from overtime-related payment consequences and other considerations.
+- Use the template as a generic plain-English rule generation pattern, without copying its award-specific facts, clause references, rates, assumptions, or rule outcomes.
+
+Command:
+
+```bash
+uv run summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+```
+
+Main output:
+- `data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md`
+
+Main functions:
+- `load_overtime_interpretation(interpretation_path)`: loads and validates the interpretation markdown.
+- `load_reference_template(template_path)`: loads and validates the markdown template.
+- `output_path_for_interpretation(interpretation_path)`: derives the markdown output path.
+- `output_path_for_classification(classification_path)`: derives the entitlement path before the interpretation file exists.
+- `build_messages(source_file, interpretation_markdown, template_file, template_markdown)`: creates the entitlement-summary prompt.
+- `summarize_overtime_entitlements(...)`: orchestrates markdown loading, model call, response extraction, and markdown writing.
+
+Current status:
+- Implemented and covered by tests.
+- Prompt has been updated to use the reference template for the plain-English rule generation stage.
 - The prompt now asks for:
-  - `Plain-English overtime triggers`
-  - `Overtime-related payment consequences`
-  - `Other considerations`
-  - `Clause interpretation table`
+  - `Source Rules`
+  - `Specific Rule Breakdown`
+  - `Overtime Interpretation`
+  - `Overtime Entitlements`
+  - `Additional consequences of working overtime`
+  - `Required Data Inputs`
+  - `Required Business Assumptions & Initial Ruleset`
   - `Rule priority`
   - `Assumptions and missing inputs`
 - The markdown is intended to be clear enough for both human review and the next LLM step.
 - Humans may edit this file; downstream processing should not depend on exact markdown bullet formatting.
 
-## 4. Core overtime pseudocode
+## 5. Core overtime pseudocode
 
 Files:
 - `src/core_overtime_pseudocode.py`
@@ -143,11 +190,11 @@ Purpose:
 Command:
 
 ```bash
-uv run generate-overtime-pseudocode data/processed/MA000018_overtime_entitlements.md
+uv run generate-overtime-pseudocode data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md
 ```
 
 Main output:
-- `data/processed/MA000018_core_overtime_pseudocode.md`
+- `data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md`
 
 Main functions:
 - `load_overtime_summary(summary_path)`: loads and validates the entitlement markdown.
@@ -162,34 +209,36 @@ Current status:
 - This is intentionally format agnostic because humans may edit the markdown before pseudocode generation.
 - The pseudocode prompt tells the model to read the document for meaning, not exact heading or bullet labels.
 
-## 5. Combined overtime artifact generator
+## 6. Combined overtime artifact generator
 
 File: `src/overtime_clause_generator.py`
 
 Purpose:
-- Run the entitlement summary and pseudocode generation steps as one command.
-- Useful when regenerating both artifacts from a payment classification JSON.
+- Run the overtime interpretation, entitlement summary, and pseudocode generation steps as one command.
+- Useful when regenerating overtime artifacts from a payment classification JSON.
 
 Command:
 
 ```bash
-uv run generate-overtime-clause data/processed/MA000018_payment_classification.json
+uv run generate-overtime-clause data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
 Main outputs:
-- `data/processed/MA000018_overtime_entitlements.md`
-- `data/processed/MA000018_core_overtime_pseudocode.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md`
+- `data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md`
+- `data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md`
 
 Main functions:
-- `generate_overtime_clause_artifacts(...)`: runs `summarize_overtime_entitlements(...)` and then `generate_core_overtime_pseudocode(...)`.
-- `output_path_for_classification(...)`: determines the entitlement markdown path.
+- `generate_overtime_clause_artifacts(...)`: runs `generate_overtime_interpretation(...)`, then `summarize_overtime_entitlements(...)`, then `generate_core_overtime_pseudocode(...)`.
+- `interpretation_path_for_classification(...)`: determines the interpretation markdown path.
+- `output_path_for_classification(...)`: determines the entitlement markdown path before the interpretation file exists.
 - `output_path_for_summary(...)`: determines the pseudocode markdown path.
 
 Current status:
 - Implemented and covered by tests.
-- Uses the same model for both LLM calls unless a model override is supplied.
+- Uses the same model for all three LLM calls unless a model override is supplied.
 
-## 6. Overtime quality reviewer
+## 7. Overtime quality reviewer
 
 Files:
 - `src/overtime_quality_evaluator.py`
@@ -204,13 +253,13 @@ Command:
 
 ```bash
 uv run python overtime_quality_evaluator.py \
-  --classification-path data/processed/MA000018_payment_classification.json \
-  --entitlements-path data/processed/MA000018_overtime_entitlements.md \
-  --pseudocode-path data/processed/MA000018_core_overtime_pseudocode.md
+  --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json \
+  --entitlements-path data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md \
+  --pseudocode-path data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md
 ```
 
 Main output:
-- `data/processed/MA000018_overtime_quality_review.md`
+- `data/processed/5_overtime_review/MA000018_overtime_quality_review.md`
 
 Main functions:
 - `overtime_quality_evaluator.py`: root-level wrapper that calls `src.overtime_quality_evaluator.main()`.
@@ -241,24 +290,26 @@ uv run pytest
 ```
 
 Result:
-- 35 tests passed.
+- 39 tests passed.
 
 Current pipeline commands:
 
 ```bash
 uv run python src/fetch_award.py https://awards.fairwork.gov.au/MA000018.html
-uv run classify-payments data/processed/MA000018.json
-uv run summarize-overtime data/processed/MA000018_payment_classification.json
-uv run generate-overtime-pseudocode data/processed/MA000018_overtime_entitlements.md
+uv run classify-payments data/processed/1_fetch_award/MA000018.json
+uv run interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+uv run summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run generate-overtime-pseudocode data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md
 uv run python overtime_quality_evaluator.py \
-  --classification-path data/processed/MA000018_payment_classification.json \
-  --entitlements-path data/processed/MA000018_overtime_entitlements.md \
-  --pseudocode-path data/processed/MA000018_core_overtime_pseudocode.md
+  --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json \
+  --entitlements-path data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md \
+  --pseudocode-path data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md
 ```
 
 Current design notes:
 - `fetch_award.py` is deterministic.
-- `payment_clause_classifier.py`, `overtime_entitlement_summary.py`, `core_overtime_pseudocode.py`, and `overtime_quality_evaluator.py` use LLM calls.
+- `payment_clause_classifier.py`, `overtime_interpretation.py`, `overtime_entitlement_summary.py`, `core_overtime_pseudocode.py`, and `overtime_quality_evaluator.py` use LLM calls.
+- The overtime interpretation markdown is a working artifact between classification and reviewer-facing entitlement generation.
 - The entitlement markdown is a human-review artifact and may be manually edited.
 - The pseudocode generator now reads the full entitlement markdown rather than relying on exact markdown bullet formatting.
 - The quality reviewer is intended as an assurance layer, not as an automatic correction step.

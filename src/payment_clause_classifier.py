@@ -420,7 +420,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "award_path",
         nargs="?",
         default=str(DEFAULT_AWARD_PATH),
-        help="Path to a processed full award JSON file, for example data/processed/MA000018.json.",
+        help=(
+            "Path to a processed full award JSON file, for example "
+            "data/processed/1_fetch_award/MA000018.json."
+        ),
     )
     parser.add_argument(
         "--output-path",

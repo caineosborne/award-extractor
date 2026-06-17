@@ -38,9 +38,9 @@ class OvertimeQualityEvaluatorTests(unittest.TestCase):
     def test_output_path_for_pseudocode(self):
         self.assertEqual(
             output_path_for_pseudocode(
-                Path("data/processed/overtime_entitlements/MA000018_core_overtime_pseudocode.md")
+                Path("data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md")
             ),
-            Path("data/processed/overtime_review/MA000018_overtime_quality_review.md"),
+            Path("data/processed/5_overtime_review/MA000018_overtime_quality_review.md"),
         )
 
     def test_build_messages_include_artifacts_and_generation_prompts(self):

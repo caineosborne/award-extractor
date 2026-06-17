@@ -295,6 +295,16 @@ class PaymentClauseClassifierTests(unittest.TestCase):
         self.assertIn("Ordinary Hours & Overtime", SYSTEM_PROMPT)
         self.assertIn("L2 relevance is independent", SYSTEM_PROMPT)
         self.assertIn("Omit direct L2 clauses", SYSTEM_PROMPT)
+        self.assertIn("Do not use the other tag to mean irrelevant", SYSTEM_PROMPT)
+        self.assertIn("Irrelevant direct L2 clauses must be omitted", SYSTEM_PROMPT)
+        self.assertIn(
+            "Use the other tag only when the clause is payment-related",
+            SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "time off is to be taken at convenient times after consultation",
+            SYSTEM_PROMPT,
+        )
 
         prompt = build_user_prompt({"top_level_clause": {"reference": "25"}})
 
@@ -303,15 +313,15 @@ class PaymentClauseClassifierTests(unittest.TestCase):
     def test_output_paths(self):
         self.assertEqual(
             output_path_for_award(Path("data/processed/MA000018.json")),
-            Path("data/processed/payment_clause_identifier/MA000018_payment_classification.json"),
+            Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json"),
         )
         self.assertEqual(
             timestamped_output_path(
-                Path("data/processed/payment_clause_identifier/MA000018_payment_classification.json"),
+                Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json"),
                 datetime(2026, 6, 16, 15, 30, 12),
             ),
             Path(
-                "data/processed/payment_clause_identifier/archive/"
+                "data/processed/2_payment_clause_identifier/archive/"
                 "MA000018_payment_classification_20260616_153012.json"
             ),
         )

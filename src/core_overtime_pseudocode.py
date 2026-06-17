@@ -192,7 +192,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_OVERTIME_SUMMARY_PATH),
         help=(
             "Path to an overtime entitlements markdown file, for example "
-            "data/processed/MA000018_overtime_entitlements.md."
+            "data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md."
         ),
     )
     parser.add_argument(

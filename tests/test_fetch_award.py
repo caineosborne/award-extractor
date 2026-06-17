@@ -135,7 +135,7 @@ class FetchAwardTests(unittest.TestCase):
                 temp_path / "processed",
             )
 
-            fetch_award_dir = temp_path / "processed" / "fetch_award"
+            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
             archive_dir = fetch_award_dir / "archive"
 
             self.assertTrue((fetch_award_dir / "MA000018.json").exists())

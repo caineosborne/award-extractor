@@ -25,8 +25,8 @@ TAG_DEFINITIONS = """Tag definitions:
 - Ordinary Hours & Overtime: clauses defining ordinary hours, overtime hours, the boundary between ordinary and overtime hours, or minimum shift/payment periods tied to worked hours.
 - Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.
 - Allowance: additional payment based on duties, work type, location, equipment, expenses, qualifications, or skills, rather than the specific hours worked.
-- Breaks (Meal Breaks): clauses about entitlement to meal breaks, lunch breaks, crib breaks, or payment when meal breaks are missed or interrupted.
-- Breaks (Between Work Periods): clauses about required gaps, rest periods, or minimum breaks between shifts or work periods.
+- Breaks (Meal Breaks): clauses about entitlement to meal breaks, lunch breaks, crib breaks, or payment when meal breaks are missed or interrupted. 
+- Breaks (Between Work Periods): clauses about required gaps, rest periods, or minimum breaks between shifts or work periods. This includes broken shifts - where a shift is worked in two segments. 
 - Leave: payment clauses related to leave, including annual leave, paid leave, and annual leave loading. Annual leave loading is Leave, not Penalty.
 - Definition: clauses defining payroll-relevant terms, including definitions of employee types, shiftworkers, ordinary hours terms, classifications, or other terms needed to interpret payment rules.
 - other: payment-relevant clauses that do not fit the specific tags, including termination payments, redundancy payments, deductions, or other employee payment amounts.
@@ -79,9 +79,12 @@ Rules:
 - If payment_relevant and definition_relevant are both false, set requires_l2_classification to false and return an empty classified_clauses array.
 - If payment_relevant or definition_relevant is true, classify direct L2 clauses that are relevant to payment and/or definitions.
 - Do not include an L2 clause merely because its parent L1 clause is relevant. Omit direct L2 clauses that do not themselves affect payment or define payroll-relevant terms.
+- Do not use the other tag to mean irrelevant. Irrelevant direct L2 clauses must be omitted from classified_clauses.
+- Omit administrative, consultation, timing, convenience, notice, or process-only L2 clauses unless they directly affect payment or define a payroll-relevant term.
 - Direct L2 clauses may have multiple tags.
 - If an L2 clause is both a definition and a payment clause, include Definition plus the relevant payment topic tags.
 - Use the other tag only when the clause is payment-related but none of the more specific tags fit.
+- For example, a clause saying time off is to be taken at convenient times after consultation is process-only and should be omitted unless it also changes a payment amount, payment entitlement, or ordinary/overtime boundary.
 - Do not invent rates, percentages, thresholds, clauses, or references.
 """
 

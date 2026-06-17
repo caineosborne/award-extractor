@@ -1,6 +1,58 @@
 from src.payment_clause_classifier_prompt import DEFINITIONS, TAG_DEFINITIONS
 
 
+OVERTIME_INTERPRETATION_SYSTEM_PROMPT = f"""You prepare working notes for interpreting Australian modern award overtime clauses.
+
+Use the shared classifier glossary and tag definitions below. These are the same
+definitions used when selecting clauses for this workflow:
+{DEFINITIONS}
+
+{TAG_DEFINITIONS}
+
+Task:
+- Read the supplied clauses tagged Ordinary Hours & Overtime.
+- Produce a working interpretation document for a payroll reviewer and a later generation step.
+- Explain what the clauses say in clear audit-readable language.
+- Use ordinary-hours clauses to identify when overtime starts.
+- Treat the supplied clauses as the complete source set for this step.
+- Do not invent rules that are not supported by the supplied clauses.
+- Keep clause references visible wherever a rule or assumption comes from.
+- Separate actual overtime triggers from payment consequences that only apply after overtime exists.
+- Exclude penalty rates, shift penalties, weekend penalties, public holiday penalties, broken shift rules, leave rules, termination payments, redundancy payments, deductions, and other payment areas unless the supplied clause directly defines when worked time becomes ordinary hours or overtime hours.
+- Do not calculate dollar amounts.
+
+Required markdown structure:
+
+# Overtime Interpretation Working Document
+
+## Relevant Rules
+
+List the supplied Ordinary Hours & Overtime clauses that materially affect the interpretation.
+
+## When does overtime occur?
+
+Explain each overtime trigger in plain English. Include employee groups, thresholds, spans of hours, roster conditions, and clause references.
+
+## What happens when overtime occurs?
+
+Explain consequences that apply because time has become overtime, such as overtime rates, rate changes, minimum payments, or time off instead of payment.
+
+## What extra consequences exist?
+
+Explain related implementation consequences that are not themselves overtime triggers, such as approvals, notice, recordkeeping, or restrictions.
+
+## What data is required?
+
+List data fields needed to apply the interpretation in payroll calculations.
+
+## What assumptions are being made?
+
+List assumptions, missing information, ambiguous points, and limits of the interpretation.
+
+Return markdown only.
+"""
+
+
 OVERTIME_ENTITLEMENT_SYSTEM_PROMPT = f"""You summarise Australian modern award overtime entitlements for payroll implementation.
 
 Use the shared classifier glossary and tag definitions below. These are the same
@@ -11,103 +63,114 @@ definitions used when selecting clauses for this workflow:
 
 Task:
 - Produce a markdown artifact that explains overtime entitlement triggers and related payment consequences in plain English.
-- Write the explanation logically, so a payroll reviewer can trace each trigger to the clauses supplied.
-- Treat the supplied Ordinary Hours & Overtime clauses as one source set.
-- Use ordinary-hours clauses to identify when overtime starts.
-- Treat time worked outside ordinary hours as overtime, unless the supplied clauses expressly create a different treatment.
+- Use the supplied overtime interpretation working document as the source for the reviewer-facing markdown.
+- Use the supplied markdown template only as a style and structure reference for this plain-English rule generation stage.
+- Analyse the template's structure, formatting, wording, and level of detail before writing.
+- Extract the generic pattern from the template and apply it to this award's overtime rules.
+- Do not copy the template's award-specific facts, clause references, rates, employee categories, assumptions, or rule outcomes.
+- Write the explanation logically, so a payroll reviewer can trace each trigger to the clause references in the interpretation document.
+- Treat the interpretation document as one source set.
+- Use ordinary-hours rules in the interpretation document to identify when overtime starts.
+- Treat time worked outside ordinary hours as overtime, unless the interpretation document expressly identifies a different treatment.
 - The payment clause classifier is the source of truth for scope. Use only rules that belong to the Ordinary Hours & Overtime tag definition.
-- Do not extract or restate rules that belong to other classifier tags, even if they appear in the supplied text.
+- Do not extract or restate rules that belong to other classifier tags, even if they appear in the interpretation document.
 - Exclude penalty rates, shift penalties, weekend penalties, public holiday penalties, allowances, broken shift rules, meal break rules, rest break rules, leave rules, termination payments, redundancy payments, deductions, and other payment areas. These are handled by separate extraction workflows.
 - If a clause mixes an overtime boundary with another payment area, extract only the ordinary-hours/overtime boundary and ignore the other payment area.
 - Do not calculate dollar amounts.
-- Do not invent rules that are not supported by the supplied clauses.
+- Do not invent rules that are not supported by the interpretation document.
 - Cite clause references inline in each entitlement bullet.
-- Use employee categories exactly as supported by the clauses. Do not write "All employees", "Part Time only", "Casual only", or "Day workers only" unless the supplied clauses support that limitation.
-- Prefer tables and structured language where they make the rules easier to review.
+- Use employee categories exactly as supported by the interpretation document. Do not write "All employees", "Part Time only", "Casual only", or "Day workers only" unless the interpretation document supports that limitation.
+- Prefer the template's concise bullet style over tables unless a table is clearly needed to avoid ambiguity.
+- Keep the output audit-readable and generic enough that the same structure can later be reused for other payment categories.
 
 Out-of-scope examples:
 - Do not include broken shift clauses merely because a broken shift affects when work is performed.
 - Do not include penalty clauses merely because a penalty applies to hours that are also ordinary or overtime hours.
-- Do not include meal break, crib break, rest break, or break-between-shifts clauses unless the supplied clause directly defines when worked time becomes ordinary hours or overtime hours.
-- Do not include allowances or minimum payments unless the supplied clause directly defines an overtime boundary.
+- Do not include meal break, crib break, rest break, or break-between-shifts rules unless the interpretation document says they directly define when worked time becomes ordinary hours or overtime hours.
+- Do not include allowances or minimum payments unless the interpretation document says they directly define an overtime boundary.
 
 Required markdown structure:
 
-# Overtime entitlements
+# Source Rules
 
-## Plain-English overtime triggers
+Summarise the source rules from the interpretation document before generating final entitlements.
+Use concise grouped bullets with clause references.
 
-Explain what causes overtime and how many hours are overtime. Do not cover rates, multipliers, dollar amounts, or allowances in this section.
+Use category headings that fit the supplied interpretation, such as:
+- Ordinary Hours Rules
+- Overtime Rules
+- Other Related Rulesets
+- Additional Guidelines
 
-Where supported by the supplied clauses, include top-level markdown bullets using these labels and in this order:
-- Overtime - for working in excess of fortnightly hours:
-- Overtime - for working in excess of weekly hours:
-- Overtime - for working in excess of daily hours:
-- Overtime - for working outside the span of hours:
-- Overtime - for working in excess of rostered ordinary hours:
+Only include categories supported by the interpretation document. Do not create empty headings.
 
-These labels must be written as top-level bullets beginning "- Overtime - ". Do not write these labels as headings.
+## Specific Rule Breakdown
 
-Do not create a top-level overtime entitlement bullet or heading for a category where the clauses do not create an overtime trigger. Instead, explain the absence or limitation in the Clause interpretation table.
+Break down the rules into plain-English bullets.
+Each bullet should generally state:
+- the employee group or condition
+- the trigger or entitlement
+- the consequence or boundary
+- the clause reference
 
-After the colon, write a structured plain-English rule that states the affected employee group, the trigger, how the overtime hours are identified, and the clause references. For example:
-- Overtime - for working in excess of daily hours: Applicable to full-time and part-time shift workers only. Overtime starts after 10 ordinary hours in a day. [clause reference]
+Use wording patterned on the template, for example "For [employee group], [rule outcome] ([clause reference])."
+Do not use this example's facts unless they are supported by the interpretation document.
 
-Add further top-level "Overtime - ..." bullets only where the clauses create another operational overtime trigger that fits the Ordinary Hours & Overtime tag definition. Do not add bullets for penalties, allowances, broken shifts, breaks, leave, or other out-of-scope payment areas.
+Include additional guidelines supplied by the interpretation document, especially default assumptions such as how to treat hours that are not ordinary hours.
 
-Subheadings may be used where they improve reviewability, for example to group all sleepover-related triggers together if sleepover clauses are supplied. Subheadings must not start with "Overtime - ".
+# Overtime Interpretation
 
-Each bullet must:
-- Begin with "Overtime - ".
-- State who the rule applies to before explaining the trigger.
-- Explain the trigger in plain English, not legal shorthand.
-- Explain whether the trigger applies to all time in the shift or only the hours outside the ordinary-hours boundary.
-- Include clause references in square brackets.
-- Avoid rates, multipliers, allowances, and dollar calculations.
+Explain when an employee is entitled to overtime.
+This section is the plain-English trigger stage.
+Do not cover rates, multipliers, dollar amounts, or allowances in this section unless needed to distinguish the trigger from the consequence.
 
-Use a table if a trigger has multiple employee categories, thresholds, or clause conditions. For example:
+Use bullet points rather than dense paragraphs.
+Each bullet must identify who the rule applies to, when overtime starts, how overtime hours are identified, and the clause reference.
+Do not create a trigger where the interpretation document does not support one.
 
-| Trigger | Applies to | When overtime starts | Overtime hours identified | Clauses |
-|---|---|---|---|---|
+After the trigger bullets, briefly state how non-overtime hours should be treated if the interpretation document supports that assumption.
 
-## Overtime-related payment consequences
+## Additional Considerations
 
-Explain payment consequences that apply after overtime has been identified, including overtime rates, rate changes after a number of overtime hours, minimum payments, and additional allowances such as meal allowances.
+Explain related rules that affect implementation but are not themselves core overtime triggers, such as agreement requirements, time off instead of payment, roster exceptions, recordkeeping, notice requirements, or limitations on when overtime may be worked.
 
-Only include payment consequences that are part of the overtime clause itself. Exclude penalty, allowance, broken shift, break, leave, and other payment consequences that are covered by another classifier tag.
+## Overtime Entitlements
 
-Use tables where practical. For example:
+Explain what happens once overtime has been identified.
+Include overtime rates, rate changes after a number of overtime hours, minimum payments, or other overtime consequences only where supported by the interpretation document.
 
-| Consequence | Applies to | Payment effect | Conditions or limits | Clauses |
-|---|---|---|---|---|
+Do not present a payment consequence as an overtime trigger unless the interpretation document says the same clause also defines when ordinary time becomes overtime.
 
-Do not present a payment consequence as an overtime trigger unless the clause also states when ordinary time becomes overtime.
+## Additional consequences of working overtime
 
-## Other considerations
+Explain consequences that sit around the entitlement, such as meal allowances, rest-after-overtime effects, or time off instead of payment, only where they are supported by the interpretation document and are in scope for Ordinary Hours & Overtime.
 
-Explain related rules that affect implementation but are not plain-English overtime triggers or direct payment consequences, such as time off instead of payment for overtime, agreement requirements, recordkeeping, notice requirements, or limitations on when overtime may be worked.
+## Required Data Inputs
 
-Use subheadings where helpful.
+Separate inputs into:
+- Required for initial calculation
+- Required for subsequent calculation
 
-## Clause interpretation table
+Only include data inputs that are needed to apply the rules in the interpretation document.
 
-Use a markdown table with these columns:
-- Clause
-- Relevance
-- Extracted rule
-- Payroll impact
+## Required Business Assumptions & Initial Ruleset
 
-Use this table to explain any absent, limited, or ambiguous trigger category. For example, if there is no weekly overtime trigger in the supplied clauses, state that the supplied clauses do not create a weekly overtime trigger and identify the clauses reviewed.
+Separate assumptions into:
+- Implemented Assumptions
+- Scenarios Excluded
 
-## Rule priority
+Include assumptions, missing information, ambiguous points, and excluded scenarios that affect implementation.
+
+## Rule Priority
 
 List the order in which a payroll engine should apply the overtime triggers to avoid double counting the same worked hour.
 
-## Assumptions and missing inputs
+Final checks:
+- Use only facts supported by the interpretation document.
+- Follow the template's style and level of detail, not its award-specific content.
+- Keep clause references visible.
+- Return markdown only.
 
-List any input needed to implement the rules accurately.
-
-Return markdown only.
 """
 
 

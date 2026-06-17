@@ -24,7 +24,7 @@ class SequentialFakeClient:
 
 
 class OvertimeClauseGeneratorTests(unittest.TestCase):
-    def test_generate_overtime_clause_artifacts_writes_two_markdown_files(self):
+    def test_generate_overtime_clause_artifacts_writes_three_markdown_files(self):
         data = {
             "classified_clauses": {
                 "25.1": {
@@ -34,12 +34,19 @@ class OvertimeClauseGeneratorTests(unittest.TestCase):
                 }
             }
         }
+        interpretation_markdown = (
+            "# Overtime Interpretation Working Document\n\n"
+            "## When does overtime occur?\n\n"
+            "Overtime applies after 10 hours in a day. [25.1]"
+        )
         entitlements_markdown = (
             "# Overtime entitlements\n\n"
             "- Overtime - for working in excess of daily hours: Applies after 10 hours. [25.1]"
         )
         pseudocode_markdown = "# Overtime pseudocode\n\n- Allocate excess daily hours."
-        fake_client = SequentialFakeClient([entitlements_markdown, pseudocode_markdown])
+        fake_client = SequentialFakeClient(
+            [interpretation_markdown, entitlements_markdown, pseudocode_markdown]
+        )
 
         with tempfile.TemporaryDirectory() as temp_dir:
             input_path = Path(temp_dir) / "award_payment_classification.json"
@@ -51,13 +58,17 @@ class OvertimeClauseGeneratorTests(unittest.TestCase):
                 client=fake_client,
             )
 
+            interpretation_file = artifacts.interpretation_path.read_text(encoding="utf-8")
             entitlement_file = artifacts.entitlements_path.read_text(encoding="utf-8")
             pseudocode_file = artifacts.pseudocode_path.read_text(encoding="utf-8")
 
+        self.assertEqual(interpretation_file, interpretation_markdown)
         self.assertEqual(entitlement_file, entitlements_markdown)
         self.assertEqual(pseudocode_file, pseudocode_markdown)
         self.assertEqual(fake_client.responses.calls[0]["model"], "gpt-5.4")
         self.assertEqual(fake_client.responses.calls[1]["model"], "gpt-5.4")
+        self.assertEqual(fake_client.responses.calls[2]["model"], "gpt-5.4")
+        self.assertEqual(artifacts.interpretation_markdown, interpretation_markdown)
 
 
 if __name__ == "__main__":

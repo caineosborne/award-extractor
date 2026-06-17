@@ -2,10 +2,11 @@ from datetime import datetime
 from pathlib import Path
 
 
-FETCH_AWARD_DIR = "fetch_award"
-PAYMENT_CLAUSE_IDENTIFIER_DIR = "payment_clause_identifier"
-OVERTIME_ENTITLEMENTS_DIR = "overtime_entitlements"
-OVERTIME_REVIEW_DIR = "overtime_review"
+FETCH_AWARD_DIR = "1_fetch_award"
+PAYMENT_CLAUSE_IDENTIFIER_DIR = "2_payment_clause_identifier"
+OVERTIME_INTERPRETATIONS_DIR = "3_overtime_interpretations"
+OVERTIME_ENTITLEMENTS_DIR = "4_overtime_entitlements"
+OVERTIME_REVIEW_DIR = "5_overtime_review"
 ARCHIVE_DIR = "archive"
 
 
