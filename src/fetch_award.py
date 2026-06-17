@@ -4,11 +4,14 @@ import json
 import re
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
 from bs4 import BeautifulSoup
+
+from src.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, write_text_with_archive
 
 
 TARGET_CLASSES = {
@@ -370,25 +373,36 @@ def child_nodes(mapping: OrderedDict):
 def write_outputs(url: str, main_content, award: OrderedDict, raw_dir: Path, processed_dir: Path) -> None:
     """Write raw HTML, full JSON, section-index JSON, and heading CSV outputs."""
     raw_dir.mkdir(parents=True, exist_ok=True)
-    processed_dir.mkdir(parents=True, exist_ok=True)
+    fetch_award_dir = processed_dir / FETCH_AWARD_DIR
+    fetch_award_dir.mkdir(parents=True, exist_ok=True)
 
     stem = output_stem(url)
     raw_path = raw_dir / f"{stem}.html"
-    json_path = processed_dir / f"{stem}.json"
-    section_index_path = processed_dir / f"{stem}_sections.json"
-    csv_path = processed_dir / f"{stem}.csv"
+    json_path = fetch_award_dir / f"{stem}.json"
+    section_index_path = fetch_award_dir / f"{stem}_sections.json"
+    csv_path = fetch_award_dir / f"{stem}.csv"
 
     raw_path.write_text(str(main_content), encoding="utf-8")
-    json_path.write_text(json.dumps(award, indent=2, ensure_ascii=False), encoding="utf-8")
-    section_index_path.write_text(
+    archive_timestamp = datetime.now()
+    write_text_with_archive(
+        json_path,
+        json.dumps(award, indent=2, ensure_ascii=False),
+        archive_timestamp,
+    )
+    write_text_with_archive(
+        section_index_path,
         json.dumps(build_section_index(award), indent=2, ensure_ascii=False),
-        encoding="utf-8",
+        archive_timestamp,
     )
 
     with csv_path.open("w", newline="", encoding="utf-8") as csv_file:
         writer = csv.DictWriter(csv_file, fieldnames=["PartHeading", "L1", "L2", "L3"])
         writer.writeheader()
         writer.writerows(iter_heading_rows(award))
+
+    archive_csv_path = timestamped_archive_path(csv_path, archive_timestamp)
+    archive_csv_path.parent.mkdir(parents=True, exist_ok=True)
+    archive_csv_path.write_text(csv_path.read_text(encoding="utf-8"), encoding="utf-8")
 
     print(f"Raw HTML saved to {raw_path}")
     print(f"Processed JSON saved to {json_path}")

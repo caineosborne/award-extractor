@@ -9,12 +9,22 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.Overtime_System_Prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
+from src.output_paths import (
+    OVERTIME_ENTITLEMENTS_DIR,
+    PAYMENT_CLAUSE_IDENTIFIER_DIR,
+    path_in_category,
+    write_text_with_archive,
+)
 from src.payment_clause_classifier import extract_response_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CLASSIFICATION_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "MA000018_payment_classification.json"
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / PAYMENT_CLAUSE_IDENTIFIER_DIR
+    / "MA000018_payment_classification.json"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
@@ -75,7 +85,11 @@ def output_path_for_classification(classification_path: Path | str) -> Path:
     stem = path.stem
     if stem.endswith("_payment_classification"):
         stem = stem.removesuffix("_payment_classification")
-    return path.with_name(f"{stem}_overtime_entitlements.md")
+    return path_in_category(
+        path,
+        OVERTIME_ENTITLEMENTS_DIR,
+        f"{stem}_overtime_entitlements.md",
+    )
 
 
 def build_messages(source_file: str, overtime_clauses: Mapping[str, Any]) -> list[dict[str, str]]:
@@ -123,7 +137,7 @@ def summarize_overtime_entitlements(
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
 
     destination = Path(output_path) if output_path else output_path_for_classification(source_path)
-    destination.write_text(output_text, encoding="utf-8")
+    write_text_with_archive(destination, output_text)
     return output_text
 
 

@@ -8,12 +8,21 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.Overtime_System_Prompt import CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE
+from src.output_paths import (
+    OVERTIME_ENTITLEMENTS_DIR,
+    path_in_category,
+    write_text_with_archive,
+)
 from src.payment_clause_classifier import extract_response_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_OVERTIME_SUMMARY_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "MA000018_overtime_entitlements.md"
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / OVERTIME_ENTITLEMENTS_DIR
+    / "MA000018_overtime_entitlements.md"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 
@@ -119,7 +128,11 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
     stem = path.stem
     if stem.endswith("_overtime_entitlements"):
         stem = stem.removesuffix("_overtime_entitlements")
-    return path.with_name(f"{stem}_core_overtime_pseudocode.md")
+    return path_in_category(
+        path,
+        OVERTIME_ENTITLEMENTS_DIR,
+        f"{stem}_core_overtime_pseudocode.md",
+    )
 
 
 def build_messages(source_file: str, overtime_summary_markdown: str) -> list[dict[str, str]]:
@@ -165,7 +178,7 @@ def generate_core_overtime_pseudocode(
         raise CoreOvertimePseudocodeError("OpenAI response did not include output text.")
 
     destination = Path(output_path) if output_path else output_path_for_summary(source_path)
-    destination.write_text(output_text, encoding="utf-8")
+    write_text_with_archive(destination, output_text)
     return output_text
 
 

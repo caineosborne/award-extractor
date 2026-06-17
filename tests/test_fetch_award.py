@@ -1,8 +1,16 @@
+import tempfile
 import unittest
+from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from src.fetch_award import extract_award, extract_award_elements, nest_award_elements, table_to_dict
+from src.fetch_award import (
+    extract_award,
+    extract_award_elements,
+    nest_award_elements,
+    table_to_dict,
+    write_outputs,
+)
 
 
 class FetchAwardTests(unittest.TestCase):
@@ -104,6 +112,38 @@ class FetchAwardTests(unittest.TestCase):
 
         self.assertEqual(table["headers"], ["Item", "Item"])
         self.assertEqual(table["rows"], [["A", "B"]])
+
+    def test_write_outputs_segments_fetch_award_files_and_archives_versions(self):
+        soup = BeautifulSoup(
+            """
+            <div id="mainContent">
+                <p class="partheading">Part 1 - Application</p>
+                <p class="level1">1 Title</p>
+            </div>
+            """,
+            "html.parser",
+        )
+        award = extract_award(soup.find(id="mainContent"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            write_outputs(
+                "https://awards.fairwork.gov.au/MA000018.html",
+                soup.find(id="mainContent"),
+                award,
+                temp_path / "raw",
+                temp_path / "processed",
+            )
+
+            fetch_award_dir = temp_path / "processed" / "fetch_award"
+            archive_dir = fetch_award_dir / "archive"
+
+            self.assertTrue((fetch_award_dir / "MA000018.json").exists())
+            self.assertTrue((fetch_award_dir / "MA000018_sections.json").exists())
+            self.assertTrue((fetch_award_dir / "MA000018.csv").exists())
+            self.assertEqual(len(list(archive_dir.glob("MA000018_[0-9]*.json"))), 1)
+            self.assertEqual(len(list(archive_dir.glob("MA000018_sections_*.json"))), 1)
+            self.assertEqual(len(list(archive_dir.glob("MA000018_*.csv"))), 1)
 
 
 if __name__ == "__main__":

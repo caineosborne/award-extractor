@@ -303,14 +303,17 @@ class PaymentClauseClassifierTests(unittest.TestCase):
     def test_output_paths(self):
         self.assertEqual(
             output_path_for_award(Path("data/processed/MA000018.json")),
-            Path("data/processed/MA000018_payment_classification.json"),
+            Path("data/processed/payment_clause_identifier/MA000018_payment_classification.json"),
         )
         self.assertEqual(
             timestamped_output_path(
-                Path("data/processed/MA000018_payment_classification.json"),
+                Path("data/processed/payment_clause_identifier/MA000018_payment_classification.json"),
                 datetime(2026, 6, 16, 15, 30, 12),
             ),
-            Path("data/processed/MA000018_payment_classification_20260616_153012.json"),
+            Path(
+                "data/processed/payment_clause_identifier/archive/"
+                "MA000018_payment_classification_20260616_153012.json"
+            ),
         )
 
     def test_classify_award_writes_prod_and_timestamped_json_with_mocked_client(self):
@@ -393,7 +396,9 @@ class PaymentClauseClassifierTests(unittest.TestCase):
             )
 
             written = json.loads(output_path.read_text(encoding="utf-8"))
-            history_files = list(Path(temp_dir).glob("award_payment_classification_*.json"))
+            history_files = list(
+                (Path(temp_dir) / "archive").glob("award_payment_classification_*.json")
+            )
 
         self.assertEqual(result["model"], DEFAULT_MODEL)
         self.assertEqual(result["schema_version"], SCHEMA_VERSION)

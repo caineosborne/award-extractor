@@ -1,10 +1,13 @@
-from src.payment_clause_classifier_prompt import DEFINITIONS
+from src.payment_clause_classifier_prompt import DEFINITIONS, TAG_DEFINITIONS
 
 
 OVERTIME_ENTITLEMENT_SYSTEM_PROMPT = f"""You summarise Australian modern award overtime entitlements for payroll implementation.
 
-Use the glossary below:
+Use the shared classifier glossary and tag definitions below. These are the same
+definitions used when selecting clauses for this workflow:
 {DEFINITIONS}
+
+{TAG_DEFINITIONS}
 
 Task:
 - Produce a markdown artifact that explains overtime entitlement triggers and related payment consequences in plain English.
@@ -12,11 +15,21 @@ Task:
 - Treat the supplied Ordinary Hours & Overtime clauses as one source set.
 - Use ordinary-hours clauses to identify when overtime starts.
 - Treat time worked outside ordinary hours as overtime, unless the supplied clauses expressly create a different treatment.
+- The payment clause classifier is the source of truth for scope. Use only rules that belong to the Ordinary Hours & Overtime tag definition.
+- Do not extract or restate rules that belong to other classifier tags, even if they appear in the supplied text.
+- Exclude penalty rates, shift penalties, weekend penalties, public holiday penalties, allowances, broken shift rules, meal break rules, rest break rules, leave rules, termination payments, redundancy payments, deductions, and other payment areas. These are handled by separate extraction workflows.
+- If a clause mixes an overtime boundary with another payment area, extract only the ordinary-hours/overtime boundary and ignore the other payment area.
 - Do not calculate dollar amounts.
 - Do not invent rules that are not supported by the supplied clauses.
 - Cite clause references inline in each entitlement bullet.
 - Use employee categories exactly as supported by the clauses. Do not write "All employees", "Part Time only", "Casual only", or "Day workers only" unless the supplied clauses support that limitation.
 - Prefer tables and structured language where they make the rules easier to review.
+
+Out-of-scope examples:
+- Do not include broken shift clauses merely because a broken shift affects when work is performed.
+- Do not include penalty clauses merely because a penalty applies to hours that are also ordinary or overtime hours.
+- Do not include meal break, crib break, rest break, or break-between-shifts clauses unless the supplied clause directly defines when worked time becomes ordinary hours or overtime hours.
+- Do not include allowances or minimum payments unless the supplied clause directly defines an overtime boundary.
 
 Required markdown structure:
 
@@ -40,7 +53,7 @@ Do not create a top-level overtime entitlement bullet or heading for a category 
 After the colon, write a structured plain-English rule that states the affected employee group, the trigger, how the overtime hours are identified, and the clause references. For example:
 - Overtime - for working in excess of daily hours: Applicable to full-time and part-time shift workers only. Overtime starts after 10 ordinary hours in a day. [clause reference]
 
-Add further top-level "Overtime - ..." bullets only where the clauses create another operational overtime trigger, such as recall to work, working through a meal break, rest-period rules, sleepovers, broken shifts, or time worked outside ordinary hours.
+Add further top-level "Overtime - ..." bullets only where the clauses create another operational overtime trigger that fits the Ordinary Hours & Overtime tag definition. Do not add bullets for penalties, allowances, broken shifts, breaks, leave, or other out-of-scope payment areas.
 
 Subheadings may be used where they improve reviewability, for example to group all sleepover-related triggers together if sleepover clauses are supplied. Subheadings must not start with "Overtime - ".
 
@@ -60,6 +73,8 @@ Use a table if a trigger has multiple employee categories, thresholds, or clause
 ## Overtime-related payment consequences
 
 Explain payment consequences that apply after overtime has been identified, including overtime rates, rate changes after a number of overtime hours, minimum payments, and additional allowances such as meal allowances.
+
+Only include payment consequences that are part of the overtime clause itself. Exclude penalty, allowance, broken shift, break, leave, and other payment consequences that are covered by another classifier tag.
 
 Use tables where practical. For example:
 

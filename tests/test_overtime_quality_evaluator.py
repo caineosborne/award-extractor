@@ -38,9 +38,9 @@ class OvertimeQualityEvaluatorTests(unittest.TestCase):
     def test_output_path_for_pseudocode(self):
         self.assertEqual(
             output_path_for_pseudocode(
-                Path("data/processed/MA000018_core_overtime_pseudocode.md")
+                Path("data/processed/overtime_entitlements/MA000018_core_overtime_pseudocode.md")
             ),
-            Path("data/processed/MA000018_overtime_quality_review.md"),
+            Path("data/processed/overtime_review/MA000018_overtime_quality_review.md"),
         )
 
     def test_build_messages_include_artifacts_and_generation_prompts(self):
@@ -104,8 +104,12 @@ class OvertimeQualityEvaluatorTests(unittest.TestCase):
             )
 
             written = output_path.read_text(encoding="utf-8")
+            archive_files = list(
+                (Path(temp_dir) / "archive").glob("award_overtime_quality_review_*.md")
+            )
 
         self.assertEqual(result, written)
+        self.assertEqual(len(archive_files), 1)
         self.assertEqual(fake_client.chat.completions.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn(
             "# Overtime entitlements",

@@ -191,7 +191,9 @@ Current status:
 
 ## 6. Overtime quality reviewer
 
-File: `src/overtime_quality_evaluator.py`
+Files:
+- `src/overtime_quality_evaluator.py`
+- `overtime_quality_evaluator.py`
 
 Purpose:
 - Review the generated overtime artifacts against the payment classification JSON and the generation prompts.
@@ -201,7 +203,7 @@ Purpose:
 Command:
 
 ```bash
-uv run python -m src.overtime_quality_evaluator \
+uv run python overtime_quality_evaluator.py \
   --classification-path data/processed/MA000018_payment_classification.json \
   --entitlements-path data/processed/MA000018_overtime_entitlements.md \
   --pseudocode-path data/processed/MA000018_core_overtime_pseudocode.md
@@ -211,6 +213,7 @@ Main output:
 - `data/processed/MA000018_overtime_quality_review.md`
 
 Main functions:
+- `overtime_quality_evaluator.py`: root-level wrapper that calls `src.overtime_quality_evaluator.main()`.
 - `load_environment(env_path)`: loads the OpenRouter API key from `.env` or the environment.
 - `build_openrouter_client(api_key)`: creates an OpenAI-compatible OpenRouter client.
 - `load_text_file(path, description)`: loads and validates markdown inputs.
@@ -227,7 +230,7 @@ Current status:
 - Uses OpenRouter by default with model `qwen/qwen3-coder`.
 - Requires `OPENROUTER_API_KEY` or `OPEN_ROUTER_API_KEY`.
 - At the time this file was written, this module and its tests are present in the working tree and should be added to version control if this quality review step is part of the intended pipeline.
-- No console script entry has been added yet in `pyproject.toml`; run it with `uv run python -m src.overtime_quality_evaluator`.
+- No console script entry has been added yet in `pyproject.toml`; run it with `uv run python overtime_quality_evaluator.py` or `uv run python -m src.overtime_quality_evaluator`.
 
 ## Current end-to-end status
 
@@ -247,7 +250,7 @@ uv run python src/fetch_award.py https://awards.fairwork.gov.au/MA000018.html
 uv run classify-payments data/processed/MA000018.json
 uv run summarize-overtime data/processed/MA000018_payment_classification.json
 uv run generate-overtime-pseudocode data/processed/MA000018_overtime_entitlements.md
-uv run python -m src.overtime_quality_evaluator \
+uv run python overtime_quality_evaluator.py \
   --classification-path data/processed/MA000018_payment_classification.json \
   --entitlements-path data/processed/MA000018_overtime_entitlements.md \
   --pseudocode-path data/processed/MA000018_core_overtime_pseudocode.md

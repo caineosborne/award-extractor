@@ -13,17 +13,36 @@ from src.Overtime_System_Prompt import (
     OVERTIME_ENTITLEMENT_SYSTEM_PROMPT,
 )
 from src.core_overtime_pseudocode import PSEUDOCODE_FIELDS
+from src.output_paths import (
+    OVERTIME_ENTITLEMENTS_DIR,
+    OVERTIME_REVIEW_DIR,
+    PAYMENT_CLAUSE_IDENTIFIER_DIR,
+    path_in_category,
+    write_text_with_archive,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CLASSIFICATION_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "MA000018_payment_classification.json"
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / PAYMENT_CLAUSE_IDENTIFIER_DIR
+    / "MA000018_payment_classification.json"
 )
 DEFAULT_ENTITLEMENTS_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "MA000018_overtime_entitlements.md"
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / OVERTIME_ENTITLEMENTS_DIR
+    / "MA000018_overtime_entitlements.md"
 )
 DEFAULT_PSEUDOCODE_PATH = (
-    PROJECT_ROOT / "data" / "processed" / "MA000018_core_overtime_pseudocode.md"
+    PROJECT_ROOT
+    / "data"
+    / "processed"
+    / OVERTIME_ENTITLEMENTS_DIR
+    / "MA000018_core_overtime_pseudocode.md"
 )
 DEFAULT_MODEL = "qwen/qwen3-coder"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
@@ -203,7 +222,11 @@ def output_path_for_pseudocode(pseudocode_path: Path | str) -> Path:
     stem = path.stem
     if stem.endswith("_core_overtime_pseudocode"):
         stem = stem.removesuffix("_core_overtime_pseudocode")
-    return path.with_name(f"{stem}_overtime_quality_review.md")
+    return path_in_category(
+        path,
+        OVERTIME_REVIEW_DIR,
+        f"{stem}_overtime_quality_review.md",
+    )
 
 
 def evaluate_overtime_artifact_quality(
@@ -249,7 +272,7 @@ def evaluate_overtime_artifact_quality(
         )
 
     destination = Path(output_path) if output_path else output_path_for_pseudocode(pseudocode_path)
-    destination.write_text(output_text, encoding="utf-8")
+    write_text_with_archive(destination, output_text)
     return output_text
 
 

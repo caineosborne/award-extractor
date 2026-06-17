@@ -45,9 +45,9 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
     def test_output_path_for_classification(self):
         self.assertEqual(
             output_path_for_classification(
-                Path("data/processed/MA000018_payment_classification.json")
+                Path("data/processed/payment_clause_identifier/MA000018_payment_classification.json")
             ),
-            Path("data/processed/MA000018_overtime_entitlements.md"),
+            Path("data/processed/overtime_entitlements/MA000018_overtime_entitlements.md"),
         )
 
     def test_build_messages_includes_glossary_and_clause_references(self):
@@ -58,6 +58,12 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
         self.assertIn("ordinary hours", messages[0]["content"])
         self.assertIn("overtime", messages[0]["content"])
+        self.assertIn("Tag definitions:", messages[0]["content"])
+        self.assertIn("The payment clause classifier is the source of truth for scope", messages[0]["content"])
+        self.assertIn("Use only rules that belong to the Ordinary Hours & Overtime tag definition", messages[0]["content"])
+        self.assertIn("Exclude penalty rates", messages[0]["content"])
+        self.assertIn("broken shift rules", messages[0]["content"])
+        self.assertIn("handled by separate extraction workflows", messages[0]["content"])
         self.assertIn("Overtime - for working in excess of fortnightly hours", messages[0]["content"])
         self.assertIn("Overtime - for working in excess of daily hours", messages[0]["content"])
         self.assertIn("Overtime - for working outside the span of hours", messages[0]["content"])
@@ -95,8 +101,12 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             )
 
             written = output_path.read_text(encoding="utf-8")
+            archive_files = list(
+                (Path(temp_dir) / "archive").glob("award_overtime_entitlements_*.md")
+            )
 
         self.assertEqual(result, written)
+        self.assertEqual(len(archive_files), 1)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
 
 

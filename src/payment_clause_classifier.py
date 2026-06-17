@@ -16,10 +16,19 @@ from src.payment_clause_classifier_prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,
 )
+from src.output_paths import (
+    FETCH_AWARD_DIR,
+    PAYMENT_CLAUSE_IDENTIFIER_DIR,
+    path_in_category,
+    timestamped_archive_path,
+    write_text_with_archive,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_AWARD_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018.json"
+DEFAULT_AWARD_PATH = (
+    PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR / "MA000018.json"
+)
 DEFAULT_MODEL = "gpt-5.4-mini"
 SCHEMA_VERSION = "payment-classification-v2"
 CONTENT_KEY = "_content"
@@ -62,14 +71,15 @@ def load_award(award_path: Path | str = DEFAULT_AWARD_PATH) -> OrderedDict[str, 
 
 def output_path_for_award(award_path: Path | str) -> Path:
     path = Path(award_path)
-    return path.with_name(f"{path.stem}_payment_classification.json")
+    return path_in_category(
+        path,
+        PAYMENT_CLAUSE_IDENTIFIER_DIR,
+        f"{path.stem}_payment_classification.json",
+    )
 
 
 def timestamped_output_path(output_path: Path | str, timestamp: datetime | None = None) -> Path:
-    path = Path(output_path)
-    selected_timestamp = timestamp or datetime.now()
-    suffix = selected_timestamp.strftime("%Y%m%d_%H%M%S")
-    return path.with_name(f"{path.stem}_{suffix}{path.suffix}")
+    return timestamped_archive_path(output_path, timestamp)
 
 
 def child_nodes(mapping: Mapping[str, Any]):
@@ -398,8 +408,7 @@ def classify_award(
 
     destination = Path(output_path) if output_path else output_path_for_award(source_path)
     output_json = json.dumps(result, indent=2, ensure_ascii=False)
-    destination.write_text(output_json, encoding="utf-8")
-    timestamped_output_path(destination).write_text(output_json, encoding="utf-8")
+    write_text_with_archive(destination, output_json)
     return result
 
 

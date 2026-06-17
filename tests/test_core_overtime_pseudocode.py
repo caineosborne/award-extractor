@@ -53,7 +53,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_output_path_for_summary(self):
         self.assertEqual(
             output_path_for_summary(Path("data/processed/MA000018_overtime_entitlements.md")),
-            Path("data/processed/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/overtime_entitlements/MA000018_core_overtime_pseudocode.md"),
         )
 
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
@@ -126,8 +126,12 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             )
 
             written = output_path.read_text(encoding="utf-8")
+            archive_files = list(
+                (Path(temp_dir) / "archive").glob("award_core_overtime_pseudocode_*.md")
+            )
 
         self.assertEqual(result, written)
+        self.assertEqual(len(archive_files), 1)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn(
             "Meal break note",

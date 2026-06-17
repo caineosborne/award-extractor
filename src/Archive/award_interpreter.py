@@ -9,10 +9,13 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.Archive.award_interpreter_prompt import SYSTEM_PROMPT
+from src.output_paths import FETCH_AWARD_DIR
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_SECTIONS_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018_sections.json"
+DEFAULT_SECTIONS_PATH = (
+    PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR / "MA000018_sections.json"
+)
 DEFAULT_MODEL = "gpt-5.4"
 
 
