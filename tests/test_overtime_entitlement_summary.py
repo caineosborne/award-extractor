@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.overtime_entitlement_summary import (
+from src.script_4a_summarize_overtime import (
     DEFAULT_MODEL,
     build_messages,
     load_reference_template,
@@ -33,7 +33,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             output_path_for_interpretation(
                 Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md")
             ),
-            Path("data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md"),
+            Path("data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md"),
         )
 
     def test_build_messages_includes_glossary_and_interpretation_markdown(self):

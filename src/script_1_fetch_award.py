@@ -74,7 +74,14 @@ def parse_args() -> argparse.Namespace:
         description="Fetch a Fair Work award URL and extract its heading hierarchy."
     )
     parser.add_argument("url", help="Award URL to fetch, for example https://awards.fairwork.gov.au/MA000018.html")
-    parser.add_argument("--raw-dir", default="data/raw", help="Directory for raw MainContent HTML")
+    parser.add_argument(
+        "--raw-dir",
+        default=None,
+        help=(
+            "Directory for raw MainContent HTML. Defaults to "
+            "data/processed/1_fetch_award/raw."
+        ),
+    )
     parser.add_argument(
         "--processed-dir",
         default="data/processed",
@@ -428,7 +435,10 @@ def main() -> None:
 
     award = extract_award(main_content)
 
-    write_outputs(args.url, main_content, award, Path(args.raw_dir), Path(args.processed_dir))
+    processed_dir = Path(args.processed_dir)
+    raw_dir = Path(args.raw_dir) if args.raw_dir else processed_dir / FETCH_AWARD_DIR / "raw"
+
+    write_outputs(args.url, main_content, award, raw_dir, processed_dir)
 
 
 if __name__ == "__main__":

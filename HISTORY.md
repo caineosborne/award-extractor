@@ -13,7 +13,7 @@ The project is designed to produce audit-readable artifacts from Australian mode
 
 ## 1. Fetch award
 
-File: `src/fetch_award.py`
+File: `src/script_1_fetch_award.py`
 
 Purpose:
 - Fetch a Fair Work award HTML page.
@@ -24,11 +24,11 @@ Purpose:
 Command:
 
 ```bash
-uv run python src/fetch_award.py https://awards.fairwork.gov.au/MA000018.html
+uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
 ```
 
 Main outputs:
-- `data/raw/<award>.html`
+- `data/processed/1_fetch_award/raw/<award>.html`
 - `data/processed/<award>.json`
 - `data/processed/<award>_sections.json`
 - `data/processed/<award>.csv`
@@ -51,8 +51,8 @@ Current status:
 ## 2. Payment clause classifier
 
 Files:
-- `src/payment_clause_classifier.py`
-- `src/payment_clause_classifier_prompt.py`
+- `src/script_2_classify_payments.py`
+- `src/script_2_classify_payments_prompt.py`
 
 Purpose:
 - Read the structured award JSON.
@@ -64,7 +64,7 @@ Purpose:
 Command:
 
 ```bash
-uv run classify-payments data/processed/1_fetch_award/MA000018.json
+uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
 ```
 
 Main output:
@@ -91,7 +91,7 @@ Current status:
 ## 3. Overtime interpretation working document
 
 Files:
-- `src/overtime_interpretation.py`
+- `src/script_3_interpret_overtime.py`
 - `src/Overtime_System_Prompt.py`
 
 Purpose:
@@ -103,7 +103,7 @@ Purpose:
 Command:
 
 ```bash
-uv run interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
 Main output:
@@ -131,7 +131,7 @@ Current status:
 ## 4. Overtime entitlement summary
 
 Files:
-- `src/overtime_entitlement_summary.py`
+- `src/script_4a_summarize_overtime.py`
 - `src/Overtime_System_Prompt.py`
 - `resources/overtime_example.md`
 
@@ -145,11 +145,11 @@ Purpose:
 Command:
 
 ```bash
-uv run summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run script-4a-summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
 ```
 
 Main output:
-- `data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md`
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md`
 
 Main functions:
 - `load_overtime_interpretation(interpretation_path)`: loads and validates the interpretation markdown.
@@ -178,7 +178,7 @@ Current status:
 ## 5. Core overtime pseudocode
 
 Files:
-- `src/core_overtime_pseudocode.py`
+- `src/script_5b_generate_overtime_pseudocode.py`
 - `src/Overtime_System_Prompt.py`
 
 Purpose:
@@ -190,11 +190,11 @@ Purpose:
 Command:
 
 ```bash
-uv run generate-overtime-pseudocode data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md
+uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
 ```
 
 Main output:
-- `data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md`
+- `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md`
 
 Main functions:
 - `load_overtime_summary(summary_path)`: loads and validates the entitlement markdown.
@@ -211,7 +211,7 @@ Current status:
 
 ## 6. Combined overtime artifact generator
 
-File: `src/overtime_clause_generator.py`
+File: `src/script_4a_generate_overtime_clause.py`
 
 Purpose:
 - Run the overtime interpretation, entitlement summary, and pseudocode generation steps as one command.
@@ -220,13 +220,13 @@ Purpose:
 Command:
 
 ```bash
-uv run generate-overtime-clause data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+uv run script-4a-generate-overtime-clause data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
 Main outputs:
 - `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md`
-- `data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md`
-- `data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md`
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md`
+- `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md`
 
 Main functions:
 - `generate_overtime_clause_artifacts(...)`: runs `generate_overtime_interpretation(...)`, then `summarize_overtime_entitlements(...)`, then `generate_core_overtime_pseudocode(...)`.
@@ -241,8 +241,8 @@ Current status:
 ## 7. Overtime quality reviewer
 
 Files:
-- `src/overtime_quality_evaluator.py`
-- `overtime_quality_evaluator.py`
+- `src/script_6_final_consistency_review.py`
+- `script_6_final_consistency_review.py`
 
 Purpose:
 - Review the generated overtime artifacts against the payment classification JSON and the generation prompts.
@@ -252,17 +252,17 @@ Purpose:
 Command:
 
 ```bash
-uv run python overtime_quality_evaluator.py \
+uv run script-6-final-consistency-review \
   --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json \
-  --entitlements-path data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md \
-  --pseudocode-path data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md
+  --entitlements-path data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md \
+  --pseudocode-path data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md
 ```
 
 Main output:
-- `data/processed/5_overtime_review/MA000018_overtime_quality_review.md`
+- `data/processed/6_final_consistency_review/MA000018_overtime_quality_review.md`
 
 Main functions:
-- `overtime_quality_evaluator.py`: root-level wrapper that calls `src.overtime_quality_evaluator.main()`.
+- `script_6_final_consistency_review.py`: root-level wrapper that calls `src.script_6_final_consistency_review.main()`.
 - `load_environment(env_path)`: loads the OpenRouter API key from `.env` or the environment.
 - `build_openrouter_client(api_key)`: creates an OpenAI-compatible OpenRouter client.
 - `load_text_file(path, description)`: loads and validates markdown inputs.
@@ -279,7 +279,7 @@ Current status:
 - Uses OpenRouter by default with model `qwen/qwen3-coder`.
 - Requires `OPENROUTER_API_KEY` or `OPEN_ROUTER_API_KEY`.
 - At the time this file was written, this module and its tests are present in the working tree and should be added to version control if this quality review step is part of the intended pipeline.
-- No console script entry has been added yet in `pyproject.toml`; run it with `uv run python overtime_quality_evaluator.py` or `uv run python -m src.overtime_quality_evaluator`.
+- No console script entry has been added yet in `pyproject.toml`; run it with `uv run script-6-final-consistency-review` or `uv run script-6-final-consistency-review`.
 
 ## Current end-to-end status
 
@@ -295,20 +295,20 @@ Result:
 Current pipeline commands:
 
 ```bash
-uv run python src/fetch_award.py https://awards.fairwork.gov.au/MA000018.html
-uv run classify-payments data/processed/1_fetch_award/MA000018.json
-uv run interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-uv run summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
-uv run generate-overtime-pseudocode data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md
-uv run python overtime_quality_evaluator.py \
+uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
+uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
+uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+uv run script-4a-summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
+uv run script-6-final-consistency-review \
   --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json \
-  --entitlements-path data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md \
-  --pseudocode-path data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md
+  --entitlements-path data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md \
+  --pseudocode-path data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md
 ```
 
 Current design notes:
-- `fetch_award.py` is deterministic.
-- `payment_clause_classifier.py`, `overtime_interpretation.py`, `overtime_entitlement_summary.py`, `core_overtime_pseudocode.py`, and `overtime_quality_evaluator.py` use LLM calls.
+- `script_1_fetch_award.py` is deterministic.
+- `script_2_classify_payments.py`, `script_3_interpret_overtime.py`, `script_4a_summarize_overtime.py`, `script_5b_generate_overtime_pseudocode.py`, and `script_6_final_consistency_review.py` use LLM calls.
 - The overtime interpretation markdown is a working artifact between classification and reviewer-facing entitlement generation.
 - The entitlement markdown is a human-review artifact and may be manually edited.
 - The pseudocode generator now reads the full entitlement markdown rather than relying on exact markdown bullet formatting.

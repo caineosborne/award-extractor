@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.overtime_quality_evaluator import (
+from src.script_6_final_consistency_review import (
     DEFAULT_MODEL,
     build_messages,
     evaluate_overtime_artifact_quality,
@@ -38,9 +38,9 @@ class OvertimeQualityEvaluatorTests(unittest.TestCase):
     def test_output_path_for_pseudocode(self):
         self.assertEqual(
             output_path_for_pseudocode(
-                Path("data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md")
+                Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md")
             ),
-            Path("data/processed/5_overtime_review/MA000018_overtime_quality_review.md"),
+            Path("data/processed/6_final_consistency_review/MA000018_overtime_quality_review.md"),
         )
 
     def test_build_messages_include_artifacts_and_generation_prompts(self):

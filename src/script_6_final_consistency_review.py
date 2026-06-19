@@ -9,12 +9,15 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.Overtime_System_Prompt import (
-    CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE,
     OVERTIME_ENTITLEMENT_SYSTEM_PROMPT,
 )
-from src.core_overtime_pseudocode import PSEUDOCODE_FIELDS
+from src.script_5b_generate_overtime_pseudocode import (
+    CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE,
+    PSEUDOCODE_FIELDS,
+)
 from src.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
+    OVERTIME_PSEUDOCODE_DIR,
     OVERTIME_REVIEW_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
     path_in_category,
@@ -41,7 +44,7 @@ DEFAULT_PSEUDOCODE_PATH = (
     PROJECT_ROOT
     / "data"
     / "processed"
-    / OVERTIME_ENTITLEMENTS_DIR
+    / OVERTIME_PSEUDOCODE_DIR
     / "MA000018_core_overtime_pseudocode.md"
 )
 DEFAULT_MODEL = "qwen/qwen3-coder"

@@ -6,19 +6,22 @@ from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.payment_clause_classifier import (
+from src.script_2_classify_payments import (
     DEFAULT_MODEL,
     SCHEMA_VERSION,
     PaymentClauseClassifierError,
     classify_award,
     collect_descendants,
+    direct_l2_reference_for,
     flatten_clause,
+    has_substantive_l1_content,
     iter_top_level_groups,
+    l1_body_text,
     output_path_for_award,
     timestamped_output_path,
     validate_group_classification,
 )
-from src.payment_clause_classifier_prompt import (
+from src.script_2_classify_payments_prompt import (
     ALLOWED_TAGS,
     DEFINITIONS,
     SYSTEM_PROMPT,
@@ -214,6 +217,150 @@ class PaymentClauseClassifierTests(unittest.TestCase):
             ["Definition", "Ordinary Hours & Overtime"],
         )
 
+    def test_substantive_l1_content_excludes_title_only_text(self):
+        # Build this group directly because award_with_clause is for child-node cases.
+        group = iter_top_level_groups(
+            OrderedDict(
+                [
+                    (
+                        "Part 1",
+                        OrderedDict(
+                            [
+                                ("_content", []),
+                                (
+                                    "2",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "_content",
+                                                [
+                                                    "Definitions",
+                                                    "minimum hourly rate means the minimum hourly rate prescribed in clause 16.",
+                                                ],
+                                            )
+                                        ]
+                                    ),
+                                ),
+                            ]
+                        ),
+                    )
+                ]
+            )
+        )[0]
+        stub_group = iter_top_level_groups(
+            OrderedDict(
+                [
+                    (
+                        "Part 7",
+                        OrderedDict(
+                            [
+                                ("_content", []),
+                                ("36", OrderedDict([("_content", ["Family and domestic violence leave"])])),
+                            ]
+                        ),
+                    )
+                ]
+            )
+        )[0]
+
+        self.assertIn("minimum hourly rate", l1_body_text(group))
+        self.assertTrue(has_substantive_l1_content(group))
+        self.assertFalse(has_substantive_l1_content(stub_group))
+
+    def test_validate_group_classification_accepts_substantive_l1_only_classification(self):
+        group = iter_top_level_groups(
+            OrderedDict(
+                [
+                    (
+                        "Part 1",
+                        OrderedDict(
+                            [
+                                ("_content", []),
+                                (
+                                    "2",
+                                    OrderedDict(
+                                        [
+                                            (
+                                                "_content",
+                                                [
+                                                    "Definitions",
+                                                    "minimum hourly rate means the minimum hourly rate prescribed in clause 16.",
+                                                    "shiftworker means an employee to whom Part 6 applies.",
+                                                ],
+                                            )
+                                        ]
+                                    ),
+                                ),
+                            ]
+                        ),
+                    )
+                ]
+            )
+        )[0]
+
+        _top_result, classified = validate_group_classification(
+            group,
+            {
+                "top_level_clause": {
+                    "reference": "2",
+                    "title": "Definitions",
+                    "payment_relevant": True,
+                    "definition_relevant": True,
+                    "requires_l2_classification": True,
+                    "reason": "Defines payroll terms.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "2",
+                        "tags": ["Definition", "Hourly Rate"],
+                        "reason": "Contains payroll-relevant definitions.",
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(classified["2"]["tags"], ["Definition", "Hourly Rate"])
+        self.assertIn("minimum hourly rate", classified["2"]["text"])
+
+    def test_validate_group_classification_rejects_title_only_l1_classification(self):
+        group = iter_top_level_groups(
+            OrderedDict(
+                [
+                    (
+                        "Part 7",
+                        OrderedDict(
+                            [
+                                ("_content", []),
+                                ("36", OrderedDict([("_content", ["Family and domestic violence leave"])])),
+                            ]
+                        ),
+                    )
+                ],
+            )
+        )[0]
+
+        with self.assertRaisesRegex(PaymentClauseClassifierError, "Unknown classified clause"):
+            validate_group_classification(
+                group,
+                {
+                    "top_level_clause": {
+                        "reference": "36",
+                        "title": "Family and domestic violence leave",
+                        "payment_relevant": True,
+                        "definition_relevant": False,
+                        "requires_l2_classification": True,
+                        "reason": "Heading only.",
+                    },
+                    "classified_clauses": [
+                        {
+                            "reference": "36",
+                            "tags": ["Leave"],
+                            "reason": "Should not be classified from heading only.",
+                        }
+                    ],
+                },
+            )
+
     def test_validate_group_classification_rejects_classified_clauses_when_l1_is_neither(self):
         group = iter_top_level_groups(
             award_with_clause(
@@ -245,7 +392,15 @@ class PaymentClauseClassifierTests(unittest.TestCase):
                 },
             )
 
-    def test_validate_group_classification_rejects_unknown_or_nested_clause_references(self):
+    def test_direct_l2_reference_for_maps_nested_references_to_parent(self):
+        direct_references = {"14.7", "14.10"}
+
+        self.assertEqual(direct_l2_reference_for("14.7", direct_references), "14.7")
+        self.assertEqual(direct_l2_reference_for("14.7(b)", direct_references), "14.7")
+        self.assertEqual(direct_l2_reference_for("14.7.b", direct_references), "14.7")
+        self.assertIsNone(direct_l2_reference_for("14.8(b)", direct_references))
+
+    def test_validate_group_classification_maps_nested_clause_references_to_direct_l2(self):
         group = iter_top_level_groups(
             award_with_clause(
                 "25",
@@ -264,6 +419,47 @@ class PaymentClauseClassifierTests(unittest.TestCase):
             )
         )[0]
 
+        _top_result, classified = validate_group_classification(
+            group,
+            {
+                "top_level_clause": {
+                    "reference": "25",
+                    "title": "Penalty rates",
+                    "payment_relevant": True,
+                    "definition_relevant": False,
+                    "requires_l2_classification": True,
+                    "reason": "Changes amount paid.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "25.1",
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "reason": "Direct L2 overtime boundary.",
+                    },
+                    {
+                        "reference": "25.1(a)",
+                        "tags": ["Penalty"],
+                        "reason": "Nested reference returned by model.",
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(
+            classified["25.1"]["tags"],
+            ["Ordinary Hours & Overtime", "Penalty"],
+        )
+        self.assertIn("Returned nested reference 25.1(a)", classified["25.1"]["reason"])
+
+    def test_validate_group_classification_rejects_unknown_clause_references(self):
+        group = iter_top_level_groups(
+            award_with_clause(
+                "25",
+                "Penalty rates",
+                [("25.1", OrderedDict([("_content", ["Paid at 125%."])]))],
+            )
+        )[0]
+
         with self.assertRaisesRegex(PaymentClauseClassifierError, "Unknown classified clause"):
             validate_group_classification(
                 group,
@@ -278,13 +474,66 @@ class PaymentClauseClassifierTests(unittest.TestCase):
                     },
                     "classified_clauses": [
                         {
-                            "reference": "25.1(a)",
+                            "reference": "25.2",
                             "tags": ["Penalty"],
-                            "reason": "Nested references are not valid classified outputs.",
+                            "reason": "Reference is not in supplied direct L2 clauses.",
                         }
                     ],
                 },
             )
+
+    def test_validate_group_classification_accepts_omitted_non_payment_l2_clauses(self):
+        group = iter_top_level_groups(
+            award_with_clause(
+                "17",
+                "Payment of wages",
+                [
+                    ("17.1", OrderedDict([("_content", ["Wages are paid weekly."])])),
+                    (
+                        "17.2",
+                        OrderedDict(
+                            [
+                                (
+                                    "_content",
+                                    [
+                                        "Method of payment. Wages must be paid by cash or "
+                                        "electronic funds transfer into an account nominated by "
+                                        "the employee."
+                                    ],
+                                )
+                            ]
+                        ),
+                    ),
+                    ("17.3", OrderedDict([("_content", ["The employer may deduct an overpayment."])])),
+                ],
+            )
+        )[0]
+
+        top_result, classified = validate_group_classification(
+            group,
+            {
+                "top_level_clause": {
+                    "reference": "17",
+                    "title": "Payment of wages",
+                    "payment_relevant": True,
+                    "definition_relevant": False,
+                    "requires_l2_classification": True,
+                    "reason": "Contains at least one clause affecting payment outcomes.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "17.3",
+                        "tags": ["Other Payment"],
+                        "reason": "Deductions affect the amount paid and do not fit a specific tag.",
+                    }
+                ],
+            },
+        )
+
+        self.assertTrue(top_result["payment_relevant"])
+        self.assertNotIn("17.1", classified)
+        self.assertNotIn("17.2", classified)
+        self.assertEqual(classified["17.3"]["tags"], ["Other Payment"])
 
     def test_prompt_includes_definitions_and_allowed_tags(self):
         for tag in ALLOWED_TAGS:
@@ -295,12 +544,24 @@ class PaymentClauseClassifierTests(unittest.TestCase):
         self.assertIn("Ordinary Hours & Overtime", SYSTEM_PROMPT)
         self.assertIn("L2 relevance is independent", SYSTEM_PROMPT)
         self.assertIn("Omit direct L2 clauses", SYSTEM_PROMPT)
-        self.assertIn("Do not use the other tag to mean irrelevant", SYSTEM_PROMPT)
+        self.assertIn("classify the top-level reference itself", SYSTEM_PROMPT)
+        self.assertIn("direct_l2_clauses is empty", SYSTEM_PROMPT)
+        self.assertIn("A definitions clause with no direct L2 children", SYSTEM_PROMPT)
+        self.assertIn("Do not use the Other Payment tag to mean irrelevant", SYSTEM_PROMPT)
         self.assertIn("Irrelevant direct L2 clauses must be omitted", SYSTEM_PROMPT)
         self.assertIn(
-            "Use the other tag only when the clause is payment-related",
+            "Use the Other Payment tag only when the clause is payment-related",
             SYSTEM_PROMPT,
         )
+        self.assertIn("Other payment", SYSTEM_PROMPT)
+        self.assertIn("Non-payment or payment administration", SYSTEM_PROMPT)
+        self.assertIn("Method of payment", SYSTEM_PROMPT)
+        self.assertIn("electronic funds transfer", SYSTEM_PROMPT)
+        self.assertIn("Prefer inclusion", SYSTEM_PROMPT)
+        self.assertIn("do not mark a top-level clause as relevant from its heading alone", SYSTEM_PROMPT)
+        self.assertIn("District allowances", SYSTEM_PROMPT)
+        self.assertIn("Individual flexibility arrangement clauses are a common trap", SYSTEM_PROMPT)
+        self.assertIn("better-off-overall payment outcome", SYSTEM_PROMPT)
         self.assertIn(
             "time off is to be taken at convenient times after consultation",
             SYSTEM_PROMPT,

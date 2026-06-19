@@ -18,11 +18,13 @@ dependencies = [
 ]
 
 [project.scripts]
-classify-payments = "src.payment_clause_classifier:main"
-interpret-overtime = "src.overtime_interpretation:main"
-summarize-overtime = "src.overtime_entitlement_summary:main"
-generate-overtime-pseudocode = "src.core_overtime_pseudocode:main"
-generate-overtime-clause = "src.overtime_clause_generator:main"
+script-1-fetch-award = "src.script_1_fetch_award:main"
+script-2-classify-payments = "src.script_2_classify_payments:main"
+script-3-interpret-overtime = "src.script_3_interpret_overtime:main"
+script-4a-summarize-overtime = "src.script_4a_summarize_overtime:main"
+script-4a-generate-overtime-clause = "src.script_4a_generate_overtime_clause:main"
+script-5b-generate-overtime-pseudocode = "src.script_5b_generate_overtime_pseudocode:main"
+script-6-final-consistency-review = "src.script_6_final_consistency_review:main"
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.overtime_interpretation import (
+from src.script_3_interpret_overtime import (
     DEFAULT_MODEL,
     build_messages,
     filter_overtime_clauses,

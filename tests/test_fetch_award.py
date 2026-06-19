@@ -4,7 +4,7 @@ from pathlib import Path
 
 from bs4 import BeautifulSoup
 
-from src.fetch_award import (
+from src.script_1_fetch_award import (
     extract_award,
     extract_award_elements,
     nest_award_elements,

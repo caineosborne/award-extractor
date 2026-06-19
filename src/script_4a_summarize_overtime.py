@@ -14,7 +14,7 @@ from src.output_paths import (
     path_in_category,
     write_text_with_archive,
 )
-from src.payment_clause_classifier import extract_response_text
+from src.script_2_classify_payments import extract_response_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

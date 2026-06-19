@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.core_overtime_pseudocode import (
+from src.script_5b_generate_overtime_pseudocode import (
     DEFAULT_MODEL,
     PSEUDOCODE_FIELDS,
     build_messages,
@@ -53,7 +53,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_output_path_for_summary(self):
         self.assertEqual(
             output_path_for_summary(Path("data/processed/MA000018_overtime_entitlements.md")),
-            Path("data/processed/4_overtime_entitlements/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md"),
         )
 
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):

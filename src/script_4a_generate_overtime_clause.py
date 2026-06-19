@@ -7,16 +7,12 @@ from typing import Any
 
 from openai import OpenAI
 
-from src.core_overtime_pseudocode import (
-    generate_core_overtime_pseudocode,
-    output_path_for_summary,
-)
-from src.overtime_entitlement_summary import (
+from src.script_4a_summarize_overtime import (
     load_environment,
     output_path_for_classification,
     summarize_overtime_entitlements,
 )
-from src.overtime_interpretation import (
+from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     generate_overtime_interpretation,
     output_path_for_classification as interpretation_path_for_classification,
@@ -30,17 +26,14 @@ DEFAULT_MODEL = "gpt-5.4-mini"
 class OvertimeClauseArtifacts:
     interpretation_path: Path
     entitlements_path: Path
-    pseudocode_path: Path
     interpretation_markdown: str
     entitlements_markdown: str
-    pseudocode_markdown: str
 
 
 def generate_overtime_clause_artifacts(
     classification_path: Path | str = DEFAULT_CLASSIFICATION_PATH,
     interpretation_output_path: Path | str | None = None,
     entitlements_output_path: Path | str | None = None,
-    pseudocode_output_path: Path | str | None = None,
     model: str | None = None,
     client: Any | None = None,
 ) -> OvertimeClauseArtifacts:
@@ -60,11 +53,6 @@ def generate_overtime_clause_artifacts(
         if entitlements_output_path
         else output_path_for_classification(source_path)
     )
-    pseudocode_path = (
-        Path(pseudocode_output_path)
-        if pseudocode_output_path
-        else output_path_for_summary(entitlements_path)
-    )
 
     interpretation_markdown = generate_overtime_interpretation(
         classification_path=source_path,
@@ -78,26 +66,18 @@ def generate_overtime_clause_artifacts(
         model=selected_model,
         client=client,
     )
-    pseudocode_markdown = generate_core_overtime_pseudocode(
-        summary_path=entitlements_path,
-        output_path=pseudocode_path,
-        model=selected_model,
-        client=client,
-    )
 
     return OvertimeClauseArtifacts(
         interpretation_path=interpretation_path,
         entitlements_path=entitlements_path,
-        pseudocode_path=pseudocode_path,
         interpretation_markdown=interpretation_markdown,
         entitlements_markdown=entitlements_markdown,
-        pseudocode_markdown=pseudocode_markdown,
     )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Generate overtime entitlement and pseudocode markdown artifacts."
+        description="Generate overtime interpretation and entitlement markdown artifacts."
     )
     parser.add_argument(
         "classification_path",
@@ -119,11 +99,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Optional path for the markdown overtime entitlement output.",
     )
     parser.add_argument(
-        "--pseudocode-output-path",
-        default=None,
-        help="Optional path for the markdown overtime pseudocode output.",
-    )
-    parser.add_argument(
         "--model",
         default=None,
         help=f"OpenAI model to use. Defaults to OVERTIME_CLAUSE_MODEL or {DEFAULT_MODEL}.",
@@ -137,12 +112,10 @@ def main() -> None:
         classification_path=args.classification_path,
         interpretation_output_path=args.interpretation_output_path,
         entitlements_output_path=args.entitlements_output_path,
-        pseudocode_output_path=args.pseudocode_output_path,
         model=args.model,
     )
     print(f"Overtime interpretation saved to {artifacts.interpretation_path}")
     print(f"Overtime entitlement summary saved to {artifacts.entitlements_path}")
-    print(f"Overtime pseudocode saved to {artifacts.pseudocode_path}")
 
 
 if __name__ == "__main__":

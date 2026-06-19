@@ -7,13 +7,13 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.Overtime_System_Prompt import CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE
 from src.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
+    OVERTIME_PSEUDOCODE_DIR,
     path_in_category,
     write_text_with_archive,
 )
-from src.payment_clause_classifier import extract_response_text
+from src.script_2_classify_payments import extract_response_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +25,48 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
     / "MA000018_overtime_entitlements.md"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
+
+CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
+
+Goal:
+- Convert the supplied overtime entitlement markdown into bullet-point pseudocode.
+- Only classify whether worked hours are Ordinary_Hours or Overtime_Hours.
+- Treat Unallocated_Hours as the total hours worked that still need ordinary/overtime classification.
+- For this task, any hours that are not ordinary hours are overtime.
+- Preserve the business meaning of the overtime triggers in the markdown, even if headings or bullet formatting have been edited by a human.
+
+Available fields:
+{fields}
+
+Constraints:
+- Focus on core payments only: if an hour is worked, decide whether it is ordinary or overtime.
+- Do not cover allowance calculations, dollar amounts, overtime multipliers, or penalty amounts.
+- Do not stack a penalty or allowance with overtime unless the entitlement summary expressly says that affects the hour classification.
+- Use the plain-English overtime trigger section as the main source for ordinary/overtime classification.
+- Use payment consequences, other considerations, clause interpretation, and assumptions only where they clarify whether an hour is ordinary or overtime.
+- Do not rely on a rule having an exact markdown heading or bullet label. Read the complete document for meaning.
+- Apply rules only to currently Unallocated_Hours.
+- The same worked hour must never be classified into more than one bucket.
+- Assign remaining Unallocated_Hours to Ordinary_Hours after all overtime triggers have been applied.
+- Include source clause references in comments.
+- If a rule needs an input that is not in the available fields, name it under Required additional inputs.
+- Use clear payroll variables. Do not invent vague helper variables such as offsets, safe offsets, magic masks, or placeholders that hide the calculation.
+- If a rule requires segmenting a shift into hour blocks, state that as a required additional input and describe the segmentation plainly.
+- Prefer simple step-by-step pseudocode over dense formulas.
+- Return markdown only.
+
+Required markdown structure:
+
+# Overtime pseudocode
+
+## Required additional inputs
+
+## Rule priority
+
+## Pseudocode
+
+## Implementation notes
+"""
 
 PSEUDOCODE_FIELDS = {
     "Shift_Date": "The calendar date on which the shift starts.",
@@ -130,7 +172,7 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
         stem = stem.removesuffix("_overtime_entitlements")
     return path_in_category(
         path,
-        OVERTIME_ENTITLEMENTS_DIR,
+        OVERTIME_PSEUDOCODE_DIR,
         f"{stem}_core_overtime_pseudocode.md",
     )
 
@@ -192,7 +234,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_OVERTIME_SUMMARY_PATH),
         help=(
             "Path to an overtime entitlements markdown file, for example "
-            "data/processed/4_overtime_entitlements/MA000018_overtime_entitlements.md."
+            "data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md."
         ),
     )
     parser.add_argument(

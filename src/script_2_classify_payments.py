@@ -11,7 +11,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.payment_clause_classifier_prompt import (
+from src.script_2_classify_payments_prompt import (
     ALLOWED_TAGS,
     SYSTEM_PROMPT,
     build_user_prompt,
@@ -33,6 +33,7 @@ DEFAULT_MODEL = "gpt-5.4-mini"
 SCHEMA_VERSION = "payment-classification-v2"
 CONTENT_KEY = "_content"
 PLACEHOLDER_PREFIX = "No Level"
+SUBSTANTIVE_L1_MINIMUM_CHARACTERS = 30
 
 
 class PaymentClauseClassifierError(RuntimeError):
@@ -298,6 +299,56 @@ def unique_items(value: list[str]) -> list[str]:
     return unique
 
 
+def direct_l2_reference_for(reference: str, direct_references: set[str]) -> str | None:
+    """Map a model-returned reference to the direct L2 clause that owns it.
+
+    The prompt asks the model to return only direct L2 references, but models can
+    still return a nested reference such as 14.7(b). The classification belongs
+    to 14.7 because downstream artifacts operate at direct L2 granularity.
+    """
+    if reference in direct_references:
+        return reference
+
+    matching_direct_references = [
+        direct_reference
+        for direct_reference in direct_references
+        if reference.startswith(f"{direct_reference}(")
+        or reference.startswith(f"{direct_reference}.")
+    ]
+
+    if not matching_direct_references:
+        return None
+
+    return max(matching_direct_references, key=len)
+
+
+def l1_body_text(group: TopLevelGroup) -> str:
+    """Return top-level text excluding the heading/title line.
+
+    Some awards store a whole clause, especially definitions, directly on the
+    L1 node with no L2 children. The title alone is not enough to classify, but
+    substantive body text should still be reviewed by the model and downstream
+    steps.
+    """
+    body_lines: list[str] = []
+
+    for line in group.text.splitlines():
+        _separator, _prefix, text = line.partition(":")
+        normalized_text = text.strip()
+        if normalized_text == group.title:
+            continue
+        if normalized_text:
+            body_lines.append(normalized_text)
+
+    return "\n".join(body_lines)
+
+
+def has_substantive_l1_content(group: TopLevelGroup) -> bool:
+    if group.descendants:
+        return False
+    return len(l1_body_text(group)) > SUBSTANTIVE_L1_MINIMUM_CHARACTERS
+
+
 def validate_group_classification(
     group: TopLevelGroup,
     classification: Mapping[str, Any],
@@ -334,14 +385,45 @@ def validate_group_classification(
 
     classified: OrderedDict[str, dict[str, Any]] = OrderedDict()
     for item in classified_raw:
-        reference = item["reference"]
-        if reference not in descendants_by_reference:
-            raise PaymentClauseClassifierError(f"Unknown classified clause reference: {reference}")
+        returned_reference = item["reference"]
+        reference = direct_l2_reference_for(returned_reference, set(descendants_by_reference))
+
+        if reference is None and returned_reference == group.reference and has_substantive_l1_content(group):
+            reference = group.reference
+
+        if reference is None:
+            raise PaymentClauseClassifierError(
+                f"Unknown classified clause reference: {returned_reference}"
+            )
+
+        source_text = (
+            group.text
+            if reference == group.reference
+            else descendants_by_reference[reference].text
+        )
+
+        if reference in classified:
+            classified[reference]["tags"] = unique_items(
+                [*classified[reference]["tags"], *item["tags"]]
+            )
+            reason = str(item.get("reason") or "")
+            if returned_reference != reference:
+                reason = (
+                    f"{reason} Returned nested reference {returned_reference}; "
+                    f"classified under {reference}."
+                ).strip()
+            if reason and reason not in classified[reference]["reason"]:
+                classified[reference]["reason"] = f"{classified[reference]['reason']} {reason}".strip()
+            continue
+
+        reason = str(item.get("reason") or "")
+        if returned_reference != reference:
+            reason = f"{reason} Returned nested reference {returned_reference}; classified under {reference}.".strip()
 
         classified[reference] = {
-            "text": descendants_by_reference[reference].text,
+            "text": source_text,
             "tags": unique_items(item["tags"]),
-            "reason": str(item.get("reason") or ""),
+            "reason": reason,
         }
 
     return top_result, classified
