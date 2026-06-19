@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_4a_prompt_Overtime_System_Prompt import OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT
+from src.script_3_interpret_overtime_prompt import OVERTIME_INTERPRETATION_SYSTEM_PROMPT
 
 
 from src.output_paths import (
@@ -259,7 +259,7 @@ Only these clauses were tagged Ordinary Hours & Overtime and are in scope for th
 The interpretation was generated using this system prompt:
 
 ```text
-{OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT}
+{OVERTIME_INTERPRETATION_SYSTEM_PROMPT}
 ```
 """
 

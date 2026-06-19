@@ -7,7 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_4a_prompt_Overtime_System_Prompt import OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT
+from src.script_4a_summarize_overtime_prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
 from src.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
@@ -147,6 +147,8 @@ def build_messages(
         "wording style, and level of detail only. Do not copy its award-specific facts, "
         "clause references, rates, assumptions, employee categories, or rule outcomes. "
         "Generate the output from the source interpretation document.\n\n"
+        "The generated markdown must include the required output structure from the "
+        "system prompt, starting with # Source Rules.\n\n"
         f"Reference template: {template_file}\n\n"
         "```markdown\n"
         f"{template_markdown}\n"
@@ -157,7 +159,7 @@ def build_messages(
         "\n```"
     )
     return [
-        {"role": "system", "content": OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT},
+        {"role": "system", "content": OVERTIME_ENTITLEMENT_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
 

@@ -19,6 +19,7 @@ from src.script_2_classify_payments import (
     l1_body_text,
     output_path_for_award,
     timestamped_output_path,
+    title_only_top_level_result,
     validate_group_classification,
 )
 from src.script_2_classify_payments_prompt import (
@@ -360,6 +361,89 @@ class PaymentClauseClassifierTests(unittest.TestCase):
                     ],
                 },
             )
+
+    def test_title_only_top_level_result_is_not_payment_relevant(self):
+        group = iter_top_level_groups(
+            OrderedDict(
+                [
+                    (
+                        "Part 7",
+                        OrderedDict(
+                            [
+                                ("_content", []),
+                                ("25A", OrderedDict([("_content", ["Parental leave and related entitlements"])])),
+                            ]
+                        ),
+                    )
+                ],
+            )
+        )[0]
+
+        result = title_only_top_level_result(group)
+
+        self.assertFalse(result["payment_relevant"])
+        self.assertFalse(result["definition_relevant"])
+        self.assertFalse(result["requires_l2_classification"])
+        self.assertIn("only a heading", result["reason"])
+
+    def test_classify_award_skips_title_only_top_level_groups(self):
+        award = OrderedDict(
+            [
+                (
+                    "Part 1",
+                    OrderedDict(
+                        [
+                            ("_content", []),
+                            ("25", OrderedDict([("_content", ["Personal/carer's leave"])])),
+                            (
+                                "27",
+                                OrderedDict(
+                                    [
+                                        ("_content", ["Public holidays"]),
+                                        ("27.1", OrderedDict([("_content", ["Public holidays are in the NES."])])),
+                                    ]
+                                ),
+                            ),
+                        ]
+                    ),
+                )
+            ]
+        )
+        payloads = [
+            {
+                "top_level_clause": {
+                    "reference": "27",
+                    "title": "Public holidays",
+                    "payment_relevant": True,
+                    "definition_relevant": False,
+                    "requires_l2_classification": True,
+                    "reason": "Public holidays affect payment outcomes.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "27.1",
+                        "tags": ["Leave"],
+                        "reason": "Public holiday entitlement.",
+                    }
+                ],
+            }
+        ]
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            award_path = Path(temp_dir) / "award.json"
+            output_path = Path(temp_dir) / "award_payment_classification.json"
+            award_path.write_text(json.dumps(award), encoding="utf-8")
+            fake_client = FakeClient(payloads)
+
+            result = classify_award(
+                award_path=award_path,
+                output_path=output_path,
+                client=fake_client,
+            )
+
+        self.assertEqual(len(fake_client.responses.calls), 1)
+        self.assertFalse(result["top_level_clauses"]["25"]["payment_relevant"])
+        self.assertIn("27.1", result["classified_clauses"])
 
     def test_validate_group_classification_rejects_classified_clauses_when_l1_is_neither(self):
         group = iter_top_level_groups(

@@ -2,6 +2,8 @@
 
 This project extracts audit-readable payroll interpretation artifacts from Australian modern award data.
 
+Detailed pipeline history and output tables are in `resources/HISTORY.md` and `resources/outputs.md`.
+
 ## Overtime Pipeline
 
 Use `uv` to run project commands.
@@ -97,6 +99,8 @@ This writes:
 ```text
 data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md
 ```
+
+The old script 6 final consistency review step has been removed from the active codebase and will be redesigned before use.
 
 ## Tests
 

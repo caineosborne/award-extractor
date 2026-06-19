@@ -65,7 +65,17 @@ Required markdown structure:
 
 Explain the overtime triggers in plain English.
 
-Use bullet points and structured clear English.
+Use bullet points and structured clear english.
+
+This section must be self-contained.
+
+Describe the actual overtime boundary, not just the clause reference.
+
+Good example:
+- Employees other than shiftworkers work overtime when they are directed to work outside the ordinary spread of hours, being 6:00am to 6:00pm Monday to Friday (cl 13.3, cl 21.1).
+
+Bad example:
+- Employees work overtime outside the spread of ordinary hours (see cl 13.3).
 
 Where multiple employee cohorts exist, include a trigger applicability matrix.
 The matrix should describe applicability dimensions rather than combined employee cohorts.
@@ -81,12 +91,12 @@ Example:
 | Work above agreed ordinary hours | ✗ | ✓ | ✗ | ✓ | ✓ |
 | Shiftwork overtime trigger | ✓ | ✓ | ✓ | ✗ | ✓ |
 The matrix should reflect the applicability stated by the clauses, not derived employee cohorts.
-Each trigger must appear exactly once in the matrix.
-The matrix is the primary source of truth for trigger applicability.
-The supporting explanation must be consistent with the matrix.
+Do not create columns such as FT Day, FT Shift, PT Day, PT Shift, Casual Day, or Casual Shift.
+The purpose of the matrix is to show which employment types and work patterns each trigger applies to.
+
 Use tables to summarise rules where useful, but always provide supporting explanation below the table.
 
-Prefer concise explanations, but do not omit thresholds, time ranges, averaging periods, employee definitions, roster conditions, or other boundaries needed for review.
+Prefer summary over explanation.
 
 Do not explain a trigger more than once.
 
@@ -111,7 +121,7 @@ Include only consequences supported by the interpretation document, such as:
 - annualised wage treatment;
 - shiftworker overtime consequences.
 
-Each consequence bullet should state:
+Each bullet must state:
 - who the rule applies to;
 - what condition must already exist;
 - what happens;
@@ -135,13 +145,7 @@ For each item, state whether it is:
 - a consequence; or
 - an implementation issue.
 
-Final validation:
-- Every overtime trigger appears in the applicability matrix.
-- No consequence appears in the applicability matrix.
-- Every trigger described in prose appears in the applicability matrix.
-- Every matrix row has a matching explanation.
-- No trigger is described more than once.
-- No consequence is described more than once.
+
 
 Style:
 - Be concise.

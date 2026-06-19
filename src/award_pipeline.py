@@ -33,15 +33,11 @@ from src.script_5b_generate_overtime_pseudocode import (
     generate_core_overtime_pseudocode,
     output_path_for_summary as pseudocode_path_for_summary,
 )
-from src.script_6_final_consistency_review import (
-    evaluate_overtime_artifact_quality,
-    output_path_for_pseudocode as review_path_for_pseudocode,
-)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
-STEP_CHOICES = ("1", "2", "3", "3b", "4a", "5b", "6")
+STEP_CHOICES = ("1", "2", "3", "3b", "4a", "5b")
 DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b", "4a")
 
 
@@ -66,7 +62,6 @@ class AwardPipelinePaths:
     creator_response_path: Path
     entitlements_path: Path
     pseudocode_path: Path
-    review_path: Path
 
 
 @dataclass(frozen=True)
@@ -121,7 +116,6 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
     creator_response_path = creator_response_path_for_interpretation(interpretation_path)
     entitlements_path = entitlements_path_for_interpretation(interpretation_path)
     pseudocode_path = pseudocode_path_for_summary(entitlements_path)
-    review_path = review_path_for_pseudocode(pseudocode_path)
 
     return AwardPipelinePaths(
         award_code=award_code,
@@ -139,7 +133,6 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
         creator_response_path=creator_response_path,
         entitlements_path=entitlements_path,
         pseudocode_path=pseudocode_path,
-        review_path=review_path,
     )
 
 
@@ -274,18 +267,6 @@ def run_step_5b(paths: AwardPipelinePaths) -> None:
     )
 
 
-def run_step_6(paths: AwardPipelinePaths) -> None:
-    require_existing(paths.classification_path, "6", "2")
-    require_existing(paths.entitlements_path, "6", "4a")
-    require_existing(paths.pseudocode_path, "6", "5b")
-    evaluate_overtime_artifact_quality(
-        classification_path=paths.classification_path,
-        entitlements_path=paths.entitlements_path,
-        pseudocode_path=paths.pseudocode_path,
-        output_path=paths.review_path,
-    )
-
-
 def run_default_pipeline(paths: AwardPipelinePaths) -> None:
     run_step_1(paths)
     run_step_2(paths)
@@ -312,9 +293,6 @@ def run_selected_step(paths: AwardPipelinePaths, step: str) -> None:
         return
     if step == "5b":
         run_step_5b(paths)
-        return
-    if step == "6":
-        run_step_6(paths)
         return
 
     raise AwardPipelineError(f"Unknown step: {step}")

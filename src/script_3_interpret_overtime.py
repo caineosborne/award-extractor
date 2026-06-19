@@ -8,7 +8,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_4a_prompt_Overtime_System_Prompt import OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT
+from src.script_3_interpret_overtime_prompt import OVERTIME_INTERPRETATION_SYSTEM_PROMPT
 
 from src.output_paths import (
     OVERTIME_INTERPRETATIONS_DIR,
@@ -101,7 +101,7 @@ def build_messages(source_file: str, overtime_clauses: Mapping[str, Any]) -> lis
         f"{clauses_json}"
     )
     return [
-        {"role": "system", "content": OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT},
+        {"role": "system", "content": OVERTIME_INTERPRETATION_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
 

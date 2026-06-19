@@ -6,7 +6,6 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "beautifulsoup4>=4.15.0",
-    "gradio>=6.1.0",
     "ipykernel>=7.3.0",
     "jupyter>=1.1.1",
     "lxml>=6.1.1",
@@ -25,7 +24,6 @@ script-3b-review-overtime-interpretation = "src.script_3b_review_overtime_interp
 script-4a-summarize-overtime = "src.script_4a_summarize_overtime:main"
 script-4a-generate-overtime-clause = "src.script_4a_generate_overtime_clause:main"
 script-5b-generate-overtime-pseudocode = "src.script_5b_generate_overtime_pseudocode:main"
-script-6-final-consistency-review = "src.script_6_final_consistency_review:main"
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

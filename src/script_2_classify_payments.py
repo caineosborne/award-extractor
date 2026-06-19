@@ -349,6 +349,16 @@ def has_substantive_l1_content(group: TopLevelGroup) -> bool:
     return len(l1_body_text(group)) > SUBSTANTIVE_L1_MINIMUM_CHARACTERS
 
 
+def title_only_top_level_result(group: TopLevelGroup) -> dict[str, Any]:
+    return {
+        "title": group.title,
+        "payment_relevant": False,
+        "definition_relevant": False,
+        "requires_l2_classification": False,
+        "reason": "Top-level clause contains only a heading and no direct L2 clauses.",
+    }
+
+
 def validate_group_classification(
     group: TopLevelGroup,
     classification: Mapping[str, Any],
@@ -477,7 +487,11 @@ def classify_award(
     classified_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
     for group in groups:
-        top_result, descendant_results = classify_group(group, client, selected_model)
+        if not group.descendants and not has_substantive_l1_content(group):
+            top_result = title_only_top_level_result(group)
+            descendant_results = OrderedDict()
+        else:
+            top_result, descendant_results = classify_group(group, client, selected_model)
         top_level_clauses[group.reference] = top_result
         classified_clauses.update(descendant_results)
 
