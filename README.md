@@ -80,6 +80,23 @@ data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
 
 The rule priority section should describe an allocation workflow: start all worked hours as `Unallocated`, apply time-based overtime checks first, daily checks second, weekly or averaging-period checks third, then move any remaining `Unallocated` hours to `Ordinary`.
 
+4B. Temporarily review the 4A overtime entitlement output and produce a final human-readable markdown version:
+
+```bash
+uv run script-4b-review-overtime-entitlements MA000018
+```
+
+This writes:
+
+```text
+data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_initial_answer.md
+data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_review_feedback.md
+data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_updated_answer.md
+data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_final.md
+```
+
+Step 4B first validates the 4A output against the interpretation and filtered `Ordinary Hours & Overtime` clauses, then performs a source-blind formatting pass on the updated answer. The final file is the version intended for human reading.
+
 To run the overtime interpretation and entitlement summary steps together:
 
 ```bash

@@ -10,6 +10,7 @@
 | 3 | `src/script_3_interpret_overtime.py` | Overtime interpretation working document | `data/processed/3_overtime_interpretations/MAxxxxx_overtime_interpretation.md`; archive: `data/processed/3_overtime_interpretations/archive/MAxxxxx_overtime_interpretation_YYYYMMDD_HHMMSS.md` |
 | 3B | `src/script_3b_review_overtime_interpretation.py` | One-pass evaluator feedback, creator response, and revised interpretation | `data/processed/3_overtime_interpretations/feedback/MAxxxxx_overtime_interpretation_evaluator_feedback.md`; `data/processed/3_overtime_interpretations/feedback/MAxxxxx_overtime_interpretation_creator_response.md`; `data/processed/3_overtime_interpretations/MAxxxxx_overtime_interpretation_revised.md`; archives in each output folder |
 | 4A | `src/script_4a_summarize_overtime.py` | Reviewer-facing overtime entitlement summary. Award-code input prefers the revised 3B interpretation if present. | `data/processed/4a_overtime_entitlements/MAxxxxx_overtime_entitlements.md`; archive: `data/processed/4a_overtime_entitlements/archive/MAxxxxx_overtime_entitlements_YYYYMMDD_HHMMSS.md` |
+| 4B | `src/script_4b_review_overtime_entitlements.py` | Temporary 4A entitlement accuracy review, updated answer, and final source-blind formatted markdown | `data/processed/4a_overtime_entitlements/MAxxxxx_overtime_entitlements_initial_answer.md`; `data/processed/4a_overtime_entitlements/MAxxxxx_overtime_entitlements_review_feedback.md`; `data/processed/4a_overtime_entitlements/MAxxxxx_overtime_entitlements_updated_answer.md`; `data/processed/4a_overtime_entitlements/MAxxxxx_overtime_entitlements_final.md`; archives in `data/processed/4a_overtime_entitlements/archive/` |
 | 5B | `src/script_5b_generate_overtime_pseudocode.py` | Core overtime pseudocode markdown. This step is parked for now. | `data/processed/5b_generate_overtime_pseudocode/MAxxxxx_core_overtime_pseudocode.md`; archive: `data/processed/5b_generate_overtime_pseudocode/archive/MAxxxxx_core_overtime_pseudocode_YYYYMMDD_HHMMSS.md` |
 
 `src/script_4a_generate_overtime_clause.py` is a combined runner for steps 3 and 4A. It writes the interpretation and entitlement summary outputs listed above.
@@ -25,4 +26,7 @@ Script 6 final consistency review has been removed from the active codebase. Exi
 | 3B evaluator | `evaluation_system_prompt()` in `src/script_3b_review_overtime_interpretation.py` |
 | 3B creator update | `src/script_3_interpret_overtime_prompt.py` |
 | 4A | `src/script_4a_summarize_overtime_prompt.py` |
+| 4B accuracy evaluator | `accuracy_evaluation_system_prompt()` in `src/script_4b_review_overtime_entitlements.py` |
+| 4B creator update | `src/script_4a_summarize_overtime_prompt.py` |
+| 4B formatter | `build_formatting_messages()` in `src/script_4b_review_overtime_entitlements.py` |
 | 5B | `CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE` in `src/script_5b_generate_overtime_pseudocode.py` |

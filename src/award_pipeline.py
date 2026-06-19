@@ -29,6 +29,13 @@ from src.script_4a_summarize_overtime import (
     output_path_for_interpretation as entitlements_path_for_interpretation,
     summarize_overtime_entitlements,
 )
+from src.script_4b_review_overtime_entitlements import (
+    final_answer_path_for_entitlements,
+    initial_answer_path_for_entitlements,
+    review_feedback_path_for_entitlements,
+    review_overtime_entitlements,
+    updated_answer_path_for_entitlements,
+)
 from src.script_5b_generate_overtime_pseudocode import (
     generate_core_overtime_pseudocode,
     output_path_for_summary as pseudocode_path_for_summary,
@@ -37,7 +44,7 @@ from src.script_5b_generate_overtime_pseudocode import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
-STEP_CHOICES = ("1", "2", "3", "3b", "4a", "5b")
+STEP_CHOICES = ("1", "2", "3", "3b", "4a", "4b", "5b")
 DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b", "4a")
 
 
@@ -61,6 +68,10 @@ class AwardPipelinePaths:
     evaluator_feedback_path: Path
     creator_response_path: Path
     entitlements_path: Path
+    entitlement_initial_answer_path: Path
+    entitlement_review_feedback_path: Path
+    entitlement_updated_answer_path: Path
+    entitlement_final_path: Path
     pseudocode_path: Path
 
 
@@ -115,6 +126,10 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
     evaluator_feedback_path = evaluator_feedback_path_for_interpretation(interpretation_path)
     creator_response_path = creator_response_path_for_interpretation(interpretation_path)
     entitlements_path = entitlements_path_for_interpretation(interpretation_path)
+    entitlement_initial_answer_path = initial_answer_path_for_entitlements(entitlements_path)
+    entitlement_review_feedback_path = review_feedback_path_for_entitlements(entitlements_path)
+    entitlement_updated_answer_path = updated_answer_path_for_entitlements(entitlements_path)
+    entitlement_final_path = final_answer_path_for_entitlements(entitlements_path)
     pseudocode_path = pseudocode_path_for_summary(entitlements_path)
 
     return AwardPipelinePaths(
@@ -132,6 +147,10 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
         evaluator_feedback_path=evaluator_feedback_path,
         creator_response_path=creator_response_path,
         entitlements_path=entitlements_path,
+        entitlement_initial_answer_path=entitlement_initial_answer_path,
+        entitlement_review_feedback_path=entitlement_review_feedback_path,
+        entitlement_updated_answer_path=entitlement_updated_answer_path,
+        entitlement_final_path=entitlement_final_path,
         pseudocode_path=pseudocode_path,
     )
 
@@ -259,6 +278,21 @@ def run_step_4a(paths: AwardPipelinePaths) -> None:
     )
 
 
+def run_step_4b(paths: AwardPipelinePaths) -> None:
+    interpretation_path = interpretation_source_for_step_4a(paths)
+    require_existing(paths.classification_path, "4b", "2")
+    require_existing(paths.entitlements_path, "4b", "4a")
+    review_overtime_entitlements(
+        entitlements_path=paths.entitlements_path,
+        classification_path=paths.classification_path,
+        interpretation_path=interpretation_path,
+        initial_output_path=paths.entitlement_initial_answer_path,
+        feedback_output_path=paths.entitlement_review_feedback_path,
+        updated_output_path=paths.entitlement_updated_answer_path,
+        final_output_path=paths.entitlement_final_path,
+    )
+
+
 def run_step_5b(paths: AwardPipelinePaths) -> None:
     require_existing(paths.entitlements_path, "5b", "4a")
     generate_core_overtime_pseudocode(
@@ -290,6 +324,9 @@ def run_selected_step(paths: AwardPipelinePaths, step: str) -> None:
         return
     if step == "4a":
         run_step_4a(paths)
+        return
+    if step == "4b":
+        run_step_4b(paths)
         return
     if step == "5b":
         run_step_5b(paths)

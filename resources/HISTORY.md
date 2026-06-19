@@ -9,6 +9,7 @@ The project is designed to produce audit-readable artifacts from Australian mode
 3. Generate an overtime interpretation working document.
 3B. Run a one-pass supervisor review and creator update of the overtime interpretation.
 4A. Summarise overtime entitlements in plain English from the reviewed interpretation where available.
+4B. Temporarily review the 4A entitlement output and produce a final human-readable markdown version.
 5B. Convert the entitlement summary into core ordinary/overtime pseudocode. This step is parked until the upstream review flow is settled.
 
 Script 6 final consistency review has been removed from the active codebase because that review step is expected to be redesigned before it is used again.
@@ -37,6 +38,9 @@ Root files are limited to project metadata and entry points:
 | 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_review_overtime_interpretation.py` |
 | 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `src/script_3_interpret_overtime_prompt.py` |
 | 4A | `src/script_4a_summarize_overtime.py` | `src/script_4a_summarize_overtime_prompt.py` |
+| 4B accuracy evaluator | `src/script_4b_review_overtime_entitlements.py` | `accuracy_evaluation_system_prompt()` in `src/script_4b_review_overtime_entitlements.py` |
+| 4B creator update | `src/script_4b_review_overtime_entitlements.py` | `src/script_4a_summarize_overtime_prompt.py` |
+| 4B formatter | `src/script_4b_review_overtime_entitlements.py` | `build_formatting_messages()` in `src/script_4b_review_overtime_entitlements.py` |
 | 5B | `src/script_5b_generate_overtime_pseudocode.py` | `CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE` in `src/script_5b_generate_overtime_pseudocode.py` |
 
 Scripts 3 and 4A no longer share a prompt file. Script 3 owns the working interpretation prompt. Script 4A owns the reviewer-facing entitlement summary prompt.
@@ -172,6 +176,41 @@ Status:
 - The template is not source evidence.
 - The generated markdown is intended for human review and downstream pseudocode generation.
 
+## 4B. Overtime entitlement review and final formatting
+
+File: `src/script_4b_review_overtime_entitlements.py`
+
+Purpose:
+- Copy the 4A entitlement output as the initial answer.
+- Run a source-aware accuracy review against the interpretation document and filtered `Ordinary Hours & Overtime` clauses.
+- Send the feedback back to the creator model once to produce an updated entitlement answer.
+- Run a source-blind wording and markdown formatting pass over the updated answer.
+- Produce a final markdown file for human reading.
+
+Command:
+
+```bash
+uv run script-4b-review-overtime-entitlements MA000018
+```
+
+Pipeline wrapper command:
+
+```bash
+uv run award-pipeline MA000018 4b
+```
+
+Main outputs:
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_initial_answer.md`
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_review_feedback.md`
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_updated_answer.md`
+- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_final.md`
+
+Status:
+- Implemented and covered by tests.
+- Temporary review step.
+- The accuracy review looks back to source material.
+- The final formatting pass uses only the updated markdown and does not look back to source.
+
 ## Combined 3 and 4A runner
 
 File: `src/script_4a_generate_overtime_clause.py`
@@ -228,6 +267,8 @@ uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 uv run script-3b-review-overtime-interpretation MA000018
 uv run script-4a-summarize-overtime MA000018
+uv run script-4b-review-overtime-entitlements MA000018
+uv run award-pipeline MA000018 4b
 ```
 
 Parked step:
