@@ -7,7 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.Overtime_System_Prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
+from src.script_4a_prompt_Overtime_System_Prompt import OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT
 from src.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
@@ -65,9 +65,33 @@ def load_reference_template(template_path: Path | str) -> str:
     return text
 
 
+def looks_like_path(value: str) -> bool:
+    path = Path(value)
+    return path.suffix != "" or "/" in value or "\\" in value
+
+
+def default_interpretation_path_for_award(award_code: str) -> Path:
+    interpretation_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_INTERPRETATIONS_DIR
+    revised_path = interpretation_dir / f"{award_code}_overtime_interpretation_revised.md"
+    if revised_path.exists():
+        return revised_path
+
+    return interpretation_dir / f"{award_code}_overtime_interpretation.md"
+
+
+def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Path:
+    value = str(award_or_interpretation_path)
+    if looks_like_path(value):
+        return Path(value)
+
+    return default_interpretation_path_for_award(value)
+
+
 def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
     path = Path(interpretation_path)
     stem = path.stem
+    if stem.endswith("_overtime_interpretation_revised"):
+        stem = stem.removesuffix("_overtime_interpretation_revised")
     if stem.endswith("_overtime_interpretation"):
         stem = stem.removesuffix("_overtime_interpretation")
     return path_in_category(
@@ -94,6 +118,23 @@ def output_path_for_classification(classification_path: Path | str) -> Path:
     )
 
 
+def strip_wrapping_markdown_fence(text: str) -> str:
+    stripped_text = text.strip()
+    lines = stripped_text.splitlines()
+
+    if len(lines) < 2:
+        return stripped_text
+
+    opening_line = lines[0].strip().lower()
+    closing_line = lines[-1].strip()
+    is_markdown_fence = opening_line in ("```markdown", "```md", "```")
+
+    if is_markdown_fence and closing_line == "```":
+        return "\n".join(lines[1:-1]).strip()
+
+    return stripped_text
+
+
 def build_messages(
     source_file: str,
     interpretation_markdown: str,
@@ -116,7 +157,7 @@ def build_messages(
         "\n```"
     )
     return [
-        {"role": "system", "content": OVERTIME_ENTITLEMENT_SYSTEM_PROMPT},
+        {"role": "system", "content": OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
 
@@ -155,6 +196,7 @@ def summarize_overtime_entitlements(
     if not output_text:
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
 
+    output_text = strip_wrapping_markdown_fence(output_text)
     destination = Path(output_path) if output_path else output_path_for_interpretation(source_path)
     write_text_with_archive(destination, output_text)
     return output_text
@@ -165,12 +207,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Summarise reviewer-facing overtime entitlements from an interpretation document."
     )
     parser.add_argument(
-        "interpretation_path",
+        "award_or_interpretation_path",
         nargs="?",
-        default=str(DEFAULT_INTERPRETATION_PATH),
+        default="MA000018",
         help=(
-            "Path to an overtime interpretation markdown file, for example "
-            "data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md."
+            "Award code such as MA000002, or a path to an overtime interpretation "
+            "markdown file. Award codes prefer the revised 3B interpretation if it exists."
         ),
     )
     parser.add_argument(
@@ -196,8 +238,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main() -> None:
     args = parse_args()
+    interpretation_path = resolve_interpretation_path(args.award_or_interpretation_path)
+    print(interpretation_path)
     summarize_overtime_entitlements(
-        interpretation_path=args.interpretation_path,
+        interpretation_path=interpretation_path,
         output_path=args.output_path,
         template_path=args.template_path,
         model=args.model,
@@ -205,7 +249,7 @@ def main() -> None:
     destination = (
         Path(args.output_path)
         if args.output_path
-        else output_path_for_interpretation(args.interpretation_path)
+        else output_path_for_interpretation(interpretation_path)
     )
     print(f"Overtime entitlement summary saved to {destination}")
 

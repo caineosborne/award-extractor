@@ -8,8 +8,8 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.Overtime_System_Prompt import (
-    OVERTIME_ENTITLEMENT_SYSTEM_PROMPT,
+from src.script_4a_prompt_Overtime_System_Prompt import (
+    OVERTIME_REVIEW_DOCUMENT_SYSTEM_PROMPT,
 )
 from src.script_5b_generate_overtime_pseudocode import (
     CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE,

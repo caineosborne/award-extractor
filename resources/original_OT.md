@@ -1,6 +1,8 @@
-# Overtime Interpretation
+# Source Rules
 
-## Trigger Summary
+*These are the key rulesets which are extracted from the clauses* 
+
+## Ordinary Hours Rules:
 
 Ordinary Hours are defined as:
 
@@ -18,24 +20,16 @@ Ordinary Hours are defined as:
 - An employee recalled to work for overtime, will be entitled to receive a minimum of four hours worked ( 25.1e)
 - For full time employees, any hours worked during a sleepover will be paid at overtime rates (22.9gi)
 
+### Other Related Rulesets:
+
+- Full time employees will receive payment for a minimum of four hours for each engagement of work (22.7a)
+- Part Time and casual employees will be engaged for a minimum of two hours for each work engagement (22.7b)
+
 ### Additional Guidelines  (supplied by the user)
 
 Any hours which are not ordinary hours, are to be considered overtime
 
 # Overtime Interpretation
-
-## Clause Applicability Matrix
-
-| Trigger | FT | PT | Casual | Day Worker | Shiftworker |
-|----------|----|----|---------|------------|-------------|
-| Weekly hours exceeded | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Daily hours exceeded | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Outside ordinary spread | ✓ | ✓ | ✓ | ✓ | ✗ |
-| Outside rostered hours | ✓ | ✓ | ✗ | ✓ | ✓ |
-| Missed meal break | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Recall to work | ✓ | ✓ | ✓ | ✓ | ✓ |
-
-## When does overtime occur?
 
 T*his is when an employee is entitled to receive overtime  - when does overtime trigger*
 
@@ -54,7 +48,11 @@ Any hours which are not overtime, are to be considered as ordinary hours, with t
 - For Full Time employees, a minimum of four hours (22.7a)
 - For Part Time and casual employees, a minimum of two hours (22.7b)
 
-## What happens when overtime occurs?
+### Additional Considerations:
+
+Part time employees may agree not to receive overtime for working outside the specified roster time (25.1(b)iii)
+
+## Overtime Entitlements:
 
 *Once an employee has determined to recieve overtime, this is what happens* 
 
@@ -69,19 +67,13 @@ Any hours which are not overtime, are to be considered as ordinary hours, with t
 - For casual employees receiving overtime for other reasons, overtime on Saturday or Sunday is paid at 250% of the hourly rate (25.1cii)
 - For casual employees receiving overtime for other reasons,  overtime on a public holiday is paid at 312.5% of the hourly rate. (25.1cii)
 
-## Additional Consequences
+## Additional consequences of working overtime:
 
 - Any Full Time or Part time employees who works overtime without 10 consecutive hours break will be paid 200% until they have had a 10 hour break (25.1(d) )
 - Any employee who works beyond one hour or their shift, or works one hour overtime will be supplied with a meal allowance of $16.62, and an additional $14.98 where the overtime exceeds for hours (15.4).  THis is not applicable where the employee is supplied with a meal, or could return home for a meal
 - Employees may elect to take   Time off instead of payment for overtime (25.2)
 
-## Edge Cases and Implementation Issues
-
-### Additional Considerations:
-
-Part time employees may agree not to receive overtime for working outside the specified roster time (25.1(b)iii)
-
-## Required Data
+## Required Data Inputs:
 
 Required for initial calculation: *These are the fields that will be used in the initial calculation* 
 
@@ -95,8 +87,6 @@ Required for subsequent calculation: *These are fields that can be included in s
 - Break Rules - have employees work in excess of five hours
 - is the shift a sleepover shift
 - Is the shift a recall shift?
-
-## Assumptions and Exclusions
 
 ### Required Business Assumptions & Initial Ruleset
 

@@ -5,6 +5,7 @@ from pathlib import Path
 FETCH_AWARD_DIR = "1_fetch_award"
 PAYMENT_CLAUSE_IDENTIFIER_DIR = "2_payment_clause_identifier"
 OVERTIME_INTERPRETATIONS_DIR = "3_overtime_interpretations"
+OVERTIME_INTERPRETATION_FEEDBACK_DIR = "feedback"
 OVERTIME_ENTITLEMENTS_DIR = "4a_overtime_entitlements"
 OVERTIME_PSEUDOCODE_DIR = "5b_generate_overtime_pseudocode"
 OVERTIME_REVIEW_DIR = "6_final_consistency_review"

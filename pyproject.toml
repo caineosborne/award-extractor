@@ -21,6 +21,7 @@ dependencies = [
 script-1-fetch-award = "src.script_1_fetch_award:main"
 script-2-classify-payments = "src.script_2_classify_payments:main"
 script-3-interpret-overtime = "src.script_3_interpret_overtime:main"
+script-3b-review-overtime-interpretation = "src.script_3b_review_overtime_interpretation:main"
 script-4a-summarize-overtime = "src.script_4a_summarize_overtime:main"
 script-4a-generate-overtime-clause = "src.script_4a_generate_overtime_clause:main"
 script-5b-generate-overtime-pseudocode = "src.script_5b_generate_overtime_pseudocode:main"

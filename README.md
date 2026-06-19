@@ -32,19 +32,51 @@ data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
 
 The interpretation document is a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
 
+3B. Run a one-pass supervisor review and creator update for the overtime interpretation:
+
+```bash
+uv run script-3b-review-overtime-interpretation \
+  data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md \
+  --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+```
+
+This writes:
+
+```text
+data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_evaluator_feedback.md
+data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_creator_response.md
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md
+```
+
+This is a one-way step only: creator output, supervisor feedback, then one creator update. The reviewer receives only the clauses tagged `Ordinary Hours & Overtime`, not the full payment classification JSON.
+
 4A. Generate the reviewer-facing overtime entitlement markdown from the interpretation document:
 
 ```bash
-uv run script-4a-summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run script-4a-summarize-overtime MA000018
 ```
 
-This uses `resources/overtime_example.md` as the default structure and style template. The template is not source evidence; the generated rules should use only the interpretation document for award-specific facts.
+When passed an award code, script 4A uses the revised script 3B interpretation if it exists:
+
+```text
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md
+```
+
+If the revised file does not exist, it falls back to:
+
+```text
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+```
+
+This uses `resources/overtime_example.md` as the default structure and style template. The template is not source evidence; the generated rules should use only the selected interpretation document for award-specific facts.
 
 This writes:
 
 ```text
 data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
 ```
+
+The rule priority section should describe an allocation workflow: start all worked hours as `Unallocated`, apply time-based overtime checks first, daily checks second, weekly or averaging-period checks third, then move any remaining `Unallocated` hours to `Ordinary`.
 
 To run the overtime interpretation and entitlement summary steps together:
 

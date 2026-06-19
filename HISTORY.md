@@ -7,8 +7,9 @@ The project is designed to produce audit-readable artifacts from Australian mode
 1. Fetch and structure the award.
 2. Classify payment-relevant clauses.
 3. Generate an overtime interpretation working document.
-4. Summarise overtime entitlements in plain English from the interpretation.
-5. Convert the entitlement summary into core ordinary/overtime pseudocode.
+3B. Run a one-pass supervisor review and creator update of the overtime interpretation.
+4A. Summarise overtime entitlements in plain English from the reviewed interpretation where available.
+5B. Convert the entitlement summary into core ordinary/overtime pseudocode.
 6. Review the generated artifacts for quality.
 
 ## 1. Fetch award
@@ -128,6 +129,47 @@ Current status:
 - This is a working artifact, not the end-user format.
 - Downstream code should not depend on exact bullet formatting.
 
+## 3B. Overtime interpretation supervisor review
+
+File: `src/script_3b_review_overtime_interpretation.py`
+
+Purpose:
+- Run a temporary one-pass review step before the later agentic review process.
+- Read the script 3 overtime interpretation working document.
+- Read the step 2 payment classification JSON, then filter it to clauses tagged `Ordinary Hours & Overtime`.
+- Ask an evaluator model for supervisor-style questions and concise issue notes without rewriting the document.
+- Send that feedback to the creator model once so it can decide what to accept and write a revised interpretation.
+
+Command:
+
+```bash
+uv run script-3b-review-overtime-interpretation MA000018
+```
+
+Main outputs:
+- `data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_evaluator_feedback.md`
+- `data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_creator_response.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md`
+
+Main functions:
+- `resolve_interpretation_path(...)`: accepts either an award code or a direct interpretation path.
+- `resolve_classification_path(...)`: derives the step 2 classification path from the award code or interpretation filename unless a path is supplied.
+- `build_evaluator_messages(...)`: packages the interpretation, filtered clauses, and script 3 system prompt for review.
+- `build_creator_messages(...)`: packages the interpretation, filtered clauses, and evaluator feedback for the one-pass update.
+- `parse_creator_update(output_text)`: splits the creator decision record from the revised interpretation.
+- `review_overtime_interpretation(...)`: orchestrates filtered context, evaluator feedback, creator update, and output writing.
+
+Current status:
+- Implemented and covered by tests.
+- Uses OpenRouter for the evaluator with model `anthropic/claude-sonnet-4.6`.
+- The evaluator receives only the filtered `Ordinary Hours & Overtime` clauses.
+- The process is strictly one-way: creator output, evaluator feedback, creator update. It does not loop.
+- The CLI prints progress messages while loading inputs, waiting for the evaluator, waiting for the creator update, writing files, and completing.
+- The shorthand award-code command derives:
+  - `data/processed/3_overtime_interpretations/MAxxxxx_overtime_interpretation.md`
+  - `data/processed/2_payment_clause_identifier/MAxxxxx_payment_classification.json`
+- When this step is used, downstream step 4A should read the revised interpretation file.
+
 ## 4. Overtime entitlement summary
 
 Files:
@@ -145,7 +187,7 @@ Purpose:
 Command:
 
 ```bash
-uv run script-4a-summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run script-4a-summarize-overtime MA000018
 ```
 
 Main output:
@@ -154,8 +196,10 @@ Main output:
 Main functions:
 - `load_overtime_interpretation(interpretation_path)`: loads and validates the interpretation markdown.
 - `load_reference_template(template_path)`: loads and validates the markdown template.
+- `resolve_interpretation_path(award_or_interpretation_path)`: accepts either an award code or a direct interpretation path.
 - `output_path_for_interpretation(interpretation_path)`: derives the markdown output path.
 - `output_path_for_classification(classification_path)`: derives the entitlement path before the interpretation file exists.
+- `strip_wrapping_markdown_fence(text)`: removes a full response-level markdown code fence before writing.
 - `build_messages(source_file, interpretation_markdown, template_file, template_markdown)`: creates the entitlement-summary prompt.
 - `summarize_overtime_entitlements(...)`: orchestrates markdown loading, model call, response extraction, and markdown writing.
 
@@ -171,8 +215,12 @@ Current status:
   - `Required Data Inputs`
   - `Required Business Assumptions & Initial Ruleset`
   - `Rule priority`
-  - `Assumptions and missing inputs`
 - The markdown is intended to be clear enough for both human review and the next LLM step.
+- When called with an award code, script 4A prefers `MAxxxxx_overtime_interpretation_revised.md` and falls back to `MAxxxxx_overtime_interpretation.md`.
+- Revised interpretation inputs still write the canonical entitlement filename `MAxxxxx_overtime_entitlements.md`.
+- Wrapping markdown fences returned by the model are stripped before writing the output.
+- The rule priority section now uses an explicit allocation workflow: initialise hours as `Unallocated`, apply time-based overtime checks, then daily checks, then weekly or averaging-period checks, and finally move remaining `Unallocated` hours to `Ordinary`.
+- Time/span/spread overtime checks should be applied before daily checks, and daily checks before weekly or averaging-period checks. Hours already moved to `Overtime` should not be reclassified by later checks.
 - Humans may edit this file; downstream processing should not depend on exact markdown bullet formatting.
 
 ## 5. Core overtime pseudocode
@@ -209,13 +257,15 @@ Current status:
 - This is intentionally format agnostic because humans may edit the markdown before pseudocode generation.
 - The pseudocode prompt tells the model to read the document for meaning, not exact heading or bullet labels.
 
-## 6. Combined overtime artifact generator
+## 6. Combined overtime interpretation and entitlement generator
 
 File: `src/script_4a_generate_overtime_clause.py`
 
 Purpose:
-- Run the overtime interpretation, entitlement summary, and pseudocode generation steps as one command.
+- Run the overtime interpretation and entitlement summary steps as one command.
 - Useful when regenerating overtime artifacts from a payment classification JSON.
+- This command does not run the 3B supervisor review step.
+- This command does not generate pseudocode.
 
 Command:
 
@@ -226,17 +276,16 @@ uv run script-4a-generate-overtime-clause data/processed/2_payment_clause_identi
 Main outputs:
 - `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md`
 - `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md`
-- `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md`
 
 Main functions:
-- `generate_overtime_clause_artifacts(...)`: runs `generate_overtime_interpretation(...)`, then `summarize_overtime_entitlements(...)`, then `generate_core_overtime_pseudocode(...)`.
+- `generate_overtime_clause_artifacts(...)`: runs `generate_overtime_interpretation(...)`, then `summarize_overtime_entitlements(...)`.
 - `interpretation_path_for_classification(...)`: determines the interpretation markdown path.
 - `output_path_for_classification(...)`: determines the entitlement markdown path before the interpretation file exists.
-- `output_path_for_summary(...)`: determines the pseudocode markdown path.
 
 Current status:
 - Implemented and covered by tests.
-- Uses the same model for all three LLM calls unless a model override is supplied.
+- Uses the same model for both LLM calls unless a model override is supplied.
+- For the reviewed workflow, prefer running scripts 3, 3B, and 4A separately so 4A can consume the revised interpretation.
 
 ## 7. Overtime quality reviewer
 
@@ -278,8 +327,7 @@ Current status:
 - Implemented and covered by tests.
 - Uses OpenRouter by default with model `qwen/qwen3-coder`.
 - Requires `OPENROUTER_API_KEY` or `OPEN_ROUTER_API_KEY`.
-- At the time this file was written, this module and its tests are present in the working tree and should be added to version control if this quality review step is part of the intended pipeline.
-- No console script entry has been added yet in `pyproject.toml`; run it with `uv run script-6-final-consistency-review` or `uv run script-6-final-consistency-review`.
+- Console script entry exists in `pyproject.toml`; run it with `uv run script-6-final-consistency-review`.
 
 ## Current end-to-end status
 
@@ -290,7 +338,7 @@ uv run pytest
 ```
 
 Result:
-- 39 tests passed.
+- 54 tests passed.
 
 Current pipeline commands:
 
@@ -298,7 +346,8 @@ Current pipeline commands:
 uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
 uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-uv run script-4a-summarize-overtime data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
+uv run script-3b-review-overtime-interpretation MA000018
+uv run script-4a-summarize-overtime MA000018
 uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
 uv run script-6-final-consistency-review \
   --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json \
@@ -308,8 +357,10 @@ uv run script-6-final-consistency-review \
 
 Current design notes:
 - `script_1_fetch_award.py` is deterministic.
-- `script_2_classify_payments.py`, `script_3_interpret_overtime.py`, `script_4a_summarize_overtime.py`, `script_5b_generate_overtime_pseudocode.py`, and `script_6_final_consistency_review.py` use LLM calls.
+- `script_2_classify_payments.py`, `script_3_interpret_overtime.py`, `script_3b_review_overtime_interpretation.py`, `script_4a_summarize_overtime.py`, `script_5b_generate_overtime_pseudocode.py`, and `script_6_final_consistency_review.py` use LLM calls.
 - The overtime interpretation markdown is a working artifact between classification and reviewer-facing entitlement generation.
+- The 3B revised interpretation is the preferred input for 4A when present.
 - The entitlement markdown is a human-review artifact and may be manually edited.
+- The entitlement rule priority is an implementation allocation method: begin with `Unallocated`, move time/span/spread overtime to `Overtime`, then daily overtime, then weekly or averaging-period overtime, and finally treat remaining unallocated hours as `Ordinary`.
 - The pseudocode generator now reads the full entitlement markdown rather than relying on exact markdown bullet formatting.
 - The quality reviewer is intended as an assurance layer, not as an automatic correction step.
