@@ -20,7 +20,7 @@ uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
 uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
 ```
 
-3. Generate the overtime interpretation working document from the classification JSON:
+3. Generate the overtime clause classification and interpretation working document from the classification JSON:
 
 ```bash
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
@@ -29,10 +29,11 @@ uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA
 This writes:
 
 ```text
+data/processed/3_overtime_interpretations/MA000018_overtime_clause_classification.json
 data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
 ```
 
-The interpretation document is a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
+The clause classification JSON is an audit artifact for the trigger-first interpretation step. The interpretation document is a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
 
 3B. Run a one-pass supervisor review and creator update for the overtime interpretation:
 
@@ -50,7 +51,7 @@ data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretat
 data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md
 ```
 
-This is a one-way step only: creator output, supervisor feedback, then one creator update. The reviewer receives only the clauses tagged `Ordinary Hours & Overtime`, not the full payment classification JSON.
+This is a one-way step only: supervisor feedback, then one creator update. The reviewer checks the simplified Script 3 output against the full Script 2 payment classification JSON and the Script 3 clause classification JSON, focused only on clauses that increase overtime entitlement by causing worked time to become overtime.
 
 4A. Generate the reviewer-facing overtime entitlement markdown from the interpretation document:
 

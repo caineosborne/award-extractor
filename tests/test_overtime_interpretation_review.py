@@ -85,13 +85,29 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
     def test_build_evaluator_messages_include_filtered_clauses_and_prompt(self):
         messages = build_evaluator_messages(
             interpretation_path="interpretation.md",
-            interpretation_markdown="# Overtime Interpretation Working Document",
+            interpretation_markdown="## All Employees",
             classification_path="classification.json",
-            overtime_clauses={
-                "20.1": {
-                    "tags": ["Ordinary Hours & Overtime"],
-                    "text": "Overtime after ordinary hours.",
+            payment_classification={
+                "classified_clauses": {
+                    "20.1": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Overtime after ordinary hours.",
+                    },
+                    "30.1": {
+                        "tags": ["Other Payment"],
+                        "text": "Possible missed overtime creation clause.",
+                    },
                 }
+            },
+            overtime_clause_classification_path="overtime_clause_classification.json",
+            overtime_clause_classification={
+                "clauses": [
+                    {
+                        "clause_number": "20.1",
+                        "classification": "Overtime Trigger",
+                        "explanation": "Directly creates overtime.",
+                    }
+                ]
             },
         )
 
@@ -99,23 +115,43 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         user_prompt = messages[1]["content"]
 
         self.assertIn("supervisor", system_prompt)
+        self.assertIn("Will this clause increase overtime entitlement", system_prompt)
         self.assertIn("interpretation.md", user_prompt)
         self.assertIn("classification.json", user_prompt)
+        self.assertIn("overtime_clause_classification.json", user_prompt)
         self.assertIn('"20.1"', user_prompt)
+        self.assertIn('"30.1"', user_prompt)
         self.assertIn("Overtime after ordinary hours.", user_prompt)
-        self.assertIn("OVERTIME", user_prompt.upper())
-        self.assertIn("# Overtime Interpretation Working Document", user_prompt)
+        self.assertIn("Possible missed overtime creation clause.", user_prompt)
+        self.assertIn("Check both Script 3 steps", user_prompt)
+        self.assertIn("## All Employees", user_prompt)
 
     def test_build_creator_messages_include_feedback_and_filtered_clauses(self):
         messages = build_creator_messages(
             interpretation_path="interpretation.md",
             interpretation_markdown="# Original",
             classification_path="classification.json",
-            overtime_clauses={
-                "20.1": {
-                    "tags": ["Ordinary Hours & Overtime"],
-                    "text": "Overtime after ordinary hours.",
+            payment_classification={
+                "classified_clauses": {
+                    "20.1": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Overtime after ordinary hours.",
+                    },
+                    "30.1": {
+                        "tags": ["Other Payment"],
+                        "text": "Possible missed overtime creation clause.",
+                    },
                 }
+            },
+            overtime_clause_classification_path="overtime_clause_classification.json",
+            overtime_clause_classification={
+                "clauses": [
+                    {
+                        "clause_number": "20.1",
+                        "classification": "Overtime Trigger",
+                        "explanation": "Directly creates overtime.",
+                    }
+                ]
             },
             evaluator_feedback_markdown="# Feedback\n\nAsk about shiftworkers.",
         )
@@ -125,6 +161,8 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn("# Original", user_prompt)
         self.assertIn("# Feedback", user_prompt)
         self.assertIn('"20.1"', user_prompt)
+        self.assertIn('"30.1"', user_prompt)
+        self.assertIn("Will this clause increase overtime entitlement", user_prompt)
         self.assertIn("<creator_response>", user_prompt)
         self.assertIn("<revised_interpretation>", user_prompt)
 
@@ -145,10 +183,21 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                     "text": "Overtime after ordinary hours.",
                 },
                 "30.1": {
-                    "tags": ["Penalty"],
-                    "text": "Weekend penalty.",
+                    "tags": ["Other Payment"],
+                    "text": "Possible missed overtime creation clause.",
                 },
             }
+        }
+        overtime_clause_classification = {
+            "schema_version": "overtime-clause-classification-v1",
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Trigger",
+                    "explanation": "Directly creates overtime.",
+                    "clause_text": "Overtime after ordinary hours.",
+                }
+            ],
         }
         evaluator_client = FakeEvaluatorClient(
             "# Overtime interpretation supervisor feedback\n\n"
@@ -169,16 +218,27 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             temp_path = Path(temp_dir)
             interpretation_path = temp_path / "award_overtime_interpretation.md"
             classification_path = temp_path / "award_payment_classification.json"
+            overtime_clause_classification_path = (
+                temp_path
+                / "3_overtime_interpretations"
+                / "award_overtime_clause_classification.json"
+            )
 
             interpretation_path.write_text(
-                "# Overtime Interpretation Working Document",
+                "## All Employees",
                 encoding="utf-8",
             )
             classification_path.write_text(json.dumps(classification), encoding="utf-8")
+            overtime_clause_classification_path.parent.mkdir()
+            overtime_clause_classification_path.write_text(
+                json.dumps(overtime_clause_classification),
+                encoding="utf-8",
+            )
 
             artifacts = review_overtime_interpretation(
                 interpretation_path=interpretation_path,
                 classification_path=classification_path,
+                overtime_clause_classification_path=overtime_clause_classification_path,
                 evaluator_client=evaluator_client,
                 creator_client=creator_client,
             )
@@ -216,8 +276,8 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         )
         self.assertIn('"20.1"', evaluator_prompt)
         self.assertIn('"20.1"', creator_prompt)
-        self.assertNotIn('"30.1"', evaluator_prompt)
-        self.assertNotIn('"30.1"', creator_prompt)
+        self.assertIn('"30.1"', evaluator_prompt)
+        self.assertIn('"30.1"', creator_prompt)
         self.assertTrue(feedback_file_exists)
         self.assertTrue(creator_response_file_exists)
         self.assertTrue(revised_file_exists)

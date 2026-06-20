@@ -23,7 +23,7 @@ DEFINITIONS = """Definitions:
 TAG_DEFINITIONS = """Tag definitions:
 - Hourly Rate: clauses related to an employee's base hourly rate, wage table, classification rate, minimum rate, or dollar amount per hour, excluding allowances.
 - Ordinary Hours & Overtime: clauses defining ordinary hours, overtime hours, the boundary between ordinary and overtime hours, or minimum shift/payment periods tied to worked hours.
-- Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.
+- Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.  THis may be callsed shift workek allowance. 
 - Allowance: additional payment based on duties, work type, location, equipment, expenses, qualifications, or skills, rather than the specific hours worked.
 - Breaks (Meal Breaks): clauses about entitlement to meal breaks, lunch breaks, crib breaks, or payment when meal breaks are missed or interrupted. 
 - Breaks (Between Work Periods): clauses about required gaps, rest periods, or minimum breaks between shifts or work periods. This includes broken shifts - where a shift is worked in two segments. 

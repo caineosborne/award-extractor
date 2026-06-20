@@ -16,6 +16,7 @@ from src.output_paths import (
 from src.script_1_fetch_award import build_section_index, extract_award, fetch, iter_heading_rows
 from src.script_2_classify_payments import classify_award, output_path_for_award
 from src.script_3_interpret_overtime import (
+    classification_output_path_for_classification,
     generate_overtime_interpretation,
     output_path_for_classification as interpretation_path_for_classification,
 )
@@ -63,6 +64,7 @@ class AwardPipelinePaths:
     section_index_path: Path
     heading_csv_path: Path
     classification_path: Path
+    overtime_clause_classification_path: Path
     interpretation_path: Path
     revised_interpretation_path: Path
     evaluator_feedback_path: Path
@@ -121,6 +123,9 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
     heading_csv_path = fetch_dir / f"{output_stem}.csv"
 
     classification_path = output_path_for_award(award_json_path)
+    overtime_clause_classification_path = classification_output_path_for_classification(
+        classification_path
+    )
     interpretation_path = interpretation_path_for_classification(classification_path)
     revised_interpretation_path = revised_output_path_for_interpretation(interpretation_path)
     evaluator_feedback_path = evaluator_feedback_path_for_interpretation(interpretation_path)
@@ -142,6 +147,7 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
         section_index_path=section_index_path,
         heading_csv_path=heading_csv_path,
         classification_path=classification_path,
+        overtime_clause_classification_path=overtime_clause_classification_path,
         interpretation_path=interpretation_path,
         revised_interpretation_path=revised_interpretation_path,
         evaluator_feedback_path=evaluator_feedback_path,
@@ -242,16 +248,19 @@ def run_step_3(paths: AwardPipelinePaths) -> None:
     require_existing(paths.classification_path, "3", "2")
     generate_overtime_interpretation(
         classification_path=paths.classification_path,
+        classification_output_path=paths.overtime_clause_classification_path,
         output_path=paths.interpretation_path,
     )
 
 
 def run_step_3b(paths: AwardPipelinePaths) -> None:
     require_existing(paths.classification_path, "3b", "2")
+    require_existing(paths.overtime_clause_classification_path, "3b", "3")
     require_existing(paths.interpretation_path, "3b", "3")
     review_overtime_interpretation(
         interpretation_path=paths.interpretation_path,
         classification_path=paths.classification_path,
+        overtime_clause_classification_path=paths.overtime_clause_classification_path,
         feedback_output_path=paths.evaluator_feedback_path,
         creator_response_output_path=paths.creator_response_path,
         revised_output_path=paths.revised_interpretation_path,

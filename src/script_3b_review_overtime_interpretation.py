@@ -12,7 +12,6 @@ from openai import OpenAI
 
 from src.script_3_interpret_overtime_prompt import OVERTIME_INTERPRETATION_SYSTEM_PROMPT
 
-
 from src.output_paths import (
     OVERTIME_INTERPRETATION_FEEDBACK_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
@@ -22,7 +21,7 @@ from src.script_2_classify_payments import extract_response_text
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
-    filter_overtime_clauses,
+    classification_output_path_for_classification,
     load_classification,
 )
 
@@ -122,6 +121,27 @@ def load_text_file(path: Path | str, description: str) -> str:
     return text
 
 
+def load_json_file(path: Path | str, description: str) -> dict[str, Any]:
+    selected_path = Path(path)
+    if not selected_path.exists():
+        raise OvertimeInterpretationReviewError(f"{description} not found: {selected_path}")
+
+    try:
+        with selected_path.open(encoding="utf-8") as json_file:
+            data = json.load(json_file)
+    except json.JSONDecodeError as exc:
+        raise OvertimeInterpretationReviewError(
+            f"{description} is not valid JSON: {selected_path}"
+        ) from exc
+
+    if not isinstance(data, dict):
+        raise OvertimeInterpretationReviewError(
+            f"{description} must contain a JSON object: {selected_path}"
+        )
+
+    return data
+
+
 def feedback_dir_for_interpretation(interpretation_path: Path | str) -> Path:
     return Path(interpretation_path).parent / OVERTIME_INTERPRETATION_FEEDBACK_DIR
 
@@ -202,19 +222,32 @@ def resolve_classification_path(
     return default_classification_path_for_award(award_code)
 
 
+def resolve_overtime_clause_classification_path(
+    classification_path: Path | str,
+    overtime_clause_classification_path: Path | str | None,
+) -> Path:
+    if overtime_clause_classification_path:
+        return Path(overtime_clause_classification_path)
+
+    return classification_output_path_for_classification(classification_path)
+
+
 def evaluation_system_prompt() -> str:
-    return """You are a supervisor reviewing an Australian modern award overtime interpretation working document.
+    return """You are a supervisor reviewing an Australian modern award overtime creation interpretation.
 
 Your job is to provide useful feedback to the creator. Do not rewrite the document.
 Ask questions and identify concise issues that would help the creator decide whether an update is needed.
 
+Keep the review simple and focused on this question:
+Will this clause increase overtime entitlement by causing worked time to become overtime?
+
 Focus on:
-- unsupported rules;
-- missing material overtime trigger questions;
-- confusion between overtime triggers and overtime consequences;
-- unclear employee groups;
-- weak clause traceability;
-- assumptions that should be explicit for auditability.
+- clauses in the full payment classification JSON that may answer the key question but were missed by the Script 3 clause classification;
+- clauses classified as Ordinary Hours Boundary or Overtime Trigger that do not actually answer the key question;
+- final interpretation bullets that are unsupported, missing, too broad, or include consequence-only rules;
+- employee group, threshold, roster condition, span, spread, or clause-reference errors.
+
+Do not review rates, calculations, penalties, allowances, payment mechanics, or other consequences except to say they should not be included as overtime-creation rules.
 
 Return markdown only with this structure:
 
@@ -222,9 +255,9 @@ Return markdown only with this structure:
 
 ## Overall view
 
-## Questions for the creator
+## Clause classification issues
 
-## Potential issues
+## Interpretation issues
 
 ## Traceability notes
 """
@@ -234,13 +267,33 @@ def build_evaluator_messages(
     interpretation_path: Path | str,
     interpretation_markdown: str,
     classification_path: Path | str,
-    overtime_clauses: Mapping[str, Any],
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification_path: Path | str,
+    overtime_clause_classification: Mapping[str, Any],
 ) -> list[dict[str, str]]:
-    filtered_clauses_json = json.dumps(overtime_clauses, indent=2, ensure_ascii=False)
+    payment_classification_json = json.dumps(
+        payment_classification,
+        indent=2,
+        ensure_ascii=False,
+    )
+    overtime_clause_classification_json = json.dumps(
+        overtime_clause_classification,
+        indent=2,
+        ensure_ascii=False,
+    )
 
     user_prompt = f"""Review this overtime interpretation working document.
 
 Do not rewrite the interpretation. Provide supervisor-style questions and concise issue notes only.
+
+Review against the full payment clause identifier JSON from Script 2. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
+
+Check both Script 3 steps:
+1. The intermediate clause classification JSON: did it correctly identify only clauses that answer the key question?
+2. The final interpretation markdown: does it include only core overtime-creation rules supported by those clauses?
+
+Key review question:
+Will this clause increase overtime entitlement by causing worked time to become overtime?
 
 Interpretation source: {interpretation_path}
 
@@ -248,12 +301,16 @@ Interpretation source: {interpretation_path}
 {interpretation_markdown}
 ```
 
-Filtered payment classification source: {classification_path}
-
-Only these clauses were tagged Ordinary Hours & Overtime and are in scope for this review:
+Full payment classification source from Script 2: {classification_path}
 
 ```json
-{filtered_clauses_json}
+{payment_classification_json}
+```
+
+Script 3 intermediate overtime clause classification source: {overtime_clause_classification_path}
+
+```json
+{overtime_clause_classification_json}
 ```
 
 The interpretation was generated using this system prompt:
@@ -273,13 +330,27 @@ def build_creator_messages(
     interpretation_path: Path | str,
     interpretation_markdown: str,
     classification_path: Path | str,
-    overtime_clauses: Mapping[str, Any],
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification_path: Path | str,
+    overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
 ) -> list[dict[str, str]]:
-    filtered_clauses_json = json.dumps(overtime_clauses, indent=2, ensure_ascii=False)
+    payment_classification_json = json.dumps(
+        payment_classification,
+        indent=2,
+        ensure_ascii=False,
+    )
+    overtime_clause_classification_json = json.dumps(
+        overtime_clause_classification,
+        indent=2,
+        ensure_ascii=False,
+    )
     user_prompt = f"""Review the supervisor feedback and decide whether the interpretation needs updating.
 
 This is a one-pass update. Do not ask for another review cycle.
+
+Keep the revised interpretation simple. Include only clauses that answer this question:
+Will this clause increase overtime entitlement by causing worked time to become overtime?
 
 Original interpretation source: {interpretation_path}
 
@@ -287,12 +358,16 @@ Original interpretation source: {interpretation_path}
 {interpretation_markdown}
 ```
 
-Filtered payment classification source: {classification_path}
-
-Only these clauses were tagged Ordinary Hours & Overtime and are in scope:
+Full payment classification source from Script 2: {classification_path}
 
 ```json
-{filtered_clauses_json}
+{payment_classification_json}
+```
+
+Script 3 intermediate overtime clause classification source: {overtime_clause_classification_path}
+
+```json
+{overtime_clause_classification_json}
 ```
 
 Supervisor feedback:
@@ -339,6 +414,7 @@ def parse_creator_update(output_text: str) -> tuple[str, str]:
 def review_overtime_interpretation(
     interpretation_path: Path | str = DEFAULT_INTERPRETATION_PATH,
     classification_path: Path | str = DEFAULT_CLASSIFICATION_PATH,
+    overtime_clause_classification_path: Path | str | None = None,
     feedback_output_path: Path | str | None = None,
     creator_response_output_path: Path | str | None = None,
     revised_output_path: Path | str | None = None,
@@ -365,20 +441,28 @@ def review_overtime_interpretation(
         creator_client = OpenAI()
 
     if status_callback:
-        status_callback("Loading interpretation and filtered overtime clauses")
+        status_callback("Loading interpretation and Script 2/3 classification sources")
 
     selected_interpretation_path = Path(interpretation_path)
     selected_classification_path = Path(classification_path)
+    selected_overtime_clause_classification_path = resolve_overtime_clause_classification_path(
+        selected_classification_path,
+        overtime_clause_classification_path,
+    )
     interpretation_markdown = load_text_file(
         selected_interpretation_path,
         "Overtime interpretation markdown",
     )
     classification_data = load_classification(selected_classification_path)
-    overtime_clauses = filter_overtime_clauses(classification_data)
-    if not overtime_clauses:
+    classified_clauses = classification_data.get("classified_clauses")
+    if not classified_clauses:
         raise OvertimeInterpretationReviewError(
-            f"No Ordinary Hours or Overtime clauses found in: {selected_classification_path}"
+            f"No classified clauses found in: {selected_classification_path}"
         )
+    overtime_clause_classification = load_json_file(
+        selected_overtime_clause_classification_path,
+        "Script 3 overtime clause classification JSON",
+    )
 
     if status_callback:
         status_callback(f"Awaiting evaluator model: {selected_evaluator_model}")
@@ -389,7 +473,9 @@ def review_overtime_interpretation(
             interpretation_path=selected_interpretation_path,
             interpretation_markdown=interpretation_markdown,
             classification_path=selected_classification_path,
-            overtime_clauses=overtime_clauses,
+            payment_classification=classification_data,
+            overtime_clause_classification_path=selected_overtime_clause_classification_path,
+            overtime_clause_classification=overtime_clause_classification,
         ),
     )
     evaluator_feedback_markdown = extract_chat_completion_text(evaluator_response)
@@ -408,7 +494,9 @@ def review_overtime_interpretation(
             interpretation_path=selected_interpretation_path,
             interpretation_markdown=interpretation_markdown,
             classification_path=selected_classification_path,
-            overtime_clauses=overtime_clauses,
+            payment_classification=classification_data,
+            overtime_clause_classification_path=selected_overtime_clause_classification_path,
+            overtime_clause_classification=overtime_clause_classification,
             evaluator_feedback_markdown=evaluator_feedback_markdown,
         ),
     )
@@ -483,6 +571,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--overtime-clause-classification-path",
+        default=None,
+        help=(
+            "Optional path to the Script 3 intermediate overtime clause classification "
+            "JSON. If omitted, the path is derived from the payment classification path."
+        ),
+    )
+    parser.add_argument(
         "--feedback-output-path",
         default=None,
         help="Optional path for evaluator feedback markdown.",
@@ -523,10 +619,16 @@ def main() -> None:
 
     print(f"Starting overtime interpretation review for {interpretation_path}")
     print(f"Using classification source {classification_path}")
+    overtime_clause_classification_path = resolve_overtime_clause_classification_path(
+        classification_path,
+        args.overtime_clause_classification_path,
+    )
+    print(f"Using overtime clause classification source {overtime_clause_classification_path}")
 
     artifacts = review_overtime_interpretation(
         interpretation_path=interpretation_path,
         classification_path=classification_path,
+        overtime_clause_classification_path=overtime_clause_classification_path,
         feedback_output_path=args.feedback_output_path,
         creator_response_output_path=args.creator_response_output_path,
         revised_output_path=args.revised_output_path,

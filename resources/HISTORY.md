@@ -129,6 +129,8 @@ File: `src/script_3b_review_overtime_interpretation.py`
 
 Purpose:
 - Run a one-pass supervisor review of the script 3 working document.
+- Check the Script 3 clause classification and final interpretation against the full Script 2 payment classification JSON.
+- Keep the review focused on whether a clause increases overtime entitlement by causing worked time to become overtime.
 - Send the feedback back to the creator model once.
 - Write feedback, creator decision record, and complete revised interpretation.
 
