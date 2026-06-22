@@ -25,6 +25,8 @@ from streamlit_review.output_data import (
     overtime_classification_record,
     previous_index,
     read_text_file,
+    source_path_for_manual_4b_editor,
+    write_text_file_with_archive,
 )
 
 
@@ -34,6 +36,7 @@ SCREEN_OVERTIME_CLASSIFICATION = "3. Overtime clause classification"
 SCREEN_ORIGINAL_OVERTIME = "4. Original overtime extraction"
 SCREEN_REVIEW_FEEDBACK = "5. Review feedback and commentary"
 SCREEN_REVISED_OVERTIME = "6. Updated overtime extraction"
+SCREEN_MANUAL_4B_EDITOR = "7. 4B manual overtime editor"
 
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
@@ -42,6 +45,7 @@ SCREEN_OPTIONS = [
     SCREEN_ORIGINAL_OVERTIME,
     SCREEN_REVIEW_FEEDBACK,
     SCREEN_REVISED_OVERTIME,
+    SCREEN_MANUAL_4B_EDITOR,
 ]
 
 COMPARISON_PRESETS = {
@@ -125,6 +129,11 @@ def render_sidebar(award_codes: list[str]) -> str:
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
 
+        if st.button("4B manual editor", use_container_width=True):
+            st.session_state["screen_one"] = SCREEN_MANUAL_4B_EDITOR
+            st.session_state["screen_two"] = "None"
+            st.session_state["layout_mode"] = "Single expanded"
+
         st.divider()
 
         if "screen_one" not in st.session_state:
@@ -180,6 +189,7 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
         SCREEN_ORIGINAL_OVERTIME: render_original_overtime_screen,
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
         SCREEN_REVISED_OVERTIME: render_revised_overtime_screen,
+        SCREEN_MANUAL_4B_EDITOR: render_manual_4b_editor_screen,
     }
 
     renderer = renderers[screen_name]
@@ -315,6 +325,57 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
 def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_REVISED_OVERTIME)
     render_markdown_file(artifact_paths.revised_overtime_interpretation)
+
+
+def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
+    render_panel_heading(SCREEN_MANUAL_4B_EDITOR)
+
+    source_path = source_path_for_manual_4b_editor(artifact_paths)
+    source_content = read_text_file(source_path)
+
+    st.caption(
+        "Editor source: "
+        f"`{format_path_for_display(source_path)}`"
+    )
+    st.caption(
+        "Save target: "
+        f"`{format_path_for_display(artifact_paths.manual_4b_overtime_interpretation)}`"
+    )
+
+    if not source_content.exists:
+        render_missing_file(source_path)
+        return
+
+    editor_key = manual_4b_editor_widget_key(
+        panel_key,
+        artifact_paths.manual_4b_overtime_interpretation,
+    )
+    edited_markdown = st.text_area(
+        "4B overtime interpretation markdown",
+        value=source_content.text,
+        height=610,
+        label_visibility="collapsed",
+        key=editor_key,
+    )
+
+    if st.button("Save updated version", key=f"{editor_key}_save"):
+        if not edited_markdown.strip():
+            st.error("The edited overtime interpretation is empty. Nothing was saved.")
+            return
+
+        archive_path = write_text_file_with_archive(
+            artifact_paths.manual_4b_overtime_interpretation,
+            edited_markdown,
+        )
+        st.success(
+            "Saved updated version to "
+            f"`{format_path_for_display(artifact_paths.manual_4b_overtime_interpretation)}`."
+        )
+        st.caption(f"Archive copy: `{format_path_for_display(archive_path)}`")
+
+
+def manual_4b_editor_widget_key(panel_key: str, output_path: Path) -> str:
+    return f"{panel_key}_manual_4b_editor_{output_path.stem}"
 
 
 def render_key_navigation(

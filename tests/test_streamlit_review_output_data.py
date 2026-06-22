@@ -1,8 +1,12 @@
 import json
 from pathlib import Path
 
-from streamlit_review.app import overtime_clause_text_widget_key
+from streamlit_review.app import (
+    manual_4b_editor_widget_key,
+    overtime_clause_text_widget_key,
+)
 from streamlit_review.output_data import (
+    ArtifactPaths,
     artifact_paths_for_award,
     clamp_index,
     discover_award_codes,
@@ -15,6 +19,7 @@ from streamlit_review.output_data import (
     overtime_classification_record,
     previous_index,
     read_text_file,
+    source_path_for_manual_4b_editor,
 )
 
 
@@ -46,6 +51,10 @@ def test_artifact_paths_for_award():
     assert (
         paths.revised_overtime_interpretation.name
         == "MA000018_overtime_interpretation_revised.md"
+    )
+    assert (
+        paths.manual_4b_overtime_interpretation.name
+        == "MA000018_overtime_interpretation_4b.md"
     )
 
 
@@ -122,6 +131,39 @@ def test_overtime_clause_text_widget_key_changes_with_selected_clause():
 
     assert first_key != second_key
     assert first_key == "screen_one_overtime_clause_text_22.1"
+
+
+def test_manual_4b_editor_widget_key_uses_output_path_stem():
+    output_path = Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_4b.md")
+
+    assert (
+        manual_4b_editor_widget_key("screen_one", output_path)
+        == "screen_one_manual_4b_editor_MA000018_overtime_interpretation_4b"
+    )
+
+
+def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_path):
+    original_path = tmp_path / "award_overtime_interpretation.md"
+    revised_path = tmp_path / "award_overtime_interpretation_revised.md"
+    manual_4b_path = tmp_path / "award_overtime_interpretation_4b.md"
+
+    artifact_paths = ArtifactPaths(
+        payment_classification=tmp_path / "award_payment_classification.json",
+        overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
+        original_overtime_interpretation=original_path,
+        evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
+        creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
+        revised_overtime_interpretation=revised_path,
+        manual_4b_overtime_interpretation=manual_4b_path,
+    )
+
+    assert source_path_for_manual_4b_editor(artifact_paths) == original_path
+
+    revised_path.write_text("# Revised 3B", encoding="utf-8")
+    assert source_path_for_manual_4b_editor(artifact_paths) == revised_path
+
+    manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
+    assert source_path_for_manual_4b_editor(artifact_paths) == manual_4b_path
 
 
 def test_missing_text_file_returns_status_without_exception(tmp_path):

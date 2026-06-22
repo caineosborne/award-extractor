@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from src.output_paths import write_text_with_archive
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_ROOT = PROJECT_ROOT / "data" / "processed"
@@ -20,6 +22,7 @@ class ArtifactPaths:
     evaluator_feedback: Path
     creator_response: Path
     revised_overtime_interpretation: Path
+    manual_4b_overtime_interpretation: Path
 
 
 @dataclass(frozen=True)
@@ -56,6 +59,8 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_interpretation_creator_response.md",
         revised_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_revised.md",
+        manual_4b_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation_4b.md",
     )
 
 
@@ -69,6 +74,20 @@ def read_text_file(path: Path) -> FileContent:
         return FileContent(path=path, exists=False, text="")
 
     return FileContent(path=path, exists=True, text=path.read_text(encoding="utf-8"))
+
+
+def write_text_file_with_archive(path: Path, text: str) -> Path:
+    return write_text_with_archive(path, text)
+
+
+def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
+    if artifact_paths.manual_4b_overtime_interpretation.exists():
+        return artifact_paths.manual_4b_overtime_interpretation
+
+    if artifact_paths.revised_overtime_interpretation.exists():
+        return artifact_paths.revised_overtime_interpretation
+
+    return artifact_paths.original_overtime_interpretation
 
 
 def l1_clause_keys(payment_classification: dict[str, Any]) -> list[str]:
