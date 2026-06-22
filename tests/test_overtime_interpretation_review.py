@@ -116,6 +116,9 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
 
         self.assertIn("supervisor", system_prompt)
         self.assertIn("Will this clause increase overtime entitlement", system_prompt)
+        self.assertIn("Presentation issues", system_prompt)
+        self.assertIn("duplicate bullets", system_prompt)
+        self.assertIn("classifications include Ordinary Hours Boundary", system_prompt)
         self.assertIn("interpretation.md", user_prompt)
         self.assertIn("classification.json", user_prompt)
         self.assertIn("overtime_clause_classification.json", user_prompt)
@@ -124,6 +127,12 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn("Overtime after ordinary hours.", user_prompt)
         self.assertIn("Possible missed overtime creation clause.", user_prompt)
         self.assertIn("Check both Script 3 steps", user_prompt)
+        self.assertIn("Also review presentation", user_prompt)
+        self.assertIn("classifications include Ordinary Hours Boundary", user_prompt)
+        self.assertIn("Script 3 creator prompt context", user_prompt)
+        self.assertIn("clause_classification_messages", user_prompt)
+        self.assertIn("interpretation_messages", user_prompt)
+        self.assertIn("Using the Ordinary Hours & Overtime clauses below", user_prompt)
         self.assertIn("## All Employees", user_prompt)
 
     def test_build_creator_messages_include_feedback_and_filtered_clauses(self):
@@ -163,6 +172,13 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn('"20.1"', user_prompt)
         self.assertIn('"30.1"', user_prompt)
         self.assertIn("Will this clause increase overtime entitlement", user_prompt)
+        self.assertIn("accuracy", user_prompt)
+        self.assertIn("presentation", user_prompt)
+        self.assertIn("dedicated arrangement section", user_prompt)
+        self.assertIn("still state the employee type affected", user_prompt)
+        self.assertIn("Script 3 creator prompt context", user_prompt)
+        self.assertIn("clause_classification_messages", user_prompt)
+        self.assertIn("interpretation_messages", user_prompt)
         self.assertIn("<creator_response>", user_prompt)
         self.assertIn("<revised_interpretation>", user_prompt)
 
@@ -189,11 +205,12 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             }
         }
         overtime_clause_classification = {
-            "schema_version": "overtime-clause-classification-v1",
+            "schema_version": "overtime-clause-classification-v2",
             "clauses": [
                 {
                     "clause_number": "20.1",
                     "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger", "Overtime Consequence"],
                     "explanation": "Directly creates overtime.",
                     "clause_text": "Overtime after ordinary hours.",
                 }

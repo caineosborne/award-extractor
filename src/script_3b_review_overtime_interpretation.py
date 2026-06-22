@@ -10,8 +10,6 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_3_interpret_overtime_prompt import OVERTIME_INTERPRETATION_SYSTEM_PROMPT
-
 from src.output_paths import (
     OVERTIME_INTERPRETATION_FEEDBACK_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
@@ -21,8 +19,13 @@ from src.script_2_classify_payments import extract_response_text
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
+    build_classification_messages,
+    build_messages as build_overtime_interpretation_messages,
     classification_output_path_for_classification,
+    filter_overtime_clauses,
+    filter_overtime_creation_clauses,
     load_classification,
+    validate_overtime_clause_classifications,
 )
 
 
@@ -232,6 +235,27 @@ def resolve_overtime_clause_classification_path(
     return classification_output_path_for_classification(classification_path)
 
 
+def build_script_3_creator_prompt_context(
+    classification_path: Path | str,
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification: Mapping[str, Any],
+) -> dict[str, list[dict[str, str]]]:
+    overtime_clauses = filter_overtime_clauses(payment_classification)
+    clause_classifications = validate_overtime_clause_classifications(
+        overtime_clause_classification,
+        overtime_clauses,
+    )
+    overtime_creation_clauses = filter_overtime_creation_clauses(clause_classifications)
+
+    return {
+        "clause_classification_messages": build_classification_messages(overtime_clauses),
+        "interpretation_messages": build_overtime_interpretation_messages(
+            str(classification_path),
+            overtime_creation_clauses,
+        ),
+    }
+
+
 def evaluation_system_prompt() -> str:
     return """You are a supervisor reviewing an Australian modern award overtime creation interpretation.
 
@@ -243,9 +267,10 @@ Will this clause increase overtime entitlement by causing worked time to become 
 
 Focus on:
 - clauses in the full payment classification JSON that may answer the key question but were missed by the Script 3 clause classification;
-- clauses classified as Ordinary Hours Boundary or Overtime Trigger that do not actually answer the key question;
+- clauses whose Script 3 classifications include Ordinary Hours Boundary or Overtime Trigger but that do not actually answer the key question;
 - final interpretation bullets that are unsupported, missing, too broad, or include consequence-only rules;
 - employee group, threshold, roster condition, span, spread, or clause-reference errors.
+- presentation issues that make the interpretation harder to review or implement, including duplicate bullets, unclear grouping, unclear employee scope, combined rules that should be split, split rules that should be combined, missing clause references, or consequence wording that should be removed.
 
 Do not review rates, calculations, penalties, allowances, payment mechanics, or other consequences except to say they should not be included as overtime-creation rules.
 
@@ -258,6 +283,8 @@ Return markdown only with this structure:
 ## Clause classification issues
 
 ## Interpretation issues
+
+## Presentation issues
 
 ## Traceability notes
 """
@@ -281,6 +308,15 @@ def build_evaluator_messages(
         indent=2,
         ensure_ascii=False,
     )
+    script_3_creator_prompt_context_json = json.dumps(
+        build_script_3_creator_prompt_context(
+            classification_path,
+            payment_classification,
+            overtime_clause_classification,
+        ),
+        indent=2,
+        ensure_ascii=False,
+    )
 
     user_prompt = f"""Review this overtime interpretation working document.
 
@@ -289,11 +325,13 @@ Do not rewrite the interpretation. Provide supervisor-style questions and concis
 Review against the full payment clause identifier JSON from Script 2. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
 
 Check both Script 3 steps:
-1. The intermediate clause classification JSON: did it correctly identify only clauses that answer the key question?
+1. The intermediate clause classification JSON: did it correctly preserve clauses whose classifications include Ordinary Hours Boundary or Overtime Trigger, and avoid treating consequence-only clauses as overtime-creation sources?
 2. The final interpretation markdown: does it include only core overtime-creation rules supported by those clauses?
 
 Key review question:
 Will this clause increase overtime entitlement by causing worked time to become overtime?
+
+Also review presentation. The final document should be easy for a payroll reviewer to check and for a payroll implementation team to convert into configuration rules. Identify duplicate points, unclear employee scope, missing thresholds, unclear grouping, missing clause references, or bullets that combine materially different tests.
 
 Interpretation source: {interpretation_path}
 
@@ -313,10 +351,11 @@ Script 3 intermediate overtime clause classification source: {overtime_clause_cl
 {overtime_clause_classification_json}
 ```
 
-The interpretation was generated using this system prompt:
+Script 3 creator prompt context reconstructed from the current Step 3 code.
+This is included so the evaluator reviews against the same data and instructions that the creator received.
 
-```text
-{OVERTIME_INTERPRETATION_SYSTEM_PROMPT}
+```json
+{script_3_creator_prompt_context_json}
 ```
 """
 
@@ -345,12 +384,29 @@ def build_creator_messages(
         indent=2,
         ensure_ascii=False,
     )
+    script_3_creator_prompt_context_json = json.dumps(
+        build_script_3_creator_prompt_context(
+            classification_path,
+            payment_classification,
+            overtime_clause_classification,
+        ),
+        indent=2,
+        ensure_ascii=False,
+    )
     user_prompt = f"""Review the supervisor feedback and decide whether the interpretation needs updating.
 
 This is a one-pass update. Do not ask for another review cycle.
 
 Keep the revised interpretation simple. Include only clauses that answer this question:
 Will this clause increase overtime entitlement by causing worked time to become overtime?
+
+Apply accepted feedback about both:
+- accuracy: whether the rule is supported by the classification JSON and source clause text; and
+- presentation: whether the rule is clearly scoped, non-duplicative, traceable, and easy to implement.
+
+Where accepted feedback concerns a named work arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement, use a dedicated arrangement section if that is clearer than spreading the rules across employee-type sections. In that arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
+
+When deciding whether to accept feedback, use the Script 3 creator prompt context below as the reference for what the original creator was asked to do.
 
 Original interpretation source: {interpretation_path}
 
@@ -370,6 +426,12 @@ Script 3 intermediate overtime clause classification source: {overtime_clause_cl
 {overtime_clause_classification_json}
 ```
 
+Script 3 creator prompt context reconstructed from the current Step 3 code:
+
+```json
+{script_3_creator_prompt_context_json}
+```
+
 Supervisor feedback:
 
 ```markdown
@@ -387,7 +449,11 @@ Write the complete revised overtime interpretation working document in markdown.
 """
 
     return [
-        {"role": "system", "content": OVERTIME_INTERPRETATION_SYSTEM_PROMPT},
+        *build_script_3_creator_prompt_context(
+            classification_path,
+            payment_classification,
+            overtime_clause_classification,
+        )["interpretation_messages"][:1],
         {"role": "user", "content": user_prompt},
     ]
 

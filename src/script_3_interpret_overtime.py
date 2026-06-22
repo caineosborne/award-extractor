@@ -35,7 +35,7 @@ DEFAULT_CLASSIFICATION_PATH = (
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
-SCHEMA_VERSION = "overtime-clause-classification-v1"
+SCHEMA_VERSION = "overtime-clause-classification-v2"
 OVERTIME_CLASSIFICATIONS = (
     "Ordinary Hours Boundary",
     "Overtime Trigger",
@@ -59,6 +59,11 @@ class OvertimeClauseClassification:
     classification: str
     clause_text: str
     explanation: str
+    classifications: tuple[str, ...] = ()
+
+    def __post_init__(self) -> None:
+        if not self.classifications:
+            object.__setattr__(self, "classifications", (self.classification,))
 
 
 def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
@@ -180,12 +185,21 @@ def classification_response_json_schema() -> dict[str, Any]:
                             "type": "string",
                             "enum": list(OVERTIME_CLASSIFICATIONS),
                         },
+                        "classifications": {
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "enum": list(OVERTIME_CLASSIFICATIONS),
+                            },
+                            "minItems": 1,
+                        },
                         "clause_text": {"type": "string"},
                         "explanation": {"type": "string"},
                     },
                     "required": [
                         "clause_number",
                         "classification",
+                        "classifications",
                         "clause_text",
                         "explanation",
                     ],
@@ -208,7 +222,7 @@ def validate_overtime_clause_classifications(
 
     expected_clause_numbers = set(overtime_clauses)
     returned_clause_numbers: set[str] = set()
-    classifications: list[OvertimeClauseClassification] = []
+    clause_classifications: list[OvertimeClauseClassification] = []
 
     for raw_clause in raw_clauses:
         if not isinstance(raw_clause, Mapping):
@@ -218,6 +232,7 @@ def validate_overtime_clause_classifications(
 
         clause_number = str(raw_clause.get("clause_number") or "")
         classification = str(raw_clause.get("classification") or "")
+        raw_classifications = raw_clause.get("classifications")
         explanation = str(raw_clause.get("explanation") or "")
 
         if clause_number not in expected_clause_numbers:
@@ -232,6 +247,31 @@ def validate_overtime_clause_classifications(
             raise OvertimeInterpretationError(
                 f"Unsupported overtime clause classification: {classification}"
             )
+        if raw_classifications is None:
+            categories = (classification,)
+        elif isinstance(raw_classifications, list):
+            categories = tuple(str(item) for item in raw_classifications)
+        else:
+            raise OvertimeInterpretationError(
+                f"Overtime clause classifications must be an array: {clause_number}"
+            )
+        if not categories:
+            raise OvertimeInterpretationError(
+                f"Overtime clause classifications are empty: {clause_number}"
+            )
+        unsupported_classifications = [
+            item for item in categories if item not in OVERTIME_CLASSIFICATIONS
+        ]
+        if unsupported_classifications:
+            unsupported = ", ".join(unsupported_classifications)
+            raise OvertimeInterpretationError(
+                f"Unsupported overtime clause classifications for {clause_number}: "
+                f"{unsupported}"
+            )
+        if classification not in categories:
+            raise OvertimeInterpretationError(
+                f"Primary classification must be included in classifications: {clause_number}"
+            )
         if not explanation.strip():
             raise OvertimeInterpretationError(
                 f"Overtime clause classification explanation is empty: {clause_number}"
@@ -244,12 +284,13 @@ def validate_overtime_clause_classifications(
             )
 
         returned_clause_numbers.add(clause_number)
-        classifications.append(
+        clause_classifications.append(
             OvertimeClauseClassification(
                 clause_number=clause_number,
                 classification=classification,
                 clause_text=clause_text(source_clause),
                 explanation=explanation,
+                classifications=categories,
             )
         )
 
@@ -260,7 +301,7 @@ def validate_overtime_clause_classifications(
             f"Missing overtime clause classifications: {missing}"
         )
 
-    return classifications
+    return clause_classifications
 
 
 def classify_overtime_clauses(
@@ -333,10 +374,14 @@ def load_or_create_overtime_clause_classifications(
     model: str,
 ) -> list[OvertimeClauseClassification]:
     if classification_output_path.exists():
-        return load_overtime_clause_classification_artifact(
-            classification_output_path,
-            overtime_clauses,
-        )
+        try:
+            return load_overtime_clause_classification_artifact(
+                classification_output_path,
+                overtime_clauses,
+            )
+        except OvertimeInterpretationError as exc:
+            if "unsupported schema version" not in str(exc):
+                raise
 
     clause_classifications = classify_overtime_clauses(
         overtime_clauses,
@@ -358,7 +403,10 @@ def filter_overtime_creation_clauses(
     return [
         classification
         for classification in classifications
-        if classification.classification in OVERTIME_CREATION_CLASSIFICATIONS
+        if any(
+            category in OVERTIME_CREATION_CLASSIFICATIONS
+            for category in classification.classifications
+        )
     ]
 
 
@@ -372,7 +420,7 @@ def format_working_paper_input(
             f"""## Clause {clause.clause_number}
 
 Classification:
-{clause.classification}
+{", ".join(clause.classifications)}
 
 Explanation:
 {clause.explanation}
@@ -412,6 +460,7 @@ def classification_artifact(
             {
                 "clause_number": classification.clause_number,
                 "classification": classification.classification,
+                "classifications": list(classification.classifications),
                 "clause_text": classification.clause_text,
                 "explanation": classification.explanation,
             }

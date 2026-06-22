@@ -10,7 +10,8 @@ Use the shared classifier glossary and tag definitions below:
 
 Task:
 - Use only the supplied clauses tagged Ordinary Hours & Overtime.
-- Classify every supplied clause into exactly one category.
+- Classify every supplied clause into one or more categories.
+- Return one primary classification and the complete list of applicable classifications.
 - Keep clause references visible.
 - Do not invent rules.
 - Do not calculate dollar amounts.
@@ -25,6 +26,9 @@ Categories:
 
 Important:
 - Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
+- Overtime Trigger clauses matter because this step is identifying what causes overtime, not how overtime is paid.
+- A clause can be both Overtime Trigger and Overtime Consequence.
+- If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
 - Do not classify a clause as Ordinary Hours Boundary unless it defines a limit, threshold, span, spread, roster condition, or arrangement for ordinary hours.
 - Consequence handling is deferred. Still classify consequence clauses accurately so they can be used later.
@@ -35,7 +39,8 @@ OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT = """Using the Ordinary Hours & Overt
 
 For each clause return:
 - clause_number
-- classification
+- classification: the primary classification for the clause
+- classifications: all applicable classifications for the clause
 - clause_text
 - explanation
 
@@ -105,7 +110,9 @@ def build_overtime_interpretation_user_prompt(
 
 The clauses below have already been identified as relevant to determining when overtime is created.
 
-Your task is to turn them into a payroll implementation working paper.
+Your task is to turn them into a payroll implementation working paper. This will be a plain english document to be used by the payroll management time to configure their payroll system. 
+
+As such it should be written clearly, in definitive language to display specific points that answer the question 'What circumstances incraese total overtime hours'
 
 Answer this question:
 
@@ -113,14 +120,14 @@ What circumstances increase Total Overtime Hours?
 
 For each overtime rule:
 
-- Write a standalone bullet point.
+- Write a standalone bullet point. Where there are subpoints, additional bullet points should be used, a new bullet point should be used for each way overtime may be increased. 
 - State the employee type affected only when the rule applies to a specific employee segment.
 - Clearly describe the work, event, threshold, limit, roster condition, or break condition that causes hours to become overtime.
-- Include all conditions, thresholds, limits and requirements needed to implement the rule.
+- Include all conditions, thresholds, limits and requirements needed to implement the rule. Do not simply refer to other clauses, make sure we say what what the clauses say. 
 - Include all relevant clause references.
 - Where multiple clauses must be read together, combine them into a single rule.
 - Do not use the words "trigger" or "boundary" in the final output.
-- Split rules where different facts, thresholds, or data fields are required to calculate overtime.
+- Split rules where different facts, thresholds, or data fields are required to calculate overtime. Even where this may be from the same clause. 
 
 Do not include:
 
@@ -133,8 +140,10 @@ Do not include:
 
 Group the output by rule scope:
 
-- Use a general section for rules that apply across employee types.
+- Use a "All employees" section for rules that apply across employee types.
 - Add a specific employee segment section only when that segment has a distinct overtime circumstance, threshold, condition, or clause source.
+- Add a dedicated work-arrangement section when several overtime rules arise from the same named arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement.
+- In a work-arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
 - Do not create empty employee segment sections.
 - Do not repeat a general rule under Full Time, Part Time, Casual, Day Workers, or Shift Workers unless the segment-specific version is materially different.
 - If a general rule applies to multiple employee types in the same way, write it once and identify the covered employee types in that bullet if needed.

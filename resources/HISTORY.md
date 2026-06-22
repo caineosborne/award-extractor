@@ -34,7 +34,10 @@ Root files are limited to project metadata and entry points:
 | Step | Script | Prompt source |
 | --- | --- | --- |
 | 2 | `src/script_2_classify_payments.py` | `src/script_2_classify_payments_prompt.py` |
-| 3 | `src/script_3_interpret_overtime.py` | `src/script_3_interpret_overtime_prompt.py` |
+| 3.1 filter overtime clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for clauses tagged `Ordinary Hours & Overtime`. |
+| 3.2 classify overtime clauses | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` in the same file. |
+| 3.3 filter interpretation clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for classifications `Ordinary Hours Boundary` and `Overtime Trigger`. |
+| 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. |
 | 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_review_overtime_interpretation.py` |
 | 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `src/script_3_interpret_overtime_prompt.py` |
 | 4A | `src/script_4a_summarize_overtime.py` | `src/script_4a_summarize_overtime_prompt.py` |
@@ -108,7 +111,16 @@ Files:
 Purpose:
 - Read payment classification JSON.
 - Filter to clauses tagged `Ordinary Hours & Overtime`.
-- Ask the LLM to create a working interpretation document before reviewer-facing output is generated.
+- Ask the LLM to classify those clauses into five overtime interpretation categories.
+- Filter the LLM clause classification to `Ordinary Hours Boundary` and `Overtime Trigger`.
+- Ask the LLM to turn those boundary and trigger clauses into an English working interpretation document before reviewer-facing output is generated.
+
+Prompt use:
+- Filtering clauses tagged `Ordinary Hours & Overtime` uses no prompt.
+- Clause classification uses `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` as the system prompt and `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` as the user prompt.
+- Filtering to `Ordinary Hours Boundary` and `Overtime Trigger` uses no prompt.
+- Working interpretation generation uses `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` as the system prompt and `build_overtime_interpretation_user_prompt()` as the user prompt.
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md` is the output of this step, not a prompt source.
 
 Command:
 

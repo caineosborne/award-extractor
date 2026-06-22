@@ -82,15 +82,18 @@ class OvertimeInterpretationTests(unittest.TestCase):
 
     def test_classification_response_schema_lists_allowed_categories(self):
         schema = classification_response_json_schema()
-        classification_enum = schema["properties"]["clauses"]["items"]["properties"][
+        clause_properties = schema["properties"]["clauses"]["items"]["properties"]
+        classification_enum = clause_properties[
             "classification"
         ]["enum"]
+        classifications_enum = clause_properties["classifications"]["items"]["enum"]
 
         self.assertIn("Ordinary Hours Boundary", classification_enum)
         self.assertIn("Overtime Trigger", classification_enum)
         self.assertIn("Overtime Consequence", classification_enum)
         self.assertIn("Related Rule", classification_enum)
         self.assertIn("Not Relevant", classification_enum)
+        self.assertEqual(classifications_enum, classification_enum)
 
     def test_filter_overtime_creation_clauses_keeps_only_creation_categories(self):
         classifications = [
@@ -112,13 +115,22 @@ class OvertimeInterpretationTests(unittest.TestCase):
                 clause_text="Overtime is paid at 150%.",
                 explanation="Explains payment after overtime exists.",
             ),
+            OvertimeClauseClassification(
+                clause_number="40.1",
+                classification="Overtime Consequence",
+                classifications=("Overtime Trigger", "Overtime Consequence"),
+                clause_text=(
+                    "Overtime applies after 10 hours and is paid at overtime rates."
+                ),
+                explanation="Contains both an overtime trigger and consequence.",
+            ),
         ]
 
         results = filter_overtime_creation_clauses(classifications)
 
         self.assertEqual(
-            [classification.classification for classification in results],
-            list(OVERTIME_CREATION_CLASSIFICATIONS),
+            [classification.clause_number for classification in results],
+            ["10.1", "20.1", "40.1"],
         )
 
     def test_build_messages_includes_required_working_document_sections(self):
@@ -143,6 +155,8 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("explicit and implicit triggers", user_prompt)
         self.assertIn("Do not include:", user_prompt)
         self.assertIn("specific employee segment section only when", user_prompt)
+        self.assertIn("dedicated work-arrangement section", user_prompt)
+        self.assertIn("still state the employee type affected", user_prompt)
         self.assertIn("Do not repeat a general rule", user_prompt)
         self.assertIn("Avoid duplicate rules:", user_prompt)
         self.assertNotIn("What data is required", user_prompt)
@@ -232,9 +246,13 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(classification_archive_files), 1)
         self.assertEqual(
             classification_artifact["schema_version"],
-            "overtime-clause-classification-v1",
+            "overtime-clause-classification-v2",
         )
         self.assertEqual(len(classification_artifact["clauses"]), 2)
+        self.assertEqual(
+            classification_artifact["clauses"][0]["classifications"],
+            ["Overtime Trigger"],
+        )
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertEqual(fake_client.responses.calls[1]["model"], DEFAULT_MODEL)
         self.assertIn("## Clause 20.1", fake_client.responses.calls[0]["input"][1]["content"])
@@ -267,7 +285,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             }
         }
         saved_classification = {
-            "schema_version": "overtime-clause-classification-v1",
+            "schema_version": "overtime-clause-classification-v2",
             "source_classification_file": "award_payment_classification.json",
             "included_categories_for_interpretation": [
                 "Ordinary Hours Boundary",
@@ -277,12 +295,14 @@ class OvertimeInterpretationTests(unittest.TestCase):
                 {
                     "clause_number": "20.1",
                     "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
                     "clause_text": "Employees are paid overtime after ordinary hours.",
                     "explanation": "Directly creates overtime.",
                 },
                 {
                     "clause_number": "21.1",
                     "classification": "Overtime Consequence",
+                    "classifications": ["Overtime Consequence"],
                     "clause_text": "Overtime is paid at 150%.",
                     "explanation": "Explains payment after overtime exists.",
                 },
@@ -321,6 +341,88 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(fake_client.responses.calls), 1)
         self.assertNotIn("text", fake_client.responses.calls[0])
         self.assertEqual(archive_files, [])
+
+    def test_generate_overtime_interpretation_regenerates_old_clause_classification(self):
+        data = {
+            "classified_clauses": {
+                "20.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Employees are paid overtime after ordinary hours.",
+                    "reason": "Creates overtime entitlement.",
+                },
+            }
+        }
+        old_classification = {
+            "schema_version": "overtime-clause-classification-v1",
+            "source_classification_file": "award_payment_classification.json",
+            "included_categories_for_interpretation": [
+                "Ordinary Hours Boundary",
+                "Overtime Trigger",
+            ],
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Consequence",
+                    "clause_text": "Employees are paid overtime after ordinary hours.",
+                    "explanation": "Old single-label classification.",
+                },
+            ],
+        }
+        new_classification_json = json.dumps(
+            {
+                "clauses": [
+                    {
+                        "clause_number": "20.1",
+                        "classification": "Overtime Trigger",
+                        "classifications": [
+                            "Overtime Trigger",
+                            "Overtime Consequence",
+                        ],
+                        "clause_text": "Employees are paid overtime after ordinary hours.",
+                        "explanation": "Contains both a trigger and consequence.",
+                    },
+                ]
+            }
+        )
+        fake_client = FakeClient(
+            [
+                new_classification_json,
+                "## General\n\n"
+                "- The hours will be overtime after ordinary hours. [20.1]",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "award_payment_classification.json"
+            output_path = temp_path / "award_overtime_interpretation.md"
+            classification_path = temp_path / "award_overtime_clause_classification.json"
+            input_path.write_text(json.dumps(data), encoding="utf-8")
+            classification_path.write_text(
+                json.dumps(old_classification),
+                encoding="utf-8",
+            )
+
+            generate_overtime_interpretation(
+                classification_path=input_path,
+                output_path=output_path,
+                classification_output_path=classification_path,
+                client=fake_client,
+            )
+
+            regenerated_classification = json.loads(
+                classification_path.read_text(encoding="utf-8")
+            )
+            archive_files = list(
+                temp_path.glob("archive/award_overtime_clause_classification_*.json")
+            )
+
+        self.assertEqual(len(fake_client.responses.calls), 2)
+        self.assertEqual(
+            regenerated_classification["schema_version"],
+            "overtime-clause-classification-v2",
+        )
+        self.assertEqual(len(archive_files), 1)
 
 
 if __name__ == "__main__":
