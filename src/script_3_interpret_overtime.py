@@ -379,9 +379,10 @@ def load_or_create_overtime_clause_classifications(
                 classification_output_path,
                 overtime_clauses,
             )
-        except OvertimeInterpretationError as exc:
-            if "unsupported schema version" not in str(exc):
-                raise
+        except OvertimeInterpretationError:
+            # The cached artifact is stale or invalid for the current clause set.
+            # Regenerate it from the current step-2 output.
+            pass
 
     clause_classifications = classify_overtime_clauses(
         overtime_clauses,

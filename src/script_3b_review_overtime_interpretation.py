@@ -265,6 +265,10 @@ Ask questions and identify concise issues that would help the creator decide whe
 Keep the review simple and focused on this question:
 Will this clause increase overtime entitlement by causing worked time to become overtime?
 
+The purpose of this review is completeness first, precision second.
+
+When assessing borderline clauses, favour identifying possible omissions over recommending removal.
+
 Focus on:
 - clauses in the full payment classification JSON that may answer the key question but were missed by the Script 3 clause classification;
 - clauses whose Script 3 classifications include Ordinary Hours Boundary or Overtime Trigger but that do not actually answer the key question;
@@ -442,6 +446,11 @@ Return exactly two tagged sections:
 
 <creator_response>
 Write a short markdown decision record. Explain which feedback you accepted, which feedback you rejected, and why.
+
+The purpose of this review is completeness first, precision second.
+
+When assessing borderline clauses, favour inclusion over exclusion. 
+
 </creator_response>
 <revised_interpretation>
 Write the complete revised overtime interpretation working document in markdown.

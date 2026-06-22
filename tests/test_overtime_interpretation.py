@@ -424,6 +424,86 @@ class OvertimeInterpretationTests(unittest.TestCase):
         )
         self.assertEqual(len(archive_files), 1)
 
+    def test_generate_overtime_interpretation_regenerates_stale_clause_classification(self):
+        data = {
+            "classified_clauses": {
+                "10.2": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Part-time ordinary hours limit.",
+                    "reason": "Defines the ordinary-hours boundary.",
+                },
+            }
+        }
+        stale_classification = {
+            "schema_version": "overtime-clause-classification-v2",
+            "source_classification_file": "award_payment_classification.json",
+            "included_categories_for_interpretation": [
+                "Ordinary Hours Boundary",
+                "Overtime Trigger",
+            ],
+            "clauses": [
+                {
+                    "clause_number": "10.4",
+                    "classification": "Ordinary Hours Boundary",
+                    "classifications": ["Ordinary Hours Boundary"],
+                    "clause_text": "Guaranteed hours and availability.",
+                    "explanation": "Old clause set from a previous run.",
+                },
+            ],
+        }
+        regenerated_classification_json = json.dumps(
+            {
+                "clauses": [
+                    {
+                        "clause_number": "10.2",
+                        "classification": "Ordinary Hours Boundary",
+                        "classifications": ["Ordinary Hours Boundary"],
+                        "clause_text": "Part-time ordinary hours limit.",
+                        "explanation": "Defines the ordinary-hours boundary.",
+                    },
+                ]
+            }
+        )
+        fake_client = FakeClient(
+            [
+                regenerated_classification_json,
+                "## General\n\n"
+                "- The part-time employee rules set the ordinary-hours boundary. [10.2]",
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            input_path = temp_path / "award_payment_classification.json"
+            output_path = temp_path / "award_overtime_interpretation.md"
+            classification_path = temp_path / "award_overtime_clause_classification.json"
+            input_path.write_text(json.dumps(data), encoding="utf-8")
+            classification_path.write_text(
+                json.dumps(stale_classification),
+                encoding="utf-8",
+            )
+
+            generate_overtime_interpretation(
+                classification_path=input_path,
+                output_path=output_path,
+                classification_output_path=classification_path,
+                client=fake_client,
+            )
+
+            regenerated_classification = json.loads(
+                classification_path.read_text(encoding="utf-8")
+            )
+            archive_files = list(
+                temp_path.glob("archive/award_overtime_clause_classification_*.json")
+            )
+
+        self.assertEqual(len(fake_client.responses.calls), 2)
+        self.assertEqual(
+            regenerated_classification["clauses"][0]["clause_number"],
+            "10.2",
+        )
+        self.assertEqual(len(archive_files), 1)
+
 
 if __name__ == "__main__":
     unittest.main()

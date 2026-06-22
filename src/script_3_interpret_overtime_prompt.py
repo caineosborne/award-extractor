@@ -56,6 +56,10 @@ An explicit trigger is a clause that directly states overtime applies.
 
 An implicit trigger is a clause that defines the limits of ordinary hours. Where a clause defines ordinary hours, work performed outside those ordinary hour limits may create an overtime entitlement, even if the clause itself does not use the word overtime.
 
+This includes clauses that impose maximum ordinary hour limits, maximum ordinary days, maximum ordinary weekly hours, or other boundaries beyond which work can no longer be treated as ordinary hours.
+
+Do not include clauses that are solely rostering, fatigue-management, break, spread-of-hours, minimum engagement or administrative requirements unless the clause expressly provides an overtime consequence.
+
 Examples include:
 - Maximum ordinary hours per day.
 - Maximum ordinary hours per week.

@@ -483,6 +483,7 @@ def classify_award(
     # the top-level clause first, then returns any payment- or definition-relevant L2 clauses.
     groups = iter_top_level_groups(award)
 
+
     top_level_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
     classified_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
