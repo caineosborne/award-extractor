@@ -3,10 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from src.script_3_interpret_overtime import DEFAULT_MODEL as DEFAULT_CREATOR_MODEL
 from src.script_3b_review_overtime_interpretation import (
     EVALUATOR_MODEL,
+    build_relevant_clause_excerpt_markdown,
     build_creator_messages,
     build_evaluator_messages,
     creator_response_path_for_interpretation,
@@ -162,25 +164,58 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                     }
                 ]
             },
-            evaluator_feedback_markdown="# Feedback\n\nAsk about shiftworkers.",
+            evaluator_feedback_markdown="# Feedback\n\nAsk whether clause 20.1 should mention shiftworkers.",
         )
 
         user_prompt = messages[1]["content"]
 
         self.assertIn("# Original", user_prompt)
         self.assertIn("# Feedback", user_prompt)
-        self.assertIn('"20.1"', user_prompt)
-        self.assertIn('"30.1"', user_prompt)
+        self.assertIn("## Clause 20.1", user_prompt)
+        self.assertNotIn('"30.1"', user_prompt)
         self.assertIn("Will this clause increase overtime entitlement", user_prompt)
         self.assertIn("accuracy", user_prompt)
         self.assertIn("presentation", user_prompt)
         self.assertIn("dedicated arrangement section", user_prompt)
         self.assertIn("still state the employee type affected", user_prompt)
-        self.assertIn("Script 3 creator prompt context", user_prompt)
-        self.assertIn("clause_classification_messages", user_prompt)
-        self.assertIn("interpretation_messages", user_prompt)
+        self.assertIn("Relevant clause excerpts", user_prompt)
+        self.assertNotIn("Script 3 creator prompt context", user_prompt)
+        self.assertNotIn("clause_classification_messages", user_prompt)
+        self.assertNotIn("interpretation_messages", user_prompt)
         self.assertIn("<creator_response>", user_prompt)
         self.assertIn("<revised_interpretation>", user_prompt)
+
+    def test_build_relevant_clause_excerpt_markdown_uses_referenced_clauses_only(self):
+        clause_excerpt_markdown = build_relevant_clause_excerpt_markdown(
+            interpretation_markdown="# Original\n\n- Clause 20.1 applies.",
+            payment_classification={
+                "classified_clauses": {
+                    "20.1": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Overtime after ordinary hours.",
+                    },
+                    "30.1": {
+                        "tags": ["Other Payment"],
+                        "text": "Possible missed overtime creation clause.",
+                    },
+                }
+            },
+            overtime_clause_classification={
+                "clauses": [
+                    {
+                        "clause_number": "20.1",
+                        "classification": "Overtime Trigger",
+                        "classifications": ["Overtime Trigger"],
+                        "explanation": "Directly creates overtime.",
+                        "clause_text": "Overtime after ordinary hours.",
+                    }
+                ]
+            },
+            evaluator_feedback_markdown="# Feedback\n\nPlease revisit clause 20.1.",
+        )
+
+        self.assertIn("## Clause 20.1", clause_excerpt_markdown)
+        self.assertNotIn("## Clause 30.1", clause_excerpt_markdown)
 
     def test_parse_creator_update_splits_required_sections(self):
         creator_response, revised_interpretation = parse_creator_update(
@@ -258,6 +293,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 overtime_clause_classification_path=overtime_clause_classification_path,
                 evaluator_client=evaluator_client,
                 creator_client=creator_client,
+                inter_call_delay_seconds=0,
             )
 
             evaluator_prompt = evaluator_client.chat.completions.calls[0]["messages"][1][
@@ -292,9 +328,9 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             DEFAULT_CREATOR_MODEL,
         )
         self.assertIn('"20.1"', evaluator_prompt)
-        self.assertIn('"20.1"', creator_prompt)
         self.assertIn('"30.1"', evaluator_prompt)
-        self.assertIn('"30.1"', creator_prompt)
+        self.assertIn("## Clause 20.1", creator_prompt)
+        self.assertNotIn('"30.1"', creator_prompt)
         self.assertTrue(feedback_file_exists)
         self.assertTrue(creator_response_file_exists)
         self.assertTrue(revised_file_exists)
@@ -303,6 +339,76 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(len(feedback_archive_files), 1)
         self.assertEqual(len(creator_archive_files), 1)
         self.assertEqual(len(revised_archive_files), 1)
+
+    def test_review_overtime_interpretation_logs_token_budget_and_delay(self):
+        classification = {
+            "classified_clauses": {
+                "20.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Overtime after ordinary hours.",
+                }
+            }
+        }
+        overtime_clause_classification = {
+            "schema_version": "overtime-clause-classification-v2",
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
+                    "explanation": "Directly creates overtime.",
+                    "clause_text": "Overtime after ordinary hours.",
+                }
+            ],
+        }
+        evaluator_client = FakeEvaluatorClient("# Feedback\n\nReview clause 20.1.")
+        creator_client = FakeCreatorClient(
+            "<creator_response>\nAccepted.\n</creator_response>\n"
+            "<revised_interpretation>\n# Revised\n</revised_interpretation>"
+        )
+        status_messages = []
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            interpretation_path = temp_path / "award_overtime_interpretation.md"
+            classification_path = temp_path / "award_payment_classification.json"
+            overtime_clause_classification_path = (
+                temp_path
+                / "3_overtime_interpretations"
+                / "award_overtime_clause_classification.json"
+            )
+            interpretation_path.write_text("## All Employees", encoding="utf-8")
+            classification_path.write_text(json.dumps(classification), encoding="utf-8")
+            overtime_clause_classification_path.parent.mkdir()
+            overtime_clause_classification_path.write_text(
+                json.dumps(overtime_clause_classification),
+                encoding="utf-8",
+            )
+
+            with patch("src.script_3b_review_overtime_interpretation.time.sleep") as sleep_mock:
+                review_overtime_interpretation(
+                    interpretation_path=interpretation_path,
+                    classification_path=classification_path,
+                    overtime_clause_classification_path=overtime_clause_classification_path,
+                    evaluator_client=evaluator_client,
+                    creator_client=creator_client,
+                    inter_call_delay_seconds=1,
+                    status_callback=status_messages.append,
+                )
+
+        self.assertEqual(sleep_mock.call_args.args[0], 1)
+        self.assertTrue(
+            any(
+                "Token budget for script_3b_evaluator_review" in message
+                for message in status_messages
+            )
+        )
+        self.assertTrue(
+            any(
+                "Token budget for script_3b_creator_revision" in message
+                for message in status_messages
+            )
+        )
 
 
 if __name__ == "__main__":

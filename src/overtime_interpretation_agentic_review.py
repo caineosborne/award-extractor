@@ -1,5 +1,4 @@
 import asyncio
-import json
 import os
 import re
 from collections.abc import Awaitable, Callable, Mapping
@@ -12,18 +11,24 @@ from dotenv import load_dotenv
 from openai import RateLimitError
 from pydantic import BaseModel, Field
 
+from src.common.model_call_budget import is_large_model_call, log_model_call_budget
 from src.common.output_paths import write_text_with_archive
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
+    build_messages as build_overtime_interpretation_messages,
     classification_output_path_for_classification,
+    filter_overtime_clauses,
+    filter_overtime_creation_clauses,
     load_classification,
+    validate_overtime_clause_classifications,
 )
 from src.script_3b_review_overtime_interpretation import (
+    DEFAULT_INTER_CALL_DELAY_SECONDS as REVIEW_DEFAULT_INTER_CALL_DELAY_SECONDS,
     DEFAULT_INTERPRETATION_PATH,
     OvertimeInterpretationReviewError,
     build_evaluator_messages,
-    build_script_3_creator_prompt_context,
+    build_minimal_pass_fail_evaluator_prompt,
     feedback_dir_for_interpretation,
     load_json_file,
     load_text_file,
@@ -32,6 +37,7 @@ from src.script_3b_review_overtime_interpretation import (
 
 
 DEFAULT_MAX_FEEDBACK_CYCLES = 3
+DEFAULT_INTER_CALL_DELAY_SECONDS = REVIEW_DEFAULT_INTER_CALL_DELAY_SECONDS
 DEFAULT_RATE_LIMIT_MAX_ATTEMPTS = 6
 DEFAULT_RATE_LIMIT_FALLBACK_DELAY_SECONDS = 15.0
 RATE_LIMIT_DELAY_BUFFER_SECONDS = 2.0
@@ -64,6 +70,8 @@ class AgenticReviewContext:
     max_feedback_cycles: int = DEFAULT_MAX_FEEDBACK_CYCLES
     runner_run: Callable[..., Awaitable[Any]] = Runner.run
     status_callback: Callable[[str], None] | None = None
+    inter_call_delay_seconds: float = DEFAULT_INTER_CALL_DELAY_SECONDS
+    latest_substantive_feedback_markdown: str = ""
 
 
 def load_openai_environment(env_path: Path | str = Path(__file__).resolve().parents[1] / ".env") -> None:
@@ -130,32 +138,33 @@ async def run_agent_with_rate_limit_retries(
     raise OvertimeInterpretationReviewError("Agent run did not return a result.")
 
 
+def load_relevant_overtime_creation_clauses(
+    classification_path: Path | str,
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification: Mapping[str, Any],
+) -> list[Any]:
+    overtime_clauses = filter_overtime_clauses(payment_classification)
+    clause_classifications = validate_overtime_clause_classifications(
+        overtime_clause_classification,
+        overtime_clauses,
+    )
+    return filter_overtime_creation_clauses(clause_classifications)
+
+
 def build_agentic_source_context(
     interpretation_path: Path | str,
     interpretation_markdown: str,
     classification_path: Path | str,
     payment_classification: Mapping[str, Any],
-    overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
 ) -> str:
-    payment_classification_json = json.dumps(
-        payment_classification,
-        indent=2,
-        ensure_ascii=False,
-    )
-    overtime_clause_classification_json = json.dumps(
-        overtime_clause_classification,
-        indent=2,
-        ensure_ascii=False,
-    )
-    script_3_creator_prompt_context_json = json.dumps(
-        build_script_3_creator_prompt_context(
+    interpretation_messages = build_overtime_interpretation_messages(
+        str(classification_path),
+        load_relevant_overtime_creation_clauses(
             classification_path,
             payment_classification,
             overtime_clause_classification,
         ),
-        indent=2,
-        ensure_ascii=False,
     )
 
     return f"""Original Script 3 interpretation source: {interpretation_path}
@@ -164,22 +173,10 @@ def build_agentic_source_context(
 {interpretation_markdown}
 ```
 
-Full payment classification source from Script 2: {classification_path}
+Relevant source clauses for the first pass:
 
-```json
-{payment_classification_json}
-```
-
-Script 3 intermediate overtime clause classification source: {overtime_clause_classification_path}
-
-```json
-{overtime_clause_classification_json}
-```
-
-Script 3 creator prompt context reconstructed from the current Step 3 code:
-
-```json
-{script_3_creator_prompt_context_json}
+```markdown
+{interpretation_messages[1]["content"]}
 ```
 """
 
@@ -190,11 +187,23 @@ def build_creator_instructions(max_feedback_cycles: int) -> str:
 You are reviewing an existing Script 3 first draft. Keep the final interpretation simple and include only clauses that answer this question:
 Will this clause increase overtime entitlement by causing worked time to become overtime?
 
-You have a tool named request_evaluator_feedback. Use it to ask the evaluator for review feedback on your current draft. You may use it up to {max_feedback_cycles} times. After each evaluator response, decide which feedback to accept or reject and revise the draft when needed.
+You have a tool named request_evaluator_feedback. Use it to ask the evaluator for review feedback on your current draft. You may use it up to {max_feedback_cycles} times. The first evaluator call is a substantive review. Later evaluator calls are lightweight pass/fail gates that return JSON only.
+
+When you call request_evaluator_feedback after the first cycle, include a short creator decision record in creator_question_or_focus that explains what you changed and what feedback you believe remains unresolved.
 
 Apply accepted feedback about both:
-- accuracy: whether the rule is supported by the classification JSON and source clause text; and
+- accuracy: whether the rule is supported by the relevant clause excerpts and source clause text; and
 - presentation: whether the rule is clearly scoped, non-duplicative, traceable, and easy to implement.
+
+Preserve existing supported rules unless accepted feedback requires changing or removing them.
+Do not remove a rule unless you explicitly state why it is unsupported, duplicative, or out of scope.
+If a rule is unaffected by the accepted feedback, keep it in the revised interpretation.
+
+Later cycles are confirmation cycles, not fresh rewrites.
+After the first evaluator review, make the smallest changes necessary to resolve accepted feedback.
+Do not restructure or remove unrelated rules during later cycles.
+
+If you remain substantively uncertain whether a clause should be included or removed as an overtime-creation rule, do not treat the draft as ready to finalise. Record the uncertainty clearly so the evaluator can return needs_revision.
 
 Do not review rates, calculations, penalties, allowances, payment mechanics, or other consequences except to exclude them from overtime-creation rules.
 
@@ -210,8 +219,9 @@ def build_evaluator_agent(evaluator_model: str) -> Agent:
         model=evaluator_model,
         instructions=(
             "You are a supervisor reviewing an Australian modern award overtime "
-            "creation interpretation. Provide concise feedback only. Do not rewrite "
-            "the document."
+            "creation interpretation. Follow the requested output format exactly. "
+            "For substantive reviews, provide concise feedback only and do not rewrite "
+            "the document. For pass/fail gate checks, return JSON only."
         ),
     )
 
@@ -290,6 +300,7 @@ def create_evaluator_feedback_tool(context: AgenticReviewContext):
     async def request_evaluator_feedback(
         current_draft_markdown: str,
         creator_question_or_focus: str,
+        prior_creator_decision_markdown: str | None = None,
     ) -> str:
         """Ask the evaluator to review the current overtime interpretation draft."""
         if context.feedback_cycles_used >= context.max_feedback_cycles:
@@ -301,9 +312,35 @@ def create_evaluator_feedback_tool(context: AgenticReviewContext):
         context.feedback_cycles_used += 1
         cycle_label = f"Feedback cycle {context.feedback_cycles_used}"
         creator_request = creator_question_or_focus.strip()
-        evaluator_input = context.evaluator_input_builder(
-            current_draft_markdown,
-            context.feedback_cycles_used,
+        if context.feedback_cycles_used == 1:
+            evaluator_input = context.evaluator_input_builder(
+                current_draft_markdown,
+                context.feedback_cycles_used,
+            )
+        else:
+            evaluator_input = build_minimal_pass_fail_evaluator_prompt(
+                current_draft_markdown=current_draft_markdown,
+                evaluator_feedback_markdown=context.latest_substantive_feedback_markdown,
+                prior_creator_decision_markdown=prior_creator_decision_markdown
+                or creator_request,
+            )
+
+        if (
+            context.inter_call_delay_seconds > 0
+            and is_large_model_call(evaluator_input)
+        ):
+            if context.status_callback:
+                context.status_callback(
+                    "Waiting "
+                    f"{context.inter_call_delay_seconds:.1f} seconds before evaluator review."
+                )
+            await asyncio.sleep(context.inter_call_delay_seconds)
+
+        log_model_call_budget(
+            context.status_callback,
+            call_label="script_3b_agentic_evaluator",
+            model=str(getattr(context.evaluator_agent, "model", "unknown-model")),
+            payload=evaluator_input,
         )
         result = await run_agent_with_rate_limit_retries(
             context.runner_run,
@@ -317,6 +354,9 @@ def create_evaluator_feedback_tool(context: AgenticReviewContext):
             raise OvertimeInterpretationReviewError(
                 "Evaluator agent response did not include output text."
             )
+
+        if context.feedback_cycles_used == 1:
+            context.latest_substantive_feedback_markdown = evaluator_feedback
 
         context.transcript_entries.append(
             (cycle_label, creator_request, evaluator_feedback)
@@ -335,6 +375,7 @@ async def run_agentic_overtime_interpretation_review_async(
     creator_model: str | None = None,
     evaluator_model: str | None = None,
     max_feedback_cycles: int = DEFAULT_MAX_FEEDBACK_CYCLES,
+    inter_call_delay_seconds: float = DEFAULT_INTER_CALL_DELAY_SECONDS,
     runner_run: Callable[..., Awaitable[Any]] = Runner.run,
     status_callback: Callable[[str], None] | None = None,
 ) -> AgenticOvertimeInterpretationReviewArtifacts:
@@ -374,7 +415,6 @@ async def run_agentic_overtime_interpretation_review_async(
         interpretation_markdown=interpretation_markdown,
         classification_path=selected_classification_path,
         payment_classification=classification_data,
-        overtime_clause_classification_path=selected_overtime_clause_classification_path,
         overtime_clause_classification=overtime_clause_classification,
     )
 
@@ -391,6 +431,7 @@ async def run_agentic_overtime_interpretation_review_async(
         max_feedback_cycles=max_feedback_cycles,
         runner_run=runner_run,
         status_callback=status_callback,
+        inter_call_delay_seconds=inter_call_delay_seconds,
     )
     evaluator_tool = create_evaluator_feedback_tool(review_context)
     creator_agent = Agent(
@@ -411,6 +452,20 @@ Use the evaluator feedback tool before finalising unless the draft clearly needs
     if status_callback:
         status_callback(f"Awaiting creator agent: {selected_creator_model}")
 
+    if inter_call_delay_seconds > 0 and is_large_model_call(creator_input):
+        if status_callback:
+            status_callback(
+                "Waiting "
+                f"{inter_call_delay_seconds:.1f} seconds before creator agent."
+            )
+        await asyncio.sleep(inter_call_delay_seconds)
+
+    log_model_call_budget(
+        status_callback,
+        call_label="script_3b_agentic_creator",
+        model=selected_creator_model,
+        payload=creator_input,
+    )
     creator_result = await run_agent_with_rate_limit_retries(
         runner_run,
         creator_agent,
@@ -470,6 +525,7 @@ def run_agentic_overtime_interpretation_review(
     creator_model: str | None = None,
     evaluator_model: str | None = None,
     max_feedback_cycles: int = DEFAULT_MAX_FEEDBACK_CYCLES,
+    inter_call_delay_seconds: float = DEFAULT_INTER_CALL_DELAY_SECONDS,
     runner_run: Callable[..., Awaitable[Any]] = Runner.run,
     status_callback: Callable[[str], None] | None = None,
 ) -> AgenticOvertimeInterpretationReviewArtifacts:
@@ -483,6 +539,7 @@ def run_agentic_overtime_interpretation_review(
             creator_model=creator_model,
             evaluator_model=evaluator_model,
             max_feedback_cycles=max_feedback_cycles,
+            inter_call_delay_seconds=inter_call_delay_seconds,
             runner_run=runner_run,
             status_callback=status_callback,
         )

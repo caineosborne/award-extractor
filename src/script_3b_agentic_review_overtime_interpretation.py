@@ -3,6 +3,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from src.overtime_interpretation_agentic_review import (
+    DEFAULT_INTER_CALL_DELAY_SECONDS,
     DEFAULT_MAX_FEEDBACK_CYCLES,
     load_openai_environment,
     run_agentic_overtime_interpretation_review,
@@ -78,6 +79,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_MAX_FEEDBACK_CYCLES,
         help=f"Maximum evaluator feedback cycles. Defaults to {DEFAULT_MAX_FEEDBACK_CYCLES}.",
     )
+    parser.add_argument(
+        "--inter-call-delay-seconds",
+        type=float,
+        default=DEFAULT_INTER_CALL_DELAY_SECONDS,
+        help=(
+            "Delay between large review calls in seconds. "
+            f"Defaults to {DEFAULT_INTER_CALL_DELAY_SECONDS}."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -114,6 +124,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         creator_model=args.creator_model,
         evaluator_model=args.evaluator_model,
         max_feedback_cycles=args.max_feedback_cycles,
+        inter_call_delay_seconds=args.inter_call_delay_seconds,
         status_callback=lambda message: print(f"Status: {message}"),
     )
 

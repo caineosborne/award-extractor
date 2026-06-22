@@ -74,6 +74,12 @@ class FakeAgentRunner:
                     if call["agent_name"] == "Overtime interpretation evaluator"
                 ]
             )
+            if feedback_number > 1:
+                return SimpleNamespace(
+                    final_output=(
+                        '{"status":"needs_revision","reason":"Clause 20.1 still needs clarification."}'
+                    )
+                )
             return SimpleNamespace(
                 final_output=(
                     "# Overtime interpretation supervisor feedback\n\n"
@@ -136,21 +142,24 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
             interpretation_markdown="# Original draft",
             classification_path="classification.json",
             payment_classification=sample_classification(),
-            overtime_clause_classification_path="overtime_clause_classification.json",
             overtime_clause_classification=sample_overtime_clause_classification(),
         )
 
         self.assertIn("# Original draft", source_context)
         self.assertIn("classification.json", source_context)
-        self.assertIn("overtime_clause_classification.json", source_context)
-        self.assertIn('"20.1"', source_context)
-        self.assertIn('"30.1"', source_context)
-        self.assertIn("Script 3 creator prompt context", source_context)
-        self.assertIn("clause_classification_messages", source_context)
-        self.assertIn("interpretation_messages", source_context)
+        self.assertIn("Relevant source clauses for the first pass", source_context)
+        self.assertIn("Clause 20.1", source_context)
+        self.assertNotIn('"30.1"', source_context)
+        self.assertNotIn("Script 3 creator prompt context", source_context)
+        self.assertNotIn("clause_classification_messages", source_context)
+        self.assertNotIn("interpretation_messages", source_context)
 
     def test_evaluator_tool_enforces_max_feedback_cycles(self):
         async def fake_runner(agent, input_text, **kwargs):
+            if "Return JSON only" in input_text:
+                return SimpleNamespace(
+                    final_output='{"status":"needs_revision","reason":"Review response."}'
+                )
             return SimpleNamespace(final_output="# Feedback\n\nReview response.")
 
         context = AgenticReviewContext(
@@ -198,7 +207,7 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         first_response, second_response, third_response = asyncio.run(invoke_tool())
 
         self.assertIn("Review response", first_response)
-        self.assertIn("Review response", second_response)
+        self.assertIn('"status":"needs_revision"', second_response)
         self.assertIn("Maximum evaluator feedback cycles", third_response)
         self.assertEqual(context.feedback_cycles_used, 2)
         self.assertEqual(len(context.transcript_entries), 2)
@@ -251,6 +260,7 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         classification = sample_classification()
         overtime_clause_classification = sample_overtime_clause_classification()
         fake_runner = FakeAgentRunner(feedback_cycles_to_request=2)
+        status_messages = []
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
@@ -275,7 +285,9 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
                     interpretation_path=interpretation_path,
                     classification_path=classification_path,
                     overtime_clause_classification_path=overtime_clause_classification_path,
+                    inter_call_delay_seconds=0,
                     runner_run=fake_runner,
+                    status_callback=status_messages.append,
                 )
             )
 
@@ -301,6 +313,22 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(len(revised_archive_files), 1)
         self.assertEqual(fake_runner.calls[0]["agent_name"], "Overtime interpretation creator")
         self.assertEqual(fake_runner.calls[1]["agent_name"], "Overtime interpretation evaluator")
+        self.assertNotIn("Script 3 creator prompt context", fake_runner.calls[0]["input_text"])
+        self.assertIn("Relevant source clauses for the first pass", fake_runner.calls[0]["input_text"])
+        self.assertIn("Review this overtime interpretation working document.", fake_runner.calls[1]["input_text"])
+        self.assertIn('{"status":"pass"|"needs_revision","reason":"..."}', fake_runner.calls[2]["input_text"])
+        self.assertTrue(
+            any(
+                "Token budget for script_3b_agentic_creator" in message
+                for message in status_messages
+            )
+        )
+        self.assertTrue(
+            any(
+                "Token budget for script_3b_agentic_evaluator" in message
+                for message in status_messages
+            )
+        )
 
     def test_cli_resolves_paths_and_delegates_to_reusable_module(self):
         with patch(
@@ -333,6 +361,8 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
                         "evaluator-model",
                         "--max-feedback-cycles",
                         "2",
+                        "--inter-call-delay-seconds",
+                        "0",
                     ]
                 )
 
@@ -357,6 +387,7 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(call_kwargs["creator_model"], "creator-model")
         self.assertEqual(call_kwargs["evaluator_model"], "evaluator-model")
         self.assertEqual(call_kwargs["max_feedback_cycles"], 2)
+        self.assertEqual(call_kwargs["inter_call_delay_seconds"], 0.0)
 
 
 if __name__ == "__main__":
