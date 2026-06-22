@@ -313,6 +313,32 @@ def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_REVIEW_FEEDBACK)
 
+    if artifact_paths.agentic_review_conversation.exists():
+        st.markdown("#### Agentic review conversation")
+        render_markdown_file(artifact_paths.agentic_review_conversation)
+
+        has_legacy_feedback = artifact_paths.evaluator_feedback.exists()
+        has_legacy_creator_response = artifact_paths.creator_response.exists()
+        if has_legacy_feedback or has_legacy_creator_response:
+            st.divider()
+
+        if has_legacy_feedback:
+            st.markdown("#### Legacy evaluator feedback")
+            render_markdown_file(artifact_paths.evaluator_feedback)
+
+        if has_legacy_feedback and has_legacy_creator_response:
+            st.divider()
+
+        if has_legacy_creator_response:
+            st.markdown("#### Legacy creator commentary")
+            render_markdown_file(artifact_paths.creator_response)
+        return
+
+    st.markdown("#### Agentic review conversation")
+    render_markdown_file(artifact_paths.agentic_review_conversation)
+
+    st.divider()
+
     st.markdown("#### Evaluator feedback")
     render_markdown_file(artifact_paths.evaluator_feedback)
 

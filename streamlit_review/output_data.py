@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_with_archive
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +19,7 @@ class ArtifactPaths:
     payment_classification: Path
     overtime_clause_classification: Path
     original_overtime_interpretation: Path
+    agentic_review_conversation: Path
     evaluator_feedback: Path
     creator_response: Path
     revised_overtime_interpretation: Path
@@ -53,6 +54,8 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_clause_classification.json",
         original_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation.md",
+        agentic_review_conversation=OVERTIME_FEEDBACK_DIR
+        / f"{award_code}_overtime_interpretation_agentic_review_conversation.md",
         evaluator_feedback=OVERTIME_FEEDBACK_DIR
         / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
         creator_response=OVERTIME_FEEDBACK_DIR

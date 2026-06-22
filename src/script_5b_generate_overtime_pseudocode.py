@@ -7,7 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.output_paths import (
+from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_PSEUDOCODE_DIR,
     path_in_category,

@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.output_paths import (
+from src.common.output_paths import (
     OVERTIME_INTERPRETATION_FEEDBACK_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     write_text_with_archive,

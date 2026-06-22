@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.Archive.award_interpreter_prompt import SYSTEM_PROMPT
-from src.output_paths import FETCH_AWARD_DIR
+from src.common.output_paths import FETCH_AWARD_DIR
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]

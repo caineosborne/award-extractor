@@ -16,7 +16,7 @@ from src.script_3_interpret_overtime_prompt import (
     build_overtime_interpretation_user_prompt,
 )
 
-from src.output_paths import (
+from src.common.output_paths import (
     OVERTIME_INTERPRETATIONS_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
     path_in_category,

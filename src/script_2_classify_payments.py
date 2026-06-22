@@ -16,7 +16,7 @@ from src.script_2_classify_payments_prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,
 )
-from src.output_paths import (
+from src.common.output_paths import (
     FETCH_AWARD_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
     path_in_category,

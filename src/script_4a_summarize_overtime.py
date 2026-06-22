@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.script_4a_summarize_overtime_prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
-from src.output_paths import (
+from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     path_in_category,

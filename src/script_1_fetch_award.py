@@ -11,7 +11,7 @@ from urllib.parse import urlparse
 import requests
 from bs4 import BeautifulSoup
 
-from src.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, write_text_with_archive
+from src.common.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, write_text_with_archive
 
 
 TARGET_CLASSES = {

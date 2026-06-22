@@ -41,6 +41,10 @@ def test_artifact_paths_for_award():
     )
     assert paths.original_overtime_interpretation.name == "MA000018_overtime_interpretation.md"
     assert (
+        paths.agentic_review_conversation.name
+        == "MA000018_overtime_interpretation_agentic_review_conversation.md"
+    )
+    assert (
         paths.evaluator_feedback.name
         == "MA000018_overtime_interpretation_evaluator_feedback.md"
     )
@@ -151,6 +155,8 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
         payment_classification=tmp_path / "award_payment_classification.json",
         overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
         original_overtime_interpretation=original_path,
+        agentic_review_conversation=tmp_path
+        / "award_overtime_interpretation_agentic_review_conversation.md",
         evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
         creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
         revised_overtime_interpretation=revised_path,

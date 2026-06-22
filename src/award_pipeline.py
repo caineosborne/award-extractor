@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from src.output_paths import (
+from src.common.output_paths import (
     FETCH_AWARD_DIR,
     timestamped_archive_path,
     write_text_with_archive,

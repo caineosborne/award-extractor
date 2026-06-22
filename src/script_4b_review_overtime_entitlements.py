@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.output_paths import (
+from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
