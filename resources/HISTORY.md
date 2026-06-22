@@ -2,15 +2,14 @@
 
 This document records the current extraction pipeline, main files, prompt ownership, and tidy-up status.
 
-The project is designed to produce audit-readable artifacts from Australian modern award source material. The active pipeline is:
+The project is designed to produce audit-readable artifacts from Australian modern award source material. The current manager-review pipeline is:
 
 1. Fetch and structure the award.
 2. Classify payment-relevant clauses.
 3. Generate an overtime interpretation working document.
 3B. Run a one-pass supervisor review and creator update of the overtime interpretation.
-4A. Summarise overtime entitlements in plain English from the reviewed interpretation where available.
-4B. Temporarily review the 4A entitlement output and produce a final human-readable markdown version.
-5B. Convert the entitlement summary into core ordinary/overtime pseudocode. This step is parked until the upstream review flow is settled.
+
+Steps `4A`, `4B`, and `5B` remain in the repository but are currently in flux and are not part of the active manager-review path.
 
 Script 6 final consistency review has been removed from the active codebase because that review step is expected to be redesigned before it is used again.
 
@@ -38,8 +37,9 @@ Root files are limited to project metadata and entry points:
 | 3.2 classify overtime clauses | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` in the same file. |
 | 3.3 filter interpretation clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for classifications `Ordinary Hours Boundary` and `Overtime Trigger`. |
 | 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. |
-| 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_review_overtime_interpretation.py` |
+| 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_shared_prompts.py` |
 | 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `src/script_3_interpret_overtime_prompt.py` |
+| 3B optional agentic review | `src/script_3b_agentic_review_overtime_interpretation.py` and `src/script_3b_agentic_review_workflow.py` | Creator and evaluator prompts in `src/script_3b_shared_prompts.py` |
 | 4A | `src/script_4a_summarize_overtime.py` | `src/script_4a_summarize_overtime_prompt.py` |
 | 4B accuracy evaluator | `src/script_4b_review_overtime_entitlements.py` | `accuracy_evaluation_system_prompt()` in `src/script_4b_review_overtime_entitlements.py` |
 | 4B creator update | `src/script_4b_review_overtime_entitlements.py` | `src/script_4a_summarize_overtime_prompt.py` |
@@ -163,6 +163,32 @@ Status:
 - Creator update uses the script 3 interpretation prompt.
 - The process does not loop.
 
+## Optional 3B. Agentic overtime interpretation review
+
+Files:
+- `src/script_3b_agentic_review_overtime_interpretation.py`
+- `src/script_3b_agentic_review_workflow.py`
+
+Purpose:
+- Provide an alternate step `3B` review mode where a creator agent can request evaluator feedback across multiple bounded cycles.
+- Capture the creator and evaluator exchange as a markdown conversation artifact.
+- Produce a revised interpretation using the same Script 2 and Script 3 source artifacts as the one-pass review.
+
+Command:
+
+```bash
+uv run script-3b-agentic-review-overtime-interpretation MA000018
+```
+
+Main outputs:
+- `data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_agentic_review_conversation.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md`
+
+Status:
+- Implemented and covered by tests.
+- Optional workflow, not the default manager-review path.
+- Intended for deeper review loops when the one-pass `3B` output is not sufficient.
+
 ## 4A. Overtime entitlement summary
 
 Files:
@@ -280,9 +306,20 @@ uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
 uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 uv run script-3b-review-overtime-interpretation MA000018
+uv run award-pipeline MA000018
+```
+
+Optional alternate review command:
+
+```bash
+uv run script-3b-agentic-review-overtime-interpretation MA000018
+```
+
+Later steps currently in flux:
+
+```bash
 uv run script-4a-summarize-overtime MA000018
 uv run script-4b-review-overtime-entitlements MA000018
-uv run award-pipeline MA000018 4b
 ```
 
 Parked step:
@@ -298,4 +335,4 @@ uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitle
 - The 3B revised interpretation is the preferred input for 4A when present.
 - The entitlement markdown is a human-review artifact and may be manually edited.
 - Archive folders are retained in both `src/Archive/` and generated data output folders.
-- Repeated LLM connection code still exists in script files. It has not been abstracted yet because the current priority is explicit, reviewable business logic. A small client helper may be worthwhile later if repetition becomes a maintenance problem.
+- Shared active-pipeline helpers now centralise path resolution, runtime setup, and basic artifact loading for steps 1 through 3B while keeping the business logic in the step modules.

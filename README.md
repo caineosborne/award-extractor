@@ -4,7 +4,12 @@ This project extracts audit-readable payroll interpretation artifacts from Austr
 
 Detailed pipeline history and output tables are in `resources/HISTORY.md` and `resources/outputs.md`.
 
-## Overtime Pipeline
+## Active Overtime Pipeline
+
+The manager-review path currently focuses on steps `1` through `3B`.
+
+- Step `4A` onward remains in the repo, but those steps are currently in flux.
+- `uv run award-pipeline MA000018` now runs the active pipeline through `3B`.
 
 Use `uv` to run project commands.
 
@@ -52,6 +57,18 @@ data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revis
 ```
 
 This is a one-way step only: supervisor feedback, then one creator update. The reviewer checks the simplified Script 3 output against the full Script 2 payment classification JSON and the Script 3 clause classification JSON, focused only on clauses that increase overtime entitlement by causing worked time to become overtime.
+
+To run the current active pipeline end to end:
+
+```bash
+uv run award-pipeline MA000018
+```
+
+This runs steps `1`, `2`, `3`, and `3B`.
+
+## Later Steps In Flux
+
+The remaining overtime steps are intentionally retained but are not part of the current manager-review path.
 
 4A. Generate the reviewer-facing overtime entitlement markdown from the interpretation document:
 

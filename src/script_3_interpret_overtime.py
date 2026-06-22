@@ -6,9 +6,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from dotenv import load_dotenv
 from openai import OpenAI
 
+from src.common.active_pipeline_paths import (
+    PROJECT_ROOT,
+    default_classification_path_for_award,
+    interpretation_output_path_for_classification,
+    overtime_clause_classification_output_path_for_classification,
+)
+from src.common.pipeline_runtime import load_openai_environment
 from src.script_3_interpret_overtime_prompt import (
     OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT,
     OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT,
@@ -16,23 +22,11 @@ from src.script_3_interpret_overtime_prompt import (
     build_overtime_interpretation_user_prompt,
 )
 
-from src.common.output_paths import (
-    OVERTIME_INTERPRETATIONS_DIR,
-    PAYMENT_CLAUSE_IDENTIFIER_DIR,
-    path_in_category,
-    write_text_with_archive,
-)
+from src.common.output_paths import write_text_with_archive
 from src.script_2_classify_payments import extract_response_text, parse_response_json
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CLASSIFICATION_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "processed"
-    / PAYMENT_CLAUSE_IDENTIFIER_DIR
-    / "MA000018_payment_classification.json"
-)
+DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
 DEFAULT_MODEL = "gpt-5.4-mini"
 OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
 SCHEMA_VERSION = "overtime-clause-classification-v2"
@@ -67,14 +61,12 @@ class OvertimeClauseClassification:
 
 
 def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
-    load_dotenv(env_path)
-    if not os.getenv("OPENAI_API_KEY"):
-        raise OvertimeInterpretationError(
-            "OPENAI_API_KEY is not set. Add it to the root .env file or export it."
-        )
+    """Load and validate the OpenAI environment for step-3 generation."""
+    load_openai_environment(env_path=env_path, error_type=OvertimeInterpretationError)
 
 
 def load_classification(classification_path: Path | str) -> dict[str, Any]:
+    """Load and validate the step-2 payment classification artifact."""
     path = Path(classification_path)
     if not path.exists():
         raise OvertimeInterpretationError(f"Classification JSON not found: {path}")
@@ -100,6 +92,7 @@ def load_classification(classification_path: Path | str) -> dict[str, Any]:
 
 
 def filter_overtime_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
+    """Keep only clauses tagged as ordinary hours or overtime related."""
     classified_clauses = data.get("classified_clauses", {})
     if not isinstance(classified_clauses, Mapping):
         raise OvertimeInterpretationError("classified_clauses must be an object.")
@@ -113,30 +106,19 @@ def filter_overtime_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def output_path_for_classification(classification_path: Path | str) -> Path:
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-    return path_in_category(
-        path,
-        OVERTIME_INTERPRETATIONS_DIR,
-        f"{stem}_overtime_interpretation.md",
-    )
+    """Return the default interpretation output path for a classification artifact."""
+    return interpretation_output_path_for_classification(classification_path)
 
 
 def classification_output_path_for_classification(classification_path: Path | str) -> Path:
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-    return path_in_category(
-        path,
-        OVERTIME_INTERPRETATIONS_DIR,
-        f"{stem}_overtime_clause_classification.json",
+    """Return the default clause classification output path for step 3."""
+    return overtime_clause_classification_output_path_for_classification(
+        classification_path
     )
 
 
 def clause_text(clause: Mapping[str, Any]) -> str:
+    """Return the source clause text, falling back to serialized content when needed."""
     text = clause.get("text")
     if isinstance(text, str):
         return text
@@ -144,6 +126,7 @@ def clause_text(clause: Mapping[str, Any]) -> str:
 
 
 def format_clauses_for_prompt(overtime_clauses: Mapping[str, Any]) -> str:
+    """Format overtime clauses into plain markdown sections for prompting."""
     sections: list[str] = []
 
     for clause_number, clause in overtime_clauses.items():
@@ -157,6 +140,7 @@ def format_clauses_for_prompt(overtime_clauses: Mapping[str, Any]) -> str:
 def build_classification_messages(
     overtime_clauses: Mapping[str, Any],
 ) -> list[dict[str, str]]:
+    """Build the model messages for clause-level overtime classification."""
     clauses_text = format_clauses_for_prompt(overtime_clauses)
     return [
         {"role": "system", "content": OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT},
@@ -170,6 +154,7 @@ def build_classification_messages(
 
 
 def classification_response_json_schema() -> dict[str, Any]:
+    """Define the strict JSON schema expected from clause classification."""
     return {
         "type": "object",
         "additionalProperties": False,
@@ -214,6 +199,7 @@ def validate_overtime_clause_classifications(
     response_data: Mapping[str, Any],
     overtime_clauses: Mapping[str, Any],
 ) -> list[OvertimeClauseClassification]:
+    """Validate the clause classification response against the source clause set."""
     raw_clauses = response_data.get("clauses")
     if not isinstance(raw_clauses, list):
         raise OvertimeInterpretationError(
@@ -309,6 +295,7 @@ def classify_overtime_clauses(
     client: Any,
     model: str,
 ) -> list[OvertimeClauseClassification]:
+    """Call the model to classify each overtime-related clause."""
     try:
         response = client.responses.create(
             model=model,
@@ -341,6 +328,7 @@ def load_overtime_clause_classification_artifact(
     classification_path: Path | str,
     overtime_clauses: Mapping[str, Any],
 ) -> list[OvertimeClauseClassification]:
+    """Load and validate a saved step-3 clause classification artifact."""
     path = Path(classification_path)
 
     try:
@@ -373,6 +361,7 @@ def load_or_create_overtime_clause_classifications(
     client: Any,
     model: str,
 ) -> list[OvertimeClauseClassification]:
+    """Reuse a valid clause classification artifact or regenerate it from step 2."""
     if classification_output_path.exists():
         try:
             return load_overtime_clause_classification_artifact(
@@ -401,6 +390,7 @@ def load_or_create_overtime_clause_classifications(
 def filter_overtime_creation_clauses(
     classifications: Sequence[OvertimeClauseClassification],
 ) -> list[OvertimeClauseClassification]:
+    """Keep only classifications that can create overtime entitlement."""
     return [
         classification
         for classification in classifications
@@ -414,6 +404,7 @@ def filter_overtime_creation_clauses(
 def format_working_paper_input(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
 ) -> str:
+    """Format the step-3 working paper input used by the interpretation model."""
     sections = ["# Overtime Creation Clauses\n"]
 
     for clause in overtime_creation_clauses:
@@ -438,6 +429,7 @@ def build_messages(
     source_file: str,
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
 ) -> list[dict[str, str]]:
+    """Build the model messages for the interpretation working document."""
     working_paper_input = format_working_paper_input(overtime_creation_clauses)
     user_prompt = build_overtime_interpretation_user_prompt(
         source_file=source_file,
@@ -453,6 +445,7 @@ def classification_artifact(
     source_file: Path | str,
     classifications: Sequence[OvertimeClauseClassification],
 ) -> dict[str, Any]:
+    """Build the persisted JSON artifact for overtime clause classifications."""
     return {
         "schema_version": SCHEMA_VERSION,
         "source_classification_file": str(source_file),
@@ -477,6 +470,7 @@ def generate_overtime_interpretation(
     model: str | None = None,
     client: Any | None = None,
 ) -> str:
+    """Generate the step-3 interpretation markdown and supporting classification artifact."""
     selected_model = model or os.getenv("OVERTIME_INTERPRETATION_MODEL", DEFAULT_MODEL)
     if client is None:
         load_environment()
@@ -527,6 +521,7 @@ def generate_overtime_interpretation(
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for the step-3 interpretation generator."""
     parser = argparse.ArgumentParser(
         description="Generate an overtime interpretation working document from classification JSON."
     )
@@ -558,6 +553,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the step-3 interpretation generator CLI."""
     args = parse_args()
     generate_overtime_interpretation(
         classification_path=args.classification_path,

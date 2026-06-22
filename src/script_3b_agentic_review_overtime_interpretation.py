@@ -1,21 +1,20 @@
 import argparse
 from collections.abc import Sequence
-from pathlib import Path
 
-from src.overtime_interpretation_agentic_review import (
-    DEFAULT_INTER_CALL_DELAY_SECONDS,
-    DEFAULT_MAX_FEEDBACK_CYCLES,
-    load_openai_environment,
-    run_agentic_overtime_interpretation_review,
-)
-from src.script_3b_review_overtime_interpretation import (
+from src.common.active_pipeline_paths import (
     resolve_classification_path,
     resolve_interpretation_path,
     resolve_overtime_clause_classification_path,
 )
+from src.script_3b_agentic_review_workflow import (
+    DEFAULT_MAX_FEEDBACK_CYCLES,
+    load_openai_environment,
+    run_agentic_overtime_interpretation_review,
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for the agentic step-3B review command."""
     parser = argparse.ArgumentParser(
         description=(
             "Run an agentic creator/evaluator review for a step 3 overtime "
@@ -48,16 +47,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
-        "--conversation-output-path",
-        default=None,
-        help="Optional path for the agentic creator/evaluator conversation markdown.",
-    )
-    parser.add_argument(
-        "--revised-output-path",
-        default=None,
-        help="Optional path for the revised overtime interpretation markdown.",
-    )
-    parser.add_argument(
         "--creator-model",
         default=None,
         help=(
@@ -79,19 +68,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_MAX_FEEDBACK_CYCLES,
         help=f"Maximum evaluator feedback cycles. Defaults to {DEFAULT_MAX_FEEDBACK_CYCLES}.",
     )
-    parser.add_argument(
-        "--inter-call-delay-seconds",
-        type=float,
-        default=DEFAULT_INTER_CALL_DELAY_SECONDS,
-        help=(
-            "Delay between large review calls in seconds. "
-            f"Defaults to {DEFAULT_INTER_CALL_DELAY_SECONDS}."
-        ),
-    )
     return parser.parse_args(argv)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
+    """Run the agentic step-3B review CLI."""
     args = parse_args(argv)
     load_openai_environment()
 
@@ -113,18 +94,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         interpretation_path=interpretation_path,
         classification_path=classification_path,
         overtime_clause_classification_path=overtime_clause_classification_path,
-        conversation_output_path=(
-            Path(args.conversation_output_path)
-            if args.conversation_output_path
-            else None
-        ),
-        revised_output_path=(
-            Path(args.revised_output_path) if args.revised_output_path else None
-        ),
         creator_model=args.creator_model,
         evaluator_model=args.evaluator_model,
         max_feedback_cycles=args.max_feedback_cycles,
-        inter_call_delay_seconds=args.inter_call_delay_seconds,
         status_callback=lambda message: print(f"Status: {message}"),
     )
 

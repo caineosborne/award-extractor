@@ -9,7 +9,7 @@ from unittest.mock import patch
 import httpx
 from openai import RateLimitError
 
-from src.overtime_interpretation_agentic_review import (
+from src.script_3b_agentic_review_workflow import (
     AgenticReviewContext,
     AgenticReviewFinalOutput,
     agentic_conversation_path_for_interpretation,
@@ -238,7 +238,7 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
 
         async def run_with_retry():
             with patch(
-                "src.overtime_interpretation_agentic_review.asyncio.sleep",
+                "src.script_3b_agentic_review_workflow.asyncio.sleep",
                 fake_sleep,
             ):
                 return await run_agent_with_rate_limit_retries(
@@ -351,18 +351,12 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
                         "classification.json",
                         "--overtime-clause-classification-path",
                         "overtime_clause_classification.json",
-                        "--conversation-output-path",
-                        "conversation.md",
-                        "--revised-output-path",
-                        "revised.md",
                         "--creator-model",
                         "creator-model",
                         "--evaluator-model",
                         "evaluator-model",
                         "--max-feedback-cycles",
                         "2",
-                        "--inter-call-delay-seconds",
-                        "0",
                     ]
                 )
 
@@ -382,12 +376,9 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
             call_kwargs["overtime_clause_classification_path"],
             Path("overtime_clause_classification.json"),
         )
-        self.assertEqual(call_kwargs["conversation_output_path"], Path("conversation.md"))
-        self.assertEqual(call_kwargs["revised_output_path"], Path("revised.md"))
         self.assertEqual(call_kwargs["creator_model"], "creator-model")
         self.assertEqual(call_kwargs["evaluator_model"], "evaluator-model")
         self.assertEqual(call_kwargs["max_feedback_cycles"], 2)
-        self.assertEqual(call_kwargs["inter_call_delay_seconds"], 0.0)
 
 
 if __name__ == "__main__":

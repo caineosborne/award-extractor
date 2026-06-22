@@ -8,45 +8,23 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
-from src.common.output_paths import (
-    FETCH_AWARD_DIR,
-    timestamped_archive_path,
-    write_text_with_archive,
+from src.common.active_pipeline_paths import (
+    PROJECT_ROOT,
+    default_award_url_for_code,
+    interpretation_output_path_for_classification,
+    normalize_award_code,
+    overtime_clause_classification_output_path_for_classification,
+    revised_output_path_for_interpretation,
 )
+from src.common.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, write_text_with_archive
 from src.script_1_fetch_award import build_section_index, extract_award, fetch, iter_heading_rows
 from src.script_2_classify_payments import classify_award, output_path_for_award
-from src.script_3_interpret_overtime import (
-    classification_output_path_for_classification,
-    generate_overtime_interpretation,
-    output_path_for_classification as interpretation_path_for_classification,
-)
-from src.script_3b_review_overtime_interpretation import (
-    creator_response_path_for_interpretation,
-    evaluator_feedback_path_for_interpretation,
-    revised_output_path_for_interpretation,
-    review_overtime_interpretation,
-)
-from src.script_4a_summarize_overtime import (
-    output_path_for_interpretation as entitlements_path_for_interpretation,
-    summarize_overtime_entitlements,
-)
-from src.script_4b_review_overtime_entitlements import (
-    final_answer_path_for_entitlements,
-    initial_answer_path_for_entitlements,
-    review_feedback_path_for_entitlements,
-    review_overtime_entitlements,
-    updated_answer_path_for_entitlements,
-)
-from src.script_5b_generate_overtime_pseudocode import (
-    generate_core_overtime_pseudocode,
-    output_path_for_summary as pseudocode_path_for_summary,
-)
+from src.script_3_interpret_overtime import generate_overtime_interpretation
+from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
-STEP_CHOICES = ("1", "2", "3", "3b", "4a", "4b", "5b")
-DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b", "4a")
+STEP_CHOICES = ("1", "2", "3", "3b")
+DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b")
 
 
 class AwardPipelineError(RuntimeError):
@@ -54,7 +32,7 @@ class AwardPipelineError(RuntimeError):
 
 
 @dataclass(frozen=True)
-class AwardPipelinePaths:
+class ActivePipelinePaths:
     award_code: str
     suffix: str | None
     output_stem: str
@@ -66,34 +44,21 @@ class AwardPipelinePaths:
     classification_path: Path
     overtime_clause_classification_path: Path
     interpretation_path: Path
-    revised_interpretation_path: Path
     evaluator_feedback_path: Path
     creator_response_path: Path
-    entitlements_path: Path
-    entitlement_initial_answer_path: Path
-    entitlement_review_feedback_path: Path
-    entitlement_updated_answer_path: Path
-    entitlement_final_path: Path
-    pseudocode_path: Path
+    revised_interpretation_path: Path
 
 
-@dataclass(frozen=True)
-class PipelineRequirement:
-    paths: tuple[Path, ...]
-    prior_step: str
-    description: str
-
-
-def normalize_award_code(value: str) -> str:
-    award_code = value.strip().upper()
-    if not re.fullmatch(r"MA\d{6}", award_code):
-        raise argparse.ArgumentTypeError(
-            "award code must look like MA000120"
-        )
-    return award_code
+def argparse_award_code(value: str) -> str:
+    """Adapt award code validation for argparse error reporting."""
+    try:
+        return normalize_award_code(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def normalize_suffix(value: str | None) -> str | None:
+    """Normalize an optional filename suffix used for pipeline outputs."""
     if value is None:
         return None
 
@@ -104,17 +69,15 @@ def normalize_suffix(value: str | None) -> str | None:
     return suffix
 
 
-def default_url_for_award_code(award_code: str) -> str:
-    return DEFAULT_AWARD_URL_TEMPLATE.format(award_code=award_code)
-
-
 def output_stem_for_award(award_code: str, suffix: str | None) -> str:
+    """Build the shared filename stem for all active pipeline artifacts."""
     if suffix:
         return f"{award_code}_{suffix}"
     return award_code
 
 
-def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelinePaths:
+def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipelinePaths:
+    """Build all active-step artifact paths for one pipeline run."""
     output_stem = output_stem_for_award(award_code, suffix)
     fetch_dir = PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR
     raw_html_path = fetch_dir / "raw" / f"{output_stem}.html"
@@ -123,21 +86,19 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
     heading_csv_path = fetch_dir / f"{output_stem}.csv"
 
     classification_path = output_path_for_award(award_json_path)
-    overtime_clause_classification_path = classification_output_path_for_classification(
+    overtime_clause_classification_path = overtime_clause_classification_output_path_for_classification(
         classification_path
     )
-    interpretation_path = interpretation_path_for_classification(classification_path)
+    interpretation_path = interpretation_output_path_for_classification(classification_path)
+    evaluator_feedback_path = interpretation_path.parent / "feedback" / (
+        f"{interpretation_path.stem}_evaluator_feedback.md"
+    )
+    creator_response_path = interpretation_path.parent / "feedback" / (
+        f"{interpretation_path.stem}_creator_response.md"
+    )
     revised_interpretation_path = revised_output_path_for_interpretation(interpretation_path)
-    evaluator_feedback_path = evaluator_feedback_path_for_interpretation(interpretation_path)
-    creator_response_path = creator_response_path_for_interpretation(interpretation_path)
-    entitlements_path = entitlements_path_for_interpretation(interpretation_path)
-    entitlement_initial_answer_path = initial_answer_path_for_entitlements(entitlements_path)
-    entitlement_review_feedback_path = review_feedback_path_for_entitlements(entitlements_path)
-    entitlement_updated_answer_path = updated_answer_path_for_entitlements(entitlements_path)
-    entitlement_final_path = final_answer_path_for_entitlements(entitlements_path)
-    pseudocode_path = pseudocode_path_for_summary(entitlements_path)
 
-    return AwardPipelinePaths(
+    return ActivePipelinePaths(
         award_code=award_code,
         suffix=suffix,
         output_stem=output_stem,
@@ -149,36 +110,19 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> AwardPipelineP
         classification_path=classification_path,
         overtime_clause_classification_path=overtime_clause_classification_path,
         interpretation_path=interpretation_path,
-        revised_interpretation_path=revised_interpretation_path,
         evaluator_feedback_path=evaluator_feedback_path,
         creator_response_path=creator_response_path,
-        entitlements_path=entitlements_path,
-        entitlement_initial_answer_path=entitlement_initial_answer_path,
-        entitlement_review_feedback_path=entitlement_review_feedback_path,
-        entitlement_updated_answer_path=entitlement_updated_answer_path,
-        entitlement_final_path=entitlement_final_path,
-        pseudocode_path=pseudocode_path,
+        revised_interpretation_path=revised_interpretation_path,
     )
 
 
 def require_existing(path: Path, step_name: str, prior_step: str) -> None:
+    """Ensure a required upstream artifact exists before running a step."""
     if not path.exists():
         raise AwardPipelineError(
             f"Missing required file for step {step_name}: {path}. "
             f"Run step {prior_step} first."
         )
-
-
-def require_any_existing(paths: tuple[Path, ...], step_name: str, prior_step: str) -> Path:
-    for path in paths:
-        if path.exists():
-            return path
-
-    joined_paths = ", ".join(str(path) for path in paths)
-    raise AwardPipelineError(
-        f"Missing required file for step {step_name}: {joined_paths}. "
-        f"Run step {prior_step} first."
-    )
 
 
 def write_fetched_award_outputs(
@@ -188,6 +132,7 @@ def write_fetched_award_outputs(
     section_index_path: Path,
     heading_csv_path: Path,
 ) -> None:
+    """Fetch the award and write the full set of step-1 artifacts."""
     soup = fetch(url)
     main_content = soup.find(id="mainContent")
     if main_content is None:
@@ -226,7 +171,8 @@ def write_fetched_award_outputs(
     print(f"Heading CSV saved to {heading_csv_path}")
 
 
-def run_step_1(paths: AwardPipelinePaths) -> None:
+def run_step_1(paths: ActivePipelinePaths) -> None:
+    """Run step 1 and write the fetched award artifacts."""
     write_fetched_award_outputs(
         url=paths.url,
         raw_html_path=paths.raw_html_path,
@@ -236,7 +182,8 @@ def run_step_1(paths: AwardPipelinePaths) -> None:
     )
 
 
-def run_step_2(paths: AwardPipelinePaths) -> None:
+def run_step_2(paths: ActivePipelinePaths) -> None:
+    """Run step 2 payment clause classification."""
     require_existing(paths.award_json_path, "2", "1")
     classify_award(
         award_path=paths.award_json_path,
@@ -244,7 +191,8 @@ def run_step_2(paths: AwardPipelinePaths) -> None:
     )
 
 
-def run_step_3(paths: AwardPipelinePaths) -> None:
+def run_step_3(paths: ActivePipelinePaths) -> None:
+    """Run step 3 overtime interpretation generation."""
     require_existing(paths.classification_path, "3", "2")
     generate_overtime_interpretation(
         classification_path=paths.classification_path,
@@ -253,7 +201,8 @@ def run_step_3(paths: AwardPipelinePaths) -> None:
     )
 
 
-def run_step_3b(paths: AwardPipelinePaths) -> None:
+def run_step_3b(paths: ActivePipelinePaths) -> None:
+    """Run step 3B one-pass review of the interpretation output."""
     require_existing(paths.classification_path, "3b", "2")
     require_existing(paths.overtime_clause_classification_path, "3b", "3")
     require_existing(paths.interpretation_path, "3b", "3")
@@ -267,97 +216,45 @@ def run_step_3b(paths: AwardPipelinePaths) -> None:
     )
 
 
-def interpretation_source_for_step_4a(paths: AwardPipelinePaths) -> Path:
-    if paths.revised_interpretation_path.exists():
-        return paths.revised_interpretation_path
-    if paths.interpretation_path.exists():
-        return paths.interpretation_path
-
-    raise AwardPipelineError(
-        f"Missing required file for step 4a: {paths.interpretation_path} "
-        f"or {paths.revised_interpretation_path}. Run step 3 first."
-    )
+STEP_RUNNERS = {
+    "1": run_step_1,
+    "2": run_step_2,
+    "3": run_step_3,
+    "3b": run_step_3b,
+}
 
 
-def run_step_4a(paths: AwardPipelinePaths) -> None:
-    interpretation_path = interpretation_source_for_step_4a(paths)
-    summarize_overtime_entitlements(
-        interpretation_path=interpretation_path,
-        output_path=paths.entitlements_path,
-    )
+def run_default_pipeline(paths: ActivePipelinePaths) -> None:
+    """Run the active pipeline end to end through step 3B."""
+    for step in DEFAULT_PIPELINE_STEPS:
+        STEP_RUNNERS[step](paths)
 
 
-def run_step_4b(paths: AwardPipelinePaths) -> None:
-    interpretation_path = interpretation_source_for_step_4a(paths)
-    require_existing(paths.classification_path, "4b", "2")
-    require_existing(paths.entitlements_path, "4b", "4a")
-    review_overtime_entitlements(
-        entitlements_path=paths.entitlements_path,
-        classification_path=paths.classification_path,
-        interpretation_path=interpretation_path,
-        initial_output_path=paths.entitlement_initial_answer_path,
-        feedback_output_path=paths.entitlement_review_feedback_path,
-        updated_output_path=paths.entitlement_updated_answer_path,
-        final_output_path=paths.entitlement_final_path,
-    )
+def run_selected_step(paths: ActivePipelinePaths, step: str) -> None:
+    """Run one selected active pipeline step."""
+    try:
+        step_runner = STEP_RUNNERS[step]
+    except KeyError as exc:
+        raise AwardPipelineError(f"Unknown step: {step}") from exc
 
-
-def run_step_5b(paths: AwardPipelinePaths) -> None:
-    require_existing(paths.entitlements_path, "5b", "4a")
-    generate_core_overtime_pseudocode(
-        summary_path=paths.entitlements_path,
-        output_path=paths.pseudocode_path,
-    )
-
-
-def run_default_pipeline(paths: AwardPipelinePaths) -> None:
-    run_step_1(paths)
-    run_step_2(paths)
-    run_step_3(paths)
-    run_step_3b(paths)
-    run_step_4a(paths)
-
-
-def run_selected_step(paths: AwardPipelinePaths, step: str) -> None:
-    if step == "1":
-        run_step_1(paths)
-        return
-    if step == "2":
-        run_step_2(paths)
-        return
-    if step == "3":
-        run_step_3(paths)
-        return
-    if step == "3b":
-        run_step_3b(paths)
-        return
-    if step == "4a":
-        run_step_4a(paths)
-        return
-    if step == "4b":
-        run_step_4b(paths)
-        return
-    if step == "5b":
-        run_step_5b(paths)
-        return
-
-    raise AwardPipelineError(f"Unknown step: {step}")
+    step_runner(paths)
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for the active pipeline wrapper."""
     parser = argparse.ArgumentParser(
-        description="Run the award extraction pipeline from an award code."
+        description="Run the active award extraction pipeline through step 3B."
     )
     parser.add_argument(
         "award_code",
-        type=normalize_award_code,
+        type=argparse_award_code,
         help="Award code such as MA000120.",
     )
     parser.add_argument(
         "step",
         nargs="?",
         choices=STEP_CHOICES,
-        help="Optional step to run. If omitted, the pipeline runs through 4A.",
+        help="Optional step to run. If omitted, the pipeline runs through 3B.",
     )
     parser.add_argument(
         "--suffix",
@@ -373,9 +270,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Run the active pipeline CLI through either one step or the default flow."""
     args = parse_args(argv)
     suffix = normalize_suffix(args.suffix)
-    url = args.url or default_url_for_award_code(args.award_code)
+    url = args.url or default_award_url_for_code(args.award_code)
     paths = build_paths(args.award_code, suffix, url)
 
     if args.step is None:
@@ -383,3 +281,7 @@ def main(argv: list[str] | None = None) -> None:
         return
 
     run_selected_step(paths, args.step)
+
+
+if __name__ == "__main__":
+    main()
