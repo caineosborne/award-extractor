@@ -11,11 +11,6 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_2_classify_payments_prompt import (
-    ALLOWED_TAGS,
-    SYSTEM_PROMPT,
-    build_user_prompt,
-)
 from src.common.output_paths import (
     FETCH_AWARD_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
@@ -23,7 +18,14 @@ from src.common.output_paths import (
     timestamped_archive_path,
     write_text_with_archive,
 )
+from src.script_2_classify_payments_prompt import (
+    ALLOWED_TAGS,
+    SYSTEM_PROMPT,
+    build_user_prompt,
+)
 
+
+# 1. Imports / constants
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AWARD_PATH = (
@@ -40,8 +42,13 @@ class PaymentClauseClassifierError(RuntimeError):
     """Raised when the classifier cannot continue with the current award."""
 
 
+# 2. Data structures
+
+
 @dataclass(frozen=True)
 class ClauseItem:
+    """Store one clause that may be sent to the model for tagging."""
+
     reference: str
     title: str
     text: str
@@ -50,13 +57,19 @@ class ClauseItem:
 
 @dataclass(frozen=True)
 class TopLevelGroup:
+    """Store one top-level clause and the direct L2 clauses grouped under it."""
+
     reference: str
     title: str
     text: str
     descendants: tuple[ClauseItem, ...]
 
 
+# 3. Small helpers
+
+
 def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
+    """Load environment variables and require an OpenAI API key."""
     load_dotenv(env_path)
     if not os.getenv("OPENAI_API_KEY"):
         raise PaymentClauseClassifierError(
@@ -65,12 +78,14 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
 
 
 def load_award(award_path: Path | str = DEFAULT_AWARD_PATH) -> OrderedDict[str, Any]:
+    """Read the processed award JSON file and preserve key order."""
     path = Path(award_path)
     with path.open(encoding="utf-8") as award_file:
         return json.load(award_file, object_pairs_hook=OrderedDict)
 
 
 def output_path_for_award(award_path: Path | str) -> Path:
+    """Build the default output path for a classified award file."""
     path = Path(award_path)
     return path_in_category(
         path,
@@ -79,12 +94,16 @@ def output_path_for_award(award_path: Path | str) -> Path:
     )
 
 
-def timestamped_output_path(output_path: Path | str, timestamp: datetime | None = None) -> Path:
+def timestamped_output_path(
+    output_path: Path | str,
+    timestamp: datetime | None = None,
+) -> Path:
+    """Build the archive path used for timestamped output snapshots."""
     return timestamped_archive_path(output_path, timestamp)
 
 
-def child_nodes(mapping: Mapping[str, Any]):
-    """Yield nested clause dictionaries and skip the text-only _content entry."""
+def child_clause_nodes(mapping: Mapping[str, Any]):
+    """Yield nested clause dictionaries and skip the text-only content entry."""
     for key, value in mapping.items():
         if key == CONTENT_KEY:
             continue
@@ -93,79 +112,113 @@ def child_nodes(mapping: Mapping[str, Any]):
 
 
 def is_placeholder_key(key: str) -> bool:
-    # The award JSON sometimes inserts "No Level ..." wrappers that are not real clauses.
+    """Return True for wrapper keys that are not real clause references."""
     return key.startswith(PLACEHOLDER_PREFIX)
 
 
 def is_lettered_key(key: str) -> bool:
+    """Return True for short lettered subclause keys like a or b."""
     return len(key) <= 3 and key.isalpha()
 
 
 def format_child_reference(parent_reference: str, child_key: str) -> str:
-    # Lettered children are stored as "a", "b", etc. but cited as "24.1(a)".
+    """Convert a child key into the full clause reference used in outputs."""
     if is_lettered_key(child_key):
         return f"{parent_reference}({child_key})"
     return child_key
 
 
 def format_content_item(item: Any) -> str:
+    """Convert one content item into displayable text."""
     if isinstance(item, str):
         return item
     return json.dumps(item, ensure_ascii=False)
 
 
-def content_lines(node: Mapping[str, Any]) -> list[str]:
+def clause_content_lines(node: Mapping[str, Any]) -> list[str]:
+    """Return the non-empty text lines stored on a clause node."""
+    # Read the raw content list that was stored on this clause node in the award JSON.
     content = node.get(CONTENT_KEY, [])
     if isinstance(content, list):
-        return [format_content_item(item) for item in content if format_content_item(item).strip()]
+        lines: list[str] = []
+        for item in content:
+            # Convert each content item into text so it can be used in prompts and outputs.
+            formatted_item = format_content_item(item)
+            # Ignore blank lines so downstream text is easier to read.
+            if formatted_item.strip():
+                lines.append(formatted_item)
+        return lines
+
     if content:
-        formatted = format_content_item(content)
-        return [formatted] if formatted.strip() else []
+        # Some nodes store a single content value instead of a list.
+        formatted_content = format_content_item(content)
+        if formatted_content.strip():
+            return [formatted_content]
+
     return []
 
 
 def clause_title(node: Mapping[str, Any]) -> str:
-    lines = content_lines(node)
+    """Use the first content line as the clause title when available."""
+    lines = clause_content_lines(node)
     return lines[0] if lines else ""
 
 
+def unique_items(value: list[str]) -> list[str]:
+    """Remove duplicates while keeping the model's original order."""
+    unique: list[str] = []
+    for item in value:
+        if item not in unique:
+            unique.append(item)
+    return unique
+
+
+# 4. Award parsing / grouping
+
+
 def flatten_clause(reference: str, node: Mapping[str, Any]) -> str:
-    """Convert a clause subtree into labelled text for the model prompt."""
+    """Turn one clause subtree into labelled plain text for the model prompt."""
     lines: list[str] = []
 
     def walk(current_reference: str, current_node: Mapping[str, Any]) -> None:
-        for line in content_lines(current_node):
+        # Add each text line with its clause reference so the model can see where it came from.
+        for line in clause_content_lines(current_node):
             lines.append(f"{current_reference}: {line}")
 
-        for child_key, child_node in child_nodes(current_node):
+        # Walk into nested clause nodes so the full subtree is included in the prompt text.
+        for child_key, child_node in child_clause_nodes(current_node):
             if is_placeholder_key(child_key):
+                # Placeholder wrappers do not change the clause reference, so keep the same label.
                 walk(current_reference, child_node)
             else:
-                walk(format_child_reference(current_reference, child_key), child_node)
+                # Build the child's full clause reference before walking into that child node.
+                child_reference = format_child_reference(current_reference, child_key)
+                walk(child_reference, child_node)
 
     walk(reference, node)
     return "\n".join(lines)
 
 
 def collect_descendants(parent_reference: str, node: Mapping[str, Any]) -> tuple[ClauseItem, ...]:
-    """Collect direct L2 clauses below a top-level clause.
-
-    Each returned item contains the full flattened subtree for that L2 clause, so lower-level
-    subclauses are considered under the L2 tags without being returned as separate classifications.
-    """
+    """Collect direct L2 clauses under one top-level clause."""
     descendants: list[ClauseItem] = []
 
     def collect_direct(current_reference: str, current_node: Mapping[str, Any]) -> None:
-        for child_key, child_node in child_nodes(current_node):
+        # Look at the nested clause nodes directly below the current node.
+        for child_key, child_node in child_clause_nodes(current_node):
             if is_placeholder_key(child_key):
+                # Skip wrapper levels and keep looking until we reach real clause references.
                 collect_direct(current_reference, child_node)
                 continue
 
+            # Convert the child key into the full clause reference used everywhere else.
             child_reference = format_child_reference(current_reference, child_key)
             descendants.append(
                 ClauseItem(
                     reference=child_reference,
+                    # Use the first content line as the display title for this clause.
                     title=clause_title(child_node),
+                    # Flatten the full child subtree so lower levels stay attached to this direct L2 clause.
                     text=flatten_clause(child_reference, child_node),
                     node=child_node,
                 )
@@ -175,25 +228,39 @@ def collect_descendants(parent_reference: str, node: Mapping[str, Any]) -> tuple
     return tuple(descendants)
 
 
-def iter_top_level_groups(award: Mapping[str, Any]) -> tuple[TopLevelGroup, ...]:
-    """Build one model request group for each top-level clause under each award Part."""
+def build_top_level_groups(award: Mapping[str, Any]) -> tuple[TopLevelGroup, ...]:
+    """Group the award into top-level clauses and their direct L2 descendants."""
     groups: list[TopLevelGroup] = []
-    for _part_heading, part_node in child_nodes(award):
-        for top_reference, top_node in child_nodes(part_node):
+
+    # The processed award is structured by Parts first, so start at that level.
+    for _part_heading, part_node in child_clause_nodes(award):
+        # Within each Part, group work around each top-level clause reference.
+        for top_reference, top_node in child_clause_nodes(part_node):
             if is_placeholder_key(top_reference):
                 continue
+
             groups.append(
                 TopLevelGroup(
                     reference=top_reference,
+                    # Keep the top-level heading text for output and reviewer context.
                     title=clause_title(top_node),
+                    # Flatten the whole top-level subtree for the model's top-level decision.
                     text=flatten_clause(top_reference, top_node),
+                    # Also keep the direct L2 clauses separately because they are tagged individually.
                     descendants=collect_descendants(top_reference, top_node),
                 )
             )
+
     return tuple(groups)
 
 
-def top_level_payload(group: TopLevelGroup) -> dict[str, Any]:
+def iter_top_level_groups(award: Mapping[str, Any]) -> tuple[TopLevelGroup, ...]:
+    """Return top-level clause groups using the legacy helper name used by tests."""
+    return build_top_level_groups(award)
+
+
+def classification_payload_for_group(group: TopLevelGroup) -> dict[str, Any]:
+    """Build the user-prompt payload for one top-level group."""
     return {
         "top_level_clause": {
             "reference": group.reference,
@@ -211,14 +278,64 @@ def top_level_payload(group: TopLevelGroup) -> dict[str, Any]:
     }
 
 
+def top_level_payload(group: TopLevelGroup) -> dict[str, Any]:
+    """Return the classification payload using the legacy helper name."""
+    return classification_payload_for_group(group)
+
+
+def l1_body_text(group: TopLevelGroup) -> str:
+    """Return top-level clause text without the heading line."""
+    body_lines: list[str] = []
+
+    # The flattened text includes the heading line, so inspect it line by line.
+    for line in group.text.splitlines():
+        # Split off the "reference:" label and keep only the human-readable clause text.
+        _separator, _prefix, text = line.partition(":")
+        normalized_text = text.strip()
+        # Ignore the title line because it does not add substantive rule content.
+        if normalized_text == group.title:
+            continue
+        if normalized_text:
+            body_lines.append(normalized_text)
+
+    return "\n".join(body_lines)
+
+
+def has_substantive_l1_content(group: TopLevelGroup) -> bool:
+    """Return True when an L1 clause has body text worth classifying on its own."""
+    if group.descendants:
+        return False
+    return len(l1_body_text(group)) > SUBSTANTIVE_L1_MINIMUM_CHARACTERS
+
+
+def title_only_top_level_result(group: TopLevelGroup) -> dict[str, Any]:
+    """Return the default result for a heading-only top-level clause."""
+    return {
+        "title": group.title,
+        "payment_relevant": False,
+        "definition_relevant": False,
+        "requires_l2_classification": False,
+        "reason": "Top-level clause contains only a heading and no direct L2 clauses.",
+    }
+
+
+# 5. Model classification
+
+
 def build_messages(group: TopLevelGroup) -> list[dict[str, str]]:
+    """Build the system and user messages for one model request."""
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": build_user_prompt(top_level_payload(group))},
+        # Build the user prompt from the grouped clause data for this one model call.
+        {
+            "role": "user",
+            "content": build_user_prompt(classification_payload_for_group(group)),
+        },
     ]
 
 
 def response_json_schema() -> dict[str, Any]:
+    """Define the JSON schema the model must follow."""
     return {
         "type": "object",
         "additionalProperties": False,
@@ -265,20 +382,27 @@ def response_json_schema() -> dict[str, Any]:
 
 
 def extract_response_text(response: Any) -> str:
+    """Extract plain text from the OpenAI response object."""
+    # Prefer the SDK's convenience field when it is present.
     output_text = getattr(response, "output_text", None)
     if isinstance(output_text, str) and output_text.strip():
         return output_text
 
+    # Fall back to walking the lower-level response structure if needed.
     output = getattr(response, "output", None)
     if not isinstance(output, list):
         return ""
 
     text_parts: list[str] = []
+
     for item in output:
+        # Each output item may contain several content blocks.
         content = getattr(item, "content", None)
         if not isinstance(content, list):
             continue
+
         for content_item in content:
+            # Collect every non-empty text fragment so we can parse the JSON payload.
             text = getattr(content_item, "text", None)
             if isinstance(text, str) and text.strip():
                 text_parts.append(text)
@@ -287,25 +411,12 @@ def extract_response_text(response: Any) -> str:
 
 
 def parse_response_json(output_text: str) -> Mapping[str, Any]:
+    """Parse the model's JSON text into a Python mapping."""
     return json.loads(output_text)
 
 
-def unique_items(value: list[str]) -> list[str]:
-    """Preserve model order while removing duplicates."""
-    unique: list[str] = []
-    for item in value:
-        if item not in unique:
-            unique.append(item)
-    return unique
-
-
-def direct_l2_reference_for(reference: str, direct_references: set[str]) -> str | None:
-    """Map a model-returned reference to the direct L2 clause that owns it.
-
-    The prompt asks the model to return only direct L2 references, but models can
-    still return a nested reference such as 14.7(b). The classification belongs
-    to 14.7 because downstream artifacts operate at direct L2 granularity.
-    """
+def map_to_direct_l2_reference(reference: str, direct_references: set[str]) -> str | None:
+    """Map a returned reference back to the direct L2 clause that owns it."""
     if reference in direct_references:
         return reference
 
@@ -322,62 +433,29 @@ def direct_l2_reference_for(reference: str, direct_references: set[str]) -> str 
     return max(matching_direct_references, key=len)
 
 
-def l1_body_text(group: TopLevelGroup) -> str:
-    """Return top-level text excluding the heading/title line.
-
-    Some awards store a whole clause, especially definitions, directly on the
-    L1 node with no L2 children. The title alone is not enough to classify, but
-    substantive body text should still be reviewed by the model and downstream
-    steps.
-    """
-    body_lines: list[str] = []
-
-    for line in group.text.splitlines():
-        _separator, _prefix, text = line.partition(":")
-        normalized_text = text.strip()
-        if normalized_text == group.title:
-            continue
-        if normalized_text:
-            body_lines.append(normalized_text)
-
-    return "\n".join(body_lines)
-
-
-def has_substantive_l1_content(group: TopLevelGroup) -> bool:
-    if group.descendants:
-        return False
-    return len(l1_body_text(group)) > SUBSTANTIVE_L1_MINIMUM_CHARACTERS
-
-
-def title_only_top_level_result(group: TopLevelGroup) -> dict[str, Any]:
-    return {
-        "title": group.title,
-        "payment_relevant": False,
-        "definition_relevant": False,
-        "requires_l2_classification": False,
-        "reason": "Top-level clause contains only a heading and no direct L2 clauses.",
-    }
+def direct_l2_reference_for(reference: str, direct_references: set[str]) -> str | None:
+    """Return the owning direct L2 reference using the legacy helper name."""
+    return map_to_direct_l2_reference(reference, direct_references)
 
 
 def validate_group_classification(
     group: TopLevelGroup,
     classification: Mapping[str, Any],
 ) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
-    """Attach model output back to the clause text it classified.
-
-    The OpenAI JSON schema handles shape and tag validation. This function only
-    checks references that are specific to the current group and normalizes duplicate values.
-    """
+    """Check model references and attach the results back to source clause text."""
+    # Read the model's top-level decision for this clause group.
     top = classification.get("top_level_clause")
     if top.get("reference") != group.reference:
         raise PaymentClauseClassifierError(
             f"Expected top-level reference {group.reference}, got {top.get('reference')}."
         )
 
+    # Normalize the model booleans into plain Python values.
     payment_relevant = bool(top.get("payment_relevant"))
     definition_relevant = bool(top.get("definition_relevant"))
     requires_l2_classification = payment_relevant or definition_relevant
 
+    # Store the top-level result in the output shape used by this script.
     top_result = {
         "title": str(top.get("title") or group.title),
         "payment_relevant": payment_relevant,
@@ -386,19 +464,33 @@ def validate_group_classification(
         "reason": str(top.get("reason") or ""),
     }
 
+    # Index direct descendants by reference so returned clause tags can be matched back to source text.
     descendants_by_reference = {item.reference: item for item in group.descendants}
+    # Read the list of clause-level classifications returned by the model.
     classified_raw = classification["classified_clauses"]
+
     if not payment_relevant and not definition_relevant and classified_raw:
         raise PaymentClauseClassifierError(
             f"Clause {group.reference} is not payment or definition relevant but returned classified clauses."
         )
 
     classified: OrderedDict[str, dict[str, Any]] = OrderedDict()
-    for item in classified_raw:
-        returned_reference = item["reference"]
-        reference = direct_l2_reference_for(returned_reference, set(descendants_by_reference))
 
-        if reference is None and returned_reference == group.reference and has_substantive_l1_content(group):
+    for item in classified_raw:
+        # Take the clause reference exactly as the model returned it.
+        returned_reference = item["reference"]
+        # Map that reference back to the owning direct L2 clause used by downstream outputs.
+        reference = map_to_direct_l2_reference(
+            returned_reference,
+            set(descendants_by_reference),
+        )
+
+        if (
+            reference is None
+            and returned_reference == group.reference
+            and has_substantive_l1_content(group)
+        ):
+            # Allow the model to classify the L1 clause itself when the real content lives on L1.
             reference = group.reference
 
         if reference is None:
@@ -406,30 +498,34 @@ def validate_group_classification(
                 f"Unknown classified clause reference: {returned_reference}"
             )
 
-        source_text = (
-            group.text
-            if reference == group.reference
-            else descendants_by_reference[reference].text
-        )
+        if reference == group.reference:
+            # Use the top-level flattened text when the classification belongs to the L1 clause itself.
+            source_text = group.text
+        else:
+            # Otherwise attach the classification to the direct L2 clause text that was grouped for tagging.
+            source_text = descendants_by_reference[reference].text
+
+        # Keep the model's reason text so the output stays explainable to a reviewer.
+        reason = str(item.get("reason") or "")
+        if returned_reference != reference:
+            # Record when a nested reference was folded back into its owning direct L2 clause.
+            reason = (
+                f"{reason} Returned nested reference {returned_reference}; "
+                f"classified under {reference}."
+            ).strip()
 
         if reference in classified:
+            # Merge tags if the model mentioned the same direct clause more than once.
             classified[reference]["tags"] = unique_items(
                 [*classified[reference]["tags"], *item["tags"]]
             )
-            reason = str(item.get("reason") or "")
-            if returned_reference != reference:
-                reason = (
-                    f"{reason} Returned nested reference {returned_reference}; "
-                    f"classified under {reference}."
-                ).strip()
             if reason and reason not in classified[reference]["reason"]:
-                classified[reference]["reason"] = f"{classified[reference]['reason']} {reason}".strip()
+                # Keep both reasons when they add new explanation.
+                existing_reason = classified[reference]["reason"]
+                classified[reference]["reason"] = f"{existing_reason} {reason}".strip()
             continue
 
-        reason = str(item.get("reason") or "")
-        if returned_reference != reference:
-            reason = f"{reason} Returned nested reference {returned_reference}; classified under {reference}.".strip()
-
+        # Store the first result for this reference together with the exact source text it applies to.
         classified[reference] = {
             "text": source_text,
             "tags": unique_items(item["tags"]),
@@ -444,6 +540,8 @@ def classify_group(
     client: Any,
     model: str,
 ) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
+    """Send one top-level group to the model and validate the result."""
+    # Ask the model to classify this top-level clause and return strict JSON.
     response = client.responses.create(
         model=model,
         input=build_messages(group),
@@ -463,7 +561,11 @@ def classify_group(
             f"OpenAI response for clause {group.reference} did not include output text."
         )
 
+    # Parse the JSON text and verify that the references make sense for this clause group.
     return validate_group_classification(group, parse_response_json(output_text))
+
+
+# 6. Output writing
 
 
 def classify_award(
@@ -472,28 +574,36 @@ def classify_award(
     model: str | None = None,
     client: Any | None = None,
 ) -> OrderedDict[str, Any]:
+    """Classify one award file and write the JSON result to disk."""
+    # Pick the explicit model first, then the environment override, then the hard-coded default.
     selected_model = model or os.getenv("PAYMENT_CLAUSE_CLASSIFIER_MODEL", DEFAULT_MODEL)
+
     if client is None:
+        # Load credentials only when this function is creating its own API client.
         load_environment()
         client = OpenAI()
 
     source_path = Path(award_path)
+    # Read the processed award JSON that will be classified.
     award = load_award(source_path)
-    # Each group is one top-level clause plus its direct L2 clauses. The model classifies
-    # the top-level clause first, then returns any payment- or definition-relevant L2 clauses.
-    groups = iter_top_level_groups(award)
-
+    # Break the award into top-level groups so each model call handles one clause family.
+    groups = build_top_level_groups(award)
 
     top_level_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
     classified_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
 
     for group in groups:
         if not group.descendants and not has_substantive_l1_content(group):
+            # Skip model use when the clause is only a heading with no real text to classify.
             top_result = title_only_top_level_result(group)
             descendant_results = OrderedDict()
         else:
+            # Otherwise classify the group with the model and validate the returned references.
             top_result, descendant_results = classify_group(group, client, selected_model)
+
+        # Save the top-level decision under the clause reference.
         top_level_clauses[group.reference] = top_result
+        # Add any clause-level tags returned for this top-level group.
         classified_clauses.update(descendant_results)
 
     result: OrderedDict[str, Any] = OrderedDict()
@@ -503,13 +613,21 @@ def classify_award(
     result["top_level_clauses"] = top_level_clauses
     result["classified_clauses"] = classified_clauses
 
+    # Use the caller's output path if provided, otherwise build the standard project path.
     destination = Path(output_path) if output_path else output_path_for_award(source_path)
+    # Serialize the result in a reviewer-friendly JSON format.
     output_json = json.dumps(result, indent=2, ensure_ascii=False)
+    # Write the latest output and archive a timestamped copy.
     write_text_with_archive(destination, output_json)
+
     return result
 
 
+# 7. Main orchestration
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+    """Parse command-line arguments for the payment classifier script."""
     parser = argparse.ArgumentParser(
         description="Classify payment-relevant clauses in a processed award JSON file."
     )
@@ -536,13 +654,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 
 def main() -> None:
+    """Run the classifier from the command line and print a short summary."""
+    # Read the CLI inputs that control which award and model to use.
     args = parse_args()
+    # Run the end-to-end classification workflow.
     result = classify_award(
         award_path=args.award_path,
         output_path=args.output_path,
         model=args.model,
     )
-    destination = Path(args.output_path) if args.output_path else output_path_for_award(args.award_path)
+    # Recompute the destination path so the CLI summary prints the saved location.
+    destination = (
+        Path(args.output_path)
+        if args.output_path
+        else output_path_for_award(args.award_path)
+    )
     print(f"Payment classification saved to {destination}")
     print(
         f"Classified {len(result['top_level_clauses'])} top-level clauses and "

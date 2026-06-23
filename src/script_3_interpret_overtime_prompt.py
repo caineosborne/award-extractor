@@ -26,7 +26,7 @@ Categories:
 
 Important:
 - Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
-- Overtime Trigger clauses matter because this step is identifying what causes overtime, not how overtime is paid.
+- Overtime Trigger clauses matter because this step is identifying what causes overtime, not how overtime is paid. This includes generally includes any clause mentioning overitme, that does not specificy the consequences. 
 - A clause can be both Overtime Trigger and Overtime Consequence.
 - If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
@@ -118,14 +118,12 @@ Your task is to turn them into a payroll implementation working paper. This will
 
 As such it should be written clearly, in definitive language to display specific points that answer the question 'What circumstances incraese total overtime hours'
 
-Answer this question:
 
-What circumstances increase Total Overtime Hours?
 
 For each overtime rule:
 
 - Write a standalone bullet point. Where there are subpoints, additional bullet points should be used, a new bullet point should be used for each way overtime may be increased. 
-- State the employee type affected only when the rule applies to a specific employee segment.
+- State the employee type affected only when the rule applies to a specific employee segment. Where the clause does not specify an employee type, assuming it is relevant to all employees. 
 - Clearly describe the work, event, threshold, limit, roster condition, or break condition that causes hours to become overtime.
 - Include all conditions, thresholds, limits and requirements needed to implement the rule. Do not simply refer to other clauses, make sure we say what what the clauses say. 
 - Include all relevant clause references.
@@ -144,7 +142,7 @@ Do not include:
 
 Group the output by rule scope:
 
-- Use a "All employees" section for rules that apply across employee types.
+- Use a "All employees" section for rules that apply across employee types. Where employee cohorts are not specified, assume these rules apply to all employees. 
 - Add a specific employee segment section only when that segment has a distinct overtime circumstance, threshold, condition, or clause source.
 - Add a dedicated work-arrangement section when several overtime rules arise from the same named arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement.
 - In a work-arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
@@ -162,9 +160,8 @@ Avoid duplicate rules:
 - Keep separate bullets only where the payroll data or calculation test would be different.
 
 For example, split these into separate bullets:
-- More than 38 ordinary hours per week.
+- More than 40 ordinary hours per week.
 - More than 8 ordinary hours in a day.
-- More than 10 hours in a day where a 10-hour agreement applies.
 - Work outside Monday to Friday.
 - Work outside the ordinary span of 6.00 am to 6.30 pm.
 
