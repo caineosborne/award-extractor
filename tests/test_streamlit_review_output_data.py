@@ -1,10 +1,16 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import sentinel
 
 from streamlit_review.app import (
+    available_award_code_index,
+    combine_pipeline_logs,
     manual_4b_editor_widget_key,
     overtime_clause_text_widget_key,
+    pipeline_run_label,
+    run_pipeline_for_award,
+    validate_award_code_input,
 )
 from streamlit_review.output_data import (
     ArtifactPaths,
@@ -278,3 +284,91 @@ def test_delete_processed_files_matching_prefix_deletes_only_non_archive_matches
     assert second_latest_file.exists() is False
     assert archive_file.exists() is True
     assert other_file.exists() is True
+
+
+def test_pipeline_run_label_formats_full_and_step_runs():
+    assert pipeline_run_label(None) == "Full pipeline run"
+    assert pipeline_run_label("3b") == "Review overtime"
+
+
+def test_available_award_code_index_prefers_current_selection_when_present():
+    award_codes = ["MA000002", "MA000018", "MA000120"]
+
+    assert available_award_code_index(award_codes, "ma000018") == 1
+    assert available_award_code_index(award_codes, "MA999999") == 0
+
+
+def test_validate_award_code_input_requires_standard_code_format():
+    assert validate_award_code_input(" ma000018 ") == ("MA000018", None)
+    assert validate_award_code_input("") == (None, "Enter an award code to review or run.")
+    assert validate_award_code_input("MA00003") == (None, "Award code must look like `MA000002`.")
+
+
+def test_combine_pipeline_logs_keeps_stdout_and_stderr_sections():
+    combined = combine_pipeline_logs("stdout line\n", "stderr line\n")
+
+    assert combined == "stdout line\n\nstderr line"
+
+
+def test_run_pipeline_for_award_calls_selected_step(monkeypatch):
+    calls: list[tuple[str, object]] = []
+
+    def fake_default_award_url_for_code(award_code: str) -> str:
+        calls.append(("url", award_code))
+        return "https://example.com/MA000002.html"
+
+    def fake_build_paths(award_code: str, suffix, url: str):
+        calls.append(("build_paths", award_code, suffix, url))
+        return sentinel.paths
+
+    def fake_run_selected_step(paths, step: str) -> None:
+        calls.append(("run_selected_step", paths, step))
+        print("step output")
+
+    monkeypatch.setattr(
+        "streamlit_review.app.default_award_url_for_code",
+        fake_default_award_url_for_code,
+    )
+    monkeypatch.setattr("streamlit_review.app.build_paths", fake_build_paths)
+    monkeypatch.setattr("streamlit_review.app.run_selected_step", fake_run_selected_step)
+
+    result = run_pipeline_for_award("MA000002", "3")
+
+    assert result["success"] is True
+    assert "step output" in result["log"]
+    assert calls == [
+        ("url", "MA000002"),
+        ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
+        ("run_selected_step", sentinel.paths, "3"),
+    ]
+
+
+def test_run_pipeline_for_award_calls_full_pipeline(monkeypatch):
+    calls: list[tuple[str, object]] = []
+
+    def fake_default_award_url_for_code(award_code: str) -> str:
+        return f"https://example.com/{award_code}.html"
+
+    def fake_build_paths(award_code: str, suffix, url: str):
+        calls.append(("build_paths", award_code, suffix, url))
+        return sentinel.paths
+
+    def fake_run_default_pipeline(paths) -> None:
+        calls.append(("run_default_pipeline", paths))
+        print("full output")
+
+    monkeypatch.setattr(
+        "streamlit_review.app.default_award_url_for_code",
+        fake_default_award_url_for_code,
+    )
+    monkeypatch.setattr("streamlit_review.app.build_paths", fake_build_paths)
+    monkeypatch.setattr("streamlit_review.app.run_default_pipeline", fake_run_default_pipeline)
+
+    result = run_pipeline_for_award("MA000002", None)
+
+    assert result["success"] is True
+    assert "full output" in result["log"]
+    assert calls == [
+        ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
+        ("run_default_pipeline", sentinel.paths),
+    ]

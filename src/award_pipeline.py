@@ -21,10 +21,14 @@ from src.script_1_fetch_award import build_section_index, extract_award, fetch, 
 from src.script_2_classify_payments import classify_award, output_path_for_award
 from src.script_3_interpret_overtime import generate_overtime_interpretation
 from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
+from src.script_5b_generate_overtime_pseudocode import (
+    generate_core_overtime_pseudocode,
+    output_path_for_summary,
+)
 
 
-STEP_CHOICES = ("1", "2", "3", "3b")
-DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b")
+STEP_CHOICES = ("1", "2", "3", "3b", "5b")
+DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b", "5b")
 
 
 class AwardPipelineError(RuntimeError):
@@ -47,6 +51,7 @@ class ActivePipelinePaths:
     evaluator_feedback_path: Path
     creator_response_path: Path
     revised_interpretation_path: Path
+    core_overtime_pseudocode_path: Path
 
 
 def argparse_award_code(value: str) -> str:
@@ -97,6 +102,7 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
         f"{interpretation_path.stem}_creator_response.md"
     )
     revised_interpretation_path = revised_output_path_for_interpretation(interpretation_path)
+    core_overtime_pseudocode_path = output_path_for_summary(revised_interpretation_path)
 
     return ActivePipelinePaths(
         award_code=award_code,
@@ -113,6 +119,7 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
         evaluator_feedback_path=evaluator_feedback_path,
         creator_response_path=creator_response_path,
         revised_interpretation_path=revised_interpretation_path,
+        core_overtime_pseudocode_path=core_overtime_pseudocode_path,
     )
 
 
@@ -216,11 +223,21 @@ def run_step_3b(paths: ActivePipelinePaths) -> None:
     )
 
 
+def run_step_5b(paths: ActivePipelinePaths) -> None:
+    """Run step 5B core overtime pseudocode generation."""
+    require_existing(paths.revised_interpretation_path, "5b", "3b")
+    generate_core_overtime_pseudocode(
+        summary_path=paths.revised_interpretation_path,
+        output_path=paths.core_overtime_pseudocode_path,
+    )
+
+
 STEP_RUNNERS = {
     "1": run_step_1,
     "2": run_step_2,
     "3": run_step_3,
     "3b": run_step_3b,
+    "5b": run_step_5b,
 }
 
 
@@ -243,7 +260,7 @@ def run_selected_step(paths: ActivePipelinePaths, step: str) -> None:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the active pipeline wrapper."""
     parser = argparse.ArgumentParser(
-        description="Run the active award extraction pipeline through step 3B."
+        description="Run the active award extraction pipeline through step 5B."
     )
     parser.add_argument(
         "award_code",

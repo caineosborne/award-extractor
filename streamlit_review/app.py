@@ -1,6 +1,11 @@
 import json
 import sys
+import time
+import traceback
 from collections.abc import Callable
+from contextlib import redirect_stderr, redirect_stdout
+from html import escape
+from io import StringIO
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +15,13 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
+from src.award_pipeline import (
+    AwardPipelineError,
+    build_paths,
+    run_default_pipeline,
+    run_selected_step,
+)
+from src.common.active_pipeline_paths import default_award_url_for_code, normalize_award_code
 from streamlit_review.output_data import (
     artifact_paths_for_award,
     clamp_index,
@@ -69,6 +81,14 @@ COMPARISON_PRESETS = {
     ),
 }
 
+PIPELINE_STEP_LABELS = {
+    "1": "Retrieve award",
+    "2": "Classify clauses",
+    "3": "Generate overtime",
+    "3b": "Review overtime",
+    "5b": "Generate pseudocode",
+}
+
 
 def main() -> None:
     st.set_page_config(
@@ -80,16 +100,19 @@ def main() -> None:
     st.title("Award Output Review")
 
     award_codes = discover_award_codes()
-    if not award_codes:
-        st.error("No payment classification outputs were found under data/processed.")
-        return
 
     apply_review_styles()
 
     selected_award_code = render_sidebar(award_codes)
-    artifact_paths = artifact_paths_for_award(selected_award_code)
+    validated_award_code, validation_error = validate_award_code_input(selected_award_code)
 
-    st.caption(f"Reviewing generated outputs for `{selected_award_code}`.")
+    if validation_error is not None:
+        st.error(validation_error)
+        return
+
+    artifact_paths = artifact_paths_for_award(validated_award_code)
+
+    st.caption(f"Reviewing generated outputs for `{validated_award_code}`.")
 
     screen_one = st.session_state["screen_one"]
     screen_two = st.session_state["screen_two"]
@@ -107,11 +130,40 @@ def render_sidebar(award_codes: list[str]) -> str:
     with st.sidebar:
         st.header("Review controls")
 
-        selected_award_code = st.selectbox(
+        default_award_code = st.session_state.get(
+            "award_code",
+            award_codes[0] if award_codes else "",
+        )
+        if "award_code" not in st.session_state:
+            st.session_state["award_code"] = default_award_code
+
+        st.text_input(
             "Award code",
-            award_codes,
-            index=0,
             key="award_code",
+            placeholder="MA000002",
+        )
+
+        if award_codes:
+            available_award_code = st.selectbox(
+                "Load existing output set",
+                award_codes,
+                index=available_award_code_index(award_codes, st.session_state["award_code"]),
+                key="available_award_code",
+                on_change=copy_available_award_code_to_input,
+            )
+            st.caption(f"Selected saved output set: `{available_award_code}`")
+        else:
+            st.caption("No existing processed outputs were found. Enter an award code to run the pipeline.")
+
+        selected_award_code = st.session_state["award_code"].strip().upper()
+        _, validation_error = validate_award_code_input(selected_award_code)
+        if validation_error is not None:
+            st.warning(validation_error)
+
+        st.divider()
+        render_pipeline_run_controls(
+            selected_award_code=selected_award_code,
+            controls_disabled=validation_error is not None,
         )
 
         st.divider()
@@ -171,6 +223,32 @@ def render_sidebar(award_codes: list[str]) -> str:
         render_processed_file_cleanup_controls()
 
     return selected_award_code
+
+
+def available_award_code_index(award_codes: list[str], selected_award_code: str) -> int:
+    normalized_award_code = selected_award_code.strip().upper()
+
+    if normalized_award_code in award_codes:
+        return award_codes.index(normalized_award_code)
+
+    return 0
+
+
+def copy_available_award_code_to_input() -> None:
+    st.session_state["award_code"] = st.session_state["available_award_code"]
+
+
+def validate_award_code_input(value: str) -> tuple[str | None, str | None]:
+    selected_award_code = value.strip().upper()
+    if not selected_award_code:
+        return None, "Enter an award code to review or run."
+
+    try:
+        normalized_award_code = normalize_award_code(selected_award_code)
+    except ValueError:
+        return None, "Award code must look like `MA000002`."
+
+    return normalized_award_code, None
 
 
 def render_screens(
@@ -516,23 +594,41 @@ def render_file_details(
     source_label: str = "Source file used",
 ) -> None:
     metadata_lines = [
-        f"**{file_label}:** `{format_path_for_display(path)}`",
-        f"**Last modified:** `{format_last_modified_for_display(path)}`",
+        (
+            escape(file_label),
+            escape(format_path_for_display(path)),
+        ),
+        (
+            "Last modified",
+            escape(format_last_modified_for_display(path)),
+        ),
     ]
 
     if source_path is not None and source_path != path:
         metadata_lines.append(
-            f"**{source_label}:** `{format_path_for_display(source_path)}`"
+            (
+                escape(source_label),
+                escape(format_path_for_display(source_path)),
+            )
         )
         metadata_lines.append(
-            "**Source last modified:** "
-            f"`{format_last_modified_for_display(source_path)}`"
+            (
+                "Source last modified",
+                escape(format_last_modified_for_display(source_path)),
+            )
         )
 
+    metadata_html = "".join(
+        (
+            f'<div class="review-file-detail-row">'
+            f"<strong>{label}:</strong> <code>{value}</code>"
+            f"</div>"
+        )
+        for label, value in metadata_lines
+    )
+
     st.markdown(
-        '<div class="review-file-details">'
-        + "<br>".join(metadata_lines)
-        + "</div>",
+        f'<div class="review-file-details">{metadata_html}</div>',
         unsafe_allow_html=True,
     )
 
@@ -544,8 +640,10 @@ def render_panel_heading(heading: str, panel_key: str, artifact_paths: Any) -> N
         st.markdown(f"### {heading}")
 
     with button_column:
+        st.markdown('<div class="review-refresh-button">', unsafe_allow_html=True)
         if st.button("Refresh", key=f"{panel_key}_refresh", use_container_width=True):
             refresh_panel(panel_key, heading, artifact_paths)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def refresh_panel(panel_key: str, screen_name: str, artifact_paths: Any) -> None:
@@ -607,6 +705,169 @@ def render_processed_file_cleanup_controls() -> None:
 
         st.success(f"Deleted {len(deleted_paths)} processed files.")
         st.rerun()
+
+
+def render_pipeline_run_controls(
+    selected_award_code: str,
+    controls_disabled: bool,
+) -> None:
+    st.header("Pipeline runs")
+    st.caption(
+        "Runs the existing pipeline for the selected award code using the same workflow as `src/award_pipeline.py`."
+    )
+
+    full_run_key = f"run_full_{selected_award_code}"
+    if st.button(
+        "Run full pipeline",
+        key=full_run_key,
+        use_container_width=True,
+        disabled=controls_disabled,
+    ):
+        execute_pipeline_run(selected_award_code, step=None)
+
+    step_one_column, step_two_column = st.columns(2, gap="small")
+    step_three_column, step_three_b_column = st.columns(2, gap="small")
+    step_five_b_column, _ = st.columns(2, gap="small")
+
+    with step_one_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["1"],
+            key=f"run_step_1_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="1")
+
+    with step_two_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["2"],
+            key=f"run_step_2_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="2")
+
+    with step_three_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["3"],
+            key=f"run_step_3_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="3")
+
+    with step_three_b_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["3b"],
+            key=f"run_step_3b_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="3b")
+
+    with step_five_b_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["5b"],
+            key=f"run_step_5b_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="5b")
+
+    status_message = st.session_state.get("pipeline_run_status_message")
+    status_kind = st.session_state.get("pipeline_run_status_kind")
+    status_award_code = st.session_state.get("pipeline_run_award_code")
+    status_log = st.session_state.get("pipeline_run_log")
+
+    if status_award_code != selected_award_code:
+        return
+
+    if status_kind == "success" and status_message:
+        st.success(status_message)
+    elif status_kind == "error" and status_message:
+        st.error(status_message)
+
+    if status_log:
+        with st.expander("Pipeline run log", expanded=False):
+            st.code(status_log, language="text")
+
+
+def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
+    run_label = pipeline_run_label(step)
+
+    with st.spinner(f"{run_label} for {selected_award_code}..."):
+        run_result = run_pipeline_for_award(selected_award_code, step)
+
+    st.session_state["pipeline_run_award_code"] = selected_award_code
+    st.session_state["pipeline_run_log"] = run_result["log"]
+
+    if run_result["success"]:
+        st.session_state["pipeline_run_status_kind"] = "success"
+        st.session_state["pipeline_run_status_message"] = (
+            f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s."
+        )
+    else:
+        st.session_state["pipeline_run_status_kind"] = "error"
+        st.session_state["pipeline_run_status_message"] = (
+            f"{run_label} failed for {selected_award_code}."
+        )
+
+    st.rerun()
+
+
+def pipeline_run_label(step: str | None) -> str:
+    if step is None:
+        return "Full pipeline run"
+
+    return PIPELINE_STEP_LABELS[step]
+
+
+def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
+    url = default_award_url_for_code(award_code)
+    paths = build_paths(award_code, suffix=None, url=url)
+    output_buffer = StringIO()
+    error_buffer = StringIO()
+    started_at = time.perf_counter()
+
+    try:
+        with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
+            if step is None:
+                run_default_pipeline(paths)
+            else:
+                run_selected_step(paths, step)
+    except Exception as exc:
+        traceback.print_exc(file=error_buffer)
+        combined_log = combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue())
+        if isinstance(exc, AwardPipelineError):
+            return {
+                "success": False,
+                "duration_seconds": time.perf_counter() - started_at,
+                "log": combined_log,
+            }
+
+        return {
+            "success": False,
+            "duration_seconds": time.perf_counter() - started_at,
+            "log": combined_log,
+        }
+
+    return {
+        "success": True,
+        "duration_seconds": time.perf_counter() - started_at,
+        "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
+    }
+
+
+def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
+    sections: list[str] = []
+
+    if stdout_text.strip():
+        sections.append(stdout_text.strip())
+
+    if stderr_text.strip():
+        sections.append(stderr_text.strip())
+
+    return "\n\n".join(sections)
 
 
 def render_json_expander(label: str, value: dict[str, Any]) -> None:
@@ -705,6 +966,14 @@ def apply_review_styles() -> None:
             line-height: 1.5;
             margin-top: 0.15rem;
             margin-bottom: 0.45rem;
+        }
+        .review-file-detail-row {
+            margin-bottom: 0.15rem;
+        }
+        .review-refresh-button div[data-testid="stButton"] button {
+            min-height: 1.75rem;
+            padding: 0.15rem 0.35rem;
+            font-size: 0.76rem;
         }
         </style>
         """,

@@ -137,6 +137,28 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
 
         self.assertEqual(selected_path, revised_path)
 
+    def test_select_overtime_interpretation_path_accepts_award_code(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            interpretation_dir = (
+                project_root / "data" / "processed" / "3_overtime_interpretations"
+            )
+            interpretation_dir.mkdir(parents=True)
+            revised_path = (
+                interpretation_dir / "MA000003_overtime_interpretation_revised.md"
+            )
+            revised_path.write_text("# Revised", encoding="utf-8")
+
+            from unittest.mock import patch
+
+            with patch(
+                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                project_root,
+            ):
+                selected_path = select_overtime_interpretation_path("MA000003")
+
+        self.assertEqual(selected_path, revised_path)
+
     def test_load_overtime_interpretation_prefers_existing_4b(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir)

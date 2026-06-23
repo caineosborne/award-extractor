@@ -7,6 +7,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from src.common.active_pipeline_paths import looks_like_path
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import (
     OVERTIME_INTERPRETATIONS_DIR,
@@ -120,7 +121,11 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
 def select_overtime_interpretation_path(
     source_path: Path | str = DEFAULT_OVERTIME_SUMMARY_PATH,
 ) -> Path:
-    path = Path(source_path)
+    selected_source = str(source_path)
+    if looks_like_path(selected_source):
+        path = Path(selected_source)
+    else:
+        path = default_overtime_interpretation_path(selected_source)
 
     if path.exists():
         return path
@@ -219,7 +224,7 @@ def overtime_rule_bullets(markdown: str) -> str:
 
 
 def output_path_for_summary(summary_path: Path | str) -> Path:
-    path = select_overtime_interpretation_path(summary_path)
+    path = Path(summary_path)
     stem = path.stem
     if stem.endswith("_overtime_interpretation_4b"):
         stem = stem.removesuffix("_overtime_interpretation_4b")
@@ -293,8 +298,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs="?",
         default=str(default_overtime_interpretation_path("MA000018")),
         help=(
-            "Path to an overtime interpretation markdown file. "
-            "Use the 4B file when present, otherwise the revised overtime interpretation."
+            "Award code or path to an overtime interpretation markdown file. "
+            "When an award code is provided, use the 4B file when present, otherwise the revised overtime interpretation."
         ),
     )
     parser.add_argument(

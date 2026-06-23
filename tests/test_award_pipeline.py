@@ -12,7 +12,7 @@ from src.award_pipeline import (
 from src.common.active_pipeline_paths import PROJECT_ROOT
 
 
-def test_parse_args_defaults_to_active_pipeline_through_3b():
+def test_parse_args_defaults_to_active_pipeline_through_5b():
     args = parse_args(["MA000018"])
 
     assert args.award_code == "MA000018"
@@ -20,7 +20,7 @@ def test_parse_args_defaults_to_active_pipeline_through_3b():
     assert args.suffix is None
 
 
-def test_build_paths_covers_step_3b_artifacts():
+def test_build_paths_covers_step_5b_artifacts():
     paths = build_paths(
         award_code="MA000018",
         suffix="draft",
@@ -37,6 +37,9 @@ def test_build_paths_covers_step_3b_artifacts():
     )
     assert paths.creator_response_path.name == (
         "MA000018_draft_overtime_interpretation_creator_response.md"
+    )
+    assert paths.core_overtime_pseudocode_path.name == (
+        "MA000018_draft_core_overtime_pseudocode.md"
     )
 
 
@@ -55,7 +58,7 @@ def test_run_selected_step_rejects_unknown_step():
         raise AssertionError("Expected AwardPipelineError for unsupported step")
 
 
-def test_main_runs_default_pipeline_through_step_3b():
+def test_main_runs_default_pipeline_through_step_5b():
     with patch("src.award_pipeline.run_default_pipeline") as run_default_pipeline:
         main(["MA000018"])
 
