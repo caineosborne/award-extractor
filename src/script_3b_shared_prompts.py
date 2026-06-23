@@ -14,6 +14,7 @@ from src.script_3_interpret_overtime import (
     filter_overtime_creation_clauses,
     validate_overtime_clause_classifications,
 )
+from src.common.overtime_rules import OvertimeRule, rule_to_dict
 
 
 CLAUSE_REFERENCE_PATTERN = re.compile(r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b", re.IGNORECASE)
@@ -170,8 +171,18 @@ def build_full_evaluator_review_prompt(
         indent=2,
         ensure_ascii=False,
     )
+    serializable_original_rules_artifact: dict[str, Any] = {}
+    if original_rules_artifact:
+        serializable_original_rules_artifact = dict(original_rules_artifact)
+        raw_rules = serializable_original_rules_artifact.get("rules", [])
+        if isinstance(raw_rules, list):
+            serializable_original_rules_artifact["rules"] = [
+                rule_to_dict(rule) if isinstance(rule, OvertimeRule) else rule
+                for rule in raw_rules
+            ]
+
     original_rules_json = json.dumps(
-        original_rules_artifact or {},
+        serializable_original_rules_artifact,
         indent=2,
         ensure_ascii=False,
     )

@@ -33,6 +33,7 @@ class OvertimeRule:
     rule_plain_text: str
     source_clause_numbers: tuple[str, ...]
     source_classifications: tuple[str, ...]
+    review_status: str = "confirmed"
 
 
 def json_output_path_for_markdown(markdown_path: Path | str) -> Path:
@@ -99,6 +100,7 @@ def validate_rule_object(raw_rule: Mapping[str, Any], *, index: int) -> Overtime
         raw_rule.get("source_classifications", []),
         f"source_classifications for {rule_id}",
     )
+    review_status = str(raw_rule.get("review_status") or "confirmed").strip()
 
     return OvertimeRule(
         rule_id=rule_id,
@@ -109,6 +111,7 @@ def validate_rule_object(raw_rule: Mapping[str, Any], *, index: int) -> Overtime
         rule_plain_text=rule_plain_text,
         source_clause_numbers=source_clause_numbers,
         source_classifications=source_classifications,
+        review_status=review_status,
     )
 
 
@@ -122,7 +125,25 @@ def rule_to_dict(rule: OvertimeRule) -> dict[str, Any]:
         "rule_plain_text": rule.rule_plain_text,
         "source_clause_numbers": list(rule.source_clause_numbers),
         "source_classifications": list(rule.source_classifications),
+        "review_status": rule.review_status,
     }
+
+
+def make_json_serializable(value: Any) -> Any:
+    """Convert overtime rule dataclasses and nested structures into JSON-safe values."""
+    if isinstance(value, OvertimeRule):
+        return rule_to_dict(value)
+
+    if isinstance(value, Mapping):
+        return {
+            str(key): make_json_serializable(nested_value)
+            for key, nested_value in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [make_json_serializable(item) for item in value]
+
+    return value
 
 
 def validate_rule_list(raw_rules: Sequence[Any]) -> list[OvertimeRule]:
@@ -409,14 +430,20 @@ def apply_review_decisions(
             final_decision = "removed"
         elif decision == "modify":
             updated_rule_data = raw_update.get("updated_rule")
-            if not isinstance(updated_rule_data, Mapping):
-                raise ValueError(f"Modified rule {rule_id} is missing updated_rule.")
-            updated_rule = validate_rule_object(updated_rule_data, index=1)
-            if updated_rule.rule_id != rule_id:
-                raise ValueError(
-                    f"Modified rule {rule_id} must preserve its original rule_id."
-                )
-            final_rules.append(updated_rule)
+            if isinstance(updated_rule_data, Mapping):
+                merged_rule_data = rule_to_dict(original_rule)
+                merged_rule_data.update(dict(updated_rule_data))
+                merged_rule_data["rule_id"] = rule_id
+                updated_rule = validate_rule_object(merged_rule_data, index=1)
+                if updated_rule.rule_id != rule_id:
+                    raise ValueError(
+                        f"Modified rule {rule_id} must preserve its original rule_id."
+                    )
+                final_rules.append(updated_rule)
+            else:
+                # Be tolerant of creator outputs that flag a modification but omit the
+                # replacement payload. Preserve the original rule rather than failing.
+                final_rules.append(original_rule)
             final_decision = "modified"
         else:
             final_rules.append(original_rule)
@@ -453,18 +480,46 @@ def apply_review_decisions(
 
     final_rules.extend(new_rules)
 
+    reviewed_rule_status_by_id = {
+        decision["rule_id"]: (
+            "added_in_review"
+            if decision["final_decision"] == "modified"
+            and decision["evaluator_recommendation"] == "remove"
+            else "confirmed"
+        )
+        for decision in review_decisions
+    }
+
+    if creator_decision_data.get("validation_error"):
+        reviewed_rule_status_by_id = {
+            **reviewed_rule_status_by_id,
+            **{
+                rule.rule_id: "preserved_pending_confirmation"
+                for rule in final_rules
+            },
+        }
+
+    normalized_final_rules: list[OvertimeRule] = []
+    for rule in final_rules:
+        rule_data = rule_to_dict(rule)
+        rule_data["review_status"] = reviewed_rule_status_by_id.get(
+            rule.rule_id,
+            rule.review_status,
+        )
+        normalized_final_rules.append(validate_rule_object(rule_data, index=1))
+
     decision_record_markdown = str(
         creator_decision_data.get("decision_record_markdown") or ""
     ).strip()
     if not decision_record_markdown:
         raise ValueError("Creator review response must include decision_record_markdown.")
 
-    rendered_markdown = render_rules_markdown(final_rules)
+    rendered_markdown = render_rules_markdown(normalized_final_rules)
 
     return {
         "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
         "rendered_markdown": rendered_markdown,
-        "rules": final_rules,
+        "rules": normalized_final_rules,
         "review_decisions": review_decisions,
         "decision_record_markdown": decision_record_markdown,
     }

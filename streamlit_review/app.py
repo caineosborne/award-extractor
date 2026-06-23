@@ -400,8 +400,13 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_ORIGINAL_OVERTIME, panel_key, artifact_paths)
+    json_path = getattr(
+        artifact_paths,
+        "original_overtime_rules_json",
+        artifact_paths.original_overtime_interpretation.with_suffix(".json"),
+    )
     render_overtime_rules_json(
-        artifact_paths.original_overtime_rules_json,
+        json_path,
         source_markdown_path=artifact_paths.original_overtime_interpretation,
     )
 
@@ -446,8 +451,13 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
 
 def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_REVISED_OVERTIME, panel_key, artifact_paths)
+    json_path = getattr(
+        artifact_paths,
+        "revised_overtime_rules_json",
+        artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
+    )
     render_overtime_rules_json(
-        artifact_paths.revised_overtime_rules_json,
+        json_path,
         source_markdown_path=artifact_paths.revised_overtime_interpretation,
     )
 

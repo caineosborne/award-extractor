@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from src.common.overtime_rules import OvertimeRule, apply_review_decisions
 from src.script_3_interpret_overtime import DEFAULT_MODEL as DEFAULT_CREATOR_MODEL
 from src.script_3b_review_overtime_interpretation import (
     EVALUATOR_MODEL,
@@ -43,12 +44,15 @@ class FakeEvaluatorClient:
 
 class FakeResponses:
     def __init__(self, output_text):
-        self.output_text = output_text
+        if isinstance(output_text, list):
+            self.output_texts = list(output_text)
+        else:
+            self.output_texts = [output_text]
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return SimpleNamespace(output_text=self.output_text)
+        return SimpleNamespace(output_text=self.output_texts.pop(0))
 
 
 class FakeCreatorClient:
@@ -225,6 +229,92 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
 
         self.assertEqual(creator_response, "Accepted one issue.")
         self.assertEqual(revised_interpretation, "# Revised")
+
+    def test_apply_review_decisions_allows_partial_modified_rule_payload(self):
+        original_rule = OvertimeRule(
+            rule_id="all-employees_001",
+            section_heading="All employees",
+            employee_scope=("full-time", "part-time", "casual"),
+            clause_references=("20.1",),
+            rule_markdown="- Original rule. [clause 20.1]",
+            rule_plain_text="Original rule.",
+            source_clause_numbers=("20.1",),
+            source_classifications=("Overtime Trigger",),
+        )
+
+        result = apply_review_decisions(
+            original_rules=[original_rule],
+            evaluator_feedback={
+                "rule_reviews": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "recommendation": "modify",
+                        "rationale": "Clarify wording.",
+                    }
+                ]
+            },
+            creator_decision_data={
+                "decision_record_markdown": "# Decision record",
+                "rule_updates": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "decision": "modify",
+                        "reason": "Clarified wording.",
+                        "updated_rule": {
+                            "rule_markdown": "- Updated rule. [clause 20.1]",
+                            "rule_plain_text": "Updated rule.",
+                        },
+                    }
+                ],
+                "new_rules": [],
+            },
+        )
+
+        updated_rule = result["rules"][0]
+        self.assertEqual(updated_rule.rule_id, "all-employees_001")
+        self.assertEqual(updated_rule.section_heading, "All employees")
+        self.assertEqual(updated_rule.rule_markdown, "- Updated rule. [clause 20.1]")
+
+    def test_apply_review_decisions_preserves_rule_when_modify_has_no_payload(self):
+        original_rule = OvertimeRule(
+            rule_id="all-employees_001",
+            section_heading="All employees",
+            employee_scope=("full-time", "part-time", "casual"),
+            clause_references=("20.1",),
+            rule_markdown="- Original rule. [clause 20.1]",
+            rule_plain_text="Original rule.",
+            source_clause_numbers=("20.1",),
+            source_classifications=("Overtime Trigger",),
+        )
+
+        result = apply_review_decisions(
+            original_rules=[original_rule],
+            evaluator_feedback={
+                "rule_reviews": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "recommendation": "modify",
+                        "rationale": "Clarify wording.",
+                    }
+                ]
+            },
+            creator_decision_data={
+                "decision_record_markdown": "# Decision record",
+                "rule_updates": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "decision": "modify",
+                        "reason": "Clarified wording.",
+                    }
+                ],
+                "new_rules": [],
+            },
+        )
+
+        preserved_rule = result["rules"][0]
+        self.assertEqual(preserved_rule.rule_id, "all-employees_001")
+        self.assertEqual(preserved_rule.rule_markdown, "- Original rule. [clause 20.1]")
+        self.assertEqual(preserved_rule.review_status, "confirmed")
 
     def test_review_overtime_interpretation_filters_context_and_writes_outputs(self):
         classification = {
@@ -409,6 +499,134 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 for message in status_messages
             )
         )
+
+    def test_review_overtime_interpretation_preserves_original_rules_after_creator_validation_failure(self):
+        classification = {
+            "classified_clauses": {
+                "20.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Overtime after ordinary hours.",
+                }
+            }
+        }
+        overtime_clause_classification = {
+            "schema_version": "overtime-clause-classification-v2",
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
+                    "explanation": "Directly creates overtime.",
+                    "clause_text": "Overtime after ordinary hours.",
+                }
+            ],
+        }
+        evaluator_client = FakeEvaluatorClient(
+            json.dumps(
+                {
+                    "summary_markdown": "# Feedback",
+                    "rule_reviews": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "recommendation": "keep",
+                            "rationale": "Keep the rule.",
+                        }
+                    ],
+                    "new_rules": [],
+                }
+            )
+        )
+        creator_client = FakeCreatorClient(
+            [
+                json.dumps(
+                    {
+                        "decision_record_markdown": "# Decision",
+                        "rule_updates": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "decision": "remove",
+                                "reason": "Remove it.",
+                            }
+                        ],
+                        "new_rules": [],
+                    }
+                ),
+                json.dumps(
+                    {
+                        "decision_record_markdown": "# Still invalid",
+                        "rule_updates": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "decision": "remove",
+                                "reason": "Remove it.",
+                            }
+                        ],
+                        "new_rules": [],
+                    }
+                ),
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            interpretation_path = temp_path / "award_overtime_interpretation.md"
+            interpretation_path.write_text(
+                "## All employees\n\n- Original rule. [20.1]",
+                encoding="utf-8",
+            )
+            interpretation_path.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "overtime-rules-v1",
+                        "source_classification_file": "award_payment_classification.json",
+                        "source_clause_classification_file": "award_overtime_clause_classification.json",
+                        "rendered_markdown": "## All employees\n\n- Original rule. [20.1]\n",
+                        "rules": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "section_heading": "All employees",
+                                "employee_scope": ["full-time", "part-time", "casual"],
+                                "clause_references": ["20.1"],
+                                "rule_markdown": "- Original rule. [20.1]",
+                                "rule_plain_text": "Original rule.",
+                                "source_clause_numbers": ["20.1"],
+                                "source_classifications": ["Overtime Trigger"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classification_path = temp_path / "award_payment_classification.json"
+            classification_path.write_text(json.dumps(classification), encoding="utf-8")
+            overtime_clause_classification_path = (
+                temp_path
+                / "3_overtime_interpretations"
+                / "award_overtime_clause_classification.json"
+            )
+            overtime_clause_classification_path.parent.mkdir()
+            overtime_clause_classification_path.write_text(
+                json.dumps(overtime_clause_classification),
+                encoding="utf-8",
+            )
+
+            artifacts = review_overtime_interpretation(
+                interpretation_path=interpretation_path,
+                classification_path=classification_path,
+                overtime_clause_classification_path=overtime_clause_classification_path,
+                evaluator_client=evaluator_client,
+                creator_client=creator_client,
+                inter_call_delay_seconds=0,
+            )
+
+            self.assertIn(
+                "validation failure",
+                artifacts.creator_response_markdown.lower(),
+            )
+            self.assertIn(
+                "Original rule. [20.1]",
+                artifacts.revised_interpretation_markdown,
+            )
 
 
 if __name__ == "__main__":

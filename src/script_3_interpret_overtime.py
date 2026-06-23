@@ -53,6 +53,14 @@ OVERTIME_CREATION_CLASSIFICATIONS = (
     "Overtime Trigger",
 )
 RULE_ID_ALLOWED_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+CLAUSE_REFERENCE_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
+    re.IGNORECASE,
+)
+CLAUSE_REFERENCE_FULL_PATTERN = re.compile(
+    r"^\d+(?:\.\d+)+(?:\([a-z0-9]+\))*$",
+    re.IGNORECASE,
+)
 
 
 class OvertimeInterpretationError(RuntimeError):
@@ -649,8 +657,31 @@ def validate_interpretation_rules(
         raise OvertimeInterpretationError("Interpretation response must contain rules array.")
 
     rules = validate_rule_list(raw_rules)
-    valid_clause_numbers = {classification.clause_number for classification in overtime_creation_clauses}
+    valid_clause_numbers: set[str] = set()
+    for classification in overtime_creation_clauses:
+        valid_clause_numbers.add(classification.clause_number)
+        for clause_reference_match in CLAUSE_REFERENCE_PATTERN.finditer(
+            classification.clause_text
+        ):
+            valid_clause_numbers.add(clause_reference_match.group(0))
+
     valid_classifications = set(OVERTIME_CREATION_CLASSIFICATIONS)
+
+    def candidate_parent_clause_keys(clause_reference: str) -> list[str]:
+        """Return progressively broader clause keys for matching shortlisted clauses."""
+        candidates = [clause_reference]
+        simplified = re.sub(r"(?:\([a-z0-9]+\))+$", "", clause_reference, flags=re.IGNORECASE)
+        if simplified not in candidates:
+            candidates.append(simplified)
+
+        dotted_parts = simplified.split(".")
+        while len(dotted_parts) > 1:
+            dotted_parts = dotted_parts[:-1]
+            candidate = ".".join(dotted_parts)
+            if candidate not in candidates:
+                candidates.append(candidate)
+
+        return candidates
 
     for rule in rules:
         if not RULE_ID_ALLOWED_PATTERN.fullmatch(rule.rule_id):
@@ -658,11 +689,29 @@ def validate_interpretation_rules(
                 f"Rule id contains unsupported characters: {rule.rule_id}"
             )
 
-        unknown_source_clauses = set(rule.source_clause_numbers) - valid_clause_numbers
-        if unknown_source_clauses:
-            unknown_display = ", ".join(sorted(unknown_source_clauses))
+        malformed_source_clauses = {
+            clause_reference
+            for clause_reference in rule.source_clause_numbers
+            if not CLAUSE_REFERENCE_FULL_PATTERN.fullmatch(clause_reference)
+        }
+        if malformed_source_clauses:
+            malformed_display = ", ".join(sorted(malformed_source_clauses))
             raise OvertimeInterpretationError(
-                f"Rule {rule.rule_id} referenced unknown source clauses: {unknown_display}"
+                f"Rule {rule.rule_id} referenced malformed source clauses: "
+                f"{malformed_display}"
+            )
+
+        known_source_clauses: set[str] = set()
+        for source_clause in rule.source_clause_numbers:
+            for candidate in candidate_parent_clause_keys(source_clause):
+                if candidate in valid_clause_numbers:
+                    known_source_clauses.add(candidate)
+                    break
+        if not known_source_clauses:
+            source_display = ", ".join(rule.source_clause_numbers)
+            raise OvertimeInterpretationError(
+                f"Rule {rule.rule_id} did not reference any known step-3 source clause. "
+                f"Returned source clauses: {source_display}"
             )
 
         unsupported_source_classifications = (

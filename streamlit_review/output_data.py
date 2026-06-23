@@ -130,13 +130,23 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
     if artifact_paths.manual_4b_overtime_interpretation.exists():
         return artifact_paths.manual_4b_overtime_interpretation
 
-    if artifact_paths.revised_overtime_rules_json.exists():
-        return artifact_paths.revised_overtime_rules_json
+    revised_rules_json = getattr(
+        artifact_paths,
+        "revised_overtime_rules_json",
+        artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
+    )
+    if revised_rules_json.exists():
+        return revised_rules_json
     if artifact_paths.revised_overtime_interpretation.exists():
         return artifact_paths.revised_overtime_interpretation
 
-    if artifact_paths.original_overtime_rules_json.exists():
-        return artifact_paths.original_overtime_rules_json
+    original_rules_json = getattr(
+        artifact_paths,
+        "original_overtime_rules_json",
+        artifact_paths.original_overtime_interpretation.with_suffix(".json"),
+    )
+    if original_rules_json.exists():
+        return original_rules_json
     return artifact_paths.original_overtime_interpretation
 
 

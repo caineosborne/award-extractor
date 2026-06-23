@@ -355,7 +355,7 @@ def find_priority_issues(
         issues.append(
             ValidationIssue(
                 issue_type="priority_without_rule",
-                severity="failed",
+                severity="unresolved",
                 message=(
                     "Rule priority item does not have a corresponding implementation rule: "
                     f"{priority_item}"

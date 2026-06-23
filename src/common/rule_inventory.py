@@ -7,6 +7,8 @@ from pathlib import Path
 
 CLAUSE_REFERENCE_PATTERN = re.compile(r"(?<!\d)\d+(?:\.\d+)*(?:\([A-Za-z0-9]+\))*")
 CLAUSE_BLOCK_PATTERN = re.compile(r"Clauses?\s+(?P<content>[^\n]+)", re.IGNORECASE)
+SOURCE_BLOCK_PATTERN = re.compile(r"Source:\s*(?P<content>[^\n]+)", re.IGNORECASE)
+BRACKET_BLOCK_PATTERN = re.compile(r"\[(?P<content>[^\]]+)\]")
 SLUG_PATTERN = re.compile(r"[^a-z0-9]+")
 
 
@@ -46,12 +48,13 @@ def slugify(value: str) -> str:
 def extract_clause_references(text: str) -> tuple[str, ...]:
     clause_references: list[str] = []
 
-    for clause_block_match in CLAUSE_BLOCK_PATTERN.finditer(text):
-        clause_block = clause_block_match.group("content")
-        for clause_reference_match in CLAUSE_REFERENCE_PATTERN.finditer(clause_block):
-            clause_reference = clause_reference_match.group(0)
-            if clause_reference not in clause_references:
-                clause_references.append(clause_reference)
+    for block_pattern in (CLAUSE_BLOCK_PATTERN, SOURCE_BLOCK_PATTERN, BRACKET_BLOCK_PATTERN):
+        for clause_block_match in block_pattern.finditer(text):
+            clause_block = clause_block_match.group("content")
+            for clause_reference_match in CLAUSE_REFERENCE_PATTERN.finditer(clause_block):
+                clause_reference = clause_reference_match.group(0)
+                if clause_reference not in clause_references:
+                    clause_references.append(clause_reference)
 
     return tuple(clause_references)
 

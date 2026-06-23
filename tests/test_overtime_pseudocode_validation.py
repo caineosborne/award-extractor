@@ -110,3 +110,48 @@ def test_validation_paths_use_pseudocode_stem():
         validation_markdown_path_for_pseudocode(pseudocode_path).name
         == "MA000018_core_overtime_pseudocode_validation.md"
     )
+
+
+def test_validate_overtime_pseudocode_matches_source_comments_without_clause_word():
+    source_markdown = """## All employees
+
+- The hours will be overtime if work is performed outside the ordinary span. [21.3]
+"""
+
+    pseudocode_markdown = """# Overtime pseudocode
+
+## Derived Fields
+
+None
+
+## Required additional inputs
+
+- None
+
+## Rule priority
+
+1. Work outside ordinary span
+
+## Pseudocode
+
+- If `Shift_Start` is before 6:00 am, or `Shift_End` is after 6:30 pm:
+  - Allocate the hours worked outside the ordinary span to `Overtime_Hours`
+  - # Source: 21.3
+"""
+
+    inventory = parse_rule_inventory_from_markdown(
+        source_markdown,
+        source_path=Path("source.md"),
+        inventory_name="reviewed_overtime_rules",
+        source_stage="3b",
+        domain="overtime",
+    )
+
+    report = validate_overtime_pseudocode_against_inventory(
+        inventory,
+        pseudocode_markdown,
+        target_path=Path("target.md"),
+    )
+
+    assert report.overall_status == "passed"
+    assert report.passed_rule_count == 1

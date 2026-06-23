@@ -35,10 +35,12 @@ from src.common.overtime_rules import (
     ALLOWED_REVIEW_RECOMMENDATIONS,
     OVERTIME_RULE_REVIEW_SCHEMA_VERSION,
     OVERTIME_RULE_SCHEMA_VERSION,
+    OvertimeRule,
     apply_review_decisions,
     decision_output_path_for_markdown,
     json_output_path_for_markdown,
     load_rules_artifact,
+    make_json_serializable,
     rules_from_markdown_fallback,
     render_rules_markdown,
     rule_to_dict,
@@ -69,6 +71,7 @@ CREATOR_RESPONSE_PATTERN = re.compile(
     re.DOTALL,
 )
 DEFAULT_INTER_CALL_DELAY_SECONDS = 30.0
+MAX_CREATOR_REPAIR_ATTEMPTS = 1
 
 
 class OvertimeInterpretationReviewError(RuntimeError):
@@ -350,7 +353,19 @@ def build_review_creator_messages(
                 prior_creator_decision_markdown=prior_creator_decision_markdown,
             )
             + "\n\nOriginal step-3 rules JSON:\n```json\n"
-            + json.dumps(original_rules_artifact or {}, indent=2, ensure_ascii=False)
+            + json.dumps(
+                {
+                    **(dict(original_rules_artifact) if original_rules_artifact else {}),
+                    "rules": [
+                        rule_to_dict(rule) if isinstance(rule, OvertimeRule) else rule
+                        for rule in (
+                            list((original_rules_artifact or {}).get("rules", []))
+                        )
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
             + "\n```\n"
             + "\n\nReturn JSON only with these top-level fields:\n"
             "- decision_record_markdown\n"
@@ -389,6 +404,50 @@ def build_creator_messages(
         overtime_clause_classification=overtime_clause_classification,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
         prior_creator_decision_markdown=prior_creator_decision_markdown,
+    )
+
+
+def build_creator_repair_messages(
+    original_messages: Sequence[Mapping[str, str]],
+    *,
+    validation_error: str,
+    prior_response_text: str,
+) -> list[dict[str, str]]:
+    """Ask the creator model to correct an invalid structured review response."""
+    repair_instruction = (
+        "Your previous structured JSON response failed validation.\n\n"
+        f"Validation error:\n- {validation_error}\n\n"
+        "Correct the JSON and return JSON only.\n"
+        "Do not omit any original rule.\n"
+        "Do not remove a rule unless both evaluator and creator explicitly support removal.\n"
+        "If you marked a rule as modify but do not need to change any fields, use decision keep.\n"
+        "If you mark a rule as modify, include an updated_rule object or change the decision to keep.\n\n"
+        "Previous response:\n"
+        f"```json\n{prior_response_text}\n```"
+    )
+
+    repaired_messages = [dict(message) for message in original_messages]
+    repaired_messages.append({"role": "user", "content": repair_instruction})
+    return repaired_messages
+
+
+def fallback_creator_response_markdown(
+    *,
+    validation_error: str,
+    creator_output_text: str,
+) -> str:
+    """Build a manual-review record when structured creator output cannot be applied."""
+    return (
+        "# Creator response validation failure\n\n"
+        "The structured step 3B creator response could not be applied automatically.\n\n"
+        "## Validation error\n\n"
+        f"- {validation_error}\n\n"
+        "## Raw creator response\n\n"
+        "```text\n"
+        f"{creator_output_text}\n"
+        "```\n\n"
+        "The original step-3 rules were preserved as the revised output so a human can "
+        "review the failure manually."
     )
 
 
@@ -713,52 +772,118 @@ def review_overtime_interpretation(
         model=selected_creator_model,
         payload=creator_messages,
     )
-    creator_response = creator_client.responses.create(
-        model=selected_creator_model,
-        input=creator_messages,
-    )
-    # Extract the tagged creator output from the OpenAI response.
-    creator_output_text = extract_response_text(creator_response)
-    if not creator_output_text:
-        raise OvertimeInterpretationReviewError(
-            "Creator response did not include output text."
+    current_creator_messages = creator_messages
+    creator_output_text = ""
+    creator_response_data: dict[str, Any] = {}
+    reviewed_rules_artifact: dict[str, Any] | None = None
+    creator_response_markdown = ""
+    revised_interpretation_markdown = ""
+    last_validation_error = ""
+
+    for attempt_number in range(MAX_CREATOR_REPAIR_ATTEMPTS + 1):
+        creator_response = creator_client.responses.create(
+            model=selected_creator_model,
+            input=current_creator_messages,
+        )
+        creator_output_text = extract_response_text(creator_response)
+        if not creator_output_text:
+            raise OvertimeInterpretationReviewError(
+                "Creator response did not include output text."
+            )
+
+        if CREATOR_RESPONSE_PATTERN.search(creator_output_text):
+            break
+
+        try:
+            creator_response_data = json.loads(creator_output_text)
+            reviewed_rules_artifact = apply_review_decisions(
+                original_rules=original_rules_artifact["rules"],
+                evaluator_feedback=evaluator_feedback_data,
+                creator_decision_data=creator_response_data,
+            )
+            creator_response_markdown = str(
+                reviewed_rules_artifact["decision_record_markdown"]
+            )
+            revised_interpretation_markdown = str(
+                reviewed_rules_artifact["rendered_markdown"]
+            )
+            break
+        except json.JSONDecodeError as exc:
+            last_validation_error = f"Creator response was not valid JSON: {exc}"
+        except ValueError as exc:
+            last_validation_error = str(exc)
+
+        if attempt_number >= MAX_CREATOR_REPAIR_ATTEMPTS:
+            break
+
+        if status_callback:
+            status_callback(
+                "Creator response failed validation; requesting one corrected response."
+            )
+        current_creator_messages = build_creator_repair_messages(
+            current_creator_messages,
+            validation_error=last_validation_error,
+            prior_response_text=creator_output_text,
         )
 
-    try:
-        creator_response_data = json.loads(creator_output_text)
-        reviewed_rules_artifact = apply_review_decisions(
-            original_rules=original_rules_artifact["rules"],
-            evaluator_feedback=evaluator_feedback_data,
-            creator_decision_data=creator_response_data,
-        )
-        creator_response_markdown = str(reviewed_rules_artifact["decision_record_markdown"])
-        revised_interpretation_markdown = str(reviewed_rules_artifact["rendered_markdown"])
-    except (json.JSONDecodeError, ValueError):
-        creator_response_markdown, revised_interpretation_markdown = split_creator_update_sections(
-            creator_output_text
-        )
-        reviewed_rules_artifact = {
-            "rules": rules_from_markdown_fallback(
-                revised_interpretation_markdown,
-                source_path=revised_output_path_for_interpretation(selected_interpretation_path),
-            ),
-            "review_decisions": [
-                {
-                    "rule_id": rule.rule_id,
-                    "evaluator_recommendation": "keep",
-                    "creator_decision": "keep",
-                    "final_decision": "kept",
-                    "reason": "Legacy creator response fallback.",
-                }
-                for rule in original_rules_artifact["rules"]
-            ],
-        }
-        creator_response_data = {
-            "decision_record_markdown": creator_response_markdown,
-            "rule_updates": [],
-            "new_rules": [],
-            "rendered_markdown": revised_interpretation_markdown,
-        }
+    if reviewed_rules_artifact is None:
+        try:
+            creator_response_markdown, revised_interpretation_markdown = (
+                split_creator_update_sections(creator_output_text)
+            )
+            reviewed_rules_artifact = {
+                "rules": rules_from_markdown_fallback(
+                    revised_interpretation_markdown,
+                    source_path=revised_output_path_for_interpretation(
+                        selected_interpretation_path
+                    ),
+                ),
+                "review_decisions": [
+                    {
+                        "rule_id": rule.rule_id,
+                        "evaluator_recommendation": "keep",
+                        "creator_decision": "keep",
+                        "final_decision": "kept",
+                        "reason": "Legacy creator response fallback.",
+                    }
+                    for rule in original_rules_artifact["rules"]
+                ],
+            }
+            creator_response_data = {
+                "decision_record_markdown": creator_response_markdown,
+                "rule_updates": [],
+                "new_rules": [],
+                "rendered_markdown": revised_interpretation_markdown,
+            }
+        except OvertimeInterpretationReviewError:
+            creator_response_markdown = fallback_creator_response_markdown(
+                validation_error=last_validation_error or "Unknown validation error.",
+                creator_output_text=creator_output_text,
+            )
+            revised_interpretation_markdown = str(
+                original_rules_artifact["rendered_markdown"]
+            )
+            reviewed_rules_artifact = {
+                "rules": list(original_rules_artifact["rules"]),
+                "review_decisions": [
+                    {
+                        "rule_id": rule.rule_id,
+                        "evaluator_recommendation": "keep",
+                        "creator_decision": "keep",
+                        "final_decision": "kept",
+                        "reason": "Preserved original rules after creator validation failure.",
+                    }
+                    for rule in original_rules_artifact["rules"]
+                ],
+            }
+            creator_response_data = {
+                "decision_record_markdown": creator_response_markdown,
+                "rule_updates": [],
+                "new_rules": [],
+                "rendered_markdown": revised_interpretation_markdown,
+                "validation_error": last_validation_error,
+                "raw_creator_response": creator_output_text,
+            }
 
     feedback_path = (
         Path(feedback_output_path)
@@ -780,18 +905,32 @@ def review_overtime_interpretation(
     revised_json_path = json_output_path_for_markdown(revised_path)
 
     if status_callback:
-        status_callback("Writing feedback, creator response, and revised interpretation")
+        if last_validation_error and reviewed_rules_artifact is not None:
+            status_callback(
+                "Writing feedback and revised interpretation. "
+                "Any creator validation failure has been recorded for manual review."
+            )
+        else:
+            status_callback("Writing feedback, creator response, and revised interpretation")
 
     # Save each output artifact separately so the review trail remains auditable.
     write_text_with_archive(feedback_path, evaluator_feedback_markdown)
     write_text_with_archive(
         feedback_json_path,
-        json.dumps(evaluator_feedback_data, indent=2, ensure_ascii=False),
+        json.dumps(
+            make_json_serializable(evaluator_feedback_data),
+            indent=2,
+            ensure_ascii=False,
+        ),
     )
     write_text_with_archive(creator_response_path, creator_response_markdown)
     write_text_with_archive(
         creator_response_json_path,
-        json.dumps(creator_response_data, indent=2, ensure_ascii=False),
+        json.dumps(
+            make_json_serializable(creator_response_data),
+            indent=2,
+            ensure_ascii=False,
+        ),
     )
     write_rules_artifact(
         json_path=revised_json_path,
