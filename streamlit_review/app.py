@@ -497,6 +497,7 @@ def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str) 
         artifact_paths.core_overtime_pseudocode,
         source_path=source_path_for_core_overtime_pseudocode(artifact_paths),
     )
+    render_validation_summary(artifact_paths)
 
 
 def manual_4b_editor_widget_key(panel_key: str, output_path: Path) -> str:
@@ -784,6 +785,8 @@ def render_pipeline_run_controls(
 
     if status_kind == "success" and status_message:
         st.success(status_message)
+    elif status_kind == "warning" and status_message:
+        st.warning(status_message)
     elif status_kind == "error" and status_message:
         st.error(status_message)
 
@@ -802,10 +805,18 @@ def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
     st.session_state["pipeline_run_log"] = run_result["log"]
 
     if run_result["success"]:
-        st.session_state["pipeline_run_status_kind"] = "success"
-        st.session_state["pipeline_run_status_message"] = (
-            f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s."
-        )
+        validation_summary = run_result.get("validation_summary")
+        if validation_summary and validation_summary["overall_status"] != "passed":
+            st.session_state["pipeline_run_status_kind"] = "warning"
+            st.session_state["pipeline_run_status_message"] = (
+                f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s "
+                f"with validation issues ({validation_summary['overall_status']})."
+            )
+        else:
+            st.session_state["pipeline_run_status_kind"] = "success"
+            st.session_state["pipeline_run_status_message"] = (
+                f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s."
+            )
     else:
         st.session_state["pipeline_run_status_kind"] = "error"
         st.session_state["pipeline_run_status_message"] = (
@@ -855,6 +866,7 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         "success": True,
         "duration_seconds": time.perf_counter() - started_at,
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
+        "validation_summary": load_5b_validation_summary(paths, step),
     }
 
 
@@ -870,6 +882,27 @@ def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
     return "\n\n".join(sections)
 
 
+def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
+    if step not in (None, "5b"):
+        return None
+
+    validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)
+    if validation_json_path is None:
+        return None
+
+    if not validation_json_path.exists():
+        return None
+
+    validation_data = load_json_file(validation_json_path)
+
+    return {
+        "overall_status": validation_data.get("overall_status", "unknown"),
+        "passed_rule_count": validation_data.get("passed_rule_count", 0),
+        "failed_rule_count": validation_data.get("failed_rule_count", 0),
+        "unresolved_rule_count": validation_data.get("unresolved_rule_count", 0),
+    }
+
+
 def render_json_expander(label: str, value: dict[str, Any]) -> None:
     with st.expander(label, expanded=False):
         st.code(json.dumps(value, indent=2, ensure_ascii=False), language="json")
@@ -877,6 +910,42 @@ def render_json_expander(label: str, value: dict[str, Any]) -> None:
 
 def bool_label(value: Any) -> str:
     return "Yes" if bool(value) else "No"
+
+
+def render_validation_summary(artifact_paths: Any) -> None:
+    validation_data = load_optional_json_file(artifact_paths.core_overtime_validation_json)
+    if validation_data is None:
+        st.info("No 5B validation report was found for this output yet.")
+        return
+
+    overall_status = str(validation_data.get("overall_status", "unknown"))
+    passed_count = int(validation_data.get("passed_rule_count", 0))
+    failed_count = int(validation_data.get("failed_rule_count", 0))
+    unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
+
+    if overall_status == "passed":
+        st.success("5B validation passed.")
+    elif overall_status == "unresolved":
+        st.warning("5B validation completed with unresolved coverage checks.")
+    else:
+        st.warning("5B validation found coverage issues.")
+
+    metric_one, metric_two, metric_three = st.columns(3)
+    metric_one.metric("Passed rules", passed_count)
+    metric_two.metric("Failed rules", failed_count)
+    metric_three.metric("Unresolved rules", unresolved_count)
+
+    validation_report = read_text_file(artifact_paths.core_overtime_validation_markdown)
+    if validation_report.exists:
+        with st.expander("5B validation report", expanded=False):
+            st.markdown(validation_report.text)
+
+
+def load_optional_json_file(path: Path) -> dict[str, Any] | None:
+    if not path.exists():
+        return None
+
+    return load_json_file(path)
 
 
 def apply_review_styles() -> None:

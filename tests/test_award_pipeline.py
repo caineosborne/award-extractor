@@ -41,6 +41,12 @@ def test_build_paths_covers_step_5b_artifacts():
     assert paths.core_overtime_pseudocode_path.name == (
         "MA000018_draft_core_overtime_pseudocode.md"
     )
+    assert paths.core_overtime_validation_json_path.name == (
+        "MA000018_draft_core_overtime_pseudocode_validation.json"
+    )
+    assert paths.core_overtime_validation_markdown_path.name == (
+        "MA000018_draft_core_overtime_pseudocode_validation.md"
+    )
 
 
 def test_run_selected_step_rejects_unknown_step():

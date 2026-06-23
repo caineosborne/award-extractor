@@ -15,6 +15,17 @@ from src.common.output_paths import (
     path_in_category,
     write_text_with_archive,
 )
+from src.common.rule_inventory import (
+    RuleInventory,
+    parse_rule_inventory_from_markdown,
+    render_inventory_for_prompt,
+)
+from src.script_5b_validate_overtime_pseudocode import (
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+    validate_overtime_pseudocode_against_inventory,
+    write_validation_artifacts,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +37,7 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
     / "MA000018_overtime_interpretation_revised.md"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
+MAX_VALIDATION_REPAIR_ATTEMPTS = 1
 
 CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
 
@@ -242,13 +254,23 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
 def build_messages(
     source_file: str,
     overtime_summary_markdown: str,
+    source_inventory: RuleInventory | None = None,
 ) -> list[dict[str, str]]:
     fields = "\n".join(
         f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
     )
     system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
+    inventory_text = ""
+    if source_inventory is not None:
+        inventory_text = (
+            "Required rule inventory derived from the reviewed source markdown:\n"
+            f"{render_inventory_for_prompt(source_inventory)}\n\n"
+            "Every inventory rule must be represented in the pseudocode or implementation notes. "
+            "Do not omit a reviewed rule merely because another rule sounds similar.\n\n"
+        )
     user_prompt = (
         f"Source overtime interpretation markdown: {source_file}\n\n"
+        f"{inventory_text}"
         "Complete overtime interpretation markdown to convert:\n"
         f"{overtime_summary_markdown}"
     )
@@ -256,6 +278,60 @@ def build_messages(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
+
+
+def build_repair_messages(
+    *,
+    source_file: str,
+    overtime_summary_markdown: str,
+    source_inventory: RuleInventory,
+    initial_pseudocode_markdown: str,
+    validation_report_markdown: str,
+) -> list[dict[str, str]]:
+    fields = "\n".join(
+        f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
+    )
+    system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
+    user_prompt = (
+        f"Source overtime interpretation markdown: {source_file}\n\n"
+        "The first pseudocode draft failed deterministic validation.\n\n"
+        "Required rule inventory derived from the reviewed source markdown:\n"
+        f"{render_inventory_for_prompt(source_inventory)}\n\n"
+        "Reviewed source markdown:\n"
+        f"{overtime_summary_markdown}\n\n"
+        "Initial pseudocode draft to repair:\n"
+        f"{initial_pseudocode_markdown}\n\n"
+        "Validation report describing the missing or inconsistent rules:\n"
+        f"{validation_report_markdown}\n\n"
+        "Revise the pseudocode so every reviewed source rule is represented. "
+        "Preserve correct rules already present. Carry the relevant source clause references into comments. "
+        "If a rule needs operational inputs that are not already in the available fields, state them in `Required additional inputs`."
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def request_pseudocode_output(
+    *,
+    client: Any,
+    model: str,
+    messages: list[dict[str, str]],
+) -> str:
+    try:
+        response = client.responses.create(
+            model=model,
+            input=messages,
+        )
+    except Exception as exc:
+        raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc
+
+    output_text = extract_response_text(response)
+    if not output_text:
+        raise CoreOvertimePseudocodeError("OpenAI response did not include output text.")
+
+    return output_text
 
 
 def generate_core_overtime_pseudocode(
@@ -271,22 +347,55 @@ def generate_core_overtime_pseudocode(
 
     source_path = select_overtime_interpretation_path(summary_path)
     summary_text = load_overtime_interpretation(source_path)
-
-    try:
-        response = client.responses.create(
-            model=selected_model,
-            input=build_messages(str(source_path), summary_text),
-        )
-    except Exception as exc:
-        raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc
-
-    output_text = extract_response_text(response)
-    if not output_text:
-        raise CoreOvertimePseudocodeError("OpenAI response did not include output text.")
+    source_inventory = parse_rule_inventory_from_markdown(
+        summary_text,
+        source_path=source_path,
+        inventory_name="reviewed_overtime_rules",
+        source_stage="3b",
+        domain="overtime",
+    )
 
     destination = Path(output_path) if output_path else output_path_for_summary(source_path)
-    write_text_with_archive(destination, output_text)
-    return output_text
+    output_text = request_pseudocode_output(
+        client=client,
+        model=selected_model,
+        messages=build_messages(str(source_path), summary_text, source_inventory),
+    )
+
+    repair_attempts = 0
+
+    while True:
+        write_text_with_archive(destination, output_text)
+        validation_report = validate_overtime_pseudocode_against_inventory(
+            source_inventory,
+            output_text,
+            target_path=destination,
+        )
+        validation_markdown = write_validation_artifacts(
+            validation_report,
+            json_path=validation_json_path_for_pseudocode(destination),
+            markdown_path=validation_markdown_path_for_pseudocode(destination),
+        )[1].read_text(encoding="utf-8")
+
+        needs_repair = (
+            validation_report.failed_rule_count > 0
+            and repair_attempts < MAX_VALIDATION_REPAIR_ATTEMPTS
+        )
+        if not needs_repair:
+            return output_text
+
+        repair_attempts += 1
+        output_text = request_pseudocode_output(
+            client=client,
+            model=selected_model,
+            messages=build_repair_messages(
+                source_file=str(source_path),
+                overtime_summary_markdown=summary_text,
+                source_inventory=source_inventory,
+                initial_pseudocode_markdown=output_text,
+                validation_report_markdown=validation_markdown,
+            ),
+        )
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -328,6 +437,10 @@ def main() -> None:
         else output_path_for_summary(args.summary_path)
     )
     print(f"Core overtime pseudocode saved to {destination}")
+    print(
+        "Validation report saved to "
+        f"{validation_markdown_path_for_pseudocode(destination)}"
+    )
 
 
 if __name__ == "__main__":

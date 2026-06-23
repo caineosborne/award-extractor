@@ -7,6 +7,7 @@ from src.script_5b_generate_overtime_pseudocode import (
     DEFAULT_MODEL,
     PSEUDOCODE_FIELDS,
     build_messages,
+    build_repair_messages,
     default_overtime_interpretation_path,
     first_top_level_bullets,
     generate_core_overtime_pseudocode,
@@ -15,16 +16,24 @@ from src.script_5b_generate_overtime_pseudocode import (
     overtime_rule_bullets,
     select_overtime_interpretation_path,
 )
+from src.script_5b_validate_overtime_pseudocode import (
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+)
 
 
 class FakeResponses:
     def __init__(self, output_text):
-        self.output_text = output_text
+        if isinstance(output_text, list):
+            self.output_texts = output_text
+        else:
+            self.output_texts = [output_text]
         self.calls = []
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return SimpleNamespace(output_text=self.output_text)
+        output_index = min(len(self.calls) - 1, len(self.output_texts) - 1)
+        return SimpleNamespace(output_text=self.output_texts[output_index])
 
 
 class FakeClient:
@@ -126,6 +135,35 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("Daily excess rule", messages[1]["content"])
         self.assertIn("Clause interpretation table", messages[1]["content"])
 
+    def test_build_repair_messages_include_validation_report_and_initial_draft(self):
+        summary_markdown = "# Overtime\n\n- Rule one. Clause **11.1(a)**."
+        initial_pseudocode = "# Overtime pseudocode\n\n## Pseudocode\n\n- Incomplete."
+        validation_report = "# 5B validation report\n\n- Failed rules: `1`"
+
+        from src.common.rule_inventory import parse_rule_inventory_from_markdown
+
+        inventory = parse_rule_inventory_from_markdown(
+            summary_markdown,
+            source_path="summary.md",
+            inventory_name="reviewed_overtime_rules",
+            source_stage="3b",
+            domain="overtime",
+        )
+
+        messages = build_repair_messages(
+            source_file="summary.md",
+            overtime_summary_markdown=summary_markdown,
+            source_inventory=inventory,
+            initial_pseudocode_markdown=initial_pseudocode,
+            validation_report_markdown=validation_report,
+        )
+
+        self.assertIn("failed deterministic validation", messages[1]["content"])
+        self.assertIn("Initial pseudocode draft to repair", messages[1]["content"])
+        self.assertIn("Validation report describing the missing", messages[1]["content"])
+        self.assertIn("Rule ID", messages[1]["content"])
+        self.assertIn("Failed rules", messages[1]["content"])
+
     def test_select_overtime_interpretation_path_falls_back_from_4b_to_revised(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir)
@@ -199,14 +237,88 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             archive_files = list(
                 (Path(temp_dir) / "archive").glob("award_core_overtime_pseudocode_*.md")
             )
+            validation_json_exists = validation_json_path_for_pseudocode(output_path).exists()
+            validation_markdown_exists = validation_markdown_path_for_pseudocode(output_path).exists()
 
         self.assertEqual(result, written)
-        self.assertEqual(len(archive_files), 1)
+        self.assertEqual(len(archive_files), 2)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn(
             "Meal break note",
             fake_client.responses.calls[0]["input"][1]["content"],
         )
+        self.assertTrue(validation_json_exists)
+        self.assertTrue(validation_markdown_exists)
+
+    def test_generate_core_overtime_pseudocode_repairs_missing_rule_once(self):
+        summary = """## Casual employees
+
+- **Any time worked in excess of 38 ordinary hours per week will be overtime.** Clause **11.1(a)**.
+- **Where the casual employee works in accordance with a roster, any time worked in excess of 38 ordinary hours per week averaged over the course of the roster cycle will be overtime.** Clause **11.1(b)**.
+"""
+        initial_output = """# Overtime pseudocode
+
+## Derived Fields
+
+None
+
+## Required additional inputs
+
+- None
+
+## Rule priority
+
+1. Time worked in excess of 38 ordinary hours per week averaged over the roster cycle
+
+## Pseudocode
+
+- If the employee is casual and works in accordance with a roster, and average ordinary hours over the roster cycle exceed 38 hours per week, allocate the excess hours to `Overtime_Hours`.
+  - # Source: Clause 11.1(b)
+"""
+        repaired_output = """# Overtime pseudocode
+
+## Derived Fields
+
+None
+
+## Required additional inputs
+
+- Whether the casual employee works in accordance with a roster
+
+## Rule priority
+
+1. Time worked in excess of 38 ordinary hours per week
+2. Time worked in excess of 38 ordinary hours per week averaged over the roster cycle
+
+## Pseudocode
+
+- If the employee is casual and total ordinary hours worked in the week exceed 38 hours, allocate the excess hours to `Overtime_Hours`.
+  - # Source: Clause 11.1(a)
+
+- If the employee is casual and works in accordance with a roster, and average ordinary hours over the roster cycle exceed 38 hours per week, allocate the excess hours to `Overtime_Hours`.
+  - # Source: Clause 11.1(b)
+"""
+        fake_client = FakeClient([initial_output, repaired_output])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "award_overtime_interpretation_revised.md"
+            output_path = Path(temp_dir) / "award_core_overtime_pseudocode.md"
+            input_path.write_text(summary, encoding="utf-8")
+
+            result = generate_core_overtime_pseudocode(
+                summary_path=input_path,
+                output_path=output_path,
+                client=fake_client,
+            )
+
+            validation_markdown = validation_markdown_path_for_pseudocode(output_path).read_text(
+                encoding="utf-8"
+            )
+
+        self.assertEqual(result, repaired_output)
+        self.assertEqual(len(fake_client.responses.calls), 2)
+        self.assertIn("Initial pseudocode draft to repair", fake_client.responses.calls[1]["input"][1]["content"])
+        self.assertIn("Overall status: `passed`", validation_markdown)
 
     def test_default_overtime_interpretation_path_prefers_4b_when_present(self):
         with tempfile.TemporaryDirectory() as temp_dir:

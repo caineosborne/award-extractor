@@ -6,6 +6,10 @@ from pathlib import Path
 from typing import Any
 
 from src.common.output_paths import ARCHIVE_DIR, write_text_with_archive
+from src.script_5b_validate_overtime_pseudocode import (
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +30,8 @@ class ArtifactPaths:
     revised_overtime_interpretation: Path
     manual_4b_overtime_interpretation: Path
     core_overtime_pseudocode: Path
+    core_overtime_validation_json: Path
+    core_overtime_validation_markdown: Path
 
 
 @dataclass(frozen=True)
@@ -69,6 +75,16 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         core_overtime_pseudocode=PROCESSED_ROOT
         / "5b_generate_overtime_pseudocode"
         / f"{award_code}_core_overtime_pseudocode.md",
+        core_overtime_validation_json=validation_json_path_for_pseudocode(
+            PROCESSED_ROOT
+            / "5b_generate_overtime_pseudocode"
+            / f"{award_code}_core_overtime_pseudocode.md"
+        ),
+        core_overtime_validation_markdown=validation_markdown_path_for_pseudocode(
+            PROCESSED_ROOT
+            / "5b_generate_overtime_pseudocode"
+            / f"{award_code}_core_overtime_pseudocode.md"
+        ),
     )
 
 

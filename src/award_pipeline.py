@@ -25,6 +25,10 @@ from src.script_5b_generate_overtime_pseudocode import (
     generate_core_overtime_pseudocode,
     output_path_for_summary,
 )
+from src.script_5b_validate_overtime_pseudocode import (
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+)
 
 
 STEP_CHOICES = ("1", "2", "3", "3b", "5b")
@@ -52,6 +56,8 @@ class ActivePipelinePaths:
     creator_response_path: Path
     revised_interpretation_path: Path
     core_overtime_pseudocode_path: Path
+    core_overtime_validation_json_path: Path
+    core_overtime_validation_markdown_path: Path
 
 
 def argparse_award_code(value: str) -> str:
@@ -103,6 +109,12 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
     )
     revised_interpretation_path = revised_output_path_for_interpretation(interpretation_path)
     core_overtime_pseudocode_path = output_path_for_summary(revised_interpretation_path)
+    core_overtime_validation_json_path = validation_json_path_for_pseudocode(
+        core_overtime_pseudocode_path
+    )
+    core_overtime_validation_markdown_path = validation_markdown_path_for_pseudocode(
+        core_overtime_pseudocode_path
+    )
 
     return ActivePipelinePaths(
         award_code=award_code,
@@ -120,6 +132,8 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
         creator_response_path=creator_response_path,
         revised_interpretation_path=revised_interpretation_path,
         core_overtime_pseudocode_path=core_overtime_pseudocode_path,
+        core_overtime_validation_json_path=core_overtime_validation_json_path,
+        core_overtime_validation_markdown_path=core_overtime_validation_markdown_path,
     )
 
 
@@ -229,6 +243,15 @@ def run_step_5b(paths: ActivePipelinePaths) -> None:
     generate_core_overtime_pseudocode(
         summary_path=paths.revised_interpretation_path,
         output_path=paths.core_overtime_pseudocode_path,
+    )
+    print(f"Core overtime pseudocode saved to {paths.core_overtime_pseudocode_path}")
+    print(
+        "5B validation JSON saved to "
+        f"{paths.core_overtime_validation_json_path}"
+    )
+    print(
+        "5B validation markdown saved to "
+        f"{paths.core_overtime_validation_markdown_path}"
     )
 
 

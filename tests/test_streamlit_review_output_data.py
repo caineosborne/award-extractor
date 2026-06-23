@@ -72,6 +72,14 @@ def test_artifact_paths_for_award():
         == "MA000018_overtime_interpretation_4b.md"
     )
     assert paths.core_overtime_pseudocode.name == "MA000018_core_overtime_pseudocode.md"
+    assert (
+        paths.core_overtime_validation_json.name
+        == "MA000018_core_overtime_pseudocode_validation.json"
+    )
+    assert (
+        paths.core_overtime_validation_markdown.name
+        == "MA000018_core_overtime_pseudocode_validation.md"
+    )
 
 
 def test_l1_payment_records_preserve_json_key_order():
@@ -174,6 +182,9 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
         revised_overtime_interpretation=revised_path,
         manual_4b_overtime_interpretation=manual_4b_path,
         core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
+        core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
+        core_overtime_validation_markdown=tmp_path
+        / "award_core_overtime_pseudocode_validation.md",
     )
 
     assert source_path_for_manual_4b_editor(artifact_paths) == original_path
@@ -201,6 +212,9 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_pa
         revised_overtime_interpretation=revised_path,
         manual_4b_overtime_interpretation=manual_4b_path,
         core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
+        core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
+        core_overtime_validation_markdown=tmp_path
+        / "award_core_overtime_pseudocode_validation.md",
     )
 
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == original_path
