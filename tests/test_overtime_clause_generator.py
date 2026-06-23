@@ -71,13 +71,13 @@ class OvertimeClauseGeneratorTests(unittest.TestCase):
             interpretation_file = artifacts.interpretation_path.read_text(encoding="utf-8")
             entitlement_file = artifacts.entitlements_path.read_text(encoding="utf-8")
 
-        self.assertEqual(interpretation_file, interpretation_markdown)
+        self.assertEqual(interpretation_file.strip(), interpretation_markdown)
         self.assertEqual(entitlement_file, entitlements_markdown)
         self.assertEqual(fake_client.responses.calls[0]["model"], "gpt-5.4")
         self.assertEqual(fake_client.responses.calls[1]["model"], "gpt-5.4")
         self.assertEqual(fake_client.responses.calls[2]["model"], "gpt-5.4")
         self.assertEqual(len(fake_client.responses.calls), 3)
-        self.assertEqual(artifacts.interpretation_markdown, interpretation_markdown)
+        self.assertEqual(artifacts.interpretation_markdown.strip(), interpretation_markdown)
 
 
 if __name__ == "__main__":

@@ -118,7 +118,28 @@ Your task is to turn them into a payroll implementation working paper. This will
 
 As such it should be written clearly, in definitive language to display specific points that answer the question 'What circumstances incraese total overtime hours'
 
+What circumstances increase Total Overtime Hours?
 
+Return JSON only.
+
+For each rule return:
+- rule_id: stable snake or kebab style identifier, for example `all-employees_span-outside-hours`
+- section_heading
+- employee_scope
+- clause_references
+- rule_markdown: one markdown bullet beginning with `- `
+- rule_plain_text
+- source_clause_numbers
+- source_classifications
+
+Important:
+- Every distinct overtime circumstance must be a separate rule object.
+- Do not silently merge rules that require different payroll tests.
+- Preserve ordinary-hours-boundary rules where work outside the boundary may become overtime.
+- Use the same rule wording in `rule_markdown` that you would otherwise have written in the working paper.
+- `employee_scope` must be explicit. Use `["full-time", "part-time", "casual"]` where the rule applies generally.
+- `source_clause_numbers` must point only to clauses in the supplied working paper.
+- `source_classifications` must contain only `Ordinary Hours Boundary` and/or `Overtime Trigger`.
 
 For each overtime rule:
 

@@ -241,7 +241,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             )
 
         self.assertEqual(result, written)
-        self.assertEqual(written, expected_markdown)
+        self.assertEqual(written.strip(), expected_markdown)
         self.assertEqual(len(archive_files), 1)
         self.assertEqual(len(classification_archive_files), 1)
         self.assertEqual(
@@ -260,6 +260,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             "Employees are paid overtime after ordinary hours.",
             fake_client.responses.calls[1]["input"][1]["content"],
         )
+        self.assertIn("text", fake_client.responses.calls[1])
         self.assertNotIn(
             "Overtime is paid at 150%.",
             fake_client.responses.calls[1]["input"][1]["content"],
@@ -339,7 +340,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
 
         self.assertIn("## General", result)
         self.assertEqual(len(fake_client.responses.calls), 1)
-        self.assertNotIn("text", fake_client.responses.calls[0])
+        self.assertIn("text", fake_client.responses.calls[0])
         self.assertEqual(archive_files, [])
 
     def test_generate_overtime_interpretation_regenerates_old_clause_classification(self):

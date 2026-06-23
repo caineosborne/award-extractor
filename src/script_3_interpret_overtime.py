@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -17,6 +18,14 @@ from src.common.active_pipeline_paths import (
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_runtime import load_openai_environment
 from src.common.llm_io import extract_response_text
+from src.common.overtime_rules import (
+    OvertimeRule,
+    build_step_3_rules_artifact,
+    json_output_path_for_markdown,
+    rules_from_markdown_fallback,
+    validate_rule_list,
+    write_rules_artifact,
+)
 from src.script_2_classify_payments import parse_response_json
 from src.script_3_interpret_overtime_prompt import (
     OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT,
@@ -43,6 +52,7 @@ OVERTIME_CREATION_CLASSIFICATIONS = (
     "Ordinary Hours Boundary",
     "Overtime Trigger",
 )
+RULE_ID_ALLOWED_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class OvertimeInterpretationError(RuntimeError):
@@ -575,6 +585,99 @@ def build_messages(
     return build_interpretation_messages(source_file, overtime_creation_clauses)
 
 
+def interpretation_response_json_schema() -> dict[str, Any]:
+    """Define the strict JSON schema expected from the step-3 interpretation model."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rules": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "section_heading": {"type": "string"},
+                        "employee_scope": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "clause_references": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                        },
+                        "rule_markdown": {"type": "string"},
+                        "rule_plain_text": {"type": "string"},
+                        "source_clause_numbers": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                        },
+                        "source_classifications": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "minItems": 1,
+                        },
+                    },
+                    "required": [
+                        "rule_id",
+                        "section_heading",
+                        "employee_scope",
+                        "clause_references",
+                        "rule_markdown",
+                        "rule_plain_text",
+                        "source_clause_numbers",
+                        "source_classifications",
+                    ],
+                },
+            }
+        },
+        "required": ["rules"],
+    }
+
+
+def validate_interpretation_rules(
+    response_data: Mapping[str, Any],
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+) -> list[OvertimeRule]:
+    """Validate the structured rule output from step 3."""
+    raw_rules = response_data.get("rules")
+    if not isinstance(raw_rules, list):
+        raise OvertimeInterpretationError("Interpretation response must contain rules array.")
+
+    rules = validate_rule_list(raw_rules)
+    valid_clause_numbers = {classification.clause_number for classification in overtime_creation_clauses}
+    valid_classifications = set(OVERTIME_CREATION_CLASSIFICATIONS)
+
+    for rule in rules:
+        if not RULE_ID_ALLOWED_PATTERN.fullmatch(rule.rule_id):
+            raise OvertimeInterpretationError(
+                f"Rule id contains unsupported characters: {rule.rule_id}"
+            )
+
+        unknown_source_clauses = set(rule.source_clause_numbers) - valid_clause_numbers
+        if unknown_source_clauses:
+            unknown_display = ", ".join(sorted(unknown_source_clauses))
+            raise OvertimeInterpretationError(
+                f"Rule {rule.rule_id} referenced unknown source clauses: {unknown_display}"
+            )
+
+        unsupported_source_classifications = (
+            set(rule.source_classifications) - valid_classifications
+        )
+        if unsupported_source_classifications:
+            unsupported_display = ", ".join(sorted(unsupported_source_classifications))
+            raise OvertimeInterpretationError(
+                f"Rule {rule.rule_id} referenced unsupported source classifications: "
+                f"{unsupported_display}"
+            )
+
+    return rules
+
+
 # 8. Output writing / orchestration
 
 
@@ -585,7 +688,7 @@ def generate_overtime_interpretation(
     model: str | None = None,
     client: Any | None = None,
 ) -> str:
-    """Generate the step-3 interpretation markdown and clause-classification artifact."""
+    """Generate the step-3 interpretation JSON and derived markdown artifact."""
     # Pick the explicit model first, then the environment override, then the default.
     selected_model = model or os.getenv("OVERTIME_INTERPRETATION_MODEL", DEFAULT_MODEL)
     if client is None:
@@ -627,30 +730,61 @@ def generate_overtime_interpretation(
         )
 
     try:
-        # Stage 5: ask the model to write the interpretation from the shortlisted clause set.
+        # Stage 5: ask the model to write the structured overtime rules from the shortlisted clause set.
         response = client.responses.create(
             model=selected_model,
             input=build_interpretation_messages(
                 str(source_path),
                 overtime_creation_clauses,
             ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "overtime_rules",
+                    "schema": interpretation_response_json_schema(),
+                    "strict": True,
+                }
+            },
         )
     except Exception as exc:
         raise OvertimeInterpretationError("OpenAI interpretation request failed.") from exc
 
-    # Extract the final markdown text from the model response.
+    # Extract the final structured rule output from the model response.
     output_text = extract_response_text(response)
     if not output_text:
         raise OvertimeInterpretationError("OpenAI response did not include output text.")
+
+    try:
+        response_data = parse_response_json(output_text)
+        structured_rules = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+    except json.JSONDecodeError:
+        # Support legacy markdown-only model output while the pipeline transitions to JSON.
+        structured_rules = rules_from_markdown_fallback(
+            output_text,
+            source_path=source_path,
+        )
 
     destination = (
         Path(output_path)
         if output_path
         else interpretation_output_path_for_source(source_path)
     )
-    # Save the interpretation markdown and archive a timestamped copy.
-    write_text_with_archive(destination, output_text)
-    return output_text
+    json_destination = json_output_path_for_markdown(destination)
+    rules_artifact = build_step_3_rules_artifact(
+        source_classification_file=source_path,
+        source_clause_classification_file=classification_destination,
+        rules=structured_rules,
+    )
+    # Save both the canonical JSON artifact and a derived markdown view.
+    write_rules_artifact(
+        json_path=json_destination,
+        markdown_path=destination,
+        artifact=rules_artifact,
+    )
+    return str(rules_artifact["rendered_markdown"])
 
 
 # 9. Main orchestration

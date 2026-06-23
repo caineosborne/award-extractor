@@ -1,7 +1,7 @@
 import json
 import re
 from datetime import datetime
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +32,10 @@ class ArtifactPaths:
     core_overtime_pseudocode: Path
     core_overtime_validation_json: Path
     core_overtime_validation_markdown: Path
+    original_overtime_rules_json: Path = field(default_factory=lambda: Path("__missing__"))
+    evaluator_feedback_json: Path = field(default_factory=lambda: Path("__missing__"))
+    creator_response_json: Path = field(default_factory=lambda: Path("__missing__"))
+    revised_overtime_rules_json: Path = field(default_factory=lambda: Path("__missing__"))
 
 
 @dataclass(frozen=True)
@@ -62,14 +66,22 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_clause_classification.json",
         original_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation.md",
+        original_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation.json",
         agentic_review_conversation=OVERTIME_FEEDBACK_DIR
         / f"{award_code}_overtime_interpretation_agentic_review_conversation.md",
         evaluator_feedback=OVERTIME_FEEDBACK_DIR
         / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
+        evaluator_feedback_json=OVERTIME_FEEDBACK_DIR
+        / f"{award_code}_overtime_interpretation_evaluator_feedback.json",
         creator_response=OVERTIME_FEEDBACK_DIR
         / f"{award_code}_overtime_interpretation_creator_response.md",
+        creator_response_json=OVERTIME_FEEDBACK_DIR
+        / f"{award_code}_overtime_interpretation_creator_response.json",
         revised_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_revised.md",
+        revised_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation_revised.json",
         manual_4b_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_4b.md",
         core_overtime_pseudocode=PROCESSED_ROOT
@@ -118,9 +130,13 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
     if artifact_paths.manual_4b_overtime_interpretation.exists():
         return artifact_paths.manual_4b_overtime_interpretation
 
+    if artifact_paths.revised_overtime_rules_json.exists():
+        return artifact_paths.revised_overtime_rules_json
     if artifact_paths.revised_overtime_interpretation.exists():
         return artifact_paths.revised_overtime_interpretation
 
+    if artifact_paths.original_overtime_rules_json.exists():
+        return artifact_paths.original_overtime_rules_json
     return artifact_paths.original_overtime_interpretation
 
 

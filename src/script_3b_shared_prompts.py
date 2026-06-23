@@ -158,6 +158,7 @@ def build_relevant_clause_excerpt_markdown(
 def build_full_evaluator_review_prompt(
     interpretation_path: Path | str,
     interpretation_markdown: str,
+    original_rules_artifact: Mapping[str, Any] | None,
     classification_path: Path | str,
     payment_classification: Mapping[str, Any],
     overtime_clause_classification_path: Path | str,
@@ -166,6 +167,11 @@ def build_full_evaluator_review_prompt(
     """Build the full evaluator prompt covering both step-3 artifacts."""
     payment_classification_json = json.dumps(
         payment_classification,
+        indent=2,
+        ensure_ascii=False,
+    )
+    original_rules_json = json.dumps(
+        original_rules_artifact or {},
         indent=2,
         ensure_ascii=False,
     )
@@ -206,6 +212,12 @@ Interpretation source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
+```
+
+Canonical Script 3 rule JSON:
+
+```json
+{original_rules_json}
 ```
 
 Full payment classification source from Script 2: {classification_path}

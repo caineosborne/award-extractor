@@ -400,7 +400,10 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_ORIGINAL_OVERTIME, panel_key, artifact_paths)
-    render_markdown_file(artifact_paths.original_overtime_interpretation)
+    render_overtime_rules_json(
+        artifact_paths.original_overtime_rules_json,
+        source_markdown_path=artifact_paths.original_overtime_interpretation,
+    )
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -443,7 +446,10 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
 
 def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
     render_panel_heading(SCREEN_REVISED_OVERTIME, panel_key, artifact_paths)
-    render_markdown_file(artifact_paths.revised_overtime_interpretation)
+    render_overtime_rules_json(
+        artifact_paths.revised_overtime_rules_json,
+        source_markdown_path=artifact_paths.revised_overtime_interpretation,
+    )
 
 
 def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -582,6 +588,57 @@ def render_markdown_file(path: Path, source_path: Path | None = None) -> None:
         return
 
     st.markdown(file_content.text)
+
+
+def render_overtime_rules_json(
+    json_path: Path,
+    *,
+    source_markdown_path: Path | None = None,
+) -> None:
+    render_file_details(
+        json_path,
+        source_path=source_markdown_path,
+        source_label="Derived markdown view",
+    )
+
+    rules_data = load_json_or_show_error(json_path)
+    if rules_data is None:
+        return
+
+    rendered_markdown = str(rules_data.get("rendered_markdown", "")).strip()
+    rules = rules_data.get("rules", [])
+
+    if rendered_markdown:
+        with st.expander("Rendered markdown view", expanded=False):
+            st.markdown(rendered_markdown)
+
+    if not isinstance(rules, list) or not rules:
+        st.warning("No structured overtime rules were found in this JSON artifact.")
+        render_json_expander("Structured overtime rules JSON", rules_data)
+        return
+
+    for rule in rules:
+        if not isinstance(rule, dict):
+            continue
+
+        rule_id = str(rule.get("rule_id", ""))
+        section_heading = str(rule.get("section_heading", ""))
+        clause_references = ", ".join(rule.get("clause_references", []))
+        employee_scope = ", ".join(rule.get("employee_scope", []))
+        st.markdown(f"#### {rule_id}")
+        if section_heading:
+            st.caption(f"Section: {section_heading}")
+        if employee_scope:
+            st.write(f"**Employee scope:** {employee_scope}")
+        if clause_references:
+            st.write(f"**Clause references:** {clause_references}")
+        st.markdown(rule.get("rule_markdown", ""))
+        plain_text = str(rule.get("rule_plain_text", "")).strip()
+        if plain_text:
+            st.caption(plain_text)
+        st.divider()
+
+    render_json_expander("Structured overtime rules JSON", rules_data)
 
 
 def render_missing_file(path: Path) -> None:

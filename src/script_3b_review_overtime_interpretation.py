@@ -1,4 +1,5 @@
 import argparse
+import json
 import os
 import re
 import time
@@ -15,6 +16,7 @@ from src.common.active_pipeline_paths import (
     default_classification_path_for_award,
     default_interpretation_path_for_award,
     evaluator_feedback_path_for_interpretation,
+    feedback_dir_for_interpretation,
     resolve_classification_path,
     resolve_interpretation_path,
     resolve_overtime_clause_classification_path,
@@ -29,6 +31,20 @@ from src.common.pipeline_runtime import (
     load_openrouter_api_key as require_openrouter_api_key,
 )
 from src.common.llm_io import extract_response_text
+from src.common.overtime_rules import (
+    ALLOWED_REVIEW_RECOMMENDATIONS,
+    OVERTIME_RULE_REVIEW_SCHEMA_VERSION,
+    OVERTIME_RULE_SCHEMA_VERSION,
+    apply_review_decisions,
+    decision_output_path_for_markdown,
+    json_output_path_for_markdown,
+    load_rules_artifact,
+    rules_from_markdown_fallback,
+    render_rules_markdown,
+    rule_to_dict,
+    validate_review_feedback_artifact,
+    write_rules_artifact,
+)
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
@@ -67,8 +83,11 @@ class OvertimeInterpretationReviewArtifacts:
     """Store the output paths and text produced by the step-3B review workflow."""
 
     evaluator_feedback_path: Path
+    evaluator_feedback_json_path: Path
     creator_response_path: Path
+    creator_response_json_path: Path
     revised_interpretation_path: Path
+    revised_interpretation_json_path: Path
     evaluator_feedback_markdown: str
     creator_response_markdown: str
     revised_interpretation_markdown: str
@@ -156,7 +175,7 @@ def load_review_source_artifacts(
     interpretation_path: Path | str,
     classification_path: Path | str,
     overtime_clause_classification_path: Path | str | None,
-) -> tuple[Path, Path, Path, str, dict[str, Any], dict[str, Any]]:
+) -> tuple[Path, Path, Path, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
     """Load and validate all source artifacts needed for the step-3B review."""
     selected_interpretation_path = Path(interpretation_path)
     selected_classification_path = Path(classification_path)
@@ -164,12 +183,31 @@ def load_review_source_artifacts(
         selected_classification_path,
         overtime_clause_classification_path,
     )
+    selected_rules_json_path = json_output_path_for_markdown(selected_interpretation_path)
 
-    # Load the interpretation markdown that the evaluator will review.
-    interpretation_markdown = load_text_file(
-        selected_interpretation_path,
-        "Overtime interpretation markdown",
-    )
+    if selected_rules_json_path.exists():
+        original_rules_artifact = load_rules_artifact(
+            selected_rules_json_path,
+            expected_schema_version=OVERTIME_RULE_SCHEMA_VERSION,
+        )
+        interpretation_markdown = str(original_rules_artifact["rendered_markdown"])
+    else:
+        interpretation_markdown = load_text_file(
+            selected_interpretation_path,
+            "Overtime interpretation markdown",
+        )
+        original_rules_artifact = {
+            "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
+            "source_classification_file": str(selected_classification_path),
+            "source_clause_classification_file": str(
+                selected_overtime_clause_classification_path
+            ),
+            "rendered_markdown": interpretation_markdown,
+            "rules": rules_from_markdown_fallback(
+                interpretation_markdown,
+                source_path=selected_interpretation_path,
+            ),
+        }
     # Load the payment-classification JSON from step 2.
     classification_data = load_classification(selected_classification_path)
     classified_clauses = classification_data.get("classified_clauses")
@@ -188,6 +226,7 @@ def load_review_source_artifacts(
         selected_interpretation_path,
         selected_classification_path,
         selected_overtime_clause_classification_path,
+        original_rules_artifact,
         interpretation_markdown,
         classification_data,
         overtime_clause_classification,
@@ -198,7 +237,7 @@ def load_review_sources(
     interpretation_path: Path | str,
     classification_path: Path | str,
     overtime_clause_classification_path: Path | str | None,
-) -> tuple[Path, Path, Path, str, dict[str, Any], dict[str, Any]]:
+) -> tuple[Path, Path, Path, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
     """Return review source artifacts using the legacy helper name."""
     return load_review_source_artifacts(
         interpretation_path,
@@ -217,6 +256,7 @@ def build_review_evaluator_messages(
     payment_classification: Mapping[str, Any],
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
+    original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Build the evaluator prompt set for the step-3B review."""
     return [
@@ -227,11 +267,22 @@ def build_review_evaluator_messages(
             "content": build_full_evaluator_review_prompt(
                 interpretation_path=interpretation_path,
                 interpretation_markdown=interpretation_markdown,
+                original_rules_artifact=original_rules_artifact,
                 classification_path=classification_path,
                 payment_classification=payment_classification,
                 overtime_clause_classification_path=overtime_clause_classification_path,
                 overtime_clause_classification=overtime_clause_classification,
-            ),
+            )
+            + "\n\nReturn JSON only with these top-level fields:\n"
+            "- summary_markdown\n"
+            "- rule_reviews\n"
+            "- new_rules\n\n"
+            "For every original rule_id, include one rule_reviews item with:\n"
+            "- rule_id\n"
+            "- recommendation: keep, modify, or remove\n"
+            "- rationale\n\n"
+            "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
+            "If a missing supported rule should be added, include it in new_rules using the same structured shape as the step-3 rules JSON.",
         },
     ]
 
@@ -243,10 +294,12 @@ def build_evaluator_messages(
     payment_classification: Mapping[str, Any],
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
+    original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Return evaluator messages using the legacy helper name."""
     return build_review_evaluator_messages(
         interpretation_path=interpretation_path,
+        original_rules_artifact=original_rules_artifact,
         interpretation_markdown=interpretation_markdown,
         classification_path=classification_path,
         payment_classification=payment_classification,
@@ -264,6 +317,7 @@ def build_review_creator_messages(
     overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
     prior_creator_decision_markdown: str | None = None,
+    original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Build the creator prompt set used to revise the interpretation."""
     # Extract only the clause excerpts that matter to the evaluator's feedback.
@@ -294,7 +348,21 @@ def build_review_creator_messages(
                 relevant_clause_excerpt_markdown=relevant_clause_excerpt_markdown,
                 evaluator_feedback_markdown=evaluator_feedback_markdown,
                 prior_creator_decision_markdown=prior_creator_decision_markdown,
-            ),
+            )
+            + "\n\nOriginal step-3 rules JSON:\n```json\n"
+            + json.dumps(original_rules_artifact or {}, indent=2, ensure_ascii=False)
+            + "\n```\n"
+            + "\n\nReturn JSON only with these top-level fields:\n"
+            "- decision_record_markdown\n"
+            "- rule_updates\n"
+            "- new_rules\n\n"
+            "You must provide one rule_updates item for every original rule_id.\n"
+            "Each rule_updates item must contain:\n"
+            "- rule_id\n"
+            "- decision: keep, modify, or remove\n"
+            "- reason\n"
+            "- updated_rule when decision is modify\n\n"
+            "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove.",
         },
     ]
 
@@ -308,10 +376,12 @@ def build_creator_messages(
     overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
     prior_creator_decision_markdown: str | None = None,
+    original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
     """Return creator messages using the legacy helper name."""
     return build_review_creator_messages(
         interpretation_path=interpretation_path,
+        original_rules_artifact=original_rules_artifact,
         interpretation_markdown=interpretation_markdown,
         classification_path=classification_path,
         payment_classification=payment_classification,
@@ -322,17 +392,156 @@ def build_creator_messages(
     )
 
 
-def split_creator_update_sections(output_text: str) -> tuple[str, str]:
-    """Split the creator output into the response section and revised interpretation."""
-    match = CREATOR_RESPONSE_PATTERN.search(output_text)
-    if not match:
-        raise OvertimeInterpretationReviewError(
-            "Creator response did not include the required creator_response and "
-            "revised_interpretation tagged sections."
-        )
+def evaluator_feedback_json_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "summary_markdown": {"type": "string"},
+            "rule_reviews": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "recommendation": {
+                            "type": "string",
+                            "enum": list(ALLOWED_REVIEW_RECOMMENDATIONS),
+                        },
+                        "rationale": {"type": "string"},
+                    },
+                    "required": ["rule_id", "recommendation", "rationale"],
+                },
+            },
+            "new_rules": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "section_heading": {"type": "string"},
+                        "employee_scope": {"type": "array", "items": {"type": "string"}},
+                        "clause_references": {"type": "array", "items": {"type": "string"}},
+                        "rule_markdown": {"type": "string"},
+                        "rule_plain_text": {"type": "string"},
+                        "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
+                        "source_classifications": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": [
+                        "rule_id",
+                        "section_heading",
+                        "employee_scope",
+                        "clause_references",
+                        "rule_markdown",
+                        "rule_plain_text",
+                        "source_clause_numbers",
+                        "source_classifications",
+                    ],
+                },
+            },
+        },
+        "required": ["summary_markdown", "rule_reviews", "new_rules"],
+    }
 
-    creator_response = match.group("creator_response").strip()
-    revised_interpretation = match.group("revised_interpretation").strip()
+
+def creator_review_json_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "decision_record_markdown": {"type": "string"},
+            "rule_updates": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "decision": {"type": "string", "enum": ["keep", "modify", "remove"]},
+                        "reason": {"type": "string"},
+                        "updated_rule": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "rule_id": {"type": "string"},
+                                "section_heading": {"type": "string"},
+                                "employee_scope": {"type": "array", "items": {"type": "string"}},
+                                "clause_references": {"type": "array", "items": {"type": "string"}},
+                                "rule_markdown": {"type": "string"},
+                                "rule_plain_text": {"type": "string"},
+                                "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
+                                "source_classifications": {"type": "array", "items": {"type": "string"}},
+                            },
+                            "required": [
+                                "rule_id",
+                                "section_heading",
+                                "employee_scope",
+                                "clause_references",
+                                "rule_markdown",
+                                "rule_plain_text",
+                                "source_clause_numbers",
+                                "source_classifications",
+                            ],
+                        },
+                    },
+                    "required": ["rule_id", "decision", "reason"],
+                },
+            },
+            "new_rules": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "section_heading": {"type": "string"},
+                        "employee_scope": {"type": "array", "items": {"type": "string"}},
+                        "clause_references": {"type": "array", "items": {"type": "string"}},
+                        "rule_markdown": {"type": "string"},
+                        "rule_plain_text": {"type": "string"},
+                        "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
+                        "source_classifications": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": [
+                        "rule_id",
+                        "section_heading",
+                        "employee_scope",
+                        "clause_references",
+                        "rule_markdown",
+                        "rule_plain_text",
+                        "source_clause_numbers",
+                        "source_classifications",
+                    ],
+                },
+            },
+        },
+        "required": ["decision_record_markdown", "rule_updates", "new_rules"],
+    }
+
+
+def split_creator_update_sections(output_text: str) -> tuple[str, str]:
+    """Support legacy tagged output and newer JSON creator-review output."""
+    match = CREATOR_RESPONSE_PATTERN.search(output_text)
+    if match:
+        creator_response = match.group("creator_response").strip()
+        revised_interpretation = match.group("revised_interpretation").strip()
+        if not creator_response or not revised_interpretation:
+            raise OvertimeInterpretationReviewError(
+                "Creator response contained empty tagged sections."
+            )
+        return creator_response, revised_interpretation
+
+    try:
+        data = json.loads(output_text)
+    except json.JSONDecodeError as exc:
+        raise OvertimeInterpretationReviewError(
+            "Creator response did not include the required tagged sections or valid JSON."
+        ) from exc
+
+    creator_response = str(data.get("decision_record_markdown") or "").strip()
+    revised_interpretation = str(data.get("rendered_markdown") or "").strip()
 
     if not creator_response:
         raise OvertimeInterpretationReviewError("Creator response section is empty.")
@@ -391,6 +600,7 @@ def review_overtime_interpretation(
         selected_interpretation_path,
         selected_classification_path,
         selected_overtime_clause_classification_path,
+        original_rules_artifact,
         interpretation_markdown,
         classification_data,
         overtime_clause_classification,
@@ -403,6 +613,7 @@ def review_overtime_interpretation(
     # Build the evaluator prompt from the current interpretation and its source evidence.
     evaluator_messages = build_review_evaluator_messages(
         interpretation_path=selected_interpretation_path,
+        original_rules_artifact=original_rules_artifact,
         interpretation_markdown=interpretation_markdown,
         classification_path=selected_classification_path,
         payment_classification=classification_data,
@@ -420,16 +631,56 @@ def review_overtime_interpretation(
         model=selected_evaluator_model,
         payload=evaluator_messages,
     )
-    evaluator_response = evaluator_client.chat.completions.create(
-        model=selected_evaluator_model,
-        messages=evaluator_messages,
-    )
-    # Extract the evaluator's markdown feedback from the OpenRouter response.
-    evaluator_feedback_markdown = extract_chat_response_text(evaluator_response)
-    if not evaluator_feedback_markdown:
+    if hasattr(evaluator_client, "responses"):
+        evaluator_response = evaluator_client.responses.create(
+            model=selected_evaluator_model,
+            input=evaluator_messages,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "overtime_rule_review_feedback",
+                    "schema": evaluator_feedback_json_schema(),
+                    "strict": True,
+                }
+            },
+        )
+    else:
+        evaluator_response = evaluator_client.chat.completions.create(
+            model=selected_evaluator_model,
+            messages=evaluator_messages,
+        )
+    evaluator_output_text = extract_response_text(evaluator_response)
+    if not evaluator_output_text:
+        evaluator_output_text = extract_chat_response_text(evaluator_response)
+    if not evaluator_output_text:
         raise OvertimeInterpretationReviewError(
             "OpenRouter evaluator response did not include output text."
         )
+    try:
+        evaluator_feedback_data = validate_review_feedback_artifact(
+            json.loads(evaluator_output_text),
+            original_rules_artifact["rules"],
+        )
+        evaluator_feedback_markdown = str(evaluator_feedback_data["summary_markdown"])
+    except (json.JSONDecodeError, ValueError):
+        evaluator_feedback_markdown = extract_chat_response_text(evaluator_response)
+        if not evaluator_feedback_markdown:
+            raise OvertimeInterpretationReviewError(
+                "OpenRouter evaluator response did not include output text."
+            )
+        evaluator_feedback_data = {
+            "schema_version": OVERTIME_RULE_REVIEW_SCHEMA_VERSION,
+            "summary_markdown": evaluator_feedback_markdown,
+            "rule_reviews": [
+                {
+                    "rule_id": rule.rule_id,
+                    "recommendation": "keep",
+                    "rationale": "Legacy markdown feedback fallback.",
+                }
+                for rule in original_rules_artifact["rules"]
+            ],
+            "new_rules": [],
+        }
 
     if status_callback:
         status_callback("Evaluator processed feedback")
@@ -447,6 +698,7 @@ def review_overtime_interpretation(
     # Build the creator prompt from the original interpretation plus evaluator feedback.
     creator_messages = build_review_creator_messages(
         interpretation_path=selected_interpretation_path,
+        original_rules_artifact=original_rules_artifact,
         interpretation_markdown=interpretation_markdown,
         classification_path=selected_classification_path,
         payment_classification=classification_data,
@@ -472,10 +724,41 @@ def review_overtime_interpretation(
             "Creator response did not include output text."
         )
 
-    # Split the creator output into the decision record and revised interpretation markdown.
-    creator_response_markdown, revised_interpretation_markdown = split_creator_update_sections(
-        creator_output_text
-    )
+    try:
+        creator_response_data = json.loads(creator_output_text)
+        reviewed_rules_artifact = apply_review_decisions(
+            original_rules=original_rules_artifact["rules"],
+            evaluator_feedback=evaluator_feedback_data,
+            creator_decision_data=creator_response_data,
+        )
+        creator_response_markdown = str(reviewed_rules_artifact["decision_record_markdown"])
+        revised_interpretation_markdown = str(reviewed_rules_artifact["rendered_markdown"])
+    except (json.JSONDecodeError, ValueError):
+        creator_response_markdown, revised_interpretation_markdown = split_creator_update_sections(
+            creator_output_text
+        )
+        reviewed_rules_artifact = {
+            "rules": rules_from_markdown_fallback(
+                revised_interpretation_markdown,
+                source_path=revised_output_path_for_interpretation(selected_interpretation_path),
+            ),
+            "review_decisions": [
+                {
+                    "rule_id": rule.rule_id,
+                    "evaluator_recommendation": "keep",
+                    "creator_decision": "keep",
+                    "final_decision": "kept",
+                    "reason": "Legacy creator response fallback.",
+                }
+                for rule in original_rules_artifact["rules"]
+            ],
+        }
+        creator_response_data = {
+            "decision_record_markdown": creator_response_markdown,
+            "rule_updates": [],
+            "new_rules": [],
+            "rendered_markdown": revised_interpretation_markdown,
+        }
 
     feedback_path = (
         Path(feedback_output_path)
@@ -492,22 +775,55 @@ def review_overtime_interpretation(
         if revised_output_path
         else revised_output_path_for_interpretation(selected_interpretation_path)
     )
+    feedback_json_path = decision_output_path_for_markdown(feedback_path)
+    creator_response_json_path = decision_output_path_for_markdown(creator_response_path)
+    revised_json_path = json_output_path_for_markdown(revised_path)
 
     if status_callback:
         status_callback("Writing feedback, creator response, and revised interpretation")
 
     # Save each output artifact separately so the review trail remains auditable.
     write_text_with_archive(feedback_path, evaluator_feedback_markdown)
+    write_text_with_archive(
+        feedback_json_path,
+        json.dumps(evaluator_feedback_data, indent=2, ensure_ascii=False),
+    )
     write_text_with_archive(creator_response_path, creator_response_markdown)
-    write_text_with_archive(revised_path, revised_interpretation_markdown)
+    write_text_with_archive(
+        creator_response_json_path,
+        json.dumps(creator_response_data, indent=2, ensure_ascii=False),
+    )
+    write_rules_artifact(
+        json_path=revised_json_path,
+        markdown_path=revised_path,
+        artifact={
+            "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
+            "source_classification_file": str(selected_classification_path),
+            "source_clause_classification_file": str(
+                selected_overtime_clause_classification_path
+            ),
+            "source_original_rules_file": str(
+                json_output_path_for_markdown(selected_interpretation_path)
+            ),
+            "source_evaluator_feedback_file": str(feedback_json_path),
+            "review_decisions": reviewed_rules_artifact["review_decisions"],
+            "rendered_markdown": revised_interpretation_markdown,
+            "rules": [
+                rule_to_dict(rule) for rule in reviewed_rules_artifact["rules"]
+            ],
+        },
+    )
 
     if status_callback:
         status_callback("Review update complete")
 
     return OvertimeInterpretationReviewArtifacts(
         evaluator_feedback_path=feedback_path,
+        evaluator_feedback_json_path=feedback_json_path,
         creator_response_path=creator_response_path,
+        creator_response_json_path=creator_response_json_path,
         revised_interpretation_path=revised_path,
+        revised_interpretation_json_path=revised_json_path,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
         creator_response_markdown=creator_response_markdown,
         revised_interpretation_markdown=revised_interpretation_markdown,

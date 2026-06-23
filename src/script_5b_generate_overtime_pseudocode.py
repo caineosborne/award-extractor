@@ -15,6 +15,13 @@ from src.common.output_paths import (
     path_in_category,
     write_text_with_archive,
 )
+from src.common.overtime_rules import (
+    OVERTIME_RULE_SCHEMA_VERSION,
+    build_rule_inventory_from_rules,
+    json_output_path_for_markdown,
+    load_rules_artifact,
+    rules_from_markdown_fallback,
+)
 from src.common.rule_inventory import (
     RuleInventory,
     parse_rule_inventory_from_markdown,
@@ -176,6 +183,27 @@ def load_overtime_interpretation(source_path: Path | str) -> str:
             f"Overtime interpretation markdown is empty: {path}"
         )
     return text
+
+
+def load_overtime_rules(source_path: Path | str) -> dict[str, Any]:
+    path = select_overtime_interpretation_path(source_path)
+    json_path = json_output_path_for_markdown(path)
+    if not json_path.exists():
+        markdown_text = load_overtime_interpretation(path)
+        return {
+            "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
+            "rendered_markdown": markdown_text,
+            "rules": rules_from_markdown_fallback(markdown_text, source_path=path),
+        }
+    try:
+        return load_rules_artifact(
+            json_path,
+            expected_schema_version=OVERTIME_RULE_SCHEMA_VERSION,
+        )
+    except ValueError as exc:
+        raise CoreOvertimePseudocodeError(
+            f"Overtime interpretation rules JSON is invalid: {json_path}"
+        ) from exc
 
 
 def first_top_level_bullets(markdown: str, count: int = 5) -> str:
@@ -346,9 +374,10 @@ def generate_core_overtime_pseudocode(
         client = OpenAI()
 
     source_path = select_overtime_interpretation_path(summary_path)
-    summary_text = load_overtime_interpretation(source_path)
-    source_inventory = parse_rule_inventory_from_markdown(
-        summary_text,
+    rules_artifact = load_overtime_rules(source_path)
+    summary_text = str(rules_artifact["rendered_markdown"])
+    source_inventory = build_rule_inventory_from_rules(
+        rules_artifact["rules"],
         source_path=source_path,
         inventory_name="reviewed_overtime_rules",
         source_stage="3b",
