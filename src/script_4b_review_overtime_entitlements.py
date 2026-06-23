@@ -17,7 +17,7 @@ from src.common.output_paths import (
     path_in_category,
     write_text_with_archive,
 )
-from src.script_2_classify_payments import extract_response_text
+from src.common.llm_io import extract_response_text
 from src.script_3_interpret_overtime import filter_overtime_clauses, load_classification
 from src.script_3b_review_overtime_interpretation import (
     build_openrouter_client,

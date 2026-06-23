@@ -7,10 +7,13 @@ from src.script_5b_generate_overtime_pseudocode import (
     DEFAULT_MODEL,
     PSEUDOCODE_FIELDS,
     build_messages,
+    default_overtime_interpretation_path,
     first_top_level_bullets,
     generate_core_overtime_pseudocode,
+    load_overtime_interpretation,
     output_path_for_summary,
     overtime_rule_bullets,
+    select_overtime_interpretation_path,
 )
 
 
@@ -52,7 +55,17 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
 
     def test_output_path_for_summary(self):
         self.assertEqual(
-            output_path_for_summary(Path("data/processed/MA000018_overtime_entitlements.md")),
+            output_path_for_summary(
+                Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md")
+            ),
+            Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md"),
+        )
+
+    def test_output_path_for_summary_uses_4b_source_when_present(self):
+        self.assertEqual(
+            output_path_for_summary(
+                Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_4b.md")
+            ),
             Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md"),
         )
 
@@ -97,9 +110,44 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("even if headings or bullet formatting have been edited", messages[0]["content"])
         self.assertIn("Do not rely on a rule having an exact markdown heading", messages[0]["content"])
         self.assertIn("Required additional inputs", messages[0]["content"])
-        self.assertIn("Complete overtime entitlement markdown to convert", messages[1]["content"])
+        self.assertIn(
+            "Do not list a derived field that is just a renamed component of an existing field",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "totals such as hours worked in the day, week, or fortnight",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Treat `Required additional inputs` narrowly",
+            messages[0]["content"],
+        )
+        self.assertIn("Complete overtime interpretation markdown to convert", messages[1]["content"])
         self.assertIn("Daily excess rule", messages[1]["content"])
         self.assertIn("Clause interpretation table", messages[1]["content"])
+
+    def test_select_overtime_interpretation_path_falls_back_from_4b_to_revised(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_dir = Path(temp_dir)
+            manual_4b_path = source_dir / "award_overtime_interpretation_4b.md"
+            revised_path = source_dir / "award_overtime_interpretation_revised.md"
+            revised_path.write_text("# Revised", encoding="utf-8")
+
+            selected_path = select_overtime_interpretation_path(manual_4b_path)
+
+        self.assertEqual(selected_path, revised_path)
+
+    def test_load_overtime_interpretation_prefers_existing_4b(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            source_dir = Path(temp_dir)
+            manual_4b_path = source_dir / "award_overtime_interpretation_4b.md"
+            revised_path = source_dir / "award_overtime_interpretation_revised.md"
+            manual_4b_path.write_text("# Manual 4B", encoding="utf-8")
+            revised_path.write_text("# Revised", encoding="utf-8")
+
+            selected_text = load_overtime_interpretation(manual_4b_path)
+
+        self.assertEqual(selected_text, "# Manual 4B")
 
     def test_generate_core_overtime_pseudocode_writes_markdown_with_mocked_client(self):
         summary = """# Overtime entitlements
@@ -137,6 +185,37 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             "Meal break note",
             fake_client.responses.calls[0]["input"][1]["content"],
         )
+
+    def test_default_overtime_interpretation_path_prefers_4b_when_present(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            interpretation_dir = (
+                project_root / "data" / "processed" / "3_overtime_interpretations"
+            )
+            interpretation_dir.mkdir(parents=True)
+
+            manual_4b_path = interpretation_dir / "MA000018_overtime_interpretation_4b.md"
+            revised_path = (
+                interpretation_dir / "MA000018_overtime_interpretation_revised.md"
+            )
+            revised_path.write_text("# Revised", encoding="utf-8")
+
+            from unittest.mock import patch
+
+            with patch(
+                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                project_root,
+            ):
+                self.assertEqual(
+                    default_overtime_interpretation_path("MA000018"),
+                    revised_path,
+                )
+
+                manual_4b_path.write_text("# 4B", encoding="utf-8")
+                self.assertEqual(
+                    default_overtime_interpretation_path("MA000018"),
+                    manual_4b_path,
+                )
 
 
 if __name__ == "__main__":

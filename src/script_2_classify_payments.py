@@ -11,6 +11,7 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
+from src.common.llm_io import extract_response_text
 from src.common.output_paths import (
     FETCH_AWARD_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
@@ -379,35 +380,6 @@ def response_json_schema() -> dict[str, Any]:
         },
         "required": ["top_level_clause", "classified_clauses"],
     }
-
-
-def extract_response_text(response: Any) -> str:
-    """Extract plain text from the OpenAI response object."""
-    # Prefer the SDK's convenience field when it is present.
-    output_text = getattr(response, "output_text", None)
-    if isinstance(output_text, str) and output_text.strip():
-        return output_text
-
-    # Fall back to walking the lower-level response structure if needed.
-    output = getattr(response, "output", None)
-    if not isinstance(output, list):
-        return ""
-
-    text_parts: list[str] = []
-
-    for item in output:
-        # Each output item may contain several content blocks.
-        content = getattr(item, "content", None)
-        if not isinstance(content, list):
-            continue
-
-        for content_item in content:
-            # Collect every non-empty text fragment so we can parse the JSON payload.
-            text = getattr(content_item, "text", None)
-            if isinstance(text, str) and text.strip():
-                text_parts.append(text)
-
-    return "\n".join(text_parts)
 
 
 def parse_response_json(output_text: str) -> Mapping[str, Any]:

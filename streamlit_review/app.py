@@ -13,7 +13,9 @@ if str(PROJECT_ROOT) not in sys.path:
 from streamlit_review.output_data import (
     artifact_paths_for_award,
     clamp_index,
+    delete_processed_files_matching_prefix,
     discover_award_codes,
+    format_last_modified_for_display,
     format_path_for_display,
     l1_clause_keys,
     l1_record,
@@ -24,7 +26,9 @@ from streamlit_review.output_data import (
     overtime_classification_keys,
     overtime_classification_record,
     previous_index,
+    processed_files_matching_prefix,
     read_text_file,
+    source_path_for_core_overtime_pseudocode,
     source_path_for_manual_4b_editor,
     write_text_file_with_archive,
 )
@@ -37,6 +41,7 @@ SCREEN_ORIGINAL_OVERTIME = "4. Original overtime extraction"
 SCREEN_REVIEW_FEEDBACK = "5. Review feedback and commentary"
 SCREEN_REVISED_OVERTIME = "6. Updated overtime extraction"
 SCREEN_MANUAL_4B_EDITOR = "7. 4B manual overtime editor"
+SCREEN_CORE_OVERTIME_PSEUDOCODE = "8. 5B core overtime pseudocode"
 
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
@@ -46,6 +51,7 @@ SCREEN_OPTIONS = [
     SCREEN_REVIEW_FEEDBACK,
     SCREEN_REVISED_OVERTIME,
     SCREEN_MANUAL_4B_EDITOR,
+    SCREEN_CORE_OVERTIME_PSEUDOCODE,
 ]
 
 COMPARISON_PRESETS = {
@@ -134,6 +140,11 @@ def render_sidebar(award_codes: list[str]) -> str:
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
 
+        if st.button("5B core overtime pseudocode", use_container_width=True):
+            st.session_state["screen_one"] = SCREEN_CORE_OVERTIME_PSEUDOCODE
+            st.session_state["screen_two"] = "None"
+            st.session_state["layout_mode"] = "Single expanded"
+
         st.divider()
 
         if "screen_one" not in st.session_state:
@@ -155,6 +166,9 @@ def render_sidebar(award_codes: list[str]) -> str:
             horizontal=False,
             key="layout_mode",
         )
+
+        st.divider()
+        render_processed_file_cleanup_controls()
 
     return selected_award_code
 
@@ -190,6 +204,7 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
         SCREEN_REVISED_OVERTIME: render_revised_overtime_screen,
         SCREEN_MANUAL_4B_EDITOR: render_manual_4b_editor_screen,
+        SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
     }
 
     renderer = renderers[screen_name]
@@ -197,8 +212,8 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
 
 
 def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_L1_PAYMENT)
-    render_file_caption(artifact_paths.payment_classification)
+    render_panel_heading(SCREEN_L1_PAYMENT, panel_key, artifact_paths)
+    render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
     if payment_classification is None:
@@ -233,8 +248,8 @@ def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_L2_PAYMENT)
-    render_file_caption(artifact_paths.payment_classification)
+    render_panel_heading(SCREEN_L2_PAYMENT, panel_key, artifact_paths)
+    render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
     if payment_classification is None:
@@ -261,8 +276,8 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_OVERTIME_CLASSIFICATION)
-    render_file_caption(artifact_paths.overtime_clause_classification)
+    render_panel_heading(SCREEN_OVERTIME_CLASSIFICATION, panel_key, artifact_paths)
+    render_file_details(artifact_paths.overtime_clause_classification)
 
     overtime_classification = load_json_or_show_error(
         artifact_paths.overtime_clause_classification
@@ -306,12 +321,12 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 
 
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_ORIGINAL_OVERTIME)
+    render_panel_heading(SCREEN_ORIGINAL_OVERTIME, panel_key, artifact_paths)
     render_markdown_file(artifact_paths.original_overtime_interpretation)
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_REVIEW_FEEDBACK)
+    render_panel_heading(SCREEN_REVIEW_FEEDBACK, panel_key, artifact_paths)
 
     if artifact_paths.agentic_review_conversation.exists():
         st.markdown("#### Agentic review conversation")
@@ -349,23 +364,21 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_REVISED_OVERTIME)
+    render_panel_heading(SCREEN_REVISED_OVERTIME, panel_key, artifact_paths)
     render_markdown_file(artifact_paths.revised_overtime_interpretation)
 
 
 def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_MANUAL_4B_EDITOR)
+    render_panel_heading(SCREEN_MANUAL_4B_EDITOR, panel_key, artifact_paths)
 
     source_path = source_path_for_manual_4b_editor(artifact_paths)
     source_content = read_text_file(source_path)
 
-    st.caption(
-        "Editor source: "
-        f"`{format_path_for_display(source_path)}`"
-    )
-    st.caption(
-        "Save target: "
-        f"`{format_path_for_display(artifact_paths.manual_4b_overtime_interpretation)}`"
+    render_file_details(
+        artifact_paths.manual_4b_overtime_interpretation,
+        source_path=source_path,
+        file_label="Save target",
+        source_label="Editor source",
     )
 
     if not source_content.exists:
@@ -398,6 +411,14 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
             f"`{format_path_for_display(artifact_paths.manual_4b_overtime_interpretation)}`."
         )
         st.caption(f"Archive copy: `{format_path_for_display(archive_path)}`")
+
+
+def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str) -> None:
+    render_panel_heading(SCREEN_CORE_OVERTIME_PSEUDOCODE, panel_key, artifact_paths)
+    render_markdown_file(
+        artifact_paths.core_overtime_pseudocode,
+        source_path=source_path_for_core_overtime_pseudocode(artifact_paths),
+    )
 
 
 def manual_4b_editor_widget_key(panel_key: str, output_path: Path) -> str:
@@ -473,8 +494,8 @@ def load_json_or_show_error(path: Path) -> dict[str, Any] | None:
     return load_json_file(path)
 
 
-def render_markdown_file(path: Path) -> None:
-    render_file_caption(path)
+def render_markdown_file(path: Path, source_path: Path | None = None) -> None:
+    render_file_details(path, source_path=source_path)
     file_content = read_text_file(path)
 
     if not file_content.exists:
@@ -488,12 +509,104 @@ def render_missing_file(path: Path) -> None:
     st.warning(f"File not found: `{format_path_for_display(path)}`")
 
 
-def render_file_caption(path: Path) -> None:
-    st.caption(f"Source: `{format_path_for_display(path)}`")
+def render_file_details(
+    path: Path,
+    source_path: Path | None = None,
+    file_label: str = "Displayed file",
+    source_label: str = "Source file used",
+) -> None:
+    metadata_lines = [
+        f"**{file_label}:** `{format_path_for_display(path)}`",
+        f"**Last modified:** `{format_last_modified_for_display(path)}`",
+    ]
+
+    if source_path is not None and source_path != path:
+        metadata_lines.append(
+            f"**{source_label}:** `{format_path_for_display(source_path)}`"
+        )
+        metadata_lines.append(
+            "**Source last modified:** "
+            f"`{format_last_modified_for_display(source_path)}`"
+        )
+
+    st.markdown(
+        '<div class="review-file-details">'
+        + "<br>".join(metadata_lines)
+        + "</div>",
+        unsafe_allow_html=True,
+    )
 
 
-def render_panel_heading(heading: str) -> None:
-    st.markdown(f"### {heading}")
+def render_panel_heading(heading: str, panel_key: str, artifact_paths: Any) -> None:
+    heading_column, button_column = st.columns([5, 1])
+
+    with heading_column:
+        st.markdown(f"### {heading}")
+
+    with button_column:
+        if st.button("Refresh", key=f"{panel_key}_refresh", use_container_width=True):
+            refresh_panel(panel_key, heading, artifact_paths)
+
+
+def refresh_panel(panel_key: str, screen_name: str, artifact_paths: Any) -> None:
+    if screen_name == SCREEN_MANUAL_4B_EDITOR:
+        editor_key = manual_4b_editor_widget_key(
+            panel_key,
+            artifact_paths.manual_4b_overtime_interpretation,
+        )
+        st.session_state.pop(editor_key, None)
+
+    if screen_name == SCREEN_OVERTIME_CLASSIFICATION:
+        clear_session_state_prefix(f"{panel_key}_overtime_clause_text_")
+
+    st.rerun()
+
+
+def clear_session_state_prefix(prefix: str) -> None:
+    keys_to_remove = [
+        key for key in st.session_state.keys() if key.startswith(prefix)
+    ]
+
+    for key in keys_to_remove:
+        st.session_state.pop(key, None)
+
+
+def render_processed_file_cleanup_controls() -> None:
+    st.header("Processed file cleanup")
+    st.caption("Deletes matching files under `data/processed` only. Archive files are never deleted.")
+
+    prefix = st.text_input(
+        "Filename prefix to delete",
+        key="cleanup_prefix",
+        placeholder="MA000018",
+    )
+
+    matching_paths = processed_files_matching_prefix(prefix)
+
+    if prefix.strip():
+        st.caption(f"Matching non-archive files: {len(matching_paths)}")
+
+    if matching_paths:
+        preview_paths = matching_paths[:5]
+        preview_text = "\n".join(
+            f"- `{format_path_for_display(path)}`" for path in preview_paths
+        )
+        if len(matching_paths) > len(preview_paths):
+            preview_text += f"\n- ... and {len(matching_paths) - len(preview_paths)} more"
+        st.markdown(preview_text)
+
+    if st.button("Delete matching processed files", use_container_width=True):
+        if not prefix.strip():
+            st.error("Enter a filename prefix before deleting files.")
+            return
+
+        deleted_paths = delete_processed_files_matching_prefix(prefix)
+        if not deleted_paths:
+            st.info("No matching non-archive processed files were found.")
+            return
+
+        st.success(f"Deleted {len(deleted_paths)} processed files.")
+        st.rerun()
 
 
 def render_json_expander(label: str, value: dict[str, Any]) -> None:
@@ -517,21 +630,23 @@ def apply_review_styles() -> None:
         }
         h1 {
             font-size: 1.45rem !important;
-            margin-bottom: 0.25rem !important;
+            margin-bottom: 0.45rem !important;
         }
         h3 {
-            font-size: 1rem !important;
+            font-size: 1.02rem !important;
             margin-top: 0 !important;
-            margin-bottom: 0.2rem !important;
+            margin-bottom: 0.45rem !important;
+            line-height: 1.35 !important;
         }
         h4 {
             font-size: 0.94rem !important;
-            margin-top: 0.55rem !important;
-            margin-bottom: 0.2rem !important;
+            margin-top: 0.7rem !important;
+            margin-bottom: 0.3rem !important;
+            line-height: 1.35 !important;
         }
         p, li {
             font-size: 0.9rem;
-            line-height: 1.35;
+            line-height: 1.45;
         }
         div[data-testid="stMarkdownContainer"] ul {
             padding-left: 1.15rem;
@@ -548,14 +663,14 @@ def apply_review_styles() -> None:
             list-style-type: square;
         }
         div[data-testid="stCaptionContainer"] p {
-            font-size: 0.72rem;
-            margin-bottom: 0.15rem;
+            font-size: 0.78rem;
+            margin-bottom: 0.25rem;
         }
         div[data-testid="stVerticalBlock"] {
-            gap: 0.35rem;
+            gap: 0.55rem;
         }
         div[data-testid="stHorizontalBlock"] {
-            gap: 0.35rem;
+            gap: 0.5rem;
         }
         div[data-testid="stButton"] button {
             padding: 0.25rem 0.45rem;
@@ -584,6 +699,12 @@ def apply_review_styles() -> None:
         }
         div[data-testid="stExpander"] details {
             padding-top: 0;
+        }
+        .review-file-details {
+            font-size: 0.83rem;
+            line-height: 1.5;
+            margin-top: 0.15rem;
+            margin-bottom: 0.45rem;
         }
         </style>
         """,

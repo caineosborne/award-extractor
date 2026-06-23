@@ -28,7 +28,7 @@ from src.common.pipeline_runtime import (
     load_openai_environment as require_openai_environment,
     load_openrouter_api_key as require_openrouter_api_key,
 )
-from src.script_2_classify_payments import extract_response_text
+from src.common.llm_io import extract_response_text
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,

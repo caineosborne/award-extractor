@@ -1,10 +1,11 @@
 import json
 import re
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import ARCHIVE_DIR, write_text_with_archive
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -24,6 +25,7 @@ class ArtifactPaths:
     creator_response: Path
     revised_overtime_interpretation: Path
     manual_4b_overtime_interpretation: Path
+    core_overtime_pseudocode: Path
 
 
 @dataclass(frozen=True)
@@ -64,6 +66,9 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_interpretation_revised.md",
         manual_4b_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_4b.md",
+        core_overtime_pseudocode=PROCESSED_ROOT
+        / "5b_generate_overtime_pseudocode"
+        / f"{award_code}_core_overtime_pseudocode.md",
     )
 
 
@@ -91,6 +96,73 @@ def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
         return artifact_paths.revised_overtime_interpretation
 
     return artifact_paths.original_overtime_interpretation
+
+
+def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> Path:
+    if artifact_paths.manual_4b_overtime_interpretation.exists():
+        return artifact_paths.manual_4b_overtime_interpretation
+
+    if artifact_paths.revised_overtime_interpretation.exists():
+        return artifact_paths.revised_overtime_interpretation
+
+    return artifact_paths.original_overtime_interpretation
+
+
+def last_modified_at(path: Path) -> datetime | None:
+    if not path.exists():
+        return None
+
+    return datetime.fromtimestamp(path.stat().st_mtime)
+
+
+def format_last_modified_for_display(path: Path) -> str:
+    modified_at = last_modified_at(path)
+    if modified_at is None:
+        return "File not found"
+
+    return modified_at.strftime("%Y-%m-%d %H:%M:%S")
+
+
+def processed_files_matching_prefix(
+    prefix: str,
+    processed_root: Path = PROCESSED_ROOT,
+) -> list[Path]:
+    selected_prefix = prefix.strip()
+    if not selected_prefix:
+        return []
+
+    matching_paths: list[Path] = []
+
+    for path in processed_root.rglob("*"):
+        if not path.is_file():
+            continue
+
+        if ARCHIVE_DIR in path.parts:
+            continue
+
+        if path.name.startswith(selected_prefix):
+            matching_paths.append(path)
+
+    return sorted(matching_paths)
+
+
+def delete_processed_files_matching_prefix(
+    prefix: str,
+    processed_root: Path = PROCESSED_ROOT,
+) -> list[Path]:
+    selected_prefix = prefix.strip()
+    if not selected_prefix:
+        raise ValueError("A non-empty prefix is required.")
+
+    matching_paths = processed_files_matching_prefix(
+        selected_prefix,
+        processed_root=processed_root,
+    )
+
+    for path in matching_paths:
+        path.unlink()
+
+    return matching_paths
 
 
 def l1_clause_keys(payment_classification: dict[str, Any]) -> list[str]:

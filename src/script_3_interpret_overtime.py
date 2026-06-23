@@ -16,7 +16,8 @@ from src.common.active_pipeline_paths import (
 )
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_runtime import load_openai_environment
-from src.script_2_classify_payments import extract_response_text, parse_response_json
+from src.common.llm_io import extract_response_text
+from src.script_2_classify_payments import parse_response_json
 from src.script_3_interpret_overtime_prompt import (
     OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT,
     OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT,
