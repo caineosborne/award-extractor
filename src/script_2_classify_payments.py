@@ -1,3 +1,9 @@
+"""Step 2 payment classifier.
+
+Prompt ownership:
+- Uses `src/prompts/payment_clause_classification.py`.
+"""
+
 import argparse
 import json
 import os
@@ -19,7 +25,7 @@ from src.common.output_paths import (
     timestamped_archive_path,
     write_text_with_archive,
 )
-from src.script_2_classify_payments_prompt import (
+from src.prompts.payment_clause_classification import (
     ALLOWED_TAGS,
     SYSTEM_PROMPT,
     build_user_prompt,

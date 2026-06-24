@@ -1,3 +1,9 @@
+"""Prompt content for step 2 payment clause classification.
+
+Used by:
+- `src/script_2_classify_payments.py`
+"""
+
 import json
 
 

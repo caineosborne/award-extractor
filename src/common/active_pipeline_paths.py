@@ -159,3 +159,19 @@ def revised_output_path_for_interpretation(interpretation_path: Path | str) -> P
     """Return the default revised interpretation path for an interpretation file."""
     path = Path(interpretation_path)
     return path.with_name(f"{path.stem}_revised{path.suffix}")
+
+
+def manual_4b_output_path_for_interpretation(interpretation_path: Path | str) -> Path:
+    """Return the default manual 4B markdown path for an interpretation file."""
+    path = Path(interpretation_path)
+    award_code = award_code_from_interpretation_path(path)
+    return path.with_name(f"{award_code}_overtime_interpretation_4b.md")
+
+
+def preferred_5b_source_path_for_interpretation(interpretation_path: Path | str) -> Path:
+    """Return the preferred 5B source path, using manual 4B when present."""
+    revised_path = Path(interpretation_path)
+    manual_4b_path = manual_4b_output_path_for_interpretation(revised_path)
+    if manual_4b_path.exists():
+        return manual_4b_path
+    return revised_path

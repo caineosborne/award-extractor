@@ -1,3 +1,10 @@
+"""Prompt content for step 3B overtime interpretation review.
+
+Used by:
+- `src/script_3b_review_overtime_interpretation.py`
+- `src/script_3b_agentic_review_workflow.py`
+"""
+
 from __future__ import annotations
 
 import json
@@ -365,6 +372,37 @@ Earlier evaluator feedback:
 Return JSON only:
 {{"status":"pass"|"needs_revision","reason":"..."}}
 """
+
+
+def evaluator_structured_output_instructions() -> str:
+    return (
+        "Return JSON only with these top-level fields:\n"
+        "- summary_markdown\n"
+        "- rule_reviews\n"
+        "- new_rules\n\n"
+        "For every original rule_id, include one rule_reviews item with:\n"
+        "- rule_id\n"
+        "- recommendation: keep, modify, or remove\n"
+        "- rationale\n\n"
+        "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
+        "If a missing supported rule should be added, include it in new_rules using the same structured shape as the step-3 rules JSON."
+    )
+
+
+def creator_structured_output_instructions() -> str:
+    return (
+        "Return JSON only with these top-level fields:\n"
+        "- decision_record_markdown\n"
+        "- rule_updates\n"
+        "- new_rules\n\n"
+        "You must provide one rule_updates item for every original rule_id.\n"
+        "Each rule_updates item must contain:\n"
+        "- rule_id\n"
+        "- decision: keep, modify, or remove\n"
+        "- reason\n"
+        "- updated_rule when decision is modify\n\n"
+        "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove."
+    )
 
 
 def build_agentic_creator_instructions(max_feedback_cycles: int) -> str:

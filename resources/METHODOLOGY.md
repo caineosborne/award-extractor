@@ -13,6 +13,8 @@ The current active manager-review path is:
 
 In code, those are steps `1`, `2`, `3`, and `3B`.
 
+Active prompt content is stored separately under `src/prompts/`. The runtime scripts import prompt content from those modules rather than embedding instruction text directly.
+
 ## Design principles
 
 The pipeline uses three different types of processing:
@@ -59,7 +61,7 @@ No model is used here. This step is the foundation for everything later. If the 
 
 Files:
 - `src/script_2_classify_payments.py`
-- `src/script_2_classify_payments_prompt.py`
+- `src/prompts/payment_clause_classification.py`
 
 Purpose:
 - identify which clauses are relevant to payment or definition logic;
@@ -326,21 +328,19 @@ The repo still contains later steps, but they are not part of the current active
 
 ### Step 4A
 
-This converts the reviewed overtime interpretation into a more reviewer-facing entitlement summary.
+This converts the revised `3B` overtime interpretation into a more polished human-readable overtime guide.
+
+It uses `resources/Template.md` as a structure reference only. The template is not source evidence.
 
 This is markdown generation rather than strict structured rule generation.
 
-### Step 4B
-
-This reviews the entitlement summary and then produces an updated answer and a final formatted answer.
-
-This is a temporary review layer rather than a final stable design.
+There is no longer an active scripted `4B` review chain in the main codepath. Instead, Streamlit provides a manual `4B` editor screen that starts from the generated `4A` markdown and saves a manually edited file when needed.
 
 ### Step 5B
 
-This generates payroll-style pseudocode from the reviewed interpretation or entitlement artifact.
+This generates payroll-style pseudocode from the reviewed interpretation or the later `4A`/manual `4B` markdown artifact.
 
-Its output is markdown, but it is followed by deterministic validation against a rule inventory.
+Its output is markdown, and the generation step is immediately followed by deterministic validation against a rule inventory. That validation is implemented in `src/script_5b_validate_overtime_pseudocode.py`, which is part of the normal `5B` flow rather than a separate manual process.
 
 ## How to read the pipeline end to end
 

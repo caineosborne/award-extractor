@@ -168,12 +168,14 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir)
             manual_4b_path = source_dir / "award_overtime_interpretation_4b.md"
+            entitlement_path = source_dir / "award_overtime_entitlements.md"
             revised_path = source_dir / "award_overtime_interpretation_revised.md"
+            entitlement_path.write_text("# 4A", encoding="utf-8")
             revised_path.write_text("# Revised", encoding="utf-8")
 
             selected_path = select_overtime_interpretation_path(manual_4b_path)
 
-        self.assertEqual(selected_path, revised_path)
+        self.assertEqual(selected_path, entitlement_path)
 
     def test_select_overtime_interpretation_path_accepts_award_code(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -181,11 +183,13 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             interpretation_dir = (
                 project_root / "data" / "processed" / "3_overtime_interpretations"
             )
-            interpretation_dir.mkdir(parents=True)
-            revised_path = (
-                interpretation_dir / "MA000003_overtime_interpretation_revised.md"
+            entitlement_dir = (
+                project_root / "data" / "processed" / "4a_overtime_entitlements"
             )
-            revised_path.write_text("# Revised", encoding="utf-8")
+            interpretation_dir.mkdir(parents=True)
+            entitlement_dir.mkdir(parents=True)
+            entitlement_path = entitlement_dir / "MA000003_overtime_entitlements.md"
+            entitlement_path.write_text("# 4A", encoding="utf-8")
 
             from unittest.mock import patch
 
@@ -195,7 +199,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             ):
                 selected_path = select_overtime_interpretation_path("MA000003")
 
-        self.assertEqual(selected_path, revised_path)
+        self.assertEqual(selected_path, entitlement_path)
 
     def test_load_overtime_interpretation_prefers_existing_4b(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -320,15 +324,20 @@ None
         self.assertIn("Initial pseudocode draft to repair", fake_client.responses.calls[1]["input"][1]["content"])
         self.assertIn("Overall status: `passed`", validation_markdown)
 
-    def test_default_overtime_interpretation_path_prefers_4b_when_present(self):
+    def test_default_overtime_interpretation_path_prefers_4b_then_4a_then_3b(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
             interpretation_dir = (
                 project_root / "data" / "processed" / "3_overtime_interpretations"
             )
+            entitlement_dir = (
+                project_root / "data" / "processed" / "4a_overtime_entitlements"
+            )
             interpretation_dir.mkdir(parents=True)
+            entitlement_dir.mkdir(parents=True)
 
             manual_4b_path = interpretation_dir / "MA000018_overtime_interpretation_4b.md"
+            entitlement_path = entitlement_dir / "MA000018_overtime_entitlements.md"
             revised_path = (
                 interpretation_dir / "MA000018_overtime_interpretation_revised.md"
             )
@@ -343,6 +352,12 @@ None
                 self.assertEqual(
                     default_overtime_interpretation_path("MA000018"),
                     revised_path,
+                )
+
+                entitlement_path.write_text("# 4A", encoding="utf-8")
+                self.assertEqual(
+                    default_overtime_interpretation_path("MA000018"),
+                    entitlement_path,
                 )
 
                 manual_4b_path.write_text("# 4B", encoding="utf-8")

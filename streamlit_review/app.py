@@ -975,7 +975,7 @@ def render_pipeline_run_controls(
 
     full_run_key = f"run_full_{selected_award_code}"
     if st.button(
-        "Run full pipeline",
+        "Run active pipeline",
         key=full_run_key,
         use_container_width=True,
         disabled=controls_disabled,
@@ -1093,7 +1093,7 @@ def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
 
 def pipeline_run_label(step: str | None) -> str:
     if step is None:
-        return "Full pipeline run"
+        return "Active pipeline run"
 
     return PIPELINE_STEP_LABELS[step]
 
@@ -1155,7 +1155,7 @@ def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
 
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
-    if step not in (None, "5b"):
+    if step != "5b":
         return None
 
     validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)

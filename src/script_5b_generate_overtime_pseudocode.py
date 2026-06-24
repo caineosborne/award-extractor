@@ -1,3 +1,12 @@
+"""Step 5B core overtime pseudocode generator.
+
+Prompt ownership:
+- Uses `src/prompts/core_overtime_pseudocode.py`.
+
+Validation dependency:
+- Uses `src/script_5b_validate_overtime_pseudocode.py` for deterministic coverage checks.
+"""
+
 import argparse
 import os
 from collections.abc import Sequence
@@ -10,6 +19,7 @@ from openai import OpenAI
 from src.common.active_pipeline_paths import looks_like_path
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import (
+    OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     OVERTIME_PSEUDOCODE_DIR,
     path_in_category,
@@ -22,10 +32,11 @@ from src.common.overtime_rules import (
     load_rules_artifact,
     rules_from_markdown_fallback,
 )
-from src.common.rule_inventory import (
-    RuleInventory,
-    parse_rule_inventory_from_markdown,
-    render_inventory_for_prompt,
+from src.common.rule_inventory import RuleInventory
+from src.prompts.core_overtime_pseudocode import (
+    PSEUDOCODE_FIELDS as PROMPT_PSEUDOCODE_FIELDS,
+    build_messages as prompt_build_messages,
+    build_repair_messages as prompt_build_repair_messages,
 )
 from src.script_5b_validate_overtime_pseudocode import (
     validation_json_path_for_pseudocode,
@@ -46,84 +57,9 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
 DEFAULT_MODEL = "gpt-5.4-mini"
 MAX_VALIDATION_REPAIR_ATTEMPTS = 1
 
-CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
-
-Goal:
-- Convert the supplied overtime entitlement markdown into bullet-point pseudocode.
-- Only classify whether worked hours are Ordinary_Hours or Overtime_Hours.
-- Treat Unallocated_Hours as the total hours worked that still need ordinary/overtime classification, assume that no hours are preallocated. 
-- For this task, any hours that are not ordinary hours are overtime.
-- Preserve the business meaning of the overtime triggers in the markdown, even if headings or bullet formatting have been edited by a human.
-
-The output will be passed to system engineers to configure payroll rules - it does not need explanations (beyond the clauses) simply the code is sufficient. 
-
-Available fields:
-{fields}
-
-Constraints:
-- Assume that you are reviewing the hours worked for a fortnight, none of these hours are currently classified as overtime or ordinary. Your task is to allocate the hours as ordinary or overtime.  You are recieving the the total hours worked for the fornight, no other hours worked. 
-- Do not cover allowance calculations, dollar amounts, overtime multipliers, or penalty amounts. The outputs need to simply contain the amount of hours allocated to overitme, and the amount of hours as ordinary. 
-- If formulas refer to a specific time (eg penalties for working after 10PM) this may be stated as a derived field only where that calculation is genuinely needed and reused in more than one rule.
-
-Do not say "IF block occurs on a day other than Monday to Friday OR block time is before 6:00 am OR block time is after 6:00 pm. Allocate that block hour to Overtime_Hours"
-
-Say "If the shift ends after 6pm, or starts before 6am, or is worked on the weekend. Allocate any hours between shift end and 6pm as overtime"
-
-Shift_Segments_By_Hour
-- Use the plain-English overtime trigger section as the main source for ordinary/overtime classification.
-- Do not rely on a rule having an exact markdown heading or bullet label. Read the complete document for meaning.
-- Apply rules only to currently Unallocated_Hours.
-- The same worked hour must never be classified into more than one bucket.
-- Assign remaining Unallocated_Hours to Ordinary_Hours after all overtime triggers have been applied.
-- Include source clause references in comments.
-- Do not create additional fields unnecessarily - for any clauses are are reliant on times, use the existing Shift Start and Shift End fields. 
-- If a rule needs an input that is not in the available fields, name it under Required additional inputs. Any fields that can be derived from the supplied data should be included as a calucation, rather than an additional data point. 
-- Do not list a derived field that is just a renamed component of an existing field. For example, do not derive `Shift_Start_Time` from `Shift_Start`, `Shift_End_Time` from `Shift_End`, or `Shift_Start_Day` from `Shift_Date` unless the source rule truly requires a different representation that is not already supplied.
-- Do not list straightforward calculations as separate derived fields unless they are reused across multiple rules and make the pseudocode materially clearer. For example, totals such as hours worked in the day, week, or fortnight, hours over 10 in a day, or hours outside rostered hours should usually appear as calculations inside the pseudocode rather than as standalone derived fields.
-- Treat derived fields as optional. Use the `Derived Fields` section only for non-obvious reusable calculations. If no such calculations are needed, write `None`.
-- Treat `Required additional inputs` narrowly. Only include facts that are not already provided and cannot be calculated directly from the supplied fields and shift records.
-- Use clear payroll variables. Do not invent vague helper variables such as offsets, safe offsets, magic masks, or placeholders that hide the calculation.
-- If a rule requires segmenting a shift into hour blocks, state that as a required additional input and describe the segmentation plainly.
-- Prefer simple step-by-step pseudocode over dense formulas.
-- If the ruleset applies to all employees,then it is not necessary to specify the employee cohort - this is only necessary where clauses only target particular cohorts. Assume all employees are affected by all rules, unless otherwise stated. 
-- Do not specify clauess within the psuedo code - use rulesets that technical teams can build without being aware of the award. 
-- When determining the priority, ensure that all rulesets that affect outlier situations are processed first, followed by any rules time of days are processed first, before those reviewing total hours in a day, before those that affect a week, or those that affect a longer time period.  When listing the priority ensure that the rules here match what is shown in the pseudocode section. 
-- Return markdown only.
-
-Required markdown structure:
-
-# Overtime pseudocode
-
-## Derived Fields
-
-## Required additional inputs
-
-## Rule priority
-
-## Pseudocode
-
-## Implementation notes
-"""
-
-PSEUDOCODE_FIELDS = {
-    "Shift_Date": "The calendar date on which the shift starts.",
-    "Shift_Day": "The named day associated with the shift.",
-    "Shift_Start": "The shift start time.",
-    "Shift_End": "The shift end time.",
-    "Roster_Start": "The time the employees is rostered to start work.",
-    "Roster_End": "The time the employee is rostered to end work.",  
-    "Day_of_Week": "The day of the week for the shift date.",
-    "Employee Type - Shift Worker/Day Worker": (
-        "Whether the employee is classified as a shift worker or day worker."
-    ),
-    "Employee Type - Full Time/PartTime/Casual": (
-        "Whether the employee is full-time, part-time, or casual."
-    ),
-    "Unallocated_Hours": (
-        "The hours in the shift that have not yet been allocated by another clause."
-    ),
-}
-
+PSEUDOCODE_FIELDS = PROMPT_PSEUDOCODE_FIELDS
+build_messages = prompt_build_messages
+build_repair_messages = prompt_build_repair_messages
 
 class CoreOvertimePseudocodeError(RuntimeError):
     """Base exception for core overtime pseudocode failures."""
@@ -137,28 +73,59 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
         )
 
 
+def entitlement_path_for_award(award_code: str) -> Path:
+    entitlement_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_ENTITLEMENTS_DIR
+    return entitlement_dir / f"{award_code}_overtime_entitlements.md"
+
+
+def fallback_source_paths_for_path(path: Path) -> list[Path]:
+    stem = path.stem
+
+    if stem.endswith("_overtime_interpretation_4b"):
+        base_stem = stem.removesuffix("_overtime_interpretation_4b")
+        return [
+            path,
+            path.with_name(f"{base_stem}_overtime_entitlements.md"),
+            path.with_name(f"{base_stem}_overtime_interpretation_revised.md"),
+            path.with_name(f"{base_stem}_overtime_interpretation.md"),
+        ]
+
+    if stem.endswith("_overtime_entitlements"):
+        base_stem = stem.removesuffix("_overtime_entitlements")
+        interpretation_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_INTERPRETATIONS_DIR
+        return [
+            path,
+            interpretation_dir / f"{base_stem}_overtime_interpretation_revised.md",
+            interpretation_dir / f"{base_stem}_overtime_interpretation.md",
+        ]
+
+    if stem.endswith("_overtime_interpretation_revised"):
+        base_stem = stem.removesuffix("_overtime_interpretation_revised")
+        return [
+            path,
+            path.with_name(f"{base_stem}_overtime_interpretation.md"),
+        ]
+
+    return [path]
+
+
 def select_overtime_interpretation_path(
     source_path: Path | str = DEFAULT_OVERTIME_SUMMARY_PATH,
 ) -> Path:
     selected_source = str(source_path)
     if looks_like_path(selected_source):
-        path = Path(selected_source)
+        candidate_paths = fallback_source_paths_for_path(Path(selected_source))
     else:
-        path = default_overtime_interpretation_path(selected_source)
+        candidate_paths = [default_overtime_interpretation_path(selected_source)]
 
-    if path.exists():
-        return path
+    for candidate_path in candidate_paths:
+        if candidate_path.exists():
+            return candidate_path
 
-    stem = path.stem
-    if stem.endswith("_overtime_interpretation_4b"):
-        fallback_path = path.with_name(
-            stem.removesuffix("_overtime_interpretation_4b")
-            + "_overtime_interpretation_revised.md"
-        )
-        if fallback_path.exists():
-            return fallback_path
-
-    raise CoreOvertimePseudocodeError(f"Overtime interpretation markdown not found: {path}")
+    raise CoreOvertimePseudocodeError(
+        f"Overtime interpretation markdown not found. Checked: "
+        + ", ".join(str(path) for path in candidate_paths)
+    )
 
 
 def default_overtime_interpretation_path(award_code: str) -> Path:
@@ -168,7 +135,28 @@ def default_overtime_interpretation_path(award_code: str) -> Path:
     manual_4b_path = interpretation_dir / f"{award_code}_overtime_interpretation_4b.md"
     if manual_4b_path.exists():
         return manual_4b_path
-    return interpretation_dir / f"{award_code}_overtime_interpretation_revised.md"
+
+    entitlement_path = entitlement_path_for_award(award_code)
+    if entitlement_path.exists():
+        return entitlement_path
+
+    revised_path = interpretation_dir / f"{award_code}_overtime_interpretation_revised.md"
+    if revised_path.exists():
+        return revised_path
+
+    return interpretation_dir / f"{award_code}_overtime_interpretation.md"
+
+
+def source_stage_for_path(path: Path) -> str:
+    stem = path.stem
+
+    if stem.endswith("_overtime_interpretation_4b"):
+        return "4b"
+    if stem.endswith("_overtime_entitlements"):
+        return "4a"
+    if stem.endswith("_overtime_interpretation_revised"):
+        return "3b"
+    return "3"
 
 
 def load_overtime_interpretation(source_path: Path | str) -> str:
@@ -268,6 +256,8 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
     stem = path.stem
     if stem.endswith("_overtime_interpretation_4b"):
         stem = stem.removesuffix("_overtime_interpretation_4b")
+    elif stem.endswith("_overtime_entitlements"):
+        stem = stem.removesuffix("_overtime_entitlements")
     elif stem.endswith("_overtime_interpretation_revised"):
         stem = stem.removesuffix("_overtime_interpretation_revised")
     elif stem.endswith("_overtime_interpretation"):
@@ -277,68 +267,6 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
         OVERTIME_PSEUDOCODE_DIR,
         f"{stem}_core_overtime_pseudocode.md",
     )
-
-
-def build_messages(
-    source_file: str,
-    overtime_summary_markdown: str,
-    source_inventory: RuleInventory | None = None,
-) -> list[dict[str, str]]:
-    fields = "\n".join(
-        f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
-    )
-    system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
-    inventory_text = ""
-    if source_inventory is not None:
-        inventory_text = (
-            "Required rule inventory derived from the reviewed source markdown:\n"
-            f"{render_inventory_for_prompt(source_inventory)}\n\n"
-            "Every inventory rule must be represented in the pseudocode or implementation notes. "
-            "Do not omit a reviewed rule merely because another rule sounds similar.\n\n"
-        )
-    user_prompt = (
-        f"Source overtime interpretation markdown: {source_file}\n\n"
-        f"{inventory_text}"
-        "Complete overtime interpretation markdown to convert:\n"
-        f"{overtime_summary_markdown}"
-    )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-
-
-def build_repair_messages(
-    *,
-    source_file: str,
-    overtime_summary_markdown: str,
-    source_inventory: RuleInventory,
-    initial_pseudocode_markdown: str,
-    validation_report_markdown: str,
-) -> list[dict[str, str]]:
-    fields = "\n".join(
-        f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
-    )
-    system_prompt = CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE.format(fields=fields)
-    user_prompt = (
-        f"Source overtime interpretation markdown: {source_file}\n\n"
-        "The first pseudocode draft failed deterministic validation.\n\n"
-        "Required rule inventory derived from the reviewed source markdown:\n"
-        f"{render_inventory_for_prompt(source_inventory)}\n\n"
-        "Reviewed source markdown:\n"
-        f"{overtime_summary_markdown}\n\n"
-        "Initial pseudocode draft to repair:\n"
-        f"{initial_pseudocode_markdown}\n\n"
-        "Validation report describing the missing or inconsistent rules:\n"
-        f"{validation_report_markdown}\n\n"
-        "Revise the pseudocode so every reviewed source rule is represented. "
-        "Preserve correct rules already present. Carry the relevant source clause references into comments. "
-        "If a rule needs operational inputs that are not already in the available fields, state them in `Required additional inputs`."
-    )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
 
 
 def request_pseudocode_output(
@@ -380,7 +308,7 @@ def generate_core_overtime_pseudocode(
         rules_artifact["rules"],
         source_path=source_path,
         inventory_name="reviewed_overtime_rules",
-        source_stage="3b",
+        source_stage=source_stage_for_path(source_path),
         domain="overtime",
     )
 
@@ -437,7 +365,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=str(default_overtime_interpretation_path("MA000018")),
         help=(
             "Award code or path to an overtime interpretation markdown file. "
-            "When an award code is provided, use the 4B file when present, otherwise the revised overtime interpretation."
+            "When an award code is provided, use the 4B file when present, otherwise 4A, then the revised overtime interpretation."
         ),
     )
     parser.add_argument(

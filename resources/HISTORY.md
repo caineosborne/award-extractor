@@ -9,7 +9,7 @@ The project is designed to produce audit-readable artifacts from Australian mode
 3. Generate an overtime interpretation working document.
 3B. Run a one-pass supervisor review and creator update of the overtime interpretation.
 
-Steps `4A`, `4B`, and `5B` remain in the repository but are currently in flux and are not part of the active manager-review path.
+Step `4A` remains in the repository as a simple formatter over the revised `3B` interpretation. Step `5B` also remains in the repository as a later implementation-oriented generation step. These are not part of the active manager-review path, but they are current maintained steps rather than archived code.
 
 Script 6 final consistency review has been removed from the active codebase because that review step is expected to be redesigned before it is used again.
 
@@ -32,21 +32,19 @@ Root files are limited to project metadata and entry points:
 
 | Step | Script | Prompt source |
 | --- | --- | --- |
-| 2 | `src/script_2_classify_payments.py` | `src/script_2_classify_payments_prompt.py` |
+| 2 | `src/script_2_classify_payments.py` | `src/prompts/payment_clause_classification.py` |
 | 3.1 filter overtime clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for clauses tagged `Ordinary Hours & Overtime`. |
-| 3.2 classify overtime clauses | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` in the same file. |
+| 3.2 classify overtime clauses | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` in `src/prompts/overtime_interpretation.py`. User prompt: `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` in the same file. |
 | 3.3 filter interpretation clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for classifications `Ordinary Hours Boundary` and `Overtime Trigger`. |
-| 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. The active pipeline runs this interpretation generation twice and then uses a comparison prompt built inside `src/script_3_interpret_overtime.py` to merge the expert outputs. |
-| 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_shared_prompts.py` |
-| 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `src/script_3_interpret_overtime_prompt.py` |
-| 3B optional agentic review | `src/script_3b_agentic_review_overtime_interpretation.py` and `src/script_3b_agentic_review_workflow.py` | Creator and evaluator prompts in `src/script_3b_shared_prompts.py` |
-| 4A | `src/script_4a_summarize_overtime.py` | `src/script_4a_summarize_overtime_prompt.py` |
-| 4B accuracy evaluator | `src/script_4b_review_overtime_entitlements.py` | `accuracy_evaluation_system_prompt()` in `src/script_4b_review_overtime_entitlements.py` |
-| 4B creator update | `src/script_4b_review_overtime_entitlements.py` | `src/script_4a_summarize_overtime_prompt.py` |
-| 4B formatter | `src/script_4b_review_overtime_entitlements.py` | `build_formatting_messages()` in `src/script_4b_review_overtime_entitlements.py` |
-| 5B | `src/script_5b_generate_overtime_pseudocode.py` | `CORE_OVERTIME_PSEUDOCODE_SYSTEM_PROMPT_TEMPLATE` in `src/script_5b_generate_overtime_pseudocode.py` |
+| 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/prompts/overtime_interpretation.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. The active pipeline runs this interpretation generation twice and then uses `build_expert_comparison_messages()` in the same prompt file to merge the expert outputs. |
+| 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/prompts/overtime_interpretation_review.py` |
+| 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `build_minimal_creator_revision_prompt()` and related helper prompt builders in `src/prompts/overtime_interpretation_review.py` |
+| 3B optional agentic review | `src/script_3b_agentic_review_overtime_interpretation.py` and `src/script_3b_agentic_review_workflow.py` | `src/prompts/overtime_interpretation_review.py` and `src/prompts/agentic_review.py` |
+| 4A | `src/script_4a_summarize_overtime.py` | `src/prompts/overtime_guide_formatting.py` |
+| 5B generation | `src/script_5b_generate_overtime_pseudocode.py` | `src/prompts/core_overtime_pseudocode.py` |
+| 5B validation | `src/script_5b_validate_overtime_pseudocode.py` | No prompt. Deterministic validation only. |
 
-Scripts 3 and 4A no longer share a prompt file. Script 3 owns the working interpretation prompt. Script 4A owns the reviewer-facing entitlement summary prompt.
+Active prompt content now lives under `src/prompts/`. Runtime scripts contain orchestration logic and import prompt content from that package.
 
 ## LLM output and review contract
 
@@ -65,10 +63,7 @@ The main contracts are:
 | 3B evaluator | Supervisor review of step 3 | Markdown feedback for the creator, with a companion JSON review artifact when the evaluator supports structured output | Mixed. The human-readable artifact is markdown feedback, but the preferred evaluator contract is structured JSON containing `summary_markdown`, rule-level recommendations, and proposed new rules. | Feedback, not a final gate. The evaluator points out issues and recommendations for the creator. |
 | 3B creator update | Revision of step 3 interpretation | Revised markdown plus creator decision record, with a companion structured review-decision artifact when the creator returns valid JSON | Mixed. Preferred contract is structured JSON; human-readable artifacts are markdown. | Strict on machine-readability, but not a binary quality gate. The code tries to validate and apply the creator update; if structured output cannot be applied it falls back to a manual-review record and preserves the earlier rules. |
 | Optional 3B agentic later evaluator cycles | Lightweight re-check after creator edits | Small JSON object like `{"status":"pass"|"needs_revision","reason":"..."}` | Structured. JSON only. | Strict pass/fail gate for later feedback cycles. This is the clearest binary reviewer decision in the repo. |
-| 4A | Reviewer-facing entitlement summary generator | Markdown summary | Free text markdown. No response schema is enforced. | No hard gate inside 4A itself. It produces user-facing output for later review. |
-| 4B accuracy evaluator | Review of the 4A entitlement summary | Markdown feedback | Free text markdown with required headings, but no strict response schema. | Feedback, not a binary gate. It tells the creator what to fix. |
-| 4B creator update | Revision of the 4A entitlement summary | Markdown updated answer wrapped in expected tags | Free text markdown. The wrapper tags are parsed, but the content is not schema-driven. | Not a substantive pass/fail gate. It is a one-pass correction step driven by evaluator feedback. |
-| 4B formatter | Final wording and formatting pass | Markdown final answer | Free text markdown. | Not a correctness gate. It improves wording and formatting after the source-aware review. |
+| 4A | Reviewed-interpretation formatter | Markdown guide | Free text markdown. No response schema is enforced. | No hard gate inside 4A itself. It reformats the revised `3B` interpretation into a cleaner human-readable guide using `resources/Template.md` as a structure reference only. |
 | 5B | Pseudocode generator | Markdown pseudocode | Free text markdown. | Soft generation followed by hard deterministic validation. The model output itself is free text, but the code checks coverage against a source rule inventory and can request one repair pass. |
 | 5B validation | Deterministic validator, not an LLM step | JSON and markdown validation reports | Structured deterministic output. | Strict pass/fail style reporting. Missing rule coverage is recorded explicitly in the validation artifacts. |
 
@@ -76,7 +71,7 @@ For audit purposes, the simplest summary is:
 
 - Steps `2`, `3.2`, and `3.4` are the main strict structured-generation steps.
 - Step `3B` is mainly a feedback workflow, although its preferred machine contract is also structured.
-- Step `4A` and most of `4B` are markdown generation and markdown review, not schema-enforced reasoning steps.
+- Step `4A` is markdown generation, not schema-enforced reasoning.
 - Step `5B` generates free-text markdown but is constrained after generation by deterministic validation.
 
 ## 1. Fetch award
@@ -110,7 +105,7 @@ Status:
 
 Files:
 - `src/script_2_classify_payments.py`
-- `src/script_2_classify_payments_prompt.py`
+- `src/prompts/payment_clause_classification.py`
 
 Purpose:
 - Read structured award JSON.
@@ -137,7 +132,7 @@ Status:
 
 Files:
 - `src/script_3_interpret_overtime.py`
-- `src/script_3_interpret_overtime_prompt.py`
+- `src/prompts/overtime_interpretation.py`
 
 Purpose:
 - Read payment classification JSON.
@@ -237,18 +232,18 @@ Status:
 - Later evaluator cycles are lightweight structured pass/fail checks that return `pass` or `needs_revision`.
 - Intended for deeper review loops when the one-pass `3B` output is not sufficient.
 
-## 4A. Overtime entitlement summary
+## 4A. Formatted overtime guide
 
 Files:
 - `src/script_4a_summarize_overtime.py`
-- `src/script_4a_summarize_overtime_prompt.py`
-- `resources/overtime_example.md`
+- `src/prompts/overtime_guide_formatting.py`
+- `resources/Template.md`
 
 Purpose:
-- Read the overtime interpretation working document.
-- Prefer the revised 3B interpretation when called with an award code.
-- Use `resources/overtime_example.md` as the default structure and style template.
-- Create a reviewer-facing markdown summary of overtime entitlements.
+- Read the revised overtime interpretation working document.
+- Prefer the revised `3B` interpretation when called with an award code.
+- Use `resources/Template.md` as the required heading structure and style reference.
+- Create a polished human-readable overtime guide for review or manual editing.
 
 Command:
 
@@ -263,71 +258,20 @@ Status:
 - Implemented and covered by tests.
 - The template is not source evidence.
 - Output is free-text markdown rather than schema-enforced JSON.
-- The generated markdown is intended for human review and downstream pseudocode generation.
-
-## 4B. Overtime entitlement review and final formatting
-
-File: `src/script_4b_review_overtime_entitlements.py`
-
-Purpose:
-- Copy the 4A entitlement output as the initial answer.
-- Run a source-aware accuracy review against the interpretation document and filtered `Ordinary Hours & Overtime` clauses.
-- Send the feedback back to the creator model once to produce an updated entitlement answer.
-- Run a source-blind wording and markdown formatting pass over the updated answer.
-- Produce a final markdown file for human reading.
-
-Command:
-
-```bash
-uv run script-4b-review-overtime-entitlements MA000018
-```
-
-Pipeline wrapper command:
-
-```bash
-uv run award-pipeline MA000018 4b
-```
-
-Main outputs:
-- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_initial_answer.md`
-- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_review_feedback.md`
-- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_updated_answer.md`
-- `data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_final.md`
-
-Status:
-- Implemented and covered by tests.
-- Temporary review step.
-- The accuracy review looks back to source material.
-- The evaluator output is markdown feedback for the user or creator, not a strict pass/fail artifact.
-- The creator update and formatter are also markdown generation steps rather than schema-enforced structured outputs.
-- The final formatting pass uses only the updated markdown and does not look back to source.
-
-## Combined 3 and 4A runner
-
-File: `src/script_4a_generate_overtime_clause.py`
-
-Purpose:
-- Run script 3 and script 4A together from one payment classification file.
-- Useful for regeneration when the 3B review step is not needed.
-
-Command:
-
-```bash
-uv run script-4a-generate-overtime-clause data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-```
-
-Status:
-- Implemented and covered by tests.
-- For the reviewed workflow, prefer running scripts 3, 3B, and 4A separately.
+- The generated markdown is intended for human review, manual `4B` editing in Streamlit, and downstream pseudocode generation.
+- The earlier multi-step scripted `4B` review flow has been retired from active code and moved out of the active path.
 
 ## 5B. Core overtime pseudocode
 
-File: `src/script_5b_generate_overtime_pseudocode.py`
+Files:
+- `src/script_5b_generate_overtime_pseudocode.py`
+- `src/script_5b_validate_overtime_pseudocode.py`
 
 Purpose:
-- Read the overtime entitlement markdown.
+- Read the formatted overtime guide or manual `4B` markdown when present.
 - Ask the LLM to convert it into implementation-oriented pseudocode.
 - Focus only on classifying worked hours as `Ordinary_Hours` or `Overtime_Hours`.
+- Run a deterministic post-generation validation pass against the source rule inventory.
 
 Command:
 
@@ -337,10 +281,14 @@ uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitle
 
 Main output:
 - `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md`
+- `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode_validation.json`
+- `data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode_validation.md`
 
 Status:
 - Implemented and covered by tests.
-- Parked while the project focuses on steps 1 through 4A.
+- Uses an LLM for draft generation.
+- Uses deterministic Python validation for rule-coverage checking.
+- The validation module is part of the active `5B` flow and is not a separate manual step in normal use.
 
 ## Archived code
 
@@ -348,7 +296,7 @@ Status:
 
 `src/Archive/gradio_app.py` is the old Gradio prototype. It imports the archived interpreter. `gradio` has been removed from active project dependencies, so this app is retained for reference only.
 
-`src/Archive/script_4a_prompt_Overtime_System_Prompt.py` is the old shared prompt file name. It is retained only to preserve history; active scripts now use step-specific prompt modules.
+`src/Archive/script_4a_prompt_Overtime_System_Prompt.py` is the old shared prompt file name. It is retained only to preserve history; active prompt content now lives under `src/prompts/`.
 
 ## Current pipeline commands
 
@@ -370,10 +318,9 @@ Later steps currently in flux:
 
 ```bash
 uv run script-4a-summarize-overtime MA000018
-uv run script-4b-review-overtime-entitlements MA000018
 ```
 
-Parked step:
+Later generation step:
 
 ```bash
 uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
@@ -382,8 +329,10 @@ uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitle
 ## Current design notes
 
 - `script_1_fetch_award.py` is deterministic.
-- Scripts 2, 3, 3B, 4A, and 5B use LLM calls.
+- Scripts 2, 3, 3B, 4A, and 5B generation use LLM calls.
+- `script_5b_validate_overtime_pseudocode.py` is deterministic validation, not an LLM step.
 - The 3B revised interpretation is the preferred input for 4A when present.
 - The entitlement markdown is a human-review artifact and may be manually edited.
+- Active prompt content is centralised under `src/prompts/`.
 - Archive folders are retained in both `src/Archive/` and generated data output folders.
 - Shared active-pipeline helpers now centralise path resolution, runtime setup, and basic artifact loading for steps 1 through 3B while keeping the business logic in the step modules.

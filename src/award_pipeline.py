@@ -12,6 +12,7 @@ from src.common.active_pipeline_paths import (
     PROJECT_ROOT,
     default_award_url_for_code,
     interpretation_output_path_for_classification,
+    preferred_5b_source_path_for_interpretation,
     normalize_award_code,
     overtime_clause_classification_output_path_for_classification,
     revised_output_path_for_interpretation,
@@ -33,7 +34,7 @@ from src.script_5b_validate_overtime_pseudocode import (
 
 
 STEP_CHOICES = ("1", "2", "3", "3b", "5b")
-DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b", "5b")
+DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b")
 
 
 class AwardPipelineError(RuntimeError):
@@ -242,8 +243,9 @@ def run_step_3b(paths: ActivePipelinePaths) -> None:
 def run_step_5b(paths: ActivePipelinePaths) -> None:
     """Run step 5B core overtime pseudocode generation."""
     require_existing(paths.revised_interpretation_path, "5b", "3b")
+    source_path = preferred_5b_source_path_for_interpretation(paths.revised_interpretation_path)
     generate_core_overtime_pseudocode(
-        summary_path=paths.revised_interpretation_path,
+        summary_path=source_path,
         output_path=paths.core_overtime_pseudocode_path,
     )
     print(f"Core overtime pseudocode saved to {paths.core_overtime_pseudocode_path}")
@@ -285,7 +287,7 @@ def run_selected_step(paths: ActivePipelinePaths, step: str) -> None:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the active pipeline wrapper."""
     parser = argparse.ArgumentParser(
-        description="Run the active award extraction pipeline through step 5B."
+        description="Run the active award extraction pipeline through step 3B."
     )
     parser.add_argument(
         "award_code",

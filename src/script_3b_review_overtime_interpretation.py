@@ -1,3 +1,9 @@
+"""Step 3B overtime interpretation review workflow.
+
+Prompt ownership:
+- Uses `src/prompts/overtime_interpretation_review.py`.
+"""
+
 import argparse
 import json
 import os
@@ -54,11 +60,13 @@ from src.script_3_interpret_overtime import (
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
     load_classification,
 )
-from src.script_3b_shared_prompts import (
+from src.prompts.overtime_interpretation_review import (
     build_full_evaluator_review_prompt,
     build_minimal_creator_revision_prompt,
     build_relevant_clause_excerpt_markdown,
     build_script_3_creator_prompt_context,
+    creator_structured_output_instructions,
+    evaluator_structured_output_instructions,
     evaluation_system_prompt,
 )
 
@@ -278,16 +286,8 @@ def build_review_evaluator_messages(
                 overtime_clause_classification_path=overtime_clause_classification_path,
                 overtime_clause_classification=overtime_clause_classification,
             )
-            + "\n\nReturn JSON only with these top-level fields:\n"
-            "- summary_markdown\n"
-            "- rule_reviews\n"
-            "- new_rules\n\n"
-            "For every original rule_id, include one rule_reviews item with:\n"
-            "- rule_id\n"
-            "- recommendation: keep, modify, or remove\n"
-            "- rationale\n\n"
-            "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
-            "If a missing supported rule should be added, include it in new_rules using the same structured shape as the step-3 rules JSON.",
+            + "\n\n"
+            + evaluator_structured_output_instructions(),
         },
     ]
 
@@ -369,17 +369,8 @@ def build_review_creator_messages(
                 ensure_ascii=False,
             )
             + "\n```\n"
-            + "\n\nReturn JSON only with these top-level fields:\n"
-            "- decision_record_markdown\n"
-            "- rule_updates\n"
-            "- new_rules\n\n"
-            "You must provide one rule_updates item for every original rule_id.\n"
-            "Each rule_updates item must contain:\n"
-            "- rule_id\n"
-            "- decision: keep, modify, or remove\n"
-            "- reason\n"
-            "- updated_rule when decision is modify\n\n"
-            "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove.",
+            + "\n\n"
+            + creator_structured_output_instructions(),
         },
     ]
 

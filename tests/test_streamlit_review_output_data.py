@@ -218,7 +218,7 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
     assert source_path_for_manual_4b_editor(artifact_paths) == manual_4b_path
 
 
-def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_path):
+def test_core_overtime_pseudocode_prefers_existing_4b_then_4a_then_revised_source(tmp_path):
     original_path = tmp_path / "award_overtime_interpretation.md"
     revised_path = tmp_path / "award_overtime_interpretation_revised.md"
     overtime_entitlements_path = tmp_path / "award_overtime_entitlements.md"
@@ -249,8 +249,11 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_pa
 
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == original_path
 
+    overtime_entitlements_path.write_text("# 4A", encoding="utf-8")
+    assert source_path_for_core_overtime_pseudocode(artifact_paths) == overtime_entitlements_path
+
     revised_path.write_text("# Revised 3B", encoding="utf-8")
-    assert source_path_for_core_overtime_pseudocode(artifact_paths) == revised_path
+    assert source_path_for_core_overtime_pseudocode(artifact_paths) == overtime_entitlements_path
 
     manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == manual_4b_path
@@ -331,7 +334,7 @@ def test_delete_processed_files_matching_prefix_deletes_only_non_archive_matches
 
 
 def test_pipeline_run_label_formats_full_and_step_runs():
-    assert pipeline_run_label(None) == "Full pipeline run"
+    assert pipeline_run_label(None) == "Active pipeline run"
     assert pipeline_run_label("3b") == "Review overtime"
     assert pipeline_run_label("4") == "Format overtime guide"
 

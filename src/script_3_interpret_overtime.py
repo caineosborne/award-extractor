@@ -1,3 +1,9 @@
+"""Step 3 overtime interpretation generator.
+
+Prompt ownership:
+- Uses `src/prompts/overtime_interpretation.py`.
+"""
+
 import argparse
 import json
 import os
@@ -29,10 +35,11 @@ from src.common.overtime_rules import (
     write_rules_artifact,
 )
 from src.script_2_classify_payments import parse_response_json
-from src.script_3_interpret_overtime_prompt import (
+from src.prompts.overtime_interpretation import (
     OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT,
     OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT,
     OVERTIME_INTERPRETATION_SYSTEM_PROMPT,
+    build_expert_comparison_messages as build_expert_comparison_prompt_messages,
     build_overtime_interpretation_user_prompt,
 )
 
@@ -941,38 +948,12 @@ def build_expert_comparison_messages(
     ]
     run_a_rules_json = [rule_to_dict(rule) for rule in run_a_rules]
     run_b_rules_json = [rule_to_dict(rule) for rule in run_b_rules]
-    system_prompt = (
-        "You are comparing two structured overtime rule extraction outputs for the same "
-        "award. Merge them into one best structured rule set.\n\n"
-        "Preserve the business meaning of the rules. Do not drop a rule merely because "
-        "it is named differently. Treat the same rule with different wording as a merge "
-        "candidate. If one run split a rule and the other combined it, produce the clearest "
-        "merged structure.\n\n"
-        "Every input rule from run A and run B must be accounted for. Every shortlisted "
-        "source clause must still be represented somewhere in the merged output or the "
-        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
-        "Return JSON only."
+    return build_expert_comparison_prompt_messages(
+        source_path=source_path,
+        shortlisted_clauses=shortlisted_clauses,
+        run_a_rules_json=run_a_rules_json,
+        run_b_rules_json=run_b_rules_json,
     )
-    user_prompt = (
-        f"Source classification file: {source_path}\n\n"
-        "Shortlisted source clauses from step 3.2:\n```json\n"
-        f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Run A structured rules:\n```json\n"
-        f"{json.dumps(run_a_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Run B structured rules:\n```json\n"
-        f"{json.dumps(run_b_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Return a merged ruleset with:\n"
-        "- comparison_summary_markdown: short markdown summary of overlaps, one-sided rules, "
-        "and unresolved judgement calls\n"
-        "- accounted_run_a_rule_ids: every run A rule_id that was considered\n"
-        "- accounted_run_b_rule_ids: every run B rule_id that was considered\n"
-        "- merged_rules: the final structured rules to use\n"
-        "- merge_explanations: mapping of merged rules back to the run A and run B rule_ids"
-    )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
 
 
 def compare_expert_interpretation_runs(

@@ -1,4 +1,13 @@
-from src.script_2_classify_payments_prompt import DEFINITIONS, TAG_DEFINITIONS
+"""Prompt content for step 3 overtime interpretation.
+
+Used by:
+- `src/script_3_interpret_overtime.py`
+"""
+
+import json
+from pathlib import Path
+
+from src.prompts.payment_clause_classification import DEFINITIONS, TAG_DEFINITIONS
 
 
 OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT = f"""You classify Australian modern award clauses for payroll implementation.
@@ -202,3 +211,44 @@ Special Instructions:
 
 {OVERTIME_INTERPRETATION_SPECIAL_INSTRUCTIONS}
 """.strip()
+
+
+def build_expert_comparison_messages(
+    *,
+    source_path: Path,
+    shortlisted_clauses: list[dict],
+    run_a_rules_json: list[dict],
+    run_b_rules_json: list[dict],
+) -> list[dict[str, str]]:
+    system_prompt = (
+        "You are comparing two structured overtime rule extraction outputs for the same "
+        "award. Merge them into one best structured rule set.\n\n"
+        "Preserve the business meaning of the rules. Do not drop a rule merely because "
+        "it is named differently. Treat the same rule with different wording as a merge "
+        "candidate. If one run split a rule and the other combined it, produce the clearest "
+        "merged structure.\n\n"
+        "Every input rule from run A and run B must be accounted for. Every shortlisted "
+        "source clause must still be represented somewhere in the merged output or the "
+        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
+        "Return JSON only."
+    )
+    user_prompt = (
+        f"Source classification file: {source_path}\n\n"
+        "Shortlisted source clauses from step 3.2:\n```json\n"
+        f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run A structured rules:\n```json\n"
+        f"{json.dumps(run_a_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run B structured rules:\n```json\n"
+        f"{json.dumps(run_b_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Return a merged ruleset with:\n"
+        "- comparison_summary_markdown: short markdown summary of overlaps, one-sided rules, "
+        "and unresolved judgement calls\n"
+        "- accounted_run_a_rule_ids: every run A rule_id that was considered\n"
+        "- accounted_run_b_rule_ids: every run B rule_id that was considered\n"
+        "- merged_rules: the final structured rules to use\n"
+        "- merge_explanations: mapping of merged rules back to the run A and run B rule_ids"
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]

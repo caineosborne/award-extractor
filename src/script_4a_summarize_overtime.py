@@ -1,3 +1,9 @@
+"""Step 4A formatted overtime guide generator.
+
+Prompt ownership:
+- Uses `src/prompts/overtime_guide_formatting.py`.
+"""
+
 import argparse
 import os
 from collections.abc import Sequence
@@ -13,28 +19,12 @@ from src.common.output_paths import (
     path_in_category,
     write_text_with_archive,
 )
-
+from src.prompts.overtime_guide_formatting import build_messages
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Template.md"
 DEFAULT_AWARD_CODE = "MA000018"
-
-FORMATTER_SYSTEM_PROMPT = """You convert an overtime interpretation working document into a polished
-human-readable overtime guide.
-
-Requirements:
-- Use only the supplied interpretation document for award-specific facts.
-- Follow the supplied template heading structure and heading order.
-- Keep the output concise and easy to scan.
-- Use short markdown bullet points under each heading.
-- Preserve employee groups, thresholds, assumptions, and clause references from the source.
-- Do not invent rules, clause references, or categories that are not supported by the source.
-- If the source does not support a section in the template, leave a single bullet with `-`.
-- Return markdown only.
-- Do not wrap the answer in a markdown code fence.
-"""
-
 
 class OvertimeEntitlementSummaryError(RuntimeError):
     """Raised when the overtime formatter cannot complete its work."""
@@ -113,36 +103,6 @@ def strip_wrapping_markdown_fence(text: str) -> str:
         return "\n".join(lines[1:-1]).strip()
 
     return stripped_text
-
-
-def build_messages(
-    interpretation_path: Path | str,
-    interpretation_markdown: str,
-    template_path: Path | str,
-    template_markdown: str,
-) -> list[dict[str, str]]:
-    user_prompt = f"""Format the supplied overtime interpretation into the supplied template.
-
-Interpretation source: {interpretation_path}
-
-```markdown
-{interpretation_markdown}
-```
-
-Template source: {template_path}
-
-```markdown
-{template_markdown}
-```
-
-Use the template headings exactly as provided. Replace placeholder bullets with source-based content.
-Do not add headings outside the template. If a template section is not supported by the source,
-leave a single bullet with `-`.
-"""
-    return [
-        {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
-    ]
 
 
 def extract_response_text(response: Any) -> str:

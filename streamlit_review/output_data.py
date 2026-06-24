@@ -147,6 +147,9 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
     if artifact_paths.manual_4b_overtime_interpretation.exists():
         return artifact_paths.manual_4b_overtime_interpretation
 
+    if artifact_paths.overtime_entitlements.exists():
+        return artifact_paths.overtime_entitlements
+
     revised_rules_json = getattr(
         artifact_paths,
         "revised_overtime_rules_json",

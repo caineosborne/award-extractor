@@ -1,3 +1,13 @@
+"""Deterministic validator for step 5B pseudocode outputs.
+
+This file is not a prompt file.
+
+Current consumers:
+- `src/script_5b_generate_overtime_pseudocode.py`
+- `src/award_pipeline.py`
+- `streamlit_review/output_data.py`
+"""
+
 from __future__ import annotations
 
 import json

@@ -22,7 +22,7 @@ from src.script_2_classify_payments import (
     title_only_top_level_result,
     validate_group_classification,
 )
-from src.script_2_classify_payments_prompt import (
+from src.prompts.payment_clause_classification import (
     ALLOWED_TAGS,
     DEFINITIONS,
     SYSTEM_PROMPT,
