@@ -22,6 +22,7 @@ from src.award_pipeline import (
     run_selected_step,
 )
 from src.common.active_pipeline_paths import default_award_url_for_code, normalize_award_code
+from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.output_data import (
     artifact_paths_for_award,
     clamp_index,
@@ -54,7 +55,7 @@ SCREEN_EXPERT_B_OVERTIME = "5. Expert B overtime extraction"
 SCREEN_EXPERT_COMPARISON = "6. Expert comparison artifact"
 SCREEN_ORIGINAL_OVERTIME = "7. Final overtime extraction"
 SCREEN_REVIEW_FEEDBACK = "8. Review feedback and commentary"
-SCREEN_REVISED_OVERTIME = "9. Updated overtime extraction"
+SCREEN_FORMATTED_4A = "9. 4A formatted overtime guide"
 SCREEN_MANUAL_4B_EDITOR = "10. 4B manual overtime editor"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. 5B core overtime pseudocode"
 
@@ -67,7 +68,7 @@ SCREEN_OPTIONS = [
     SCREEN_EXPERT_COMPARISON,
     SCREEN_ORIGINAL_OVERTIME,
     SCREEN_REVIEW_FEEDBACK,
-    SCREEN_REVISED_OVERTIME,
+    SCREEN_FORMATTED_4A,
     SCREEN_MANUAL_4B_EDITOR,
     SCREEN_CORE_OVERTIME_PSEUDOCODE,
 ]
@@ -79,7 +80,7 @@ COMPARISON_PRESETS = {
     ),
     "Original + updated extraction": (
         SCREEN_ORIGINAL_OVERTIME,
-        SCREEN_REVISED_OVERTIME,
+        SCREEN_FORMATTED_4A,
     ),
     "Expert A + expert B": (
         SCREEN_EXPERT_A_OVERTIME,
@@ -100,6 +101,7 @@ PIPELINE_STEP_LABELS = {
     "2": "Classify clauses",
     "3": "Generate overtime",
     "3b": "Review overtime",
+    "4": "Format overtime guide",
     "5b": "Generate pseudocode",
 }
 
@@ -196,8 +198,8 @@ def render_sidebar(award_codes: list[str]) -> str:
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
 
-        if st.button("Final overtime classification", use_container_width=True):
-            st.session_state["screen_one"] = SCREEN_REVISED_OVERTIME
+        if st.button("4A formatted overtime guide", use_container_width=True):
+            st.session_state["screen_one"] = SCREEN_FORMATTED_4A
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
 
@@ -317,7 +319,7 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
         SCREEN_EXPERT_B_OVERTIME: render_expert_b_overtime_screen,
         SCREEN_EXPERT_COMPARISON: render_expert_comparison_screen,
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
-        SCREEN_REVISED_OVERTIME: render_revised_overtime_screen,
+        SCREEN_FORMATTED_4A: render_formatted_4a_screen,
         SCREEN_MANUAL_4B_EDITOR: render_manual_4b_editor_screen,
         SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
     }
@@ -555,20 +557,11 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     render_markdown_file(artifact_paths.creator_response)
 
 
-def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    json_path = getattr(
-        artifact_paths,
-        "revised_overtime_rules_json",
-        artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
+def render_formatted_4a_screen(artifact_paths: Any, panel_key: str) -> None:
+    render_markdown_file(
+        artifact_paths.overtime_entitlements,
+        source_path=artifact_paths.revised_overtime_interpretation,
     )
-    render_markdown_file(artifact_paths.revised_overtime_interpretation, source_path=json_path)
-
-    if json_path.exists():
-        with st.expander("Structured overtime rules view", expanded=False):
-            render_overtime_rules_json(
-                json_path,
-                source_markdown_path=artifact_paths.revised_overtime_interpretation,
-            )
 
 
 def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -591,7 +584,7 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
         artifact_paths.manual_4b_overtime_interpretation,
     )
     edited_markdown = st.text_area(
-        "4B overtime interpretation markdown",
+        "4B overtime markdown",
         value=source_content.text,
         height=610,
         label_visibility="collapsed",
@@ -600,7 +593,7 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
 
     if st.button("Save updated version", key=f"{editor_key}_save"):
         if not edited_markdown.strip():
-            st.error("The edited overtime interpretation is empty. Nothing was saved.")
+            st.error("The edited overtime markdown is empty. Nothing was saved.")
             return
 
         archive_path = write_text_file_with_archive(
@@ -991,7 +984,7 @@ def render_pipeline_run_controls(
 
     step_one_column, step_two_column = st.columns(2, gap="small")
     step_three_column, step_three_b_column = st.columns(2, gap="small")
-    step_five_b_column, _ = st.columns(2, gap="small")
+    step_four_column, step_five_b_column = st.columns(2, gap="small")
 
     with step_one_column:
         if st.button(
@@ -1028,6 +1021,15 @@ def render_pipeline_run_controls(
             disabled=controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="3b")
+
+    with step_four_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["4"],
+            key=f"run_step_4_{selected_award_code}",
+            use_container_width=True,
+            disabled=controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="4")
 
     with step_five_b_column:
         if st.button(
@@ -1099,6 +1101,7 @@ def pipeline_run_label(step: str | None) -> str:
 def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     url = default_award_url_for_code(award_code)
     paths = build_paths(award_code, suffix=None, url=url)
+    artifact_paths = artifact_paths_for_award(award_code)
     output_buffer = StringIO()
     error_buffer = StringIO()
     started_at = time.perf_counter()
@@ -1107,6 +1110,12 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
             if step is None:
                 run_default_pipeline(paths)
+            elif step == "4":
+                summarize_overtime_entitlements(
+                    interpretation_path=artifact_paths.revised_overtime_interpretation,
+                    output_path=artifact_paths.overtime_entitlements,
+                )
+                print(f"Formatted overtime guide saved to {artifact_paths.overtime_entitlements}")
             else:
                 run_selected_step(paths, step)
     except Exception as exc:

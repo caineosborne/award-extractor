@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import sentinel
 
 from streamlit_review.app import (
@@ -79,6 +80,7 @@ def test_artifact_paths_for_award():
         paths.revised_overtime_interpretation.name
         == "MA000018_overtime_interpretation_revised.md"
     )
+    assert paths.overtime_entitlements.name == "MA000018_overtime_entitlements.md"
     assert (
         paths.manual_4b_overtime_interpretation.name
         == "MA000018_overtime_interpretation_4b.md"
@@ -181,6 +183,7 @@ def test_manual_4b_editor_widget_key_uses_output_path_stem():
 def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_path):
     original_path = tmp_path / "award_overtime_interpretation.md"
     revised_path = tmp_path / "award_overtime_interpretation_revised.md"
+    overtime_entitlements_path = tmp_path / "award_overtime_entitlements.md"
     manual_4b_path = tmp_path / "award_overtime_interpretation_4b.md"
 
     artifact_paths = ArtifactPaths(
@@ -198,6 +201,7 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
         evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
         creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
         revised_overtime_interpretation=revised_path,
+        overtime_entitlements=overtime_entitlements_path,
         manual_4b_overtime_interpretation=manual_4b_path,
         core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
         core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
@@ -207,8 +211,8 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
 
     assert source_path_for_manual_4b_editor(artifact_paths) == original_path
 
-    revised_path.write_text("# Revised 3B", encoding="utf-8")
-    assert source_path_for_manual_4b_editor(artifact_paths) == revised_path
+    overtime_entitlements_path.write_text("# 4A", encoding="utf-8")
+    assert source_path_for_manual_4b_editor(artifact_paths) == overtime_entitlements_path
 
     manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
     assert source_path_for_manual_4b_editor(artifact_paths) == manual_4b_path
@@ -217,6 +221,7 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
 def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_path):
     original_path = tmp_path / "award_overtime_interpretation.md"
     revised_path = tmp_path / "award_overtime_interpretation_revised.md"
+    overtime_entitlements_path = tmp_path / "award_overtime_entitlements.md"
     manual_4b_path = tmp_path / "award_overtime_interpretation_4b.md"
 
     artifact_paths = ArtifactPaths(
@@ -234,6 +239,7 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_pa
         evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
         creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
         revised_overtime_interpretation=revised_path,
+        overtime_entitlements=overtime_entitlements_path,
         manual_4b_overtime_interpretation=manual_4b_path,
         core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
         core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
@@ -327,6 +333,7 @@ def test_delete_processed_files_matching_prefix_deletes_only_non_archive_matches
 def test_pipeline_run_label_formats_full_and_step_runs():
     assert pipeline_run_label(None) == "Full pipeline run"
     assert pipeline_run_label("3b") == "Review overtime"
+    assert pipeline_run_label("4") == "Format overtime guide"
 
 
 def test_available_award_code_index_prefers_current_selection_when_present():
@@ -378,6 +385,59 @@ def test_run_pipeline_for_award_calls_selected_step(monkeypatch):
         ("url", "MA000002"),
         ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
         ("run_selected_step", sentinel.paths, "3"),
+    ]
+
+
+def test_run_pipeline_for_award_calls_step_4_formatter(monkeypatch):
+    calls: list[tuple[str, object]] = []
+    artifact_paths = SimpleNamespace(
+        revised_overtime_interpretation=sentinel.revised_path,
+        overtime_entitlements=sentinel.entitlements_path,
+    )
+
+    def fake_default_award_url_for_code(award_code: str) -> str:
+        calls.append(("url", award_code))
+        return "https://example.com/MA000002.html"
+
+    def fake_build_paths(award_code: str, suffix, url: str):
+        calls.append(("build_paths", award_code, suffix, url))
+        return sentinel.paths
+
+    def fake_artifact_paths_for_award(award_code: str):
+        calls.append(("artifact_paths_for_award", award_code))
+        return artifact_paths
+
+    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+        calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
+        print("step 4 output")
+
+    monkeypatch.setattr(
+        "streamlit_review.app.default_award_url_for_code",
+        fake_default_award_url_for_code,
+    )
+    monkeypatch.setattr("streamlit_review.app.build_paths", fake_build_paths)
+    monkeypatch.setattr(
+        "streamlit_review.app.artifact_paths_for_award",
+        fake_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.app.summarize_overtime_entitlements",
+        fake_summarize_overtime_entitlements,
+    )
+
+    result = run_pipeline_for_award("MA000002", "4")
+
+    assert result["success"] is True
+    assert "step 4 output" in result["log"]
+    assert calls == [
+        ("url", "MA000002"),
+        ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
+        ("artifact_paths_for_award", "MA000002"),
+        (
+            "summarize_overtime_entitlements",
+            sentinel.revised_path,
+            sentinel.entitlements_path,
+        ),
     ]
 
 

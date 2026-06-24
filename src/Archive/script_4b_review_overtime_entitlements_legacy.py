@@ -23,12 +23,14 @@ from src.script_3b_review_overtime_interpretation import (
     build_openrouter_client,
     extract_chat_completion_text,
 )
-from src.script_4a_summarize_overtime import (
+from src.Archive.script_4a_summarize_overtime_legacy import (
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
     load_overtime_interpretation,
     strip_wrapping_markdown_fence,
 )
-from src.script_4a_summarize_overtime_prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
+from src.Archive.script_4a_summarize_overtime_prompt_legacy import (
+    OVERTIME_ENTITLEMENT_SYSTEM_PROMPT,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]

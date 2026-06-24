@@ -7,7 +7,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from src.script_4a_summarize_overtime import (
+from src.Archive.script_4a_summarize_overtime_legacy import (
     load_environment,
     output_path_for_classification,
     summarize_overtime_entitlements,

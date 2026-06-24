@@ -26,8 +26,6 @@ script-3-interpret-overtime = "src.script_3_interpret_overtime:main"
 script-3b-review-overtime-interpretation = "src.script_3b_review_overtime_interpretation:main"
 script-3b-agentic-review-overtime-interpretation = "src.script_3b_agentic_review_overtime_interpretation:main"
 script-4a-summarize-overtime = "src.script_4a_summarize_overtime:main"
-script-4a-generate-overtime-clause = "src.script_4a_generate_overtime_clause:main"
-script-4b-review-overtime-entitlements = "src.script_4b_review_overtime_entitlements:main"
 script-5b-generate-overtime-pseudocode = "src.script_5b_generate_overtime_pseudocode:main"
 
 [build-system]

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from src.common.output_paths import ARCHIVE_DIR, write_text_with_archive
+from src.script_4a_summarize_overtime import output_path_for_interpretation
 from src.script_5b_validate_overtime_pseudocode import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -31,6 +32,7 @@ class ArtifactPaths:
     evaluator_feedback: Path
     creator_response: Path
     revised_overtime_interpretation: Path
+    overtime_entitlements: Path
     manual_4b_overtime_interpretation: Path
     core_overtime_pseudocode: Path
     core_overtime_validation_json: Path
@@ -91,6 +93,9 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_interpretation_revised.md",
         revised_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_revised.json",
+        overtime_entitlements=output_path_for_interpretation(
+            OVERTIME_INTERPRETATION_DIR / f"{award_code}_overtime_interpretation_revised.md"
+        ),
         manual_4b_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation_4b.md",
         core_overtime_pseudocode=PROCESSED_ROOT
@@ -128,6 +133,9 @@ def write_text_file_with_archive(path: Path, text: str) -> Path:
 def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
     if artifact_paths.manual_4b_overtime_interpretation.exists():
         return artifact_paths.manual_4b_overtime_interpretation
+
+    if artifact_paths.overtime_entitlements.exists():
+        return artifact_paths.overtime_entitlements
 
     if artifact_paths.revised_overtime_interpretation.exists():
         return artifact_paths.revised_overtime_interpretation

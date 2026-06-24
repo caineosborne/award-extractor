@@ -7,30 +7,37 @@ from typing import Any
 from dotenv import load_dotenv
 from openai import OpenAI
 
-from src.script_4a_summarize_overtime_prompt import OVERTIME_ENTITLEMENT_SYSTEM_PROMPT
 from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     path_in_category,
     write_text_with_archive,
 )
-from src.common.llm_io import extract_response_text
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_INTERPRETATION_PATH = (
-    PROJECT_ROOT
-    / "data"
-    / "processed"
-    / OVERTIME_INTERPRETATIONS_DIR
-    / "MA000018_overtime_interpretation.md"
-)
-DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "overtime_example.md"
 DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Template.md"
+DEFAULT_AWARD_CODE = "MA000018"
+
+FORMATTER_SYSTEM_PROMPT = """You convert an overtime interpretation working document into a polished
+human-readable overtime guide.
+
+Requirements:
+- Use only the supplied interpretation document for award-specific facts.
+- Follow the supplied template heading structure and heading order.
+- Keep the output concise and easy to scan.
+- Use short markdown bullet points under each heading.
+- Preserve employee groups, thresholds, assumptions, and clause references from the source.
+- Do not invent rules, clause references, or categories that are not supported by the source.
+- If the source does not support a section in the template, leave a single bullet with `-`.
+- Return markdown only.
+- Do not wrap the answer in a markdown code fence.
+"""
 
 
 class OvertimeEntitlementSummaryError(RuntimeError):
-    """Base exception for overtime entitlement summary failures."""
+    """Raised when the overtime formatter cannot complete its work."""
 
 
 def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
@@ -41,27 +48,15 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
         )
 
 
-def load_overtime_interpretation(interpretation_path: Path | str) -> str:
-    path = Path(interpretation_path)
-    if not path.exists():
-        raise OvertimeEntitlementSummaryError(
-            f"Overtime interpretation markdown not found: {path}"
-        )
-    text = path.read_text(encoding="utf-8")
-    if not text.strip():
-        raise OvertimeEntitlementSummaryError(
-            f"Overtime interpretation markdown is empty: {path}"
-        )
-    return text
+def load_text_file(path: Path | str, description: str) -> str:
+    selected_path = Path(path)
+    if not selected_path.exists():
+        raise OvertimeEntitlementSummaryError(f"{description} not found: {selected_path}")
 
-
-def load_reference_template(template_path: Path | str) -> str:
-    path = Path(template_path)
-    if not path.exists():
-        raise OvertimeEntitlementSummaryError(f"Reference template markdown not found: {path}")
-    text = path.read_text(encoding="utf-8")
+    text = selected_path.read_text(encoding="utf-8")
     if not text.strip():
-        raise OvertimeEntitlementSummaryError(f"Reference template markdown is empty: {path}")
+        raise OvertimeEntitlementSummaryError(f"{description} is empty: {selected_path}")
+
     return text
 
 
@@ -90,27 +85,12 @@ def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Pat
 def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
     path = Path(interpretation_path)
     stem = path.stem
+
     if stem.endswith("_overtime_interpretation_revised"):
         stem = stem.removesuffix("_overtime_interpretation_revised")
-    if stem.endswith("_overtime_interpretation"):
+    elif stem.endswith("_overtime_interpretation"):
         stem = stem.removesuffix("_overtime_interpretation")
-    return path_in_category(
-        path,
-        OVERTIME_ENTITLEMENTS_DIR,
-        f"{stem}_overtime_entitlements.md",
-    )
 
-
-def output_path_for_classification(classification_path: Path | str) -> Path:
-    """Return the entitlement output path for a classification path.
-
-    Existing callers use this helper to plan downstream artifact locations before
-    the interpretation file exists.
-    """
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
     return path_in_category(
         path,
         OVERTIME_ENTITLEMENTS_DIR,
@@ -136,36 +116,61 @@ def strip_wrapping_markdown_fence(text: str) -> str:
 
 
 def build_messages(
-    source_file: str,
+    interpretation_path: Path | str,
     interpretation_markdown: str,
-    template_file: str,
+    template_path: Path | str,
     template_markdown: str,
 ) -> list[dict[str, str]]:
-    user_prompt = (
-        f"Source overtime interpretation working document: {source_file}\n\n"
-        "Use this markdown template as the reference example for structure, formatting, "
-        "wording style, and level of detail only. Do not copy its award-specific facts, "
-        "clause references, rates, assumptions, employee categories, or rule outcomes. "
-        "Generate the output from the source interpretation document.\n\n"
-        "The generated markdown must include the required output structure from the "
-        "system prompt, starting with # Source Rules.\n\n"
-        f"Reference template: {template_file}\n\n"
-        "```markdown\n"
-        f"{template_markdown}\n"
-        "```\n\n"
-        "Overtime interpretation working document to convert:\n"
-        "```markdown\n"
-        f"{interpretation_markdown}"
-        "\n```"
-    )
+    user_prompt = f"""Format the supplied overtime interpretation into the supplied template.
+
+Interpretation source: {interpretation_path}
+
+```markdown
+{interpretation_markdown}
+```
+
+Template source: {template_path}
+
+```markdown
+{template_markdown}
+```
+
+Use the template headings exactly as provided. Replace placeholder bullets with source-based content.
+Do not add headings outside the template. If a template section is not supported by the source,
+leave a single bullet with `-`.
+"""
     return [
-        {"role": "system", "content": OVERTIME_ENTITLEMENT_SYSTEM_PROMPT},
+        {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]
 
 
+def extract_response_text(response: Any) -> str:
+    output_text = getattr(response, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text
+
+    output = getattr(response, "output", None)
+    if not isinstance(output, list):
+        return ""
+
+    text_parts: list[str] = []
+
+    for item in output:
+        if getattr(item, "type", None) != "message":
+            continue
+
+        for content_item in getattr(item, "content", []):
+            if getattr(content_item, "type", None) == "output_text":
+                text = getattr(content_item, "text", "")
+                if text:
+                    text_parts.append(text)
+
+    return "\n".join(text_parts).strip()
+
+
 def summarize_overtime_entitlements(
-    interpretation_path: Path | str = DEFAULT_INTERPRETATION_PATH,
+    interpretation_path: Path | str,
     output_path: Path | str | None = None,
     template_path: Path | str = DEFAULT_TEMPLATE_PATH,
     model: str | None = None,
@@ -176,59 +181,64 @@ def summarize_overtime_entitlements(
         load_environment()
         client = OpenAI()
 
-    source_path = Path(interpretation_path)
-    interpretation_text = load_overtime_interpretation(source_path)
+    selected_interpretation_path = Path(interpretation_path)
     selected_template_path = Path(template_path)
-    template_text = load_reference_template(selected_template_path)
 
-    try:
-        response = client.responses.create(
-            model=selected_model,
-            input=build_messages(
-                str(source_path),
-                interpretation_text,
-                str(selected_template_path),
-                template_text,
-            ),
-        )
-    except Exception as exc:
-        raise OvertimeEntitlementSummaryError("OpenAI request failed.") from exc
+    interpretation_markdown = load_text_file(
+        selected_interpretation_path,
+        "Overtime interpretation markdown",
+    )
+    template_markdown = load_text_file(
+        selected_template_path,
+        "Template markdown",
+    )
 
+    response = client.responses.create(
+        model=selected_model,
+        input=build_messages(
+            selected_interpretation_path,
+            interpretation_markdown,
+            selected_template_path,
+            template_markdown,
+        ),
+    )
     output_text = extract_response_text(response)
+
     if not output_text:
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
 
-    output_text = strip_wrapping_markdown_fence(output_text)
-    destination = Path(output_path) if output_path else output_path_for_interpretation(source_path)
-    write_text_with_archive(destination, output_text)
-    return output_text
+    cleaned_output = strip_wrapping_markdown_fence(output_text)
+    destination = (
+        Path(output_path)
+        if output_path is not None
+        else output_path_for_interpretation(selected_interpretation_path)
+    )
+    write_text_with_archive(destination, cleaned_output)
+    return cleaned_output
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Summarise reviewer-facing overtime entitlements from an interpretation document."
+        description="Format a revised overtime interpretation into a polished markdown guide."
     )
     parser.add_argument(
         "award_or_interpretation_path",
         nargs="?",
-        default="MA000018",
+        default=DEFAULT_AWARD_CODE,
         help=(
-            "Award code such as MA000002, or a path to an overtime interpretation "
-            "markdown file. Award codes prefer the revised 3B interpretation if it exists."
+            "Award code such as MA000018, or a path to an overtime interpretation "
+            "markdown file. Award codes prefer the revised interpretation file if it exists."
         ),
     )
     parser.add_argument(
         "--output-path",
         default=None,
-        help="Optional path for the markdown overtime entitlement summary.",
+        help="Optional path for the formatted overtime markdown output.",
     )
     parser.add_argument(
         "--template-path",
         default=str(DEFAULT_TEMPLATE_PATH),
-        help=(
-            "Optional markdown template used as a style and structure reference. "
-            f"Defaults to {DEFAULT_TEMPLATE_PATH}."
-        ),
+        help=f"Optional markdown template path. Defaults to {DEFAULT_TEMPLATE_PATH}.",
     )
     parser.add_argument(
         "--model",
@@ -241,19 +251,19 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main() -> None:
     args = parse_args()
     interpretation_path = resolve_interpretation_path(args.award_or_interpretation_path)
-    print(interpretation_path)
     summarize_overtime_entitlements(
         interpretation_path=interpretation_path,
         output_path=args.output_path,
         template_path=args.template_path,
         model=args.model,
     )
+
     destination = (
         Path(args.output_path)
-        if args.output_path
+        if args.output_path is not None
         else output_path_for_interpretation(interpretation_path)
     )
-    print(f"Overtime entitlement summary saved to {destination}")
+    print(f"Formatted overtime guide saved to {destination}")
 
 
 if __name__ == "__main__":
