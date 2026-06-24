@@ -24,6 +24,9 @@ class ArtifactPaths:
     payment_classification: Path
     overtime_clause_classification: Path
     original_overtime_interpretation: Path
+    original_overtime_interpretation_expert_a: Path
+    original_overtime_interpretation_expert_b: Path
+    original_overtime_interpretation_comparison: Path
     agentic_review_conversation: Path
     evaluator_feedback: Path
     creator_response: Path
@@ -66,6 +69,12 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         / f"{award_code}_overtime_clause_classification.json",
         original_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation.md",
+        original_overtime_interpretation_expert_a=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation_expert_a.md",
+        original_overtime_interpretation_expert_b=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation_expert_b.md",
+        original_overtime_interpretation_comparison=OVERTIME_INTERPRETATION_DIR
+        / f"{award_code}_overtime_interpretation_comparison.json",
         original_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
         / f"{award_code}_overtime_interpretation.json",
         agentic_review_conversation=OVERTIME_FEEDBACK_DIR

@@ -14,6 +14,7 @@ from src.script_4a_summarize_overtime import (
 )
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
+    DEFAULT_EXPERT_RUN_COUNT,
     generate_overtime_interpretation,
     output_path_for_classification as interpretation_path_for_classification,
 )
@@ -58,6 +59,7 @@ def generate_overtime_clause_artifacts(
         classification_path=source_path,
         output_path=interpretation_path,
         model=selected_model,
+        expert_run_count=DEFAULT_EXPERT_RUN_COUNT,
         client=client,
     )
     entitlements_markdown = summarize_overtime_entitlements(

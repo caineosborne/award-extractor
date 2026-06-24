@@ -11,6 +11,7 @@ from src.script_3_interpret_overtime import (
     build_messages,
     classification_output_path_for_classification,
     classification_response_json_schema,
+    compare_expert_interpretation_runs,
     filter_overtime_creation_clauses,
     filter_overtime_clauses,
     format_clauses_for_prompt,
@@ -158,6 +159,10 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("specific employee segment section only when", user_prompt)
         self.assertIn("dedicated work-arrangement section", user_prompt)
         self.assertIn("still state the employee type affected", user_prompt)
+        self.assertIn("Each bullet must contain only one payroll test", user_prompt)
+        self.assertIn("If the clause uses general wording such as \"employee\"", user_prompt)
+        self.assertIn("Write the clause references directly in the markdown bullet", user_prompt)
+        self.assertIn("Do not place a general rule under `Full time`", user_prompt)
         self.assertIn("Do not repeat a general rule", user_prompt)
         self.assertIn("Avoid duplicate rules:", user_prompt)
         self.assertNotIn("What data is required", user_prompt)
@@ -510,6 +515,146 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("text", fake_client.responses.calls[0])
         self.assertEqual(archive_files, [])
 
+    def test_generate_overtime_interpretation_merges_two_expert_runs(self):
+        data = {
+            "classified_clauses": {
+                "22.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Ordinary hours are 38 per week and 8 hours on a day shift.",
+                    "reason": "Defines ordinary hours.",
+                }
+            }
+        }
+        classification_json = json.dumps(
+            {
+                "clauses": [
+                    {
+                        "clause_number": "22.1",
+                        "classification": "Ordinary Hours Boundary",
+                        "classifications": ["Ordinary Hours Boundary"],
+                        "clause_text": "Ordinary hours are 38 per week and 8 hours on a day shift.",
+                        "explanation": "Defines ordinary hours.",
+                    }
+                ]
+            }
+        )
+        expert_a_json = json.dumps(
+            {
+                "rules": [
+                    {
+                        "rule_id": "full-time-over-38",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "clause_references": ["22.1"],
+                        "rule_markdown": "- Hours over 38 per week are overtime. [22.1]",
+                        "rule_plain_text": "Hours over 38 per week are overtime.",
+                        "source_clause_numbers": ["22.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    }
+                ]
+            }
+        )
+        expert_b_json = json.dumps(
+            {
+                "rules": [
+                    {
+                        "rule_id": "day-shift-over-8",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "clause_references": ["22.1(c)"],
+                        "rule_markdown": "- Hours over 8 on a day shift are overtime. [22.1(c)]",
+                        "rule_plain_text": "Hours over 8 on a day shift are overtime.",
+                        "source_clause_numbers": ["22.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    }
+                ]
+            }
+        )
+        comparison_json = json.dumps(
+            {
+                "comparison_summary_markdown": "# Comparison\n\nMerged complementary rules from both expert runs.",
+                "accounted_run_a_rule_ids": ["full-time-over-38"],
+                "accounted_run_b_rule_ids": ["day-shift-over-8"],
+                "merged_rules": [
+                    {
+                        "rule_id": "full-time-over-38",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "clause_references": ["22.1"],
+                        "rule_markdown": "- Hours over 38 per week are overtime. [22.1]",
+                        "rule_plain_text": "Hours over 38 per week are overtime.",
+                        "source_clause_numbers": ["22.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    },
+                    {
+                        "rule_id": "day-shift-over-8",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "clause_references": ["22.1(c)"],
+                        "rule_markdown": "- Hours over 8 on a day shift are overtime. [22.1(c)]",
+                        "rule_plain_text": "Hours over 8 on a day shift are overtime.",
+                        "source_clause_numbers": ["22.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    },
+                ],
+                "merge_explanations": [
+                    {
+                        "merged_rule_id": "full-time-over-38",
+                        "run_a_rule_ids": ["full-time-over-38"],
+                        "run_b_rule_ids": [],
+                        "reason": "Only run A captured the weekly boundary.",
+                    },
+                    {
+                        "merged_rule_id": "day-shift-over-8",
+                        "run_a_rule_ids": [],
+                        "run_b_rule_ids": ["day-shift-over-8"],
+                        "reason": "Only run B captured the day-shift boundary.",
+                    },
+                ],
+            }
+        )
+        fake_client = FakeClient(
+            [classification_json, expert_a_json, expert_b_json, comparison_json]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "award_payment_classification.json"
+            output_path = Path(temp_dir) / "award_overtime_interpretation.md"
+            output_json_path = Path(temp_dir) / "award_overtime_interpretation.json"
+            comparison_path = Path(temp_dir) / "award_overtime_interpretation_comparison.json"
+            expert_a_path = Path(temp_dir) / "award_overtime_interpretation_expert_a.json"
+            expert_b_path = Path(temp_dir) / "award_overtime_interpretation_expert_b.json"
+            input_path.write_text(json.dumps(data), encoding="utf-8")
+
+            result = generate_overtime_interpretation(
+                classification_path=input_path,
+                output_path=output_path,
+                client=fake_client,
+                expert_run_count=2,
+            )
+
+            written_markdown = output_path.read_text(encoding="utf-8")
+            written_json = json.loads(output_json_path.read_text(encoding="utf-8"))
+            comparison_artifact = json.loads(comparison_path.read_text(encoding="utf-8"))
+            expert_a_exists = expert_a_path.exists()
+            expert_b_exists = expert_b_path.exists()
+
+        self.assertEqual(result, written_markdown)
+        self.assertIn("Hours over 38 per week are overtime", written_markdown)
+        self.assertIn("Hours over 8 on a day shift are overtime", written_markdown)
+        self.assertEqual(written_json["comparison_mode"], "band_of_experts")
+        self.assertEqual(len(written_json["expert_outputs"]), 2)
+        self.assertTrue(expert_a_exists)
+        self.assertTrue(expert_b_exists)
+        self.assertEqual(
+            comparison_artifact["accounted_run_a_rule_ids"],
+            ["full-time-over-38"],
+        )
+        self.assertEqual(
+            comparison_artifact["accounted_run_b_rule_ids"],
+            ["day-shift-over-8"],
+        )
+
     def test_generate_overtime_interpretation_regenerates_old_clause_classification(self):
         data = {
             "classified_clauses": {
@@ -671,6 +816,74 @@ class OvertimeInterpretationTests(unittest.TestCase):
             "10.2",
         )
         self.assertEqual(len(archive_files), 1)
+
+    def test_compare_expert_interpretation_runs_treats_subclause_as_covering_parent_clause(self):
+        comparison_json = json.dumps(
+            {
+                "comparison_summary_markdown": "Merged output keeps the same rule.",
+                "accounted_run_a_rule_ids": ["rest-period-after-overtime"],
+                "accounted_run_b_rule_ids": ["rest-period-after-overtime"],
+                "merge_explanations": [
+                    {
+                        "merged_rule_id": "rest-period-after-overtime",
+                        "run_a_rule_ids": ["rest-period-after-overtime"],
+                        "run_b_rule_ids": ["rest-period-after-overtime"],
+                        "reason": "Same business rule.",
+                    }
+                ],
+                "merged_rules": [
+                    {
+                        "rule_id": "rest-period-after-overtime",
+                        "section_heading": "Rest period after overtime",
+                        "employee_scope": ["full-time", "part-time"],
+                        "clause_references": ["25.1(d)(i)", "25.1(d)(ii)"],
+                        "rule_markdown": "- Less than 10 hours off duty after overtime stays overtime.",
+                        "rule_plain_text": "Less than 10 hours off duty after overtime stays overtime.",
+                        "source_clause_numbers": ["25.1(d)(i)", "25.1(d)(ii)"],
+                        "source_classifications": ["Overtime Trigger"],
+                    }
+                ],
+            }
+        )
+        fake_client = FakeClient([comparison_json])
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="25.1",
+                classification="Overtime Trigger",
+                clause_text="25.1 Overtime rates...",
+                explanation="Creates overtime consequences and triggers.",
+            )
+        ]
+        interpreted_rules, interpreted_warnings = validate_interpretation_rules(
+            {
+                "rules": [
+                    {
+                        "rule_id": "rest-period-after-overtime",
+                        "section_heading": "Rest period after overtime",
+                        "employee_scope": ["full-time", "part-time"],
+                        "clause_references": ["25.1(d)(i)", "25.1(d)(ii)"],
+                        "rule_markdown": "- Less than 10 hours off duty after overtime stays overtime.",
+                        "rule_plain_text": "Less than 10 hours off duty after overtime stays overtime.",
+                        "source_clause_numbers": ["25.1(d)(i)", "25.1(d)(ii)"],
+                        "source_classifications": ["Overtime Trigger"],
+                    }
+                ]
+            },
+            overtime_creation_clauses,
+        )
+
+        self.assertEqual(interpreted_warnings, [])
+
+        _merged_rules, _comparison_metadata, warnings = compare_expert_interpretation_runs(
+            client=fake_client,
+            model=DEFAULT_MODEL,
+            source_path=Path("award_payment_classification.json"),
+            overtime_creation_clauses=overtime_creation_clauses,
+            run_a_rules=interpreted_rules,
+            run_b_rules=interpreted_rules,
+        )
+
+        self.assertEqual(warnings, [])
 
 
 if __name__ == "__main__":

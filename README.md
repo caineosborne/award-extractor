@@ -35,10 +35,22 @@ This writes:
 
 ```text
 data/processed/3_overtime_interpretations/MA000018_overtime_clause_classification.json
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.json
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.md
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.json
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.md
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_comparison.json
+data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.json
 data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
 ```
 
-The clause classification JSON is an audit artifact for the trigger-first interpretation step. The interpretation document is a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
+The clause classification JSON is an audit artifact for the trigger-first interpretation step. The original overtime extraction now uses a band-of-experts flow:
+
+- expert A generates one structured rules artifact;
+- expert B generates a second structured rules artifact;
+- a comparison pass merges both expert runs into the canonical `*_overtime_interpretation.json` and derived markdown view.
+
+The final interpretation document is still a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
 
 3B. Run a one-pass supervisor review and creator update for the overtime interpretation:
 

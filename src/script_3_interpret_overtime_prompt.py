@@ -144,10 +144,13 @@ Important:
 For each overtime rule:
 
 - Write a standalone bullet point. Where there are subpoints, additional bullet points should be used, a new bullet point should be used for each way overtime may be increased. 
+- Each bullet must contain only one payroll test, threshold, boundary, span, roster condition, break condition, or other circumstance that can cause hours to become overtime.
 - State the employee type affected only when the rule applies to a specific employee segment. Where the clause does not specify an employee type, assuming it is relevant to all employees. 
+- If the clause uses general wording such as "employee" and does not limit the rule to a specific cohort, treat it as applying to all employees.
 - Clearly describe the work, event, threshold, limit, roster condition, or break condition that causes hours to become overtime.
 - Include all conditions, thresholds, limits and requirements needed to implement the rule. Do not simply refer to other clauses, make sure we say what what the clauses say. 
 - Include all relevant clause references.
+- Write the clause references directly in the markdown bullet, preferably at the end in square brackets such as `[22.1, 22.2(a)]`.
 - Where multiple clauses must be read together, combine them into a single rule.
 - Do not use the words "trigger" or "boundary" in the final output.
 - Split rules where different facts, thresholds, or data fields are required to calculate overtime. Even where this may be from the same clause. 
@@ -164,6 +167,7 @@ Do not include:
 Group the output by rule scope:
 
 - Use a "All employees" section for rules that apply across employee types. Where employee cohorts are not specified, assume these rules apply to all employees. 
+- Do not place a general rule under `Full time`, `Part-time employees`, or `Casual employees` unless the clause genuinely limits that rule to the narrower cohort.
 - Add a specific employee segment section only when that segment has a distinct overtime circumstance, threshold, condition, or clause source.
 - Add a dedicated work-arrangement section when several overtime rules arise from the same named arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement.
 - In a work-arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.

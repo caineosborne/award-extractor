@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from src.script_4a_summarize_overtime import DEFAULT_MODEL as DEFAULT_CREATOR_MODEL
 from src.script_4b_review_overtime_entitlements import (
+    DEFAULT_FORMATTER_MODEL,
     EVALUATOR_MODEL,
     OvertimeEntitlementReviewError,
     build_accuracy_evaluator_messages,
@@ -262,7 +263,7 @@ class OvertimeEntitlementReviewTests(unittest.TestCase):
         )
         self.assertEqual(
             formatter_client.responses.calls[0]["model"],
-            DEFAULT_CREATOR_MODEL,
+            DEFAULT_FORMATTER_MODEL,
         )
         self.assertIn('"20.1"', evaluator_prompt)
         self.assertIn('"20.1"', creator_prompt)

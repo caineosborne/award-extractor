@@ -49,16 +49,22 @@ from streamlit_review.output_data import (
 SCREEN_L1_PAYMENT = "1. L1 payment classification"
 SCREEN_L2_PAYMENT = "2. L2 payment categories"
 SCREEN_OVERTIME_CLASSIFICATION = "3. Overtime clause classification"
-SCREEN_ORIGINAL_OVERTIME = "4. Original overtime extraction"
-SCREEN_REVIEW_FEEDBACK = "5. Review feedback and commentary"
-SCREEN_REVISED_OVERTIME = "6. Updated overtime extraction"
-SCREEN_MANUAL_4B_EDITOR = "7. 4B manual overtime editor"
-SCREEN_CORE_OVERTIME_PSEUDOCODE = "8. 5B core overtime pseudocode"
+SCREEN_EXPERT_A_OVERTIME = "4. Expert A overtime extraction"
+SCREEN_EXPERT_B_OVERTIME = "5. Expert B overtime extraction"
+SCREEN_EXPERT_COMPARISON = "6. Expert comparison artifact"
+SCREEN_ORIGINAL_OVERTIME = "7. Final overtime extraction"
+SCREEN_REVIEW_FEEDBACK = "8. Review feedback and commentary"
+SCREEN_REVISED_OVERTIME = "9. Updated overtime extraction"
+SCREEN_MANUAL_4B_EDITOR = "10. 4B manual overtime editor"
+SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. 5B core overtime pseudocode"
 
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
     SCREEN_L2_PAYMENT,
     SCREEN_OVERTIME_CLASSIFICATION,
+    SCREEN_EXPERT_A_OVERTIME,
+    SCREEN_EXPERT_B_OVERTIME,
+    SCREEN_EXPERT_COMPARISON,
     SCREEN_ORIGINAL_OVERTIME,
     SCREEN_REVIEW_FEEDBACK,
     SCREEN_REVISED_OVERTIME,
@@ -74,6 +80,14 @@ COMPARISON_PRESETS = {
     "Original + updated extraction": (
         SCREEN_ORIGINAL_OVERTIME,
         SCREEN_REVISED_OVERTIME,
+    ),
+    "Expert A + expert B": (
+        SCREEN_EXPERT_A_OVERTIME,
+        SCREEN_EXPERT_B_OVERTIME,
+    ),
+    "Expert comparison + final extraction": (
+        SCREEN_EXPERT_COMPARISON,
+        SCREEN_ORIGINAL_OVERTIME,
     ),
     "Overtime classification + original extraction": (
         SCREEN_OVERTIME_CLASSIFICATION,
@@ -205,6 +219,10 @@ def render_sidebar(award_codes: list[str]) -> str:
             st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
         if "layout_mode" not in st.session_state:
             st.session_state["layout_mode"] = "Side by side"
+        if "screen_one_hidden" not in st.session_state:
+            st.session_state["screen_one_hidden"] = False
+        if "screen_two_hidden" not in st.session_state:
+            st.session_state["screen_two_hidden"] = False
 
         st.selectbox("First screen", SCREEN_OPTIONS, key="screen_one")
         st.selectbox(
@@ -259,18 +277,34 @@ def render_screens(
 ) -> None:
     if layout_mode == "Single expanded" or screen_two == "None":
         with st.container(height=790, border=True):
-            render_screen(screen_one, artifact_paths, panel_key="screen_one")
+            render_screen_panel(screen_one, artifact_paths, panel_key="screen_one")
         return
 
     left_column, right_column = st.columns(2, gap="medium")
 
     with left_column:
         with st.container(height=790, border=True):
-            render_screen(screen_one, artifact_paths, panel_key="screen_one")
+            render_screen_panel(screen_one, artifact_paths, panel_key="screen_one")
 
     with right_column:
         with st.container(height=790, border=True):
-            render_screen(screen_two, artifact_paths, panel_key="screen_two")
+            render_screen_panel(screen_two, artifact_paths, panel_key="screen_two")
+
+
+def render_screen_panel(screen_name: str, artifact_paths: Any, panel_key: str) -> None:
+    is_hidden = bool(st.session_state.get(f"{panel_key}_hidden", False))
+    render_panel_heading(
+        screen_name,
+        panel_key,
+        artifact_paths,
+        is_hidden=is_hidden,
+    )
+
+    if is_hidden:
+        st.info("This panel is hidden. Use Show to restore it.")
+        return
+
+    render_screen(screen_name, artifact_paths, panel_key)
 
 
 def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None:
@@ -279,6 +313,9 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
         SCREEN_L2_PAYMENT: render_l2_payment_screen,
         SCREEN_OVERTIME_CLASSIFICATION: render_overtime_classification_screen,
         SCREEN_ORIGINAL_OVERTIME: render_original_overtime_screen,
+        SCREEN_EXPERT_A_OVERTIME: render_expert_a_overtime_screen,
+        SCREEN_EXPERT_B_OVERTIME: render_expert_b_overtime_screen,
+        SCREEN_EXPERT_COMPARISON: render_expert_comparison_screen,
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
         SCREEN_REVISED_OVERTIME: render_revised_overtime_screen,
         SCREEN_MANUAL_4B_EDITOR: render_manual_4b_editor_screen,
@@ -290,7 +327,6 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
 
 
 def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_L1_PAYMENT, panel_key, artifact_paths)
     render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
@@ -326,7 +362,6 @@ def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_L2_PAYMENT, panel_key, artifact_paths)
     render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
@@ -354,7 +389,6 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_OVERTIME_CLASSIFICATION, panel_key, artifact_paths)
     render_file_details(artifact_paths.overtime_clause_classification)
 
     overtime_classification = load_json_or_show_error(
@@ -399,7 +433,6 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 
 
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_ORIGINAL_OVERTIME, panel_key, artifact_paths)
     json_path = getattr(
         artifact_paths,
         "original_overtime_rules_json",
@@ -411,9 +444,82 @@ def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None
     )
 
 
-def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_REVIEW_FEEDBACK, panel_key, artifact_paths)
+def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
+    json_path = artifact_paths.original_overtime_interpretation_expert_a.with_suffix(".json")
+    render_overtime_rules_json(
+        json_path,
+        source_markdown_path=artifact_paths.original_overtime_interpretation_expert_a,
+    )
 
+
+def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
+    json_path = artifact_paths.original_overtime_interpretation_expert_b.with_suffix(".json")
+    render_overtime_rules_json(
+        json_path,
+        source_markdown_path=artifact_paths.original_overtime_interpretation_expert_b,
+    )
+
+
+def render_expert_comparison_screen(artifact_paths: Any, panel_key: str) -> None:
+    render_file_details(artifact_paths.original_overtime_interpretation_comparison)
+
+    comparison_data = load_json_or_show_error(
+        artifact_paths.original_overtime_interpretation_comparison
+    )
+    if comparison_data is None:
+        return
+
+    summary_markdown = str(
+        comparison_data.get("comparison_summary_markdown", "")
+    ).strip()
+    validation_warnings = comparison_data.get("validation_warnings", [])
+    expert_outputs = comparison_data.get("expert_outputs", [])
+    merge_explanations = comparison_data.get("merge_explanations", [])
+
+    if summary_markdown:
+        st.markdown("#### Comparison summary")
+        st.markdown(summary_markdown)
+
+    if isinstance(validation_warnings, list) and validation_warnings:
+        st.warning("Validation notes were recorded for the expert comparison.")
+        with st.expander("Show validation notes", expanded=False):
+            for warning in validation_warnings:
+                st.write(f"- {warning}")
+
+    if isinstance(expert_outputs, list) and expert_outputs:
+        st.markdown("#### Expert artifacts")
+        for artifact in expert_outputs:
+            if not isinstance(artifact, dict):
+                continue
+            label = str(artifact.get("label", "expert"))
+            json_path = str(artifact.get("json_path", ""))
+            markdown_path = str(artifact.get("markdown_path", ""))
+            st.write(
+                f"- `{label}`: JSON `{json_path}` | Markdown `{markdown_path}`"
+            )
+
+    if isinstance(merge_explanations, list) and merge_explanations:
+        st.markdown("#### Merge explanations")
+        for explanation in merge_explanations:
+            if not isinstance(explanation, dict):
+                continue
+            merged_rule_id = str(explanation.get("merged_rule_id", ""))
+            run_a_rule_ids = ", ".join(explanation.get("run_a_rule_ids", []))
+            run_b_rule_ids = ", ".join(explanation.get("run_b_rule_ids", []))
+            reason = str(explanation.get("reason", "")).strip()
+            st.markdown(f"##### {merged_rule_id}")
+            if run_a_rule_ids:
+                st.write(f"**Run A rules:** {run_a_rule_ids}")
+            if run_b_rule_ids:
+                st.write(f"**Run B rules:** {run_b_rule_ids}")
+            if reason:
+                st.write(reason)
+            st.divider()
+
+    render_json_expander("Expert comparison JSON", comparison_data)
+
+
+def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     if artifact_paths.agentic_review_conversation.exists():
         st.markdown("#### Agentic review conversation")
         render_markdown_file(artifact_paths.agentic_review_conversation)
@@ -450,21 +556,22 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_revised_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_REVISED_OVERTIME, panel_key, artifact_paths)
     json_path = getattr(
         artifact_paths,
         "revised_overtime_rules_json",
         artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
     )
-    render_overtime_rules_json(
-        json_path,
-        source_markdown_path=artifact_paths.revised_overtime_interpretation,
-    )
+    render_markdown_file(artifact_paths.revised_overtime_interpretation, source_path=json_path)
+
+    if json_path.exists():
+        with st.expander("Structured overtime rules view", expanded=False):
+            render_overtime_rules_json(
+                json_path,
+                source_markdown_path=artifact_paths.revised_overtime_interpretation,
+            )
 
 
 def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_MANUAL_4B_EDITOR, panel_key, artifact_paths)
-
     source_path = source_path_for_manual_4b_editor(artifact_paths)
     source_content = read_text_file(source_path)
 
@@ -508,7 +615,6 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
 
 
 def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_panel_heading(SCREEN_CORE_OVERTIME_PSEUDOCODE, panel_key, artifact_paths)
     render_markdown_file(
         artifact_paths.core_overtime_pseudocode,
         source_path=source_path_for_core_overtime_pseudocode(artifact_paths),
@@ -618,8 +724,9 @@ def render_overtime_rules_json(
     validation_warnings = rules_data.get("validation_warnings", [])
     if isinstance(validation_warnings, list) and validation_warnings:
         st.warning("Validation notes were recorded for this rules artifact.")
-        for warning in validation_warnings:
-            st.write(f"- {warning}")
+        with st.expander("Show validation notes", expanded=False):
+            for warning in validation_warnings:
+                st.write(f"- {warning}")
 
     rendered_markdown = str(rules_data.get("rendered_markdown", "")).strip()
     rules = rules_data.get("rules", [])
@@ -707,17 +814,100 @@ def render_file_details(
     )
 
 
-def render_panel_heading(heading: str, panel_key: str, artifact_paths: Any) -> None:
-    heading_column, button_column = st.columns([5, 1])
+def render_panel_heading(
+    heading: str,
+    panel_key: str,
+    artifact_paths: Any,
+    *,
+    is_hidden: bool,
+) -> None:
+    heading_column, previous_column, next_column, toggle_column, expand_column, button_column = st.columns(
+        [4, 1, 1, 1, 1, 1]
+    )
 
     with heading_column:
         st.markdown(f"### {heading}")
+
+    with previous_column:
+        st.button(
+            "Prev",
+            key=f"{panel_key}_screen_previous",
+            on_click=move_screen_selection,
+            args=(panel_key, -1),
+            use_container_width=True,
+        )
+
+    with next_column:
+        st.button(
+            "Next",
+            key=f"{panel_key}_screen_next",
+            on_click=move_screen_selection,
+            args=(panel_key, 1),
+            use_container_width=True,
+        )
+
+    with toggle_column:
+        toggle_label = "Show" if is_hidden else "Hide"
+        st.button(
+            toggle_label,
+            key=f"{panel_key}_screen_toggle",
+            on_click=toggle_panel_hidden_state,
+            args=(panel_key,),
+            use_container_width=True,
+        )
+
+    with expand_column:
+        if st.session_state.get("layout_mode") == "Side by side":
+            st.button(
+                "Expand",
+                key=f"{panel_key}_screen_expand",
+                on_click=expand_panel_to_single_view,
+                args=(panel_key,),
+                use_container_width=True,
+            )
+        else:
+            st.button(
+                "Show both",
+                key=f"{panel_key}_screen_show_both",
+                on_click=restore_side_by_side_view,
+                use_container_width=True,
+            )
 
     with button_column:
         st.markdown('<div class="review-refresh-button">', unsafe_allow_html=True)
         if st.button("Refresh", key=f"{panel_key}_refresh", use_container_width=True):
             refresh_panel(panel_key, heading, artifact_paths)
         st.markdown("</div>", unsafe_allow_html=True)
+
+
+def move_screen_selection(panel_key: str, direction: int) -> None:
+    current_screen = st.session_state.get(panel_key, SCREEN_OPTIONS[0])
+    current_index = SCREEN_OPTIONS.index(current_screen)
+
+    if direction < 0:
+        updated_index = previous_index(current_index, len(SCREEN_OPTIONS))
+    else:
+        updated_index = next_index(current_index, len(SCREEN_OPTIONS))
+
+    st.session_state[panel_key] = SCREEN_OPTIONS[updated_index]
+    st.session_state[f"{panel_key}_hidden"] = False
+
+
+def toggle_panel_hidden_state(panel_key: str) -> None:
+    hidden_key = f"{panel_key}_hidden"
+    st.session_state[hidden_key] = not bool(st.session_state.get(hidden_key, False))
+
+
+def expand_panel_to_single_view(panel_key: str) -> None:
+    st.session_state["screen_one"] = st.session_state[panel_key]
+    st.session_state["layout_mode"] = "Single expanded"
+    st.session_state["screen_one_hidden"] = False
+
+
+def restore_side_by_side_view() -> None:
+    st.session_state["layout_mode"] = "Side by side"
+    st.session_state["screen_one_hidden"] = False
+    st.session_state["screen_two_hidden"] = False
 
 
 def refresh_panel(panel_key: str, screen_name: str, artifact_paths: Any) -> None:

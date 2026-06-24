@@ -291,6 +291,9 @@ Do not rewrite or simplify unrelated parts of the interpretation.
 If you remain substantively uncertain whether a clause should stay in or be removed as an overtime-creation rule, record that uncertainty explicitly in the creator response rather than silently finalising the point.
 
 Where accepted feedback concerns a named work arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement, use a dedicated arrangement section if that is clearer than spreading the rules across employee-type sections. In that arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
+Keep one overtime circumstance per bullet. Split combined bullets where they contain separate thresholds, spans, roster conditions, or other distinct payroll tests.
+Keep clause references in the revised markdown bullets, preferably at the end in square brackets.
+If a clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, place that rule under `All employees` or a general work-arrangement section, not under a narrower employee-type heading.
 
 Original interpretation source: {interpretation_path}
 

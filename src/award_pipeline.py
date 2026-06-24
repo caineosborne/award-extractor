@@ -20,6 +20,7 @@ from src.common.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, w
 from src.script_1_fetch_award import build_section_index, extract_award, fetch, iter_heading_rows
 from src.script_2_classify_payments import classify_award, output_path_for_award
 from src.script_3_interpret_overtime import generate_overtime_interpretation
+from src.script_3_interpret_overtime import DEFAULT_EXPERT_RUN_COUNT
 from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
 from src.script_5b_generate_overtime_pseudocode import (
     generate_core_overtime_pseudocode,
@@ -219,6 +220,7 @@ def run_step_3(paths: ActivePipelinePaths) -> None:
         classification_path=paths.classification_path,
         classification_output_path=paths.overtime_clause_classification_path,
         output_path=paths.interpretation_path,
+        expert_run_count=DEFAULT_EXPERT_RUN_COUNT,
     )
 
 

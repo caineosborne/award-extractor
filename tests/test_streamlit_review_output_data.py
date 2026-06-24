@@ -52,6 +52,18 @@ def test_artifact_paths_for_award():
     )
     assert paths.original_overtime_interpretation.name == "MA000018_overtime_interpretation.md"
     assert (
+        paths.original_overtime_interpretation_expert_a.name
+        == "MA000018_overtime_interpretation_expert_a.md"
+    )
+    assert (
+        paths.original_overtime_interpretation_expert_b.name
+        == "MA000018_overtime_interpretation_expert_b.md"
+    )
+    assert (
+        paths.original_overtime_interpretation_comparison.name
+        == "MA000018_overtime_interpretation_comparison.json"
+    )
+    assert (
         paths.agentic_review_conversation.name
         == "MA000018_overtime_interpretation_agentic_review_conversation.md"
     )
@@ -175,6 +187,12 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
         payment_classification=tmp_path / "award_payment_classification.json",
         overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
         original_overtime_interpretation=original_path,
+        original_overtime_interpretation_expert_a=tmp_path
+        / "award_overtime_interpretation_expert_a.md",
+        original_overtime_interpretation_expert_b=tmp_path
+        / "award_overtime_interpretation_expert_b.md",
+        original_overtime_interpretation_comparison=tmp_path
+        / "award_overtime_interpretation_comparison.json",
         agentic_review_conversation=tmp_path
         / "award_overtime_interpretation_agentic_review_conversation.md",
         evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
@@ -205,6 +223,12 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_revised_source(tmp_pa
         payment_classification=tmp_path / "award_payment_classification.json",
         overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
         original_overtime_interpretation=original_path,
+        original_overtime_interpretation_expert_a=tmp_path
+        / "award_overtime_interpretation_expert_a.md",
+        original_overtime_interpretation_expert_b=tmp_path
+        / "award_overtime_interpretation_expert_b.md",
+        original_overtime_interpretation_comparison=tmp_path
+        / "award_overtime_interpretation_comparison.json",
         agentic_review_conversation=tmp_path
         / "award_overtime_interpretation_agentic_review_conversation.md",
         evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",

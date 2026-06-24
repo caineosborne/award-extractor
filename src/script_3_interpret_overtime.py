@@ -22,7 +22,9 @@ from src.common.overtime_rules import (
     OvertimeRule,
     build_step_3_rules_artifact,
     json_output_path_for_markdown,
+    make_json_serializable,
     rules_from_markdown_fallback,
+    rule_to_dict,
     validate_rule_list,
     write_rules_artifact,
 )
@@ -39,6 +41,7 @@ from src.script_3_interpret_overtime_prompt import (
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
 DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_EXPERT_RUN_COUNT = 2
 OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
 SCHEMA_VERSION = "overtime-clause-classification-v2"
 OVERTIME_CLASSIFICATIONS = (
@@ -61,10 +64,59 @@ CLAUSE_REFERENCE_FULL_PATTERN = re.compile(
     r"^\d+(?:\.\d+)+(?:\([a-z0-9]+\))*$",
     re.IGNORECASE,
 )
+EXPERT_RUN_LABELS = ("expert_a", "expert_b", "expert_c")
 
 
 class OvertimeInterpretationError(RuntimeError):
     """Base exception for overtime interpretation failures."""
+
+
+def candidate_parent_clause_keys(clause_reference: str) -> list[str]:
+    """Return progressively broader clause keys for matching shortlisted clauses."""
+    candidates = [clause_reference]
+    simplified = re.sub(
+        r"(?:\([a-z0-9]+\))+$",
+        "",
+        clause_reference,
+        flags=re.IGNORECASE,
+    )
+    if simplified not in candidates:
+        candidates.append(simplified)
+
+    dotted_parts = simplified.split(".")
+    while len(dotted_parts) > 1:
+        dotted_parts = dotted_parts[:-1]
+        candidate = ".".join(dotted_parts)
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    return candidates
+
+
+def deduplicate_preserving_order(items: Sequence[str]) -> list[str]:
+    """Return the input items with duplicates removed while keeping first-seen order."""
+    unique_items: list[str] = []
+    seen_items: set[str] = set()
+
+    for item in items:
+        if item in seen_items:
+            continue
+        unique_items.append(item)
+        seen_items.add(item)
+
+    return unique_items
+
+
+def expert_markdown_output_path(base_markdown_path: Path | str, label: str) -> Path:
+    """Return a sibling markdown path for one expert run."""
+    path = Path(base_markdown_path)
+    return path.with_name(f"{path.stem}_{label}{path.suffix}")
+
+
+def comparison_output_path(base_markdown_path: Path | str) -> Path:
+    """Return the JSON path used for the expert comparison artifact."""
+    path = Path(base_markdown_path)
+    return path.with_name(f"{path.stem}_comparison.json")
 
 
 # 2. Data structures
@@ -672,22 +724,6 @@ def validate_interpretation_rules(
     }
     represented_shortlisted_clause_numbers: set[str] = set()
 
-    def candidate_parent_clause_keys(clause_reference: str) -> list[str]:
-        """Return progressively broader clause keys for matching shortlisted clauses."""
-        candidates = [clause_reference]
-        simplified = re.sub(r"(?:\([a-z0-9]+\))+$", "", clause_reference, flags=re.IGNORECASE)
-        if simplified not in candidates:
-            candidates.append(simplified)
-
-        dotted_parts = simplified.split(".")
-        while len(dotted_parts) > 1:
-            dotted_parts = dotted_parts[:-1]
-            candidate = ".".join(dotted_parts)
-            if candidate not in candidates:
-                candidates.append(candidate)
-
-        return candidates
-
     for rule in rules:
         if not RULE_ID_ALLOWED_PATTERN.fullmatch(rule.rule_id):
             raise OvertimeInterpretationError(
@@ -754,6 +790,289 @@ def validate_interpretation_rules(
     return rules, validation_warnings
 
 
+def comparison_response_json_schema() -> dict[str, Any]:
+    """Define the strict JSON schema expected from the expert comparison model."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "comparison_summary_markdown": {"type": "string"},
+            "accounted_run_a_rule_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "accounted_run_b_rule_ids": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "merged_rules": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "rule_id": {"type": "string"},
+                        "section_heading": {"type": "string"},
+                        "employee_scope": {"type": "array", "items": {"type": "string"}},
+                        "clause_references": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "rule_markdown": {"type": "string"},
+                        "rule_plain_text": {"type": "string"},
+                        "source_clause_numbers": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                        "source_classifications": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                        },
+                    },
+                    "required": [
+                        "rule_id",
+                        "section_heading",
+                        "employee_scope",
+                        "clause_references",
+                        "rule_markdown",
+                        "rule_plain_text",
+                        "source_clause_numbers",
+                        "source_classifications",
+                    ],
+                },
+            },
+            "merge_explanations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": {
+                        "merged_rule_id": {"type": "string"},
+                        "run_a_rule_ids": {"type": "array", "items": {"type": "string"}},
+                        "run_b_rule_ids": {"type": "array", "items": {"type": "string"}},
+                        "reason": {"type": "string"},
+                    },
+                    "required": [
+                        "merged_rule_id",
+                        "run_a_rule_ids",
+                        "run_b_rule_ids",
+                        "reason",
+                    ],
+                },
+            },
+        },
+        "required": [
+            "comparison_summary_markdown",
+            "accounted_run_a_rule_ids",
+            "accounted_run_b_rule_ids",
+            "merged_rules",
+            "merge_explanations",
+        ],
+    }
+
+
+def request_structured_interpretation_run(
+    *,
+    client: Any,
+    model: str,
+    source_path: Path,
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+) -> tuple[list[OvertimeRule], list[str], str]:
+    """Run one step-3.4 interpretation pass and return the structured rules."""
+    try:
+        response = client.responses.create(
+            model=model,
+            input=build_interpretation_messages(
+                str(source_path),
+                overtime_creation_clauses,
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "overtime_rules",
+                    "schema": interpretation_response_json_schema(),
+                    "strict": True,
+                }
+            },
+        )
+    except Exception as exc:
+        raise OvertimeInterpretationError("OpenAI interpretation request failed.") from exc
+
+    output_text = extract_response_text(response)
+    if not output_text:
+        raise OvertimeInterpretationError("OpenAI response did not include output text.")
+
+    try:
+        response_data = parse_response_json(output_text)
+        structured_rules, validation_warnings = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+    except json.JSONDecodeError:
+        structured_rules = rules_from_markdown_fallback(
+            output_text,
+            source_path=source_path,
+        )
+        validation_warnings = [
+            "The step 3.4 model did not return valid JSON. A markdown fallback parser was "
+            "used to rebuild the rules artifact."
+        ]
+
+    return structured_rules, validation_warnings, output_text
+
+
+def build_expert_comparison_messages(
+    *,
+    source_path: Path,
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    run_a_rules: Sequence[OvertimeRule],
+    run_b_rules: Sequence[OvertimeRule],
+) -> list[dict[str, str]]:
+    """Build the expert comparison prompt used to merge two step-3.4 runs."""
+    shortlisted_clauses = [
+        {
+            "clause_number": classification.clause_number,
+            "classification": classification.classification,
+            "classifications": list(classification.classifications),
+            "clause_text": classification.clause_text,
+            "explanation": classification.explanation,
+        }
+        for classification in overtime_creation_clauses
+    ]
+    run_a_rules_json = [rule_to_dict(rule) for rule in run_a_rules]
+    run_b_rules_json = [rule_to_dict(rule) for rule in run_b_rules]
+    system_prompt = (
+        "You are comparing two structured overtime rule extraction outputs for the same "
+        "award. Merge them into one best structured rule set.\n\n"
+        "Preserve the business meaning of the rules. Do not drop a rule merely because "
+        "it is named differently. Treat the same rule with different wording as a merge "
+        "candidate. If one run split a rule and the other combined it, produce the clearest "
+        "merged structure.\n\n"
+        "Every input rule from run A and run B must be accounted for. Every shortlisted "
+        "source clause must still be represented somewhere in the merged output or the "
+        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
+        "Return JSON only."
+    )
+    user_prompt = (
+        f"Source classification file: {source_path}\n\n"
+        "Shortlisted source clauses from step 3.2:\n```json\n"
+        f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run A structured rules:\n```json\n"
+        f"{json.dumps(run_a_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run B structured rules:\n```json\n"
+        f"{json.dumps(run_b_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Return a merged ruleset with:\n"
+        "- comparison_summary_markdown: short markdown summary of overlaps, one-sided rules, "
+        "and unresolved judgement calls\n"
+        "- accounted_run_a_rule_ids: every run A rule_id that was considered\n"
+        "- accounted_run_b_rule_ids: every run B rule_id that was considered\n"
+        "- merged_rules: the final structured rules to use\n"
+        "- merge_explanations: mapping of merged rules back to the run A and run B rule_ids"
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+
+def compare_expert_interpretation_runs(
+    *,
+    client: Any,
+    model: str,
+    source_path: Path,
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    run_a_rules: Sequence[OvertimeRule],
+    run_b_rules: Sequence[OvertimeRule],
+) -> tuple[list[OvertimeRule], dict[str, Any], list[str]]:
+    """Merge two step-3.4 rule sets using an LLM comparison pass."""
+    messages = build_expert_comparison_messages(
+        source_path=source_path,
+        overtime_creation_clauses=overtime_creation_clauses,
+        run_a_rules=run_a_rules,
+        run_b_rules=run_b_rules,
+    )
+    try:
+        response = client.responses.create(
+            model=model,
+            input=messages,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "overtime_rule_comparison",
+                    "schema": comparison_response_json_schema(),
+                    "strict": True,
+                }
+            },
+        )
+    except Exception as exc:
+        raise OvertimeInterpretationError("OpenAI comparison request failed.") from exc
+
+    output_text = extract_response_text(response)
+    if not output_text:
+        raise OvertimeInterpretationError("OpenAI comparison response did not include output text.")
+
+    try:
+        comparison_data = parse_response_json(output_text)
+    except json.JSONDecodeError as exc:
+        raise OvertimeInterpretationError("Comparison response was not valid JSON.") from exc
+
+    merged_rules = validate_rule_list(comparison_data.get("merged_rules", []))
+    validation_warnings: list[str] = []
+
+    run_a_rule_ids = {rule.rule_id for rule in run_a_rules}
+    run_b_rule_ids = {rule.rule_id for rule in run_b_rules}
+    accounted_run_a_rule_ids = {
+        str(rule_id) for rule_id in comparison_data.get("accounted_run_a_rule_ids", [])
+    }
+    accounted_run_b_rule_ids = {
+        str(rule_id) for rule_id in comparison_data.get("accounted_run_b_rule_ids", [])
+    }
+
+    missing_run_a_rule_ids = sorted(run_a_rule_ids - accounted_run_a_rule_ids)
+    missing_run_b_rule_ids = sorted(run_b_rule_ids - accounted_run_b_rule_ids)
+    if missing_run_a_rule_ids:
+        validation_warnings.append(
+            "The comparison output did not account for every run A rule_id: "
+            + ", ".join(missing_run_a_rule_ids)
+            + "."
+        )
+    if missing_run_b_rule_ids:
+        validation_warnings.append(
+            "The comparison output did not account for every run B rule_id: "
+            + ", ".join(missing_run_b_rule_ids)
+            + "."
+        )
+
+    shortlisted_clause_numbers = {
+        classification.clause_number for classification in overtime_creation_clauses
+    }
+    represented_clause_numbers: set[str] = set()
+    for rule in merged_rules:
+        for clause_number in rule.source_clause_numbers:
+            represented_clause_numbers.update(candidate_parent_clause_keys(clause_number))
+
+    missing_shortlisted_clause_numbers = sorted(
+        clause_number
+        for clause_number in shortlisted_clause_numbers
+        if clause_number not in represented_clause_numbers
+    )
+    for clause_number in missing_shortlisted_clause_numbers:
+        validation_warnings.append(
+            f"Shortlisted clause {clause_number} from step 3.2 is not referenced by any "
+            "merged expert-comparison rule."
+        )
+
+    comparison_metadata = {
+        "comparison_summary_markdown": str(
+            comparison_data.get("comparison_summary_markdown") or ""
+        ).strip(),
+        "accounted_run_a_rule_ids": sorted(accounted_run_a_rule_ids),
+        "accounted_run_b_rule_ids": sorted(accounted_run_b_rule_ids),
+        "merge_explanations": comparison_data.get("merge_explanations", []),
+    }
+    return merged_rules, comparison_metadata, validation_warnings
+
+
 # 8. Output writing / orchestration
 
 
@@ -762,15 +1081,23 @@ def generate_overtime_interpretation(
     output_path: Path | str | None = None,
     classification_output_path: Path | str | None = None,
     model: str | None = None,
+    comparison_model: str | None = None,
+    expert_run_count: int = 1,
     client: Any | None = None,
 ) -> str:
     """Generate the step-3 interpretation JSON and derived markdown artifact."""
     # Pick the explicit model first, then the environment override, then the default.
     selected_model = model or os.getenv("OVERTIME_INTERPRETATION_MODEL", DEFAULT_MODEL)
+    selected_comparison_model = comparison_model or os.getenv(
+        "OVERTIME_INTERPRETATION_COMPARISON_MODEL",
+        selected_model,
+    )
     if client is None:
         # Load credentials only when this function is creating its own OpenAI client.
         load_environment()
         client = OpenAI()
+    if expert_run_count < 1:
+        raise OvertimeInterpretationError("expert_run_count must be at least 1.")
 
     source_path = Path(classification_path)
     # Stage 1: load the payment-classification output produced by step 2.
@@ -805,60 +1132,103 @@ def generate_overtime_interpretation(
             "No Ordinary Hours Boundary or Overtime Trigger clauses found."
         )
 
-    try:
-        # Stage 5: ask the model to write the structured overtime rules from the shortlisted clause set.
-        response = client.responses.create(
-            model=selected_model,
-            input=build_interpretation_messages(
-                str(source_path),
-                overtime_creation_clauses,
-            ),
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": "overtime_rules",
-                    "schema": interpretation_response_json_schema(),
-                    "strict": True,
-                }
-            },
-        )
-    except Exception as exc:
-        raise OvertimeInterpretationError("OpenAI interpretation request failed.") from exc
-
-    # Extract the final structured rule output from the model response.
-    output_text = extract_response_text(response)
-    if not output_text:
-        raise OvertimeInterpretationError("OpenAI response did not include output text.")
-
-    try:
-        response_data = parse_response_json(output_text)
-        structured_rules, validation_warnings = validate_interpretation_rules(
-            response_data,
-            overtime_creation_clauses,
-        )
-    except json.JSONDecodeError:
-        # Support legacy markdown-only model output while the pipeline transitions to JSON.
-        structured_rules = rules_from_markdown_fallback(
-            output_text,
-            source_path=source_path,
-        )
-        validation_warnings = [
-            "The step 3.4 model did not return valid JSON. A markdown fallback parser was "
-            "used to rebuild the rules artifact."
-        ]
-
     destination = (
         Path(output_path)
         if output_path
         else interpretation_output_path_for_source(source_path)
     )
     json_destination = json_output_path_for_markdown(destination)
+
+    effective_expert_run_count = min(expert_run_count, len(EXPERT_RUN_LABELS))
+    expert_rulesets: list[list[OvertimeRule]] = []
+    expert_validation_warnings: list[list[str]] = []
+    expert_output_paths: list[dict[str, str]] = []
+
+    for run_index in range(effective_expert_run_count):
+        label = EXPERT_RUN_LABELS[run_index]
+        structured_rules, validation_warnings, _output_text = request_structured_interpretation_run(
+            client=client,
+            model=selected_model,
+            source_path=source_path,
+            overtime_creation_clauses=overtime_creation_clauses,
+        )
+        expert_rulesets.append(structured_rules)
+        expert_validation_warnings.append(validation_warnings)
+
+        if effective_expert_run_count > 1:
+            expert_markdown_path = expert_markdown_output_path(destination, label)
+            expert_json_path = json_output_path_for_markdown(expert_markdown_path)
+            expert_rules_artifact = build_step_3_rules_artifact(
+                source_classification_file=source_path,
+                source_clause_classification_file=classification_destination,
+                rules=structured_rules,
+                validation_warnings=validation_warnings,
+            )
+            write_rules_artifact(
+                json_path=expert_json_path,
+                markdown_path=expert_markdown_path,
+                artifact=expert_rules_artifact,
+            )
+            expert_output_paths.append(
+                {
+                    "label": label,
+                    "json_path": str(expert_json_path),
+                    "markdown_path": str(expert_markdown_path),
+                }
+            )
+
+    if effective_expert_run_count == 1:
+        structured_rules = expert_rulesets[0]
+        validation_warnings = expert_validation_warnings[0]
+        comparison_metadata: dict[str, Any] = {}
+    else:
+        structured_rules, comparison_metadata, comparison_validation_warnings = (
+            compare_expert_interpretation_runs(
+                client=client,
+                model=selected_comparison_model,
+                source_path=source_path,
+                overtime_creation_clauses=overtime_creation_clauses,
+                run_a_rules=expert_rulesets[0],
+                run_b_rules=expert_rulesets[1],
+            )
+        )
+        validation_warnings = deduplicate_preserving_order([
+            *expert_validation_warnings[0],
+            *expert_validation_warnings[1],
+            *comparison_validation_warnings,
+        ])
+        comparison_artifact_path = comparison_output_path(destination)
+        comparison_artifact = {
+            "source_classification_file": str(source_path),
+            "source_clause_classification_file": str(classification_destination),
+            "expert_outputs": expert_output_paths,
+            **comparison_metadata,
+            "validation_warnings": validation_warnings,
+            "merged_rules": [rule_to_dict(rule) for rule in structured_rules],
+        }
+        write_text_with_archive(
+            comparison_artifact_path,
+            json.dumps(make_json_serializable(comparison_artifact), indent=2, ensure_ascii=False),
+        )
+
     rules_artifact = build_step_3_rules_artifact(
         source_classification_file=source_path,
         source_clause_classification_file=classification_destination,
         rules=structured_rules,
         validation_warnings=validation_warnings,
     )
+    if expert_output_paths:
+        rules_artifact["comparison_mode"] = "band_of_experts"
+        rules_artifact["expert_outputs"] = expert_output_paths
+    if effective_expert_run_count > 1:
+        rules_artifact["comparison_summary_markdown"] = comparison_metadata.get(
+            "comparison_summary_markdown",
+            "",
+        )
+        rules_artifact["merge_explanations"] = comparison_metadata.get(
+            "merge_explanations",
+            [],
+        )
     # Save both the canonical JSON artifact and a derived markdown view.
     write_rules_artifact(
         json_path=json_destination,
@@ -900,6 +1270,24 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=f"OpenAI model to use. Defaults to OVERTIME_INTERPRETATION_MODEL or {DEFAULT_MODEL}.",
     )
+    parser.add_argument(
+        "--comparison-model",
+        default=None,
+        help=(
+            "OpenAI model to use for the expert comparison pass when more than one expert "
+            "run is used. Defaults to OVERTIME_INTERPRETATION_COMPARISON_MODEL or the "
+            "main model."
+        ),
+    )
+    parser.add_argument(
+        "--expert-run-count",
+        type=int,
+        default=DEFAULT_EXPERT_RUN_COUNT,
+        help=(
+            "Number of independent step 3.4 expert generations to run before comparison. "
+            f"Defaults to {DEFAULT_EXPERT_RUN_COUNT}."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -913,6 +1301,8 @@ def main() -> None:
         output_path=args.output_path,
         classification_output_path=args.classification_output_path,
         model=args.model,
+        comparison_model=args.comparison_model,
+        expert_run_count=args.expert_run_count,
     )
     destination = (
         Path(args.output_path)

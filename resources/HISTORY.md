@@ -36,7 +36,7 @@ Root files are limited to project metadata and entry points:
 | 3.1 filter overtime clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for clauses tagged `Ordinary Hours & Overtime`. |
 | 3.2 classify overtime clauses | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT` in the same file. |
 | 3.3 filter interpretation clauses | `src/script_3_interpret_overtime.py` | No prompt. Deterministic filter for classifications `Ordinary Hours Boundary` and `Overtime Trigger`. |
-| 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. |
+| 3.4 generate overtime interpretation | `src/script_3_interpret_overtime.py` | System prompt: `OVERTIME_INTERPRETATION_SYSTEM_PROMPT` in `src/script_3_interpret_overtime_prompt.py`. User prompt: `build_overtime_interpretation_user_prompt()` in the same file. The active pipeline runs this interpretation generation twice and then uses a comparison prompt built inside `src/script_3_interpret_overtime.py` to merge the expert outputs. |
 | 3B evaluator | `src/script_3b_review_overtime_interpretation.py` | `evaluation_system_prompt()` in `src/script_3b_shared_prompts.py` |
 | 3B creator update | `src/script_3b_review_overtime_interpretation.py` | `src/script_3_interpret_overtime_prompt.py` |
 | 3B optional agentic review | `src/script_3b_agentic_review_overtime_interpretation.py` and `src/script_3b_agentic_review_workflow.py` | Creator and evaluator prompts in `src/script_3b_shared_prompts.py` |
@@ -61,7 +61,7 @@ The main contracts are:
 | --- | --- | --- | --- | --- |
 | 2 | Payment clause classifier | JSON artifact written to `*_payment_classification.json` | Structured. Uses a strict JSON schema. | Strict pass/fail. The response must validate before it is accepted. |
 | 3.2 | Overtime clause classifier | JSON artifact written to `*_overtime_clause_classification.json` | Structured. Uses a strict JSON schema. | Strict pass/fail. The response must validate before it is accepted. |
-| 3.4 | Overtime interpretation generator | Markdown working document plus a companion structured rules artifact | Structured first, then rendered to markdown. The model returns strict JSON for rule content and rendered markdown. | Strict pass/fail. The response must validate before it is accepted. |
+| 3.4 | Overtime interpretation generator | Two expert structured rules artifacts, one comparison artifact, and one merged working document | Structured first, then rendered to markdown. Two expert model runs produce structured rule outputs, then a comparison model merges them into the canonical rules artifact and markdown view. | Structured generation with deterministic post-checks. Non-fatal provenance and completeness issues are written into JSON and markdown as validation warnings rather than stopping the run. |
 | 3B evaluator | Supervisor review of step 3 | Markdown feedback for the creator, with a companion JSON review artifact when the evaluator supports structured output | Mixed. The human-readable artifact is markdown feedback, but the preferred evaluator contract is structured JSON containing `summary_markdown`, rule-level recommendations, and proposed new rules. | Feedback, not a final gate. The evaluator points out issues and recommendations for the creator. |
 | 3B creator update | Revision of step 3 interpretation | Revised markdown plus creator decision record, with a companion structured review-decision artifact when the creator returns valid JSON | Mixed. Preferred contract is structured JSON; human-readable artifacts are markdown. | Strict on machine-readability, but not a binary quality gate. The code tries to validate and apply the creator update; if structured output cannot be applied it falls back to a manual-review record and preserves the earlier rules. |
 | Optional 3B agentic later evaluator cycles | Lightweight re-check after creator edits | Small JSON object like `{"status":"pass"|"needs_revision","reason":"..."}` | Structured. JSON only. | Strict pass/fail gate for later feedback cycles. This is the clearest binary reviewer decision in the repo. |
@@ -144,7 +144,8 @@ Purpose:
 - Filter to clauses tagged `Ordinary Hours & Overtime`.
 - Ask the LLM to classify those clauses into five overtime interpretation categories.
 - Filter the LLM clause classification to `Ordinary Hours Boundary` and `Overtime Trigger`.
-- Ask the LLM to turn those boundary and trigger clauses into an English working interpretation document before reviewer-facing output is generated.
+- Run two independent expert generations over those boundary and trigger clauses.
+- Use an LLM comparison pass to merge those expert outputs into one canonical structured rules artifact and one markdown working document before reviewer-facing output is generated.
 
 Prompt use:
 - Filtering clauses tagged `Ordinary Hours & Overtime` uses no prompt.
@@ -161,11 +162,20 @@ uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA
 
 Main output:
 - `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.json`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.json`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.md`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.json`
+- `data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_comparison.json`
 
 Status:
 - Implemented and covered by tests.
 - Clause classification is strict structured JSON.
-- Interpretation generation also uses strict structured JSON, then writes a rendered markdown working artifact.
+- The active pipeline uses a band-of-experts approach for interpretation generation.
+- Two expert rule-generation runs are compared and merged into the canonical step-3 rules JSON.
+- The markdown working artifact is derived from the canonical merged rules JSON.
+- Validation warnings can be written into the JSON and prepended to the markdown instead of failing the run for every non-fatal issue.
 - This is a working artifact, not the final reviewer format.
 
 ## 3B. Overtime interpretation supervisor review

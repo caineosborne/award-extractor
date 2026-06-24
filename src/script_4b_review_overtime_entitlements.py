@@ -41,6 +41,7 @@ DEFAULT_ENTITLEMENTS_PATH = (
 )
 EVALUATOR_MODEL = "anthropic/claude-sonnet-4.6"
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_FORMATTER_MODEL = "deepseek/deepseek-v4-pro"
 UPDATED_ANSWER_PATTERN = re.compile(
     r"<updated_answer>\s*(?P<updated_answer>.*?)\s*</updated_answer>",
     re.DOTALL,
@@ -419,7 +420,7 @@ def review_overtime_entitlements(
     )
     selected_formatter_model = formatter_model or os.getenv(
         "OVERTIME_ENTITLEMENT_FORMATTER_MODEL",
-        DEFAULT_CREATOR_MODEL,
+        DEFAULT_FORMATTER_MODEL,
     )
 
     if evaluator_client is None:
@@ -625,7 +626,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "OpenAI formatter model to use. Defaults to "
-            f"OVERTIME_ENTITLEMENT_FORMATTER_MODEL or {DEFAULT_CREATOR_MODEL}."
+            f"OVERTIME_ENTITLEMENT_FORMATTER_MODEL or {DEFAULT_FORMATTER_MODEL}."
         ),
     )
     return parser.parse_args(argv)
