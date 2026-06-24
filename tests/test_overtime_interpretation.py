@@ -16,6 +16,7 @@ from src.script_3_interpret_overtime import (
     format_clauses_for_prompt,
     generate_overtime_interpretation,
     output_path_for_classification,
+    validate_interpretation_rules,
 )
 
 
@@ -164,6 +165,89 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("## Clause 20.1", user_prompt)
         self.assertIn("Overtime Trigger", user_prompt)
 
+    def test_validate_interpretation_rules_accepts_contains_match_for_source_classifications(self):
+        response_data = {
+            "rules": [
+                {
+                    "rule_id": "broken-shift-beyond-12-hour-span",
+                    "section_heading": "All employees",
+                    "employee_scope": ["part-time", "casual"],
+                    "clause_references": ["22.8"],
+                    "rule_markdown": "- Broken shift over 12 hours becomes overtime. [22.8]",
+                    "rule_plain_text": "Broken shift over 12 hours becomes overtime.",
+                    "source_clause_numbers": ["22.8"],
+                    "source_classifications": [
+                        "Ordinary Hours Boundary",
+                        "Overtime Consequence",
+                    ],
+                }
+            ]
+        }
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="22.8",
+                classification="Ordinary Hours Boundary",
+                classifications=(
+                    "Ordinary Hours Boundary",
+                    "Overtime Consequence",
+                    "Related Rule",
+                ),
+                clause_text="22.8 Broken shifts...",
+                explanation="Broken shift span is capped at 12 hours.",
+            )
+        ]
+
+        rules, warnings = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+
+        self.assertEqual(len(rules), 1)
+        self.assertEqual(rules[0].rule_id, "broken-shift-beyond-12-hour-span")
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("accepted because it also contains an allowed creation classification", warnings[0])
+
+    def test_validate_interpretation_rules_records_missing_shortlisted_clause_as_warning(self):
+        response_data = {
+            "rules": [
+                {
+                    "rule_id": "full-time-over-38",
+                    "section_heading": "All employees",
+                    "employee_scope": ["full-time"],
+                    "clause_references": ["22.1"],
+                    "rule_markdown": "- Hours over 38 are overtime. [22.1]",
+                    "rule_plain_text": "Hours over 38 are overtime.",
+                    "source_clause_numbers": ["22.1"],
+                    "source_classifications": ["Ordinary Hours Boundary"],
+                }
+            ]
+        }
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="22.1",
+                classification="Ordinary Hours Boundary",
+                clause_text="22.1 Ordinary hours...",
+                explanation="Ordinary hours are capped.",
+            ),
+            OvertimeClauseClassification(
+                clause_number="22.8",
+                classification="Ordinary Hours Boundary",
+                clause_text="22.8 Broken shifts...",
+                explanation="Broken shift span is capped at 12 hours.",
+            ),
+        ]
+
+        _rules, warnings = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(
+            warnings[0],
+            "Shortlisted clause 22.8 from step 3.2 is not referenced by any step 3.4 rule.",
+        )
+
     def test_generate_overtime_interpretation_writes_markdown_with_mocked_client(self):
         data = {
             "classified_clauses": {
@@ -208,11 +292,6 @@ class OvertimeInterpretationTests(unittest.TestCase):
                 "- The hours will be overtime after ordinary hours. [20.1]",
             ]
         )
-        expected_markdown = (
-            "## All Employees\n\n"
-            "- The hours will be overtime after ordinary hours. [20.1]"
-        )
-
         with tempfile.TemporaryDirectory() as temp_dir:
             input_path = Path(temp_dir) / "award_payment_classification.json"
             output_path = Path(temp_dir) / "award_overtime_interpretation.md"
@@ -241,7 +320,15 @@ class OvertimeInterpretationTests(unittest.TestCase):
             )
 
         self.assertEqual(result, written)
-        self.assertEqual(written.strip(), expected_markdown)
+        self.assertIn("# Validation notes", written)
+        self.assertIn(
+            "The step 3.4 model did not return valid JSON. A markdown fallback parser was used",
+            written,
+        )
+        self.assertIn(
+            "## All Employees\n\n- The hours will be overtime after ordinary hours. [20.1]",
+            written,
+        )
         self.assertEqual(len(archive_files), 1)
         self.assertEqual(len(classification_archive_files), 1)
         self.assertEqual(
@@ -268,6 +355,86 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertNotIn(
             "## Clause 30.1",
             fake_client.responses.calls[0]["input"][1]["content"],
+        )
+
+    def test_generate_overtime_interpretation_writes_validation_notes_in_markdown(self):
+        data = {
+            "classified_clauses": {
+                "22.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Ordinary hours are 38 per week.",
+                    "reason": "Defines ordinary hours.",
+                },
+                "22.8": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Broken shifts have a maximum span of 12 hours.",
+                    "reason": "Sets a broken shift boundary.",
+                },
+            }
+        }
+        classification_json = json.dumps(
+            {
+                "clauses": [
+                    {
+                        "clause_number": "22.1",
+                        "classification": "Ordinary Hours Boundary",
+                        "classifications": ["Ordinary Hours Boundary"],
+                        "clause_text": "Ordinary hours are 38 per week.",
+                        "explanation": "Defines ordinary hours.",
+                    },
+                    {
+                        "clause_number": "22.8",
+                        "classification": "Ordinary Hours Boundary",
+                        "classifications": [
+                            "Ordinary Hours Boundary",
+                            "Overtime Consequence",
+                        ],
+                        "clause_text": "Broken shifts have a maximum span of 12 hours.",
+                        "explanation": "Sets a broken shift boundary.",
+                    },
+                ]
+            }
+        )
+        interpretation_json = json.dumps(
+            {
+                "rules": [
+                    {
+                        "rule_id": "full-time-over-38",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "clause_references": ["22.1"],
+                        "rule_markdown": "- Hours over 38 are overtime. [22.1]",
+                        "rule_plain_text": "Hours over 38 are overtime.",
+                        "source_clause_numbers": ["22.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    }
+                ]
+            }
+        )
+        fake_client = FakeClient([classification_json, interpretation_json])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "award_payment_classification.json"
+            output_path = Path(temp_dir) / "award_overtime_interpretation.md"
+            json_output_path = Path(temp_dir) / "award_overtime_interpretation.json"
+            input_path.write_text(json.dumps(data), encoding="utf-8")
+
+            generate_overtime_interpretation(
+                classification_path=input_path,
+                output_path=output_path,
+                client=fake_client,
+            )
+
+            written_markdown = output_path.read_text(encoding="utf-8")
+            written_json = json.loads(json_output_path.read_text(encoding="utf-8"))
+
+        self.assertIn("# Validation notes", written_markdown)
+        self.assertIn("Shortlisted clause 22.8 from step 3.2 is not referenced", written_markdown)
+        self.assertEqual(
+            written_json["validation_warnings"],
+            [
+                "Shortlisted clause 22.8 from step 3.2 is not referenced by any step 3.4 rule."
+            ],
         )
 
     def test_generate_overtime_interpretation_reuses_existing_clause_classification(self):

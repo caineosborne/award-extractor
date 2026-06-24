@@ -48,6 +48,37 @@ Root files are limited to project metadata and entry points:
 
 Scripts 3 and 4A no longer share a prompt file. Script 3 owns the working interpretation prompt. Script 4A owns the reviewer-facing entitlement summary prompt.
 
+## LLM output and review contract
+
+The pipeline uses LLMs in two different ways:
+
+- Structured generation, where the model must return strict JSON and the code validates it before use.
+- Free-text generation or review, where the model returns markdown or plain text for a human reader or for a later model step.
+
+The main contracts are:
+
+| Step | LLM role | Output form | Structured or free text | Strict pass/fail or feedback |
+| --- | --- | --- | --- | --- |
+| 2 | Payment clause classifier | JSON artifact written to `*_payment_classification.json` | Structured. Uses a strict JSON schema. | Strict pass/fail. The response must validate before it is accepted. |
+| 3.2 | Overtime clause classifier | JSON artifact written to `*_overtime_clause_classification.json` | Structured. Uses a strict JSON schema. | Strict pass/fail. The response must validate before it is accepted. |
+| 3.4 | Overtime interpretation generator | Markdown working document plus a companion structured rules artifact | Structured first, then rendered to markdown. The model returns strict JSON for rule content and rendered markdown. | Strict pass/fail. The response must validate before it is accepted. |
+| 3B evaluator | Supervisor review of step 3 | Markdown feedback for the creator, with a companion JSON review artifact when the evaluator supports structured output | Mixed. The human-readable artifact is markdown feedback, but the preferred evaluator contract is structured JSON containing `summary_markdown`, rule-level recommendations, and proposed new rules. | Feedback, not a final gate. The evaluator points out issues and recommendations for the creator. |
+| 3B creator update | Revision of step 3 interpretation | Revised markdown plus creator decision record, with a companion structured review-decision artifact when the creator returns valid JSON | Mixed. Preferred contract is structured JSON; human-readable artifacts are markdown. | Strict on machine-readability, but not a binary quality gate. The code tries to validate and apply the creator update; if structured output cannot be applied it falls back to a manual-review record and preserves the earlier rules. |
+| Optional 3B agentic later evaluator cycles | Lightweight re-check after creator edits | Small JSON object like `{"status":"pass"|"needs_revision","reason":"..."}` | Structured. JSON only. | Strict pass/fail gate for later feedback cycles. This is the clearest binary reviewer decision in the repo. |
+| 4A | Reviewer-facing entitlement summary generator | Markdown summary | Free text markdown. No response schema is enforced. | No hard gate inside 4A itself. It produces user-facing output for later review. |
+| 4B accuracy evaluator | Review of the 4A entitlement summary | Markdown feedback | Free text markdown with required headings, but no strict response schema. | Feedback, not a binary gate. It tells the creator what to fix. |
+| 4B creator update | Revision of the 4A entitlement summary | Markdown updated answer wrapped in expected tags | Free text markdown. The wrapper tags are parsed, but the content is not schema-driven. | Not a substantive pass/fail gate. It is a one-pass correction step driven by evaluator feedback. |
+| 4B formatter | Final wording and formatting pass | Markdown final answer | Free text markdown. | Not a correctness gate. It improves wording and formatting after the source-aware review. |
+| 5B | Pseudocode generator | Markdown pseudocode | Free text markdown. | Soft generation followed by hard deterministic validation. The model output itself is free text, but the code checks coverage against a source rule inventory and can request one repair pass. |
+| 5B validation | Deterministic validator, not an LLM step | JSON and markdown validation reports | Structured deterministic output. | Strict pass/fail style reporting. Missing rule coverage is recorded explicitly in the validation artifacts. |
+
+For audit purposes, the simplest summary is:
+
+- Steps `2`, `3.2`, and `3.4` are the main strict structured-generation steps.
+- Step `3B` is mainly a feedback workflow, although its preferred machine contract is also structured.
+- Step `4A` and most of `4B` are markdown generation and markdown review, not schema-enforced reasoning steps.
+- Step `5B` generates free-text markdown but is constrained after generation by deterministic validation.
+
 ## 1. Fetch award
 
 File: `src/script_1_fetch_award.py`
@@ -133,6 +164,8 @@ Main output:
 
 Status:
 - Implemented and covered by tests.
+- Clause classification is strict structured JSON.
+- Interpretation generation also uses strict structured JSON, then writes a rendered markdown working artifact.
 - This is a working artifact, not the final reviewer format.
 
 ## 3B. Overtime interpretation supervisor review
@@ -160,7 +193,10 @@ Main outputs:
 Status:
 - Implemented and covered by tests.
 - Evaluator uses OpenRouter by default.
+- Evaluator feedback is primarily reviewer feedback, not a hard accept/reject decision for the whole step.
+- Preferred evaluator output is structured JSON with rule-level recommendations, but the saved human-facing artifact is markdown feedback.
 - Creator update uses the script 3 interpretation prompt.
+- Creator updates are validated for machine readability. If they cannot be applied safely, the earlier interpretation is preserved and a manual-review record is written.
 - The process does not loop.
 
 ## Optional 3B. Agentic overtime interpretation review
@@ -187,6 +223,8 @@ Main outputs:
 Status:
 - Implemented and covered by tests.
 - Optional workflow, not the default manager-review path.
+- The first evaluator cycle is substantive feedback.
+- Later evaluator cycles are lightweight structured pass/fail checks that return `pass` or `needs_revision`.
 - Intended for deeper review loops when the one-pass `3B` output is not sufficient.
 
 ## 4A. Overtime entitlement summary
@@ -214,6 +252,7 @@ Main output:
 Status:
 - Implemented and covered by tests.
 - The template is not source evidence.
+- Output is free-text markdown rather than schema-enforced JSON.
 - The generated markdown is intended for human review and downstream pseudocode generation.
 
 ## 4B. Overtime entitlement review and final formatting
@@ -249,6 +288,8 @@ Status:
 - Implemented and covered by tests.
 - Temporary review step.
 - The accuracy review looks back to source material.
+- The evaluator output is markdown feedback for the user or creator, not a strict pass/fail artifact.
+- The creator update and formatter are also markdown generation steps rather than schema-enforced structured outputs.
 - The final formatting pass uses only the updated markdown and does not look back to source.
 
 ## Combined 3 and 4A runner

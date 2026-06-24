@@ -37,10 +37,12 @@ from src.common.overtime_rules import (
     OVERTIME_RULE_SCHEMA_VERSION,
     OvertimeRule,
     apply_review_decisions,
+    clause_coverage_warnings,
     decision_output_path_for_markdown,
     json_output_path_for_markdown,
     load_rules_artifact,
     make_json_serializable,
+    prepend_validation_warnings,
     rules_from_markdown_fallback,
     render_rules_markdown,
     rule_to_dict,
@@ -903,6 +905,15 @@ def review_overtime_interpretation(
     feedback_json_path = decision_output_path_for_markdown(feedback_path)
     creator_response_json_path = decision_output_path_for_markdown(creator_response_path)
     revised_json_path = json_output_path_for_markdown(revised_path)
+    revised_validation_warnings = clause_coverage_warnings(
+        original_rules=original_rules_artifact["rules"],
+        revised_rules=reviewed_rules_artifact["rules"],
+        context_label="Original step 3.4",
+    )
+    revised_interpretation_markdown = prepend_validation_warnings(
+        revised_interpretation_markdown,
+        revised_validation_warnings,
+    )
 
     if status_callback:
         if last_validation_error and reviewed_rules_artifact is not None:
@@ -947,6 +958,7 @@ def review_overtime_interpretation(
             "source_evaluator_feedback_file": str(feedback_json_path),
             "review_decisions": reviewed_rules_artifact["review_decisions"],
             "rendered_markdown": revised_interpretation_markdown,
+            "validation_warnings": revised_validation_warnings,
             "rules": [
                 rule_to_dict(rule) for rule in reviewed_rules_artifact["rules"]
             ],

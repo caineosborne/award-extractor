@@ -628,6 +628,154 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 artifacts.revised_interpretation_markdown,
             )
 
+    def test_review_overtime_interpretation_records_dropped_clause_warning(self):
+        classification = {
+            "classified_clauses": {
+                "20.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Clause 20.1 text.",
+                },
+                "20.2": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Clause 20.2 text.",
+                },
+            }
+        }
+        overtime_clause_classification = {
+            "schema_version": "overtime-clause-classification-v2",
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
+                    "explanation": "Relevant.",
+                    "clause_text": "Clause 20.1 text.",
+                },
+                {
+                    "clause_number": "20.2",
+                    "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
+                    "explanation": "Relevant.",
+                    "clause_text": "Clause 20.2 text.",
+                },
+            ],
+        }
+        evaluator_client = FakeEvaluatorClient(
+            json.dumps(
+                {
+                    "summary_markdown": "# Feedback",
+                    "rule_reviews": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "recommendation": "remove",
+                            "rationale": "Remove this rule.",
+                        },
+                        {
+                            "rule_id": "all-employees_002",
+                            "recommendation": "keep",
+                            "rationale": "Keep this rule.",
+                        },
+                    ],
+                    "new_rules": [],
+                }
+            )
+        )
+        creator_client = FakeCreatorClient(
+            [
+                json.dumps(
+                    {
+                        "decision_record_markdown": "# Decision",
+                        "rule_updates": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "decision": "remove",
+                                "reason": "Accepted removal.",
+                            },
+                            {
+                                "rule_id": "all-employees_002",
+                                "decision": "keep",
+                                "reason": "Keep the supported rule.",
+                            },
+                        ],
+                        "new_rules": [],
+                    }
+                )
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            interpretation_path = temp_path / "award_overtime_interpretation.md"
+            interpretation_path.write_text(
+                "## All employees\n\n- Rule one. [20.2]\n- Rule two. [20.1]",
+                encoding="utf-8",
+            )
+            interpretation_path.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "overtime-rules-v1",
+                        "source_classification_file": "award_payment_classification.json",
+                        "source_clause_classification_file": "award_overtime_clause_classification.json",
+                        "rendered_markdown": "## All employees\n\n- Rule one. [20.2]\n- Rule two. [20.1]\n",
+                        "rules": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "section_heading": "All employees",
+                                "employee_scope": ["full-time"],
+                                "clause_references": ["20.2"],
+                                "rule_markdown": "- Rule one. [20.2]",
+                                "rule_plain_text": "Rule one.",
+                                "source_clause_numbers": ["20.2"],
+                                "source_classifications": ["Overtime Trigger"],
+                            },
+                            {
+                                "rule_id": "all-employees_002",
+                                "section_heading": "All employees",
+                                "employee_scope": ["full-time"],
+                                "clause_references": ["20.1"],
+                                "rule_markdown": "- Rule two. [20.1]",
+                                "rule_plain_text": "Rule two.",
+                                "source_clause_numbers": ["20.1"],
+                                "source_classifications": ["Overtime Trigger"],
+                            },
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classification_path = temp_path / "award_payment_classification.json"
+            classification_path.write_text(json.dumps(classification), encoding="utf-8")
+            overtime_clause_classification_path = (
+                temp_path
+                / "3_overtime_interpretations"
+                / "award_overtime_clause_classification.json"
+            )
+            overtime_clause_classification_path.parent.mkdir()
+            overtime_clause_classification_path.write_text(
+                json.dumps(overtime_clause_classification),
+                encoding="utf-8",
+            )
+
+            artifacts = review_overtime_interpretation(
+                interpretation_path=interpretation_path,
+                classification_path=classification_path,
+                overtime_clause_classification_path=overtime_clause_classification_path,
+                evaluator_client=evaluator_client,
+                creator_client=creator_client,
+                inter_call_delay_seconds=0,
+            )
+            revised_json = json.loads(
+                artifacts.revised_interpretation_json_path.read_text(encoding="utf-8")
+            )
+
+        expected_warning = (
+            "Original step 3.4 clause 20.2 was present before review but is not "
+            "referenced after review."
+        )
+        self.assertIn("# Validation notes", artifacts.revised_interpretation_markdown)
+        self.assertIn(expected_warning, artifacts.revised_interpretation_markdown)
+        self.assertEqual(revised_json["validation_warnings"], [expected_warning])
+
 
 if __name__ == "__main__":
     unittest.main()

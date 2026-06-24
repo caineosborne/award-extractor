@@ -650,13 +650,14 @@ def interpretation_response_json_schema() -> dict[str, Any]:
 def validate_interpretation_rules(
     response_data: Mapping[str, Any],
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
-) -> list[OvertimeRule]:
+) -> tuple[list[OvertimeRule], list[str]]:
     """Validate the structured rule output from step 3."""
     raw_rules = response_data.get("rules")
     if not isinstance(raw_rules, list):
         raise OvertimeInterpretationError("Interpretation response must contain rules array.")
 
     rules = validate_rule_list(raw_rules)
+    validation_warnings: list[str] = []
     valid_clause_numbers: set[str] = set()
     for classification in overtime_creation_clauses:
         valid_clause_numbers.add(classification.clause_number)
@@ -666,6 +667,10 @@ def validate_interpretation_rules(
             valid_clause_numbers.add(clause_reference_match.group(0))
 
     valid_classifications = set(OVERTIME_CREATION_CLASSIFICATIONS)
+    shortlisted_clause_numbers = {
+        classification.clause_number for classification in overtime_creation_clauses
+    }
+    represented_shortlisted_clause_numbers: set[str] = set()
 
     def candidate_parent_clause_keys(clause_reference: str) -> list[str]:
         """Return progressively broader clause keys for matching shortlisted clauses."""
@@ -696,9 +701,9 @@ def validate_interpretation_rules(
         }
         if malformed_source_clauses:
             malformed_display = ", ".join(sorted(malformed_source_clauses))
-            raise OvertimeInterpretationError(
+            validation_warnings.append(
                 f"Rule {rule.rule_id} referenced malformed source clauses: "
-                f"{malformed_display}"
+                f"{malformed_display}."
             )
 
         known_source_clauses: set[str] = set()
@@ -706,25 +711,47 @@ def validate_interpretation_rules(
             for candidate in candidate_parent_clause_keys(source_clause):
                 if candidate in valid_clause_numbers:
                     known_source_clauses.add(candidate)
+                    if candidate in shortlisted_clause_numbers:
+                        represented_shortlisted_clause_numbers.add(candidate)
                     break
         if not known_source_clauses:
             source_display = ", ".join(rule.source_clause_numbers)
-            raise OvertimeInterpretationError(
-                f"Rule {rule.rule_id} did not reference any known step-3 source clause. "
-                f"Returned source clauses: {source_display}"
+            validation_warnings.append(
+                f"Rule {rule.rule_id} is included despite not being linked to a known "
+                f"shortlisted step-3 source clause. Returned source clauses: "
+                f"{source_display}."
             )
 
         unsupported_source_classifications = (
             set(rule.source_classifications) - valid_classifications
         )
-        if unsupported_source_classifications:
+        supported_source_classifications = (
+            set(rule.source_classifications) & valid_classifications
+        )
+        if unsupported_source_classifications and not supported_source_classifications:
             unsupported_display = ", ".join(sorted(unsupported_source_classifications))
-            raise OvertimeInterpretationError(
-                f"Rule {rule.rule_id} referenced unsupported source classifications: "
-                f"{unsupported_display}"
+            validation_warnings.append(
+                f"Rule {rule.rule_id} is included despite not being listed as a useful "
+                f"clause classification. Returned source classifications: "
+                f"{unsupported_display}."
+            )
+        elif unsupported_source_classifications:
+            unsupported_display = ", ".join(sorted(unsupported_source_classifications))
+            supported_display = ", ".join(sorted(supported_source_classifications))
+            validation_warnings.append(
+                f"Rule {rule.rule_id} cited additional non-creation classifications "
+                f"({unsupported_display}) but was accepted because it also contains an "
+                f"allowed creation classification ({supported_display})."
             )
 
-    return rules
+    missing_shortlisted_clauses = shortlisted_clause_numbers - represented_shortlisted_clause_numbers
+    for clause_number in sorted(missing_shortlisted_clauses):
+        validation_warnings.append(
+            f"Shortlisted clause {clause_number} from step 3.2 is not referenced by any "
+            "step 3.4 rule."
+        )
+
+    return rules, validation_warnings
 
 
 # 8. Output writing / orchestration
@@ -805,7 +832,7 @@ def generate_overtime_interpretation(
 
     try:
         response_data = parse_response_json(output_text)
-        structured_rules = validate_interpretation_rules(
+        structured_rules, validation_warnings = validate_interpretation_rules(
             response_data,
             overtime_creation_clauses,
         )
@@ -815,6 +842,10 @@ def generate_overtime_interpretation(
             output_text,
             source_path=source_path,
         )
+        validation_warnings = [
+            "The step 3.4 model did not return valid JSON. A markdown fallback parser was "
+            "used to rebuild the rules artifact."
+        ]
 
     destination = (
         Path(output_path)
@@ -826,6 +857,7 @@ def generate_overtime_interpretation(
         source_classification_file=source_path,
         source_clause_classification_file=classification_destination,
         rules=structured_rules,
+        validation_warnings=validation_warnings,
     )
     # Save both the canonical JSON artifact and a derived markdown view.
     write_rules_artifact(

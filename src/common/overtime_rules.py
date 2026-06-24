@@ -190,6 +190,54 @@ def render_rules_markdown(rules: Sequence[OvertimeRule]) -> str:
     return "\n".join(sections).strip() + "\n"
 
 
+def prepend_validation_warnings(
+    rendered_markdown: str,
+    validation_warnings: Sequence[str],
+) -> str:
+    """Prepend a warning block when step-3 validation found non-fatal issues."""
+    if not validation_warnings:
+        return rendered_markdown
+
+    warning_lines = [
+        "# Validation notes",
+        "",
+        "The following step-3 validation issues were detected. The interpretation was",
+        "written anyway so the review can continue, but these points require checking.",
+        "",
+    ]
+    for warning in validation_warnings:
+        warning_lines.append(f"- {warning}")
+
+    warning_lines.extend(["", rendered_markdown.lstrip()])
+    return "\n".join(warning_lines).rstrip() + "\n"
+
+
+def clause_coverage_warnings(
+    *,
+    original_rules: Sequence[OvertimeRule],
+    revised_rules: Sequence[OvertimeRule],
+    context_label: str,
+) -> list[str]:
+    """Record clause references that were present before review but absent after review."""
+    original_clause_numbers = {
+        clause_number
+        for rule in original_rules
+        for clause_number in rule.source_clause_numbers
+    }
+    revised_clause_numbers = {
+        clause_number
+        for rule in revised_rules
+        for clause_number in rule.source_clause_numbers
+    }
+    dropped_clause_numbers = sorted(original_clause_numbers - revised_clause_numbers)
+
+    return [
+        f"{context_label} clause {clause_number} was present before review but is not "
+        "referenced after review."
+        for clause_number in dropped_clause_numbers
+    ]
+
+
 def build_rule_inventory_from_rules(
     rules: Sequence[OvertimeRule],
     *,
@@ -261,13 +309,18 @@ def build_step_3_rules_artifact(
     source_classification_file: Path | str,
     source_clause_classification_file: Path | str,
     rules: Sequence[OvertimeRule],
+    validation_warnings: Sequence[str] = (),
 ) -> dict[str, Any]:
-    rendered_markdown = render_rules_markdown(rules)
+    rendered_markdown = prepend_validation_warnings(
+        render_rules_markdown(rules),
+        validation_warnings,
+    )
     return {
         "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
         "source_classification_file": str(source_classification_file),
         "source_clause_classification_file": str(source_clause_classification_file),
         "rendered_markdown": rendered_markdown,
+        "validation_warnings": list(validation_warnings),
         "rules": [rule_to_dict(rule) for rule in rules],
     }
 

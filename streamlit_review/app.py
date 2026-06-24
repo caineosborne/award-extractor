@@ -615,6 +615,12 @@ def render_overtime_rules_json(
     if rules_data is None:
         return
 
+    validation_warnings = rules_data.get("validation_warnings", [])
+    if isinstance(validation_warnings, list) and validation_warnings:
+        st.warning("Validation notes were recorded for this rules artifact.")
+        for warning in validation_warnings:
+            st.write(f"- {warning}")
+
     rendered_markdown = str(rules_data.get("rendered_markdown", "")).strip()
     rules = rules_data.get("rules", [])
 
