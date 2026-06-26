@@ -47,6 +47,13 @@ Generate the overtime interpretation:
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
+Run the two maintained step-3 sub-parts separately if needed:
+
+```bash
+uv run python src/script_3_part1_classify_overtime_clauses.py data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+uv run python src/script_3_part2_generate_overtime_interpretation.py data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+```
+
 Review and revise the interpretation:
 
 ```bash
@@ -69,6 +76,17 @@ uv run streamlit run review_outputs.py
 ```
 
 The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual `4B` markdown, and inspect the later `5B` pseudocode outputs.
+The main review screens are now reviewer-facing:
+- payment clauses
+- payment clause categories
+- ruleset clause classification
+- expert A and expert B ruleset drafts
+- comparison of expert outputs
+- combined ruleset
+- reviewer feedback and commentary
+- final formatted ruleset
+- manually edited ruleset
+- pseudocode
 
 ## Tests
 

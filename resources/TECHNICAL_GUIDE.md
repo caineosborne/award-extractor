@@ -262,6 +262,9 @@ Additional output from the optional mode:
 ## Step 4A. Format a reviewer-facing overtime guide
 
 Main files:
+- `src/script_3_interpret_overtime.py`
+- `src/script_3_part1_classify_overtime_clauses.py`
+- `src/script_3_part2_generate_overtime_interpretation.py`
 - `src/script_4a_summarize_overtime.py`
 - `src/prompts/overtime_guide_formatting.py`
 - `resources/Template.md`
@@ -283,6 +286,11 @@ Main output:
 Source selection behaviour:
 - if `MA000018_overtime_interpretation_revised.md` exists, `4A` uses that;
 - otherwise it falls back to `MA000018_overtime_interpretation.md`.
+
+Formatting behaviour:
+- the script strips the saved validation-notes preamble before prompting;
+- the formatter should include only source-supported headings;
+- unsupported headings should be omitted entirely rather than filled with placeholder text.
 
 How to read the code:
 - `resolve_interpretation_path()` explains how the script decides between award-code mode and path mode;
@@ -379,17 +387,17 @@ uv run streamlit run review_outputs.py
 ```
 
 What the app exposes:
-- L1 payment classification
-- L2 payment clause categories
-- overtime clause classification
-- expert A extraction
-- expert B extraction
-- expert comparison artifact
-- final step-3 extraction
-- review feedback and commentary
-- `4A` formatted overtime guide
-- manual `4B` editor
-- `5B` core overtime pseudocode
+- payment clauses
+- payment clause categories
+- ruleset clause classification
+- expert A ruleset draft
+- expert B ruleset draft
+- comparison of expert outputs
+- combined ruleset
+- reviewer feedback and commentary
+- final formatted ruleset
+- manually edited ruleset
+- pseudocode
 
 Important code-reading points:
 - `render_pipeline_run_controls()` is where sidebar pipeline actions are wired;

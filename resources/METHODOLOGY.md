@@ -112,8 +112,16 @@ This step narrows the award to the subset that is likely to matter for payment l
 
 File:
 - `src/script_3_interpret_overtime.py`
+- `src/script_3_part1_classify_overtime_clauses.py`
+- `src/script_3_part2_generate_overtime_interpretation.py`
 
 This step has several sub-stages.
+
+Implementation note:
+- `src/script_3_interpret_overtime.py` remains the stable public entrypoint.
+- It now delegates to two clearer internal scripts:
+  - part 1 prepares `*_overtime_clause_classification.json`;
+  - part 2 reads that artifact and produces the expert outputs, comparison, and combined ruleset.
 
 ### Step 3.1. Filter overtime-related clauses
 
@@ -284,6 +292,8 @@ Purpose:
 - turn the interpretation artifact into a cleaner human-readable overtime guide;
 - prefer the revised `3B` interpretation when an award code is used;
 - use `resources/Template.md` as a formatting and heading reference.
+- omit unsupported template headings entirely rather than emitting placeholder text.
+- ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
 
@@ -315,7 +325,7 @@ Its role is:
 - discover existing award output sets;
 - run the active pipeline or selected steps for an award code;
 - compare intermediate and final artifacts side by side;
-- expose expert A, expert B, comparison, original interpretation, review feedback, `4A`, manual `4B`, and `5B` outputs;
+- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, final formatted ruleset, manual edited ruleset, and pseudocode;
 - support a manual `4B` editing workflow by saving edited markdown with archive copies.
 
 This matters because the project does not treat the pipeline as purely batch output. Review, comparison, and manual refinement are part of the current operating method.
