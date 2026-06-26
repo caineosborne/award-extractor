@@ -38,3 +38,72 @@ Suggested follow-up:
 
 Reviewer question to resolve:
 - Should step `3.4` require every shortlisted clause to appear in the final rules JSON, or should it allow omissions when the model gives an explicit structured reason for exclusion?
+
+### Processed output layout should be award-first
+
+Status:
+- Open
+
+Area:
+- `data/processed/`
+- path helpers under `src/common/`
+- Streamlit review discovery and artifact loading
+
+Current behaviour:
+- Processed outputs are primarily grouped by artifact type and pipeline step.
+- `data/processed/3_overtime_interpretations/` mixes multiple awards in one flat directory.
+- Active files and archived versions are separated by artifact category rather than by review task.
+
+Why this matters:
+- One directory mixes multiple awards, which makes manual review harder.
+- Active files and historical versions are separated by artifact type, not by the award being reviewed.
+- Reviewing one award requires mentally filtering a long flat file list.
+- The current structure is becoming harder to scan as more awards are processed.
+
+Options discussed:
+
+Option 1:
+- Keep step-based folders, but group them under an award folder.
+
+Example:
+
+```text
+data/processed/
+  MA000002/
+    1_fetch_award/
+    2_payment_clause_identifier/
+    3_overtime_interpretations/
+    4a_overtime_entitlements/
+    5b_generate_overtime_pseudocode/
+    6_final_consistency_review/
+  MA000018/
+    ...
+```
+
+Option 2:
+- Keep one award folder with the active artifacts together, plus an `archive/` folder inside the award folder.
+
+Example:
+
+```text
+data/processed/
+  MA000002/
+    MA000002_payment_classification.json
+    MA000002_overtime_clause_classification.json
+    MA000002_overtime_interpretation.md
+    MA000002_overtime_interpretation.json
+    MA000002_overtime_interpretation_expert_a.md
+    ...
+    archive/
+```
+
+Recommended direction:
+- Prefer Option 2.
+- It better matches how the outputs are actually reviewed: award by award.
+- It would make the Streamlit review flow, manual inspection, and cleanup tasks more straightforward.
+
+Likely implementation impact:
+- Update path builders in `src/common/`.
+- Update artifact discovery and output loading in the Streamlit review app.
+- Update archive-writing helpers so historical files stay grouped with the relevant award.
+- Update any scripts or tests that currently assume global step-based output directories.

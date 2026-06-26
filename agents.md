@@ -32,6 +32,15 @@ Do not introduce alternative package managers unless there is a clear reason.
 
 Write straightforward Python.
 
+Prefer a linear, easy-to-follow style that feels closer to a Jupyter notebook or Alteryx workflow than to a heavily abstracted software-engineering codebase.
+
+When practical:
+
+* Keep the main flow readable from top to bottom.
+* Prefer a small number of larger, clearly named steps over many tiny helper functions.
+* Group helpers near the top and keep the main execution path simple and sequential.
+* Avoid indirection unless it clearly reduces complexity for a reviewer.
+
 Avoid overly defensive programming.
 
 Do not add broad `try/except` blocks unless there is a real expected failure mode and the handling is useful.
@@ -56,6 +65,15 @@ If errors occur, they should usually fail loudly so they can be found and fixed.
 ## Clarity Over Brevity
 
 Prefer clear intermediate variables over dense one-liners.
+
+Prefer step-by-step code that can be read in sequence.
+
+If a choice exists between:
+
+* a more abstract reusable design, and
+* a more linear design that is easier to follow in one pass
+
+prefer the more linear design unless the abstraction clearly improves reviewability.
 
 Bad:
 
@@ -134,6 +152,8 @@ Make it boring, clear, and reliable.
 Business logic should be explicit.
 
 Avoid generic frameworks, abstractions, or helper functions unless they reduce complexity.
+
+Default to code that a reviewer can read top-to-bottom without mentally jumping across many files or many tiny functions.
 
 A reviewer should be able to trace a business rule from:
 - Award clause

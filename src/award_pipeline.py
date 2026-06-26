@@ -1,11 +1,8 @@
 from __future__ import annotations
 
 import argparse
-import csv
-import json
 import re
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 
 from src.common.active_pipeline_paths import (
@@ -17,8 +14,8 @@ from src.common.active_pipeline_paths import (
     overtime_clause_classification_output_path_for_classification,
     revised_output_path_for_interpretation,
 )
-from src.common.output_paths import FETCH_AWARD_DIR, timestamped_archive_path, write_text_with_archive
-from src.script_1_fetch_award import build_section_index, extract_award, fetch, iter_heading_rows
+from src.common.output_paths import FETCH_AWARD_DIR
+from src.script_1_fetch_award import fetch_and_extract_award, write_step_1_outputs
 from src.script_2_classify_payments import classify_award, output_path_for_award
 from src.script_3_interpret_overtime import generate_overtime_interpretation
 from src.script_3_interpret_overtime import DEFAULT_EXPERT_RUN_COUNT
@@ -49,8 +46,6 @@ class ActivePipelinePaths:
     url: str
     raw_html_path: Path
     award_json_path: Path
-    section_index_path: Path
-    heading_csv_path: Path
     classification_path: Path
     overtime_clause_classification_path: Path
     interpretation_path: Path
@@ -95,8 +90,6 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
     fetch_dir = PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR
     raw_html_path = fetch_dir / "raw" / f"{output_stem}.html"
     award_json_path = fetch_dir / f"{output_stem}.json"
-    section_index_path = fetch_dir / f"{output_stem}_sections.json"
-    heading_csv_path = fetch_dir / f"{output_stem}.csv"
 
     classification_path = output_path_for_award(award_json_path)
     overtime_clause_classification_path = overtime_clause_classification_output_path_for_classification(
@@ -125,8 +118,6 @@ def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipeline
         url=url,
         raw_html_path=raw_html_path,
         award_json_path=award_json_path,
-        section_index_path=section_index_path,
-        heading_csv_path=heading_csv_path,
         classification_path=classification_path,
         overtime_clause_classification_path=overtime_clause_classification_path,
         interpretation_path=interpretation_path,
@@ -148,60 +139,15 @@ def require_existing(path: Path, step_name: str, prior_step: str) -> None:
         )
 
 
-def write_fetched_award_outputs(
-    url: str,
-    raw_html_path: Path,
-    award_json_path: Path,
-    section_index_path: Path,
-    heading_csv_path: Path,
-) -> None:
-    """Fetch the award and write the full set of step-1 artifacts."""
-    soup = fetch(url)
-    main_content = soup.find(id="mainContent")
-    if main_content is None:
-        raise AwardPipelineError("Could not find element with id='mainContent'.")
-
-    award = extract_award(main_content)
-    timestamp = datetime.now()
-
-    raw_html_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_html_path.write_text(str(main_content), encoding="utf-8")
-
-    write_text_with_archive(
-        award_json_path,
-        json.dumps(award, indent=2, ensure_ascii=False),
-        timestamp,
-    )
-    write_text_with_archive(
-        section_index_path,
-        json.dumps(build_section_index(award), indent=2, ensure_ascii=False),
-        timestamp,
-    )
-
-    heading_csv_path.parent.mkdir(parents=True, exist_ok=True)
-    with heading_csv_path.open("w", newline="", encoding="utf-8") as csv_file:
-        writer = csv.DictWriter(csv_file, fieldnames=["PartHeading", "L1", "L2", "L3"])
-        writer.writeheader()
-        writer.writerows(iter_heading_rows(award))
-
-    archive_csv_path = timestamped_archive_path(heading_csv_path, timestamp)
-    archive_csv_path.parent.mkdir(parents=True, exist_ok=True)
-    archive_csv_path.write_text(heading_csv_path.read_text(encoding="utf-8"), encoding="utf-8")
-
-    print(f"Raw HTML saved to {raw_html_path}")
-    print(f"Processed JSON saved to {award_json_path}")
-    print(f"Section index JSON saved to {section_index_path}")
-    print(f"Heading CSV saved to {heading_csv_path}")
-
-
 def run_step_1(paths: ActivePipelinePaths) -> None:
-    """Run step 1 and write the fetched award artifacts."""
-    write_fetched_award_outputs(
+    """Run step 1 and write the fetched award outputs."""
+    main_content, award = fetch_and_extract_award(paths.url)
+    write_step_1_outputs(
         url=paths.url,
-        raw_html_path=paths.raw_html_path,
-        award_json_path=paths.award_json_path,
-        section_index_path=paths.section_index_path,
-        heading_csv_path=paths.heading_csv_path,
+        main_content=main_content,
+        award=award,
+        raw_dir=paths.raw_html_path.parent,
+        processed_dir=paths.award_json_path.parent.parent,
     )
 
 

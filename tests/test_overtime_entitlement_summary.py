@@ -10,6 +10,7 @@ from src.script_4a_summarize_overtime import (
     load_text_file,
     output_path_for_interpretation,
     resolve_interpretation_path,
+    strip_validation_notes_preamble,
     strip_wrapping_markdown_fence,
     summarize_overtime_entitlements,
 )
@@ -55,6 +56,21 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
         self.assertEqual(result, "# Overtime Triggers\n\n- Rule")
 
+    def test_strip_validation_notes_preamble_keeps_only_rule_sections(self):
+        source_text = (
+            "# Validation notes\n\n"
+            "- Clause 19.2 was not represented.\n\n"
+            "## All employees\n\n"
+            "- After 38 hours per week. [20.1]\n"
+        )
+
+        result = strip_validation_notes_preamble(source_text)
+
+        self.assertEqual(
+            result,
+            "## All employees\n\n- After 38 hours per week. [20.1]",
+        )
+
     def test_build_messages_uses_interpretation_and_template_sources(self):
         messages = build_messages(
             "interpretation.md",
@@ -69,6 +85,8 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertIn("After 38 hours in a week. [20.1]", messages[1]["content"])
         self.assertIn("# Overtime Triggers", messages[1]["content"])
         self.assertIn("Use the template headings exactly as provided", messages[1]["content"])
+        self.assertIn("omit that heading entirely", messages[1]["content"])
+        self.assertIn("no rule was provided", messages[1]["content"])
 
     def test_load_text_file_reads_template_markdown(self):
         template_text = load_text_file(DEFAULT_TEMPLATE_PATH, "Template markdown")
@@ -78,6 +96,8 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
     def test_summarize_overtime_entitlements_writes_formatted_markdown(self):
         interpretation = (
+            "# Validation notes\n\n"
+            "- Clause 19.2 was not represented.\n\n"
             "## All employees\n\n"
             "- Overtime applies after 38 hours per week. [20.1]\n"
         )
@@ -109,6 +129,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn("award_overtime_interpretation_revised.md", fake_client.responses.calls[0]["input"][1]["content"])
         self.assertIn("Template.md", fake_client.responses.calls[0]["input"][1]["content"])
+        self.assertNotIn("Clause 19.2 was not represented.", fake_client.responses.calls[0]["input"][1]["content"])
 
 
 if __name__ == "__main__":

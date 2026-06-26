@@ -411,6 +411,42 @@ def map_to_direct_l2_reference(reference: str, direct_references: set[str]) -> s
     return max(matching_direct_references, key=len)
 
 
+def direct_l2_relative_reference(group_reference: str, direct_reference: str) -> str | None:
+    """Return the child-only form of a direct L2 reference within one L1 group."""
+    dotted_prefix = f"{group_reference}."
+    if direct_reference.startswith(dotted_prefix):
+        return direct_reference.removeprefix(dotted_prefix)
+
+    bracket_prefix = f"{group_reference}("
+    if direct_reference.startswith(bracket_prefix) and direct_reference.endswith(")"):
+        return direct_reference[len(bracket_prefix) : -1]
+
+    return None
+
+
+def map_relative_reference_to_direct_l2(
+    group_reference: str,
+    returned_reference: str,
+    direct_references: set[str],
+) -> str | None:
+    """Map child-only references like 2 or 2(a) back to the full direct L2 reference."""
+    for direct_reference in direct_references:
+        relative_reference = direct_l2_relative_reference(group_reference, direct_reference)
+        if not relative_reference:
+            continue
+
+        if returned_reference == relative_reference:
+            return direct_reference
+
+        if returned_reference.startswith(f"{relative_reference}("):
+            return direct_reference
+
+        if returned_reference.startswith(f"{relative_reference}."):
+            return direct_reference
+
+    return None
+
+
 def direct_l2_reference_for(reference: str, direct_references: set[str]) -> str | None:
     """Return the owning direct L2 reference using the legacy helper name."""
     return map_to_direct_l2_reference(reference, direct_references)
@@ -444,6 +480,7 @@ def validate_group_classification(
 
     # Index direct descendants by reference so returned clause tags can be matched back to source text.
     descendants_by_reference = {item.reference: item for item in group.descendants}
+    direct_references = set(descendants_by_reference)
     # Read the list of clause-level classifications returned by the model.
     classified_raw = classification["classified_clauses"]
 
@@ -460,8 +497,15 @@ def validate_group_classification(
         # Map that reference back to the owning direct L2 clause used by downstream outputs.
         reference = map_to_direct_l2_reference(
             returned_reference,
-            set(descendants_by_reference),
+            direct_references,
         )
+
+        if reference is None:
+            reference = map_relative_reference_to_direct_l2(
+                group.reference,
+                returned_reference,
+                direct_references,
+            )
 
         if (
             reference is None

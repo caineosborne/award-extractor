@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 import time
 import traceback
@@ -21,8 +22,17 @@ from src.award_pipeline import (
     run_default_pipeline,
     run_selected_step,
 )
-from src.common.active_pipeline_paths import default_award_url_for_code, normalize_award_code
+from src.common.active_pipeline_paths import (
+    default_award_url_for_code,
+    normalize_award_code,
+)
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
+from streamlit_review.pipeline_runs import (
+    log_path_for_award,
+    normalized_status_for_award,
+    start_background_pipeline_run,
+    status_path_for_award,
+)
 from streamlit_review.output_data import (
     artifact_paths_for_award,
     clamp_index,
@@ -47,17 +57,17 @@ from streamlit_review.output_data import (
 )
 
 
-SCREEN_L1_PAYMENT = "1. L1 payment classification"
-SCREEN_L2_PAYMENT = "2. L2 payment categories"
-SCREEN_OVERTIME_CLASSIFICATION = "3. Overtime clause classification"
-SCREEN_EXPERT_A_OVERTIME = "4. Expert A overtime extraction"
-SCREEN_EXPERT_B_OVERTIME = "5. Expert B overtime extraction"
-SCREEN_EXPERT_COMPARISON = "6. Expert comparison artifact"
-SCREEN_ORIGINAL_OVERTIME = "7. Final overtime extraction"
-SCREEN_REVIEW_FEEDBACK = "8. Review feedback and commentary"
-SCREEN_FORMATTED_4A = "9. 4A formatted overtime guide"
-SCREEN_MANUAL_4B_EDITOR = "10. 4B manual overtime editor"
-SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. 5B core overtime pseudocode"
+SCREEN_L1_PAYMENT = "1. Payment clauses"
+SCREEN_L2_PAYMENT = "2. Payment clause categories"
+SCREEN_OVERTIME_CLASSIFICATION = "3. Ruleset clause classification"
+SCREEN_EXPERT_A_OVERTIME = "4. Expert A ruleset draft"
+SCREEN_EXPERT_B_OVERTIME = "5. Expert B ruleset draft"
+SCREEN_EXPERT_COMPARISON = "6. Comparison of expert outputs"
+SCREEN_ORIGINAL_OVERTIME = "7. Combined ruleset"
+SCREEN_REVIEW_FEEDBACK = "8. Reviewer feedback and commentary"
+SCREEN_FORMATTED_4A = "9. Final formatted ruleset"
+SCREEN_MANUAL_4B_EDITOR = "10. Manually edited ruleset"
+SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Pseudocode"
 
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
@@ -74,25 +84,29 @@ SCREEN_OPTIONS = [
 ]
 
 COMPARISON_PRESETS = {
-    "L2 categories + original extraction": (
+    "Payment clauses vs payment clause categories": (
+        SCREEN_L1_PAYMENT,
         SCREEN_L2_PAYMENT,
-        SCREEN_ORIGINAL_OVERTIME,
     ),
-    "Original + updated extraction": (
+    "Ruleset clause classification vs final formatted ruleset": (
+        SCREEN_OVERTIME_CLASSIFICATION,
+        SCREEN_FORMATTED_4A,
+    ),
+    "Combined ruleset vs final formatted ruleset": (
         SCREEN_ORIGINAL_OVERTIME,
         SCREEN_FORMATTED_4A,
     ),
-    "Expert A + expert B": (
+    "Expert A draft vs Expert B draft": (
         SCREEN_EXPERT_A_OVERTIME,
         SCREEN_EXPERT_B_OVERTIME,
     ),
-    "Expert comparison + final extraction": (
+    "Comparison of expert outputs vs combined ruleset": (
         SCREEN_EXPERT_COMPARISON,
         SCREEN_ORIGINAL_OVERTIME,
     ),
-    "Overtime classification + original extraction": (
-        SCREEN_OVERTIME_CLASSIFICATION,
-        SCREEN_ORIGINAL_OVERTIME,
+    "Reviewer feedback vs final formatted ruleset": (
+        SCREEN_REVIEW_FEEDBACK,
+        SCREEN_FORMATTED_4A,
     ),
 }
 
@@ -145,6 +159,7 @@ def main() -> None:
 def render_sidebar(award_codes: list[str]) -> str:
     with st.sidebar:
         st.header("Review controls")
+        ensure_layout_state()
 
         default_award_code = st.session_state.get(
             "award_code",
@@ -190,53 +205,54 @@ def render_sidebar(award_codes: list[str]) -> str:
                 st.session_state["screen_one"] = screens[0]
                 st.session_state["screen_two"] = screens[1]
                 st.session_state["layout_mode"] = "Side by side"
+                sync_layout_widgets_from_state()
 
         st.caption("Single screen shortcuts")
 
-        if st.button("Original overtime classification", use_container_width=True):
+        if st.button("Combined ruleset", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_ORIGINAL_OVERTIME
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
+            sync_layout_widgets_from_state()
 
-        if st.button("4A formatted overtime guide", use_container_width=True):
+        if st.button("Final formatted ruleset", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_FORMATTED_4A
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
+            sync_layout_widgets_from_state()
 
-        if st.button("4B manual editor", use_container_width=True):
+        if st.button("Manually edited ruleset", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_MANUAL_4B_EDITOR
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
+            sync_layout_widgets_from_state()
 
-        if st.button("5B core overtime pseudocode", use_container_width=True):
+        if st.button("Pseudocode", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_CORE_OVERTIME_PSEUDOCODE
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
+            sync_layout_widgets_from_state()
 
         st.divider()
 
-        if "screen_one" not in st.session_state:
-            st.session_state["screen_one"] = SCREEN_L2_PAYMENT
-        if "screen_two" not in st.session_state:
-            st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
-        if "layout_mode" not in st.session_state:
-            st.session_state["layout_mode"] = "Side by side"
-        if "screen_one_hidden" not in st.session_state:
-            st.session_state["screen_one_hidden"] = False
-        if "screen_two_hidden" not in st.session_state:
-            st.session_state["screen_two_hidden"] = False
-
-        st.selectbox("First screen", SCREEN_OPTIONS, key="screen_one")
+        st.selectbox(
+            "First screen",
+            SCREEN_OPTIONS,
+            key="screen_one_widget",
+            on_change=update_screen_one_from_widget,
+        )
         st.selectbox(
             "Second screen",
             ["None"] + SCREEN_OPTIONS,
-            key="screen_two",
+            key="screen_two_widget",
+            on_change=update_screen_two_from_widget,
         )
         st.radio(
             "Layout",
             ["Side by side", "Single expanded"],
             horizontal=False,
-            key="layout_mode",
+            key="layout_mode_widget",
+            on_change=update_layout_mode_from_widget,
         )
 
         st.divider()
@@ -256,6 +272,43 @@ def available_award_code_index(award_codes: list[str], selected_award_code: str)
 
 def copy_available_award_code_to_input() -> None:
     st.session_state["award_code"] = st.session_state["available_award_code"]
+
+
+def ensure_layout_state() -> None:
+    """Initialize persistent and widget-backed layout state once per session."""
+    if "screen_one" not in st.session_state:
+        st.session_state["screen_one"] = SCREEN_L2_PAYMENT
+    if "screen_two" not in st.session_state:
+        st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
+    if "layout_mode" not in st.session_state:
+        st.session_state["layout_mode"] = "Side by side"
+
+    sync_layout_widgets_from_state()
+
+
+def sync_layout_widgets_from_state() -> None:
+    """Keep sidebar widget values aligned with the persistent layout state."""
+    st.session_state["screen_one_widget"] = st.session_state["screen_one"]
+    st.session_state["screen_two_widget"] = st.session_state["screen_two"]
+    st.session_state["layout_mode_widget"] = st.session_state["layout_mode"]
+
+
+def update_screen_one_from_widget() -> None:
+    """Persist the first screen selection from the sidebar widget."""
+    st.session_state["screen_one"] = st.session_state["screen_one_widget"]
+    st.session_state["screen_one_widget"] = st.session_state["screen_one"]
+
+
+def update_screen_two_from_widget() -> None:
+    """Persist the second screen selection from the sidebar widget."""
+    st.session_state["screen_two"] = st.session_state["screen_two_widget"]
+    st.session_state["screen_two_widget"] = st.session_state["screen_two"]
+
+
+def update_layout_mode_from_widget() -> None:
+    """Persist the layout mode selection from the sidebar widget."""
+    st.session_state["layout_mode"] = st.session_state["layout_mode_widget"]
+    st.session_state["layout_mode_widget"] = st.session_state["layout_mode"]
 
 
 def validate_award_code_input(value: str) -> tuple[str | None, str | None]:
@@ -294,17 +347,11 @@ def render_screens(
 
 
 def render_screen_panel(screen_name: str, artifact_paths: Any, panel_key: str) -> None:
-    is_hidden = bool(st.session_state.get(f"{panel_key}_hidden", False))
     render_panel_heading(
         screen_name,
         panel_key,
         artifact_paths,
-        is_hidden=is_hidden,
     )
-
-    if is_hidden:
-        st.info("This panel is hidden. Use Show to restore it.")
-        return
 
     render_screen(screen_name, artifact_paths, panel_key)
 
@@ -483,78 +530,75 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str) -> None
         st.markdown(summary_markdown)
 
     if isinstance(validation_warnings, list) and validation_warnings:
-        st.warning("Validation notes were recorded for the expert comparison.")
-        with st.expander("Show validation notes", expanded=False):
+        with st.expander("Validation notes", expanded=True):
             for warning in validation_warnings:
-                st.write(f"- {warning}")
+                st.write(f"- {format_validation_warning_for_display(str(warning))}")
 
     if isinstance(expert_outputs, list) and expert_outputs:
-        st.markdown("#### Expert artifacts")
-        for artifact in expert_outputs:
-            if not isinstance(artifact, dict):
-                continue
-            label = str(artifact.get("label", "expert"))
-            json_path = str(artifact.get("json_path", ""))
-            markdown_path = str(artifact.get("markdown_path", ""))
-            st.write(
-                f"- `{label}`: JSON `{json_path}` | Markdown `{markdown_path}`"
-            )
+        with st.expander("Expert run artifacts", expanded=False):
+            for artifact in expert_outputs:
+                if not isinstance(artifact, dict):
+                    continue
+                label = str(artifact.get("label", "expert"))
+                json_path = str(artifact.get("json_path", ""))
+                markdown_path = str(artifact.get("markdown_path", ""))
+                st.write(
+                    f"- `{label}`: JSON `{json_path}` | Markdown `{markdown_path}`"
+                )
 
     if isinstance(merge_explanations, list) and merge_explanations:
-        st.markdown("#### Merge explanations")
-        for explanation in merge_explanations:
-            if not isinstance(explanation, dict):
-                continue
-            merged_rule_id = str(explanation.get("merged_rule_id", ""))
-            run_a_rule_ids = ", ".join(explanation.get("run_a_rule_ids", []))
-            run_b_rule_ids = ", ".join(explanation.get("run_b_rule_ids", []))
-            reason = str(explanation.get("reason", "")).strip()
-            st.markdown(f"##### {merged_rule_id}")
-            if run_a_rule_ids:
-                st.write(f"**Run A rules:** {run_a_rule_ids}")
-            if run_b_rule_ids:
-                st.write(f"**Run B rules:** {run_b_rule_ids}")
-            if reason:
-                st.write(reason)
-            st.divider()
+        with st.expander("Merge decisions", expanded=False):
+            for explanation in merge_explanations:
+                if not isinstance(explanation, dict):
+                    continue
+                merged_rule_id = str(explanation.get("merged_rule_id", ""))
+                run_a_rule_ids = ", ".join(explanation.get("run_a_rule_ids", []))
+                run_b_rule_ids = ", ".join(explanation.get("run_b_rule_ids", []))
+                reason = str(explanation.get("reason", "")).strip()
+                st.markdown(f"##### {merged_rule_id}")
+                if run_a_rule_ids:
+                    st.write(f"**Run A rules:** {run_a_rule_ids}")
+                if run_b_rule_ids:
+                    st.write(f"**Run B rules:** {run_b_rule_ids}")
+                if reason:
+                    st.write(reason)
+                st.divider()
 
     render_json_expander("Expert comparison JSON", comparison_data)
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     if artifact_paths.agentic_review_conversation.exists():
-        st.markdown("#### Agentic review conversation")
-        render_markdown_file(artifact_paths.agentic_review_conversation)
+        with st.expander("Agentic review conversation", expanded=False):
+            render_markdown_file(artifact_paths.agentic_review_conversation)
 
-        has_legacy_feedback = artifact_paths.evaluator_feedback.exists()
-        has_legacy_creator_response = artifact_paths.creator_response.exists()
-        if has_legacy_feedback or has_legacy_creator_response:
-            st.divider()
+    evaluator_column, creator_column, outcome_column = st.columns(3, gap="medium")
 
-        if has_legacy_feedback:
-            st.markdown("#### Legacy evaluator feedback")
+    with evaluator_column:
+        with st.container(height=620, border=True):
+            st.markdown("#### Evaluator feedback")
             render_markdown_file(artifact_paths.evaluator_feedback)
 
-        if has_legacy_feedback and has_legacy_creator_response:
-            st.divider()
-
-        if has_legacy_creator_response:
-            st.markdown("#### Legacy creator commentary")
+    with creator_column:
+        with st.container(height=620, border=True):
+            st.markdown("#### Creator commentary")
             render_markdown_file(artifact_paths.creator_response)
-        return
 
-    st.markdown("#### Agentic review conversation")
-    render_markdown_file(artifact_paths.agentic_review_conversation)
-
-    st.divider()
-
-    st.markdown("#### Evaluator feedback")
-    render_markdown_file(artifact_paths.evaluator_feedback)
-
-    st.divider()
-
-    st.markdown("#### Creator commentary")
-    render_markdown_file(artifact_paths.creator_response)
+    with outcome_column:
+        with st.container(height=620, border=True):
+            st.markdown("#### Final outcome")
+            revised_json_path = getattr(
+                artifact_paths,
+                "revised_overtime_rules_json",
+                artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
+            )
+            if revised_json_path.exists():
+                render_overtime_rules_json(
+                    revised_json_path,
+                    source_markdown_path=artifact_paths.revised_overtime_interpretation,
+                )
+            else:
+                render_markdown_file(artifact_paths.revised_overtime_interpretation)
 
 
 def render_formatted_4a_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -627,7 +671,15 @@ def render_key_navigation(
     if not keys:
         return None
 
-    current_index = clamp_index(st.session_state.get(state_key, 0), len(keys))
+    selected_value_key = f"{state_key}_selected_value"
+    widget_key = f"{state_key}_selector"
+    stored_selected_value = st.session_state.get(selected_value_key)
+
+    if stored_selected_value in keys:
+        current_index = keys.index(stored_selected_value)
+    else:
+        current_index = clamp_index(st.session_state.get(state_key, 0), len(keys))
+
     st.session_state[state_key] = current_index
 
     previous_column, selector_column, next_column = st.columns([1, 3, 1])
@@ -647,8 +699,10 @@ def render_key_navigation(
             keys,
             index=current_index,
             label_visibility="collapsed",
+            key=widget_key,
         )
         st.session_state[state_key] = keys.index(selected_key)
+        st.session_state[selected_value_key] = selected_key
 
     with next_column:
         st.button(
@@ -680,6 +734,12 @@ def move_selected_index(
     st.session_state[state_key] = updated_index
 
 
+def save_current_side_by_side_layout() -> None:
+    """Remember the current two-panel layout so it can be restored later."""
+    st.session_state["last_side_by_side_screen_one"] = st.session_state.get("screen_one")
+    st.session_state["last_side_by_side_screen_two"] = st.session_state.get("screen_two")
+
+
 def load_json_or_show_error(path: Path) -> dict[str, Any] | None:
     if not path.exists():
         render_missing_file(path)
@@ -699,6 +759,47 @@ def render_markdown_file(path: Path, source_path: Path | None = None) -> None:
     st.markdown(file_content.text)
 
 
+def strip_prepended_validation_block(rendered_markdown: str) -> str:
+    """Remove the saved validation-notes header so the UI can render it separately."""
+    validation_header = "# Validation notes"
+
+    if not rendered_markdown.startswith(validation_header):
+        return rendered_markdown
+
+    heading_match = re.search(r"^##\s", rendered_markdown, flags=re.MULTILINE)
+    if heading_match is None:
+        return rendered_markdown
+
+    return rendered_markdown[heading_match.start() :].lstrip()
+
+
+def format_validation_warning_for_display(warning: str) -> str:
+    """Normalize older warning text into the current reviewer-friendly wording."""
+    direct_match = re.fullmatch(
+        r"Shortlisted clause ([^ ]+) from step 3\.2 is not referenced by any step 3\.4 rule\.",
+        warning,
+    )
+    if direct_match:
+        clause_number = direct_match.group(1)
+        return (
+            f"Clause {clause_number} was shortlisted as potentially relevant to overtime, "
+            "but no rule in this ruleset currently represents it."
+        )
+
+    merged_match = re.fullmatch(
+        r"Shortlisted clause ([^ ]+) from step 3\.2 is not referenced by any merged expert-comparison rule\.",
+        warning,
+    )
+    if merged_match:
+        clause_number = merged_match.group(1)
+        return (
+            f"Clause {clause_number} was shortlisted as potentially relevant to overtime, "
+            "and it is still not represented in the combined ruleset after expert comparison."
+        )
+
+    return warning
+
+
 def render_overtime_rules_json(
     json_path: Path,
     *,
@@ -715,44 +816,46 @@ def render_overtime_rules_json(
         return
 
     validation_warnings = rules_data.get("validation_warnings", [])
-    if isinstance(validation_warnings, list) and validation_warnings:
-        st.warning("Validation notes were recorded for this rules artifact.")
-        with st.expander("Show validation notes", expanded=False):
-            for warning in validation_warnings:
-                st.write(f"- {warning}")
-
-    rendered_markdown = str(rules_data.get("rendered_markdown", "")).strip()
+    rendered_markdown = strip_prepended_validation_block(
+        str(rules_data.get("rendered_markdown", "")).strip()
+    )
     rules = rules_data.get("rules", [])
 
     if rendered_markdown:
-        with st.expander("Rendered markdown view", expanded=False):
-            st.markdown(rendered_markdown)
+        st.markdown("#### Markdown view")
+        st.markdown(rendered_markdown)
+
+    if isinstance(validation_warnings, list) and validation_warnings:
+        with st.expander("Validation notes", expanded=True):
+            for warning in validation_warnings:
+                st.write(f"- {format_validation_warning_for_display(str(warning))}")
 
     if not isinstance(rules, list) or not rules:
         st.warning("No structured overtime rules were found in this JSON artifact.")
         render_json_expander("Structured overtime rules JSON", rules_data)
         return
 
-    for rule in rules:
-        if not isinstance(rule, dict):
-            continue
+    with st.expander("Rule-by-rule breakdown", expanded=False):
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
 
-        rule_id = str(rule.get("rule_id", ""))
-        section_heading = str(rule.get("section_heading", ""))
-        clause_references = ", ".join(rule.get("clause_references", []))
-        employee_scope = ", ".join(rule.get("employee_scope", []))
-        st.markdown(f"#### {rule_id}")
-        if section_heading:
-            st.caption(f"Section: {section_heading}")
-        if employee_scope:
-            st.write(f"**Employee scope:** {employee_scope}")
-        if clause_references:
-            st.write(f"**Clause references:** {clause_references}")
-        st.markdown(rule.get("rule_markdown", ""))
-        plain_text = str(rule.get("rule_plain_text", "")).strip()
-        if plain_text:
-            st.caption(plain_text)
-        st.divider()
+            rule_id = str(rule.get("rule_id", ""))
+            section_heading = str(rule.get("section_heading", ""))
+            clause_references = ", ".join(rule.get("clause_references", []))
+            employee_scope = ", ".join(rule.get("employee_scope", []))
+            st.markdown(f"##### {rule_id}")
+            if section_heading:
+                st.caption(f"Section: {section_heading}")
+            if employee_scope:
+                st.write(f"**Employee scope:** {employee_scope}")
+            if clause_references:
+                st.write(f"**Clause references:** {clause_references}")
+            st.markdown(rule.get("rule_markdown", ""))
+            plain_text = str(rule.get("rule_plain_text", "")).strip()
+            if plain_text:
+                st.caption(plain_text)
+            st.divider()
 
     render_json_expander("Structured overtime rules JSON", rules_data)
 
@@ -811,15 +914,10 @@ def render_panel_heading(
     heading: str,
     panel_key: str,
     artifact_paths: Any,
-    *,
-    is_hidden: bool,
 ) -> None:
-    heading_column, previous_column, next_column, toggle_column, expand_column, button_column = st.columns(
-        [4, 1, 1, 1, 1, 1]
-    )
+    st.markdown(f"### {heading}")
 
-    with heading_column:
-        st.markdown(f"### {heading}")
+    previous_column, next_column, layout_column, button_column = st.columns(4)
 
     with previous_column:
         st.button(
@@ -839,20 +937,10 @@ def render_panel_heading(
             use_container_width=True,
         )
 
-    with toggle_column:
-        toggle_label = "Show" if is_hidden else "Hide"
-        st.button(
-            toggle_label,
-            key=f"{panel_key}_screen_toggle",
-            on_click=toggle_panel_hidden_state,
-            args=(panel_key,),
-            use_container_width=True,
-        )
-
-    with expand_column:
+    with layout_column:
         if st.session_state.get("layout_mode") == "Side by side":
             st.button(
-                "Expand",
+                "Full Screen",
                 key=f"{panel_key}_screen_expand",
                 on_click=expand_panel_to_single_view,
                 args=(panel_key,),
@@ -860,17 +948,15 @@ def render_panel_heading(
             )
         else:
             st.button(
-                "Show both",
+                "Split Screen",
                 key=f"{panel_key}_screen_show_both",
                 on_click=restore_side_by_side_view,
                 use_container_width=True,
             )
 
     with button_column:
-        st.markdown('<div class="review-refresh-button">', unsafe_allow_html=True)
         if st.button("Refresh", key=f"{panel_key}_refresh", use_container_width=True):
             refresh_panel(panel_key, heading, artifact_paths)
-        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def move_screen_selection(panel_key: str, direction: int) -> None:
@@ -883,24 +969,33 @@ def move_screen_selection(panel_key: str, direction: int) -> None:
         updated_index = next_index(current_index, len(SCREEN_OPTIONS))
 
     st.session_state[panel_key] = SCREEN_OPTIONS[updated_index]
-    st.session_state[f"{panel_key}_hidden"] = False
-
-
-def toggle_panel_hidden_state(panel_key: str) -> None:
-    hidden_key = f"{panel_key}_hidden"
-    st.session_state[hidden_key] = not bool(st.session_state.get(hidden_key, False))
+    sync_layout_widgets_from_state()
 
 
 def expand_panel_to_single_view(panel_key: str) -> None:
+    if st.session_state.get("layout_mode") == "Side by side":
+        save_current_side_by_side_layout()
+
     st.session_state["screen_one"] = st.session_state[panel_key]
+    st.session_state["screen_two"] = "None"
     st.session_state["layout_mode"] = "Single expanded"
-    st.session_state["screen_one_hidden"] = False
+    sync_layout_widgets_from_state()
 
 
 def restore_side_by_side_view() -> None:
+    saved_screen_one = st.session_state.get("last_side_by_side_screen_one")
+    saved_screen_two = st.session_state.get("last_side_by_side_screen_two")
+
+    if saved_screen_one in SCREEN_OPTIONS:
+        st.session_state["screen_one"] = saved_screen_one
+
+    if saved_screen_two in SCREEN_OPTIONS:
+        st.session_state["screen_two"] = saved_screen_two
+    elif st.session_state.get("screen_two") == "None":
+        st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
+
     st.session_state["layout_mode"] = "Side by side"
-    st.session_state["screen_one_hidden"] = False
-    st.session_state["screen_two_hidden"] = False
+    sync_layout_widgets_from_state()
 
 
 def refresh_panel(panel_key: str, screen_name: str, artifact_paths: Any) -> None:
@@ -972,13 +1067,16 @@ def render_pipeline_run_controls(
     st.caption(
         "Runs the existing pipeline for the selected award code using the same workflow as `src/award_pipeline.py`."
     )
+    current_status = normalized_status_for_award(selected_award_code)
+    run_is_active = bool(current_status and current_status.get("state") == "running")
+    run_controls_disabled = controls_disabled or run_is_active
 
     full_run_key = f"run_full_{selected_award_code}"
     if st.button(
         "Run active pipeline",
         key=full_run_key,
         use_container_width=True,
-        disabled=controls_disabled,
+        disabled=run_controls_disabled,
     ):
         execute_pipeline_run(selected_award_code, step=None)
 
@@ -991,7 +1089,7 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["1"],
             key=f"run_step_1_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="1")
 
@@ -1000,7 +1098,7 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["2"],
             key=f"run_step_2_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="2")
 
@@ -1009,7 +1107,7 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["3"],
             key=f"run_step_3_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="3")
 
@@ -1018,7 +1116,7 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["3b"],
             key=f"run_step_3b_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="3b")
 
@@ -1027,7 +1125,7 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["4"],
             key=f"run_step_4_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="4")
 
@@ -1036,69 +1134,130 @@ def render_pipeline_run_controls(
             PIPELINE_STEP_LABELS["5b"],
             key=f"run_step_5b_{selected_award_code}",
             use_container_width=True,
-            disabled=controls_disabled,
+            disabled=run_controls_disabled,
         ):
             execute_pipeline_run(selected_award_code, step="5b")
 
-    status_message = st.session_state.get("pipeline_run_status_message")
-    status_kind = st.session_state.get("pipeline_run_status_kind")
-    status_award_code = st.session_state.get("pipeline_run_award_code")
-    status_log = st.session_state.get("pipeline_run_log")
+    render_pipeline_run_status(selected_award_code, current_status)
 
-    if status_award_code != selected_award_code:
+
+def render_pipeline_run_status(
+    selected_award_code: str,
+    current_status: dict[str, Any] | None,
+) -> None:
+    if current_status is None:
         return
 
-    if status_kind == "success" and status_message:
-        st.success(status_message)
-    elif status_kind == "warning" and status_message:
-        st.warning(status_message)
-    elif status_kind == "error" and status_message:
-        st.error(status_message)
+    state = str(current_status.get("state", "unknown"))
+    status_message = str(current_status.get("message", ""))
 
-    if status_log:
-        with st.expander("Pipeline run log", expanded=False):
-            st.code(status_log, language="text")
+    if state == "success" and status_message:
+        st.success(status_message)
+    elif state == "warning" and status_message:
+        st.warning(status_message)
+    elif state == "error" and status_message:
+        st.error(status_message)
+    elif state in {"starting", "running"} and status_message:
+        st.info(status_message)
+
+    if state == "running":
+        st.caption(
+            "This run is continuing in the background. You can keep reviewing outputs and use Refresh run status to update this panel."
+        )
+
+    refresh_column, clear_column = st.columns(2, gap="small")
+
+    with refresh_column:
+        if st.button(
+            "Refresh run status",
+            key=f"refresh_run_status_{selected_award_code}",
+            use_container_width=True,
+        ):
+            st.rerun()
+
+    with clear_column:
+        if state != "running" and st.button(
+            "Clear run status",
+            key=f"clear_run_status_{selected_award_code}",
+            use_container_width=True,
+        ):
+            clear_pipeline_run_status(selected_award_code)
+            st.rerun()
+
+    log_path = log_path_for_award(selected_award_code)
+    if log_path.exists():
+        log_text = log_path.read_text(encoding="utf-8").strip()
+        if log_text:
+            with st.expander("Pipeline run log", expanded=False):
+                st.code(log_text, language="text")
 
 
 def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
-    run_label = pipeline_run_label(step)
-
-    with st.spinner(f"{run_label} for {selected_award_code}..."):
-        run_result = run_pipeline_for_award(selected_award_code, step)
-
-    st.session_state["pipeline_run_award_code"] = selected_award_code
-    st.session_state["pipeline_run_log"] = run_result["log"]
-
-    if run_result["success"]:
-        validation_summary = run_result.get("validation_summary")
-        if validation_summary and validation_summary["overall_status"] != "passed":
-            st.session_state["pipeline_run_status_kind"] = "warning"
-            st.session_state["pipeline_run_status_message"] = (
-                f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s "
-                f"with validation issues ({validation_summary['overall_status']})."
-            )
-        else:
-            st.session_state["pipeline_run_status_kind"] = "success"
-            st.session_state["pipeline_run_status_message"] = (
-                f"{run_label} completed for {selected_award_code} in {run_result['duration_seconds']:.1f}s."
-            )
-    else:
-        st.session_state["pipeline_run_status_kind"] = "error"
-        st.session_state["pipeline_run_status_message"] = (
-            f"{run_label} failed for {selected_award_code}."
-        )
+    try:
+        start_background_pipeline_run(selected_award_code, step)
+    except RuntimeError as exc:
+        st.error(str(exc))
+        return
 
     st.rerun()
 
 
+def clear_pipeline_run_status(selected_award_code: str) -> None:
+    status_path = status_path_for_award(selected_award_code)
+    log_path = log_path_for_award(selected_award_code)
+
+    if status_path.exists():
+        status_path.unlink()
+
+    if log_path.exists():
+        log_path.unlink()
+
+
 def pipeline_run_label(step: str | None) -> str:
+    """Return the user-facing label for one pipeline step."""
     if step is None:
         return "Active pipeline run"
 
     return PIPELINE_STEP_LABELS[step]
 
 
+def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
+    """Combine captured stdout and stderr into one reviewable log."""
+    sections: list[str] = []
+
+    if stdout_text.strip():
+        sections.append(stdout_text.strip())
+
+    if stderr_text.strip():
+        sections.append(stderr_text.strip())
+
+    return "\n\n".join(sections)
+
+
+def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
+    """Load the 5B validation summary when a 5B run just completed."""
+    if step != "5b":
+        return None
+
+    validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)
+    if validation_json_path is None:
+        return None
+
+    if not validation_json_path.exists():
+        return None
+
+    validation_data = load_json_file(validation_json_path)
+
+    return {
+        "overall_status": validation_data.get("overall_status", "unknown"),
+        "passed_rule_count": validation_data.get("passed_rule_count", 0),
+        "failed_rule_count": validation_data.get("failed_rule_count", 0),
+        "unresolved_rule_count": validation_data.get("unresolved_rule_count", 0),
+    }
+
+
 def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
+    """Run the pipeline synchronously for test and utility callers."""
     url = default_award_url_for_code(award_code)
     paths = build_paths(award_code, suffix=None, url=url)
     artifact_paths = artifact_paths_for_award(award_code)
@@ -1115,12 +1274,17 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
                     interpretation_path=artifact_paths.revised_overtime_interpretation,
                     output_path=artifact_paths.overtime_entitlements,
                 )
-                print(f"Formatted overtime guide saved to {artifact_paths.overtime_entitlements}")
+                print(
+                    f"Formatted overtime guide saved to {artifact_paths.overtime_entitlements}"
+                )
             else:
                 run_selected_step(paths, step)
     except Exception as exc:
         traceback.print_exc(file=error_buffer)
-        combined_log = combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue())
+        combined_log = combine_pipeline_logs(
+            output_buffer.getvalue(),
+            error_buffer.getvalue(),
+        )
         if isinstance(exc, AwardPipelineError):
             return {
                 "success": False,
@@ -1139,39 +1303,6 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         "duration_seconds": time.perf_counter() - started_at,
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
         "validation_summary": load_5b_validation_summary(paths, step),
-    }
-
-
-def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
-    sections: list[str] = []
-
-    if stdout_text.strip():
-        sections.append(stdout_text.strip())
-
-    if stderr_text.strip():
-        sections.append(stderr_text.strip())
-
-    return "\n\n".join(sections)
-
-
-def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
-    if step != "5b":
-        return None
-
-    validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)
-    if validation_json_path is None:
-        return None
-
-    if not validation_json_path.exists():
-        return None
-
-    validation_data = load_json_file(validation_json_path)
-
-    return {
-        "overall_status": validation_data.get("overall_status", "unknown"),
-        "passed_rule_count": validation_data.get("passed_rule_count", 0),
-        "failed_rule_count": validation_data.get("failed_rule_count", 0),
-        "unresolved_rule_count": validation_data.get("unresolved_rule_count", 0),
     }
 
 

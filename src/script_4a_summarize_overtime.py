@@ -105,6 +105,20 @@ def strip_wrapping_markdown_fence(text: str) -> str:
     return stripped_text
 
 
+def strip_validation_notes_preamble(text: str) -> str:
+    """Remove the saved validation-notes block before formatting the interpretation."""
+    stripped_text = text.strip()
+    if not stripped_text.startswith("# Validation notes"):
+        return stripped_text
+
+    lines = stripped_text.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("## "):
+            return "\n".join(lines[index:]).strip()
+
+    return stripped_text
+
+
 def extract_response_text(response: Any) -> str:
     output_text = getattr(response, "output_text", None)
     if isinstance(output_text, str) and output_text.strip():
@@ -148,6 +162,7 @@ def summarize_overtime_entitlements(
         selected_interpretation_path,
         "Overtime interpretation markdown",
     )
+    interpretation_markdown = strip_validation_notes_preamble(interpretation_markdown)
     template_markdown = load_text_file(
         selected_template_path,
         "Template markdown",

@@ -84,6 +84,7 @@ Return only valid JSON matching this shape:
 
 Rules:
 - Use only the supplied references.
+- Use the supplied references exactly as written in the payload JSON.
 - Return only direct L2 references in classified_clauses.
 - Exception: if direct_l2_clauses is empty and the top-level clause text contains substantive operative text beyond the title, return the top-level reference itself in classified_clauses when it is payment-relevant or definition-relevant.
 - If direct_l2_clauses is empty and the top-level clause text is only a title, heading, stub, or pointer with no operative payment rule or payroll-relevant definition, set payment_relevant and definition_relevant to false and return an empty classified_clauses array.

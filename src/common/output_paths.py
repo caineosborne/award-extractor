@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 FETCH_AWARD_DIR = "1_fetch_award"
+FETCH_AWARD_SUPPORTING_DIR = "supporting"
 PAYMENT_CLAUSE_IDENTIFIER_DIR = "2_payment_clause_identifier"
 OVERTIME_INTERPRETATIONS_DIR = "3_overtime_interpretations"
 OVERTIME_INTERPRETATION_FEEDBACK_DIR = "feedback"

@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -9,8 +10,10 @@ from src.script_1_fetch_award import (
     extract_award_elements,
     nest_award_elements,
     table_to_dict,
-    write_outputs,
+    write_primary_outputs,
+    write_step_1_outputs,
 )
+from src.script_1b_generate_fetch_supporting_artifacts import write_supporting_outputs
 
 
 class FetchAwardTests(unittest.TestCase):
@@ -113,7 +116,7 @@ class FetchAwardTests(unittest.TestCase):
         self.assertEqual(table["headers"], ["Item", "Item"])
         self.assertEqual(table["rows"], [["A", "B"]])
 
-    def test_write_outputs_segments_fetch_award_files_and_archives_versions(self):
+    def test_write_primary_outputs_writes_raw_html_and_main_award_json(self):
         soup = BeautifulSoup(
             """
             <div id="mainContent">
@@ -127,7 +130,7 @@ class FetchAwardTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            write_outputs(
+            write_primary_outputs(
                 "https://awards.fairwork.gov.au/MA000018.html",
                 soup.find(id="mainContent"),
                 award,
@@ -139,11 +142,64 @@ class FetchAwardTests(unittest.TestCase):
             archive_dir = fetch_award_dir / "archive"
 
             self.assertTrue((fetch_award_dir / "MA000018.json").exists())
-            self.assertTrue((fetch_award_dir / "MA000018_sections.json").exists())
-            self.assertTrue((fetch_award_dir / "MA000018.csv").exists())
             self.assertEqual(len(list(archive_dir.glob("MA000018_[0-9]*.json"))), 1)
+            self.assertTrue((temp_path / "raw" / "MA000018.html").exists())
+
+    def test_write_supporting_outputs_writes_files_to_supporting_subfolder(self):
+        soup = BeautifulSoup(
+            """
+            <div id="mainContent">
+                <p class="partheading">Part 1 - Application</p>
+                <p class="level1">1 Title</p>
+            </div>
+            """,
+            "html.parser",
+        )
+        award = extract_award(soup.find(id="mainContent"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
+            fetch_award_dir.mkdir(parents=True, exist_ok=True)
+            award_json_path = fetch_award_dir / "MA000018.json"
+            award_json_path.write_text(json.dumps(award), encoding="utf-8")
+
+            write_supporting_outputs(award_json_path)
+
+            supporting_dir = fetch_award_dir / "supporting"
+            archive_dir = supporting_dir / "archive"
+
+            self.assertTrue((supporting_dir / "MA000018_sections.json").exists())
+            self.assertTrue((supporting_dir / "MA000018.csv").exists())
             self.assertEqual(len(list(archive_dir.glob("MA000018_sections_*.json"))), 1)
             self.assertEqual(len(list(archive_dir.glob("MA000018_*.csv"))), 1)
+
+    def test_write_step_1_outputs_runs_primary_and_supporting_outputs(self):
+        soup = BeautifulSoup(
+            """
+            <div id="mainContent">
+                <p class="partheading">Part 1 - Application</p>
+                <p class="level1">1 Title</p>
+            </div>
+            """,
+            "html.parser",
+        )
+        award = extract_award(soup.find(id="mainContent"))
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            write_step_1_outputs(
+                "https://awards.fairwork.gov.au/MA000018.html",
+                soup.find(id="mainContent"),
+                award,
+                temp_path / "raw",
+                temp_path / "processed",
+            )
+
+            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
+            self.assertTrue((fetch_award_dir / "MA000018.json").exists())
+            self.assertTrue((fetch_award_dir / "supporting" / "MA000018_sections.json").exists())
+            self.assertTrue((fetch_award_dir / "supporting" / "MA000018.csv").exists())
 
 
 if __name__ == "__main__":

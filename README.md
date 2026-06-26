@@ -1,153 +1,74 @@
 # Award Extractor
 
-This project extracts audit-readable payroll interpretation artifacts from Australian modern award data.
+This project produces audit-readable overtime interpretation artifacts from Australian modern awards.
 
-Detailed pipeline history and output tables are in `resources/HISTORY.md` and `resources/outputs.md`.
+Keep this file as the short entry point. The detailed documentation now lives in:
 
-## Active Overtime Pipeline
+- `resources/METHODOLOGY.md`
+- `resources/TECHNICAL_GUIDE.md`
+- `resources/outputs.md`
 
-The manager-review path currently focuses on steps `1` through `3B`.
+## Current active pipeline
 
-- Step `4A` onward remains in the repo, but those steps are currently in flux.
-- `uv run award-pipeline MA000018` now runs the active pipeline through `3B`.
+The current default pipeline is:
 
-Use `uv` to run project commands.
+1. Fetch and structure the award.
+2. Classify payment-relevant clauses.
+3. Generate the overtime interpretation.
+4. Review and revise the interpretation.
 
-1. Fetch the award and write the step 1 outputs:
+In code, that is steps `1`, `2`, `3`, and `3B`.
 
-```bash
-uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
-```
-
-2. Classify payment clauses from a processed award JSON file:
-
-```bash
-uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
-```
-
-3. Generate the overtime clause classification and interpretation working document from the classification JSON:
-
-```bash
-uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-```
-
-This writes:
-
-```text
-data/processed/3_overtime_interpretations/MA000018_overtime_clause_classification.json
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.json
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_a.md
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.json
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_expert_b.md
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_comparison.json
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.json
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
-```
-
-The clause classification JSON is an audit artifact for the trigger-first interpretation step. The original overtime extraction now uses a band-of-experts flow:
-
-- expert A generates one structured rules artifact;
-- expert B generates a second structured rules artifact;
-- a comparison pass merges both expert runs into the canonical `*_overtime_interpretation.json` and derived markdown view.
-
-The final interpretation document is still a working artifact. It should be structured enough for review and downstream generation, but downstream code should not depend on exact bullet formatting.
-
-3B. Run a one-pass supervisor review and creator update for the overtime interpretation:
-
-```bash
-uv run script-3b-review-overtime-interpretation \
-  data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md \
-  --classification-path data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-```
-
-This writes:
-
-```text
-data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_evaluator_feedback.md
-data/processed/3_overtime_interpretations/feedback/MA000018_overtime_interpretation_creator_response.md
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md
-```
-
-This is a one-way step only: supervisor feedback, then one creator update. The reviewer checks the simplified Script 3 output against the full Script 2 payment classification JSON and the Script 3 clause classification JSON, focused only on clauses that increase overtime entitlement by causing worked time to become overtime.
-
-To run the current active pipeline end to end:
+Run the active pipeline end to end with:
 
 ```bash
 uv run award-pipeline MA000018
 ```
 
-This runs steps `1`, `2`, `3`, and `3B`.
+## Main commands
 
-## Later Steps In Flux
+Fetch an award:
 
-The remaining overtime steps are intentionally retained but are not part of the current manager-review path.
+```bash
+uv run script-1-fetch-award https://awards.fairwork.gov.au/MA000018.html
+```
 
-4A. Generate the reviewer-facing overtime entitlement markdown from the interpretation document:
+This writes the main award JSON and also generates the supporting section-index and heading-summary files automatically under `data/processed/1_fetch_award/supporting/`.
+
+Classify payment clauses:
+
+```bash
+uv run script-2-classify-payments data/processed/1_fetch_award/MA000018.json
+```
+
+Generate the overtime interpretation:
+
+```bash
+uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
+```
+
+Review and revise the interpretation:
+
+```bash
+uv run script-3b-review-overtime-interpretation MA000018
+```
+
+Optional later maintained steps:
 
 ```bash
 uv run script-4a-summarize-overtime MA000018
+uv run script-5b-generate-overtime-pseudocode MA000018
 ```
 
-When passed an award code, script 4A uses the revised script 3B interpretation if it exists:
+## Review app
 
-```text
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md
-```
-
-If the revised file does not exist, it falls back to:
-
-```text
-data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md
-```
-
-This uses `resources/overtime_example.md` as the default structure and style template. The template is not source evidence; the generated rules should use only the selected interpretation document for award-specific facts.
-
-This writes:
-
-```text
-data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
-```
-
-The rule priority section should describe an allocation workflow: start all worked hours as `Unallocated`, apply time-based overtime checks first, daily checks second, weekly or averaging-period checks third, then move any remaining `Unallocated` hours to `Ordinary`.
-
-4B. Temporarily review the 4A overtime entitlement output and produce a final human-readable markdown version:
+Run the Streamlit review app with:
 
 ```bash
-uv run script-4b-review-overtime-entitlements MA000018
+uv run streamlit run review_outputs.py
 ```
 
-This writes:
-
-```text
-data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_initial_answer.md
-data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_review_feedback.md
-data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_updated_answer.md
-data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements_final.md
-```
-
-Step 4B first validates the 4A output against the interpretation and filtered `Ordinary Hours & Overtime` clauses, then performs a source-blind formatting pass on the updated answer. The final file is the version intended for human reading.
-
-To run the overtime interpretation and entitlement summary steps together:
-
-```bash
-uv run script-4a-generate-overtime-clause data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
-```
-
-## Parked Pseudocode Step
-
-Step 5B is parked while the project focuses on steps 1 through 4A. When it is resumed, generate core overtime pseudocode from the reviewer-facing entitlement markdown:
-
-```bash
-uv run script-5b-generate-overtime-pseudocode data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md
-```
-
-This writes:
-
-```text
-data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md
-```
-
-The old script 6 final consistency review step has been removed from the active codebase and will be redesigned before use.
+The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual `4B` markdown, and inspect the later `5B` pseudocode outputs.
 
 ## Tests
 

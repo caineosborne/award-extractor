@@ -535,6 +535,87 @@ class PaymentClauseClassifierTests(unittest.TestCase):
         )
         self.assertIn("Returned nested reference 25.1(a)", classified["25.1"]["reason"])
 
+    def test_validate_group_classification_maps_relative_numeric_reference_to_direct_l2(self):
+        group = iter_top_level_groups(
+            award_with_clause(
+                "17",
+                "Payment of wages",
+                [
+                    ("17.1", OrderedDict([("_content", ["Wages are paid weekly."])])),
+                    ("17.2", OrderedDict([("_content", ["The employer may deduct an overpayment."])])),
+                ],
+            )
+        )[0]
+
+        _top_result, classified = validate_group_classification(
+            group,
+            {
+                "top_level_clause": {
+                    "reference": "17",
+                    "title": "Payment of wages",
+                    "payment_relevant": True,
+                    "definition_relevant": False,
+                    "requires_l2_classification": True,
+                    "reason": "Contains payment rules.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "2",
+                        "tags": ["Other Payment"],
+                        "reason": "Relative direct child reference returned by model.",
+                    }
+                ],
+            },
+        )
+
+        self.assertIn("17.2", classified)
+        self.assertEqual(classified["17.2"]["tags"], ["Other Payment"])
+        self.assertIn("Returned nested reference 2", classified["17.2"]["reason"])
+
+    def test_validate_group_classification_maps_relative_nested_reference_to_direct_l2(self):
+        group = iter_top_level_groups(
+            award_with_clause(
+                "24",
+                "Breaks",
+                [
+                    (
+                        "24.1",
+                        OrderedDict(
+                            [
+                                ("_content", ["Meal breaks"]),
+                                ("a", OrderedDict([("_content", ["Employees must take a meal break."])])),
+                            ]
+                        ),
+                    )
+                ],
+            )
+        )[0]
+
+        _top_result, classified = validate_group_classification(
+            group,
+            {
+                "top_level_clause": {
+                    "reference": "24",
+                    "title": "Breaks",
+                    "payment_relevant": True,
+                    "definition_relevant": False,
+                    "requires_l2_classification": True,
+                    "reason": "Contains break rules.",
+                },
+                "classified_clauses": [
+                    {
+                        "reference": "1(a)",
+                        "tags": ["Breaks (Meal Breaks)"],
+                        "reason": "Relative nested reference returned by model.",
+                    }
+                ],
+            },
+        )
+
+        self.assertIn("24.1", classified)
+        self.assertEqual(classified["24.1"]["tags"], ["Breaks (Meal Breaks)"])
+        self.assertIn("Returned nested reference 1(a)", classified["24.1"]["reason"])
+
     def test_validate_group_classification_rejects_unknown_clause_references(self):
         group = iter_top_level_groups(
             award_with_clause(

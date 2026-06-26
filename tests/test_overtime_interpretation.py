@@ -250,7 +250,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(
             warnings[0],
-            "Shortlisted clause 22.8 from step 3.2 is not referenced by any step 3.4 rule.",
+            "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset.",
         )
 
     def test_generate_overtime_interpretation_writes_markdown_with_mocked_client(self):
@@ -434,11 +434,14 @@ class OvertimeInterpretationTests(unittest.TestCase):
             written_json = json.loads(json_output_path.read_text(encoding="utf-8"))
 
         self.assertIn("# Validation notes", written_markdown)
-        self.assertIn("Shortlisted clause 22.8 from step 3.2 is not referenced", written_markdown)
+        self.assertIn(
+            "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset.",
+            written_markdown,
+        )
         self.assertEqual(
             written_json["validation_warnings"],
             [
-                "Shortlisted clause 22.8 from step 3.2 is not referenced by any step 3.4 rule."
+                "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset."
             ],
         )
 

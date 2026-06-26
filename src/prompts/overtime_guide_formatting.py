@@ -17,7 +17,10 @@ Requirements:
 - Use short markdown bullet points under each heading.
 - Preserve employee groups, thresholds, assumptions, and clause references from the source.
 - Do not invent rules, clause references, or categories that are not supported by the source.
-- If the source does not support a section in the template, leave a single bullet with `-`.
+- Only include a template heading when the source supports at least one real rule for that heading.
+- If a heading is not supported by the source, omit it entirely.
+- Do not output placeholder bullets, fallback sentences, or explanatory text such as `No source-supported rule provided`.
+- Ignore any validation-notes preamble in the source interpretation and format only the actual rules.
 - Return markdown only.
 - Do not wrap the answer in a markdown code fence.
 """
@@ -45,7 +48,8 @@ Template source: {template_path}
 
 Use the template headings exactly as provided. Replace placeholder bullets with source-based content.
 Do not add headings outside the template. If a template section is not supported by the source,
-leave a single bullet with `-`.
+omit that heading entirely. Do not output placeholder bullets, fallback sentences,
+or explanatory text saying that no rule was provided.
 """
     return [
         {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
