@@ -23,9 +23,16 @@ from src.award_pipeline import (
     run_selected_step,
 )
 from src.common.active_pipeline_paths import (
-    default_award_url_for_code,
     normalize_award_code,
 )
+from src.common.award_sources import (
+    SOURCE_TYPE_FAIR_WORK_HTML,
+    SOURCE_TYPE_LOCAL_PDF,
+    can_run_pipeline_for_award,
+    source_record_for_award,
+)
+from src.common.output_paths import FETCH_AWARD_DIR
+from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.pipeline_runs import (
     log_path_for_award,
@@ -134,7 +141,10 @@ def main() -> None:
     apply_review_styles()
 
     selected_award_code = render_sidebar(award_codes)
-    validated_award_code, validation_error = validate_award_code_input(selected_award_code)
+    validated_award_code, validation_error = validate_award_code_input(
+        selected_award_code,
+        existing_output_sets=award_codes,
+    )
 
     if validation_error is not None:
         st.error(validation_error)
@@ -186,15 +196,28 @@ def render_sidebar(award_codes: list[str]) -> str:
         else:
             st.caption("No existing processed outputs were found. Enter an award code to run the pipeline.")
 
-        selected_award_code = st.session_state["award_code"].strip().upper()
-        _, validation_error = validate_award_code_input(selected_award_code)
+        selected_award_code = st.session_state["award_code"].strip()
+        validated_award_code, validation_error = validate_award_code_input(
+            selected_award_code,
+            existing_output_sets=award_codes,
+        )
         if validation_error is not None:
             st.warning(validation_error)
 
+        pipeline_controls_disabled = (
+            validation_error is not None
+            or validated_award_code is None
+            or not can_run_pipeline_for_award(validated_award_code)
+        )
+        if validated_award_code and not looks_like_modern_award_code(validated_award_code):
+            st.caption(
+                "Viewing a saved local PDF output set. Pipeline buttons will use the registered PDF source."
+            )
+
         st.divider()
         render_pipeline_run_controls(
-            selected_award_code=selected_award_code,
-            controls_disabled=validation_error is not None,
+            selected_award_code=validated_award_code or selected_award_code,
+            controls_disabled=pipeline_controls_disabled,
         )
 
         st.divider()
@@ -262,10 +285,14 @@ def render_sidebar(award_codes: list[str]) -> str:
 
 
 def available_award_code_index(award_codes: list[str], selected_award_code: str) -> int:
-    normalized_award_code = selected_award_code.strip().upper()
+    normalized_award_code = selected_award_code.strip()
 
     if normalized_award_code in award_codes:
         return award_codes.index(normalized_award_code)
+
+    upper_lookup = {award_code.upper(): index for index, award_code in enumerate(award_codes)}
+    if normalized_award_code.upper() in upper_lookup:
+        return upper_lookup[normalized_award_code.upper()]
 
     return 0
 
@@ -311,17 +338,33 @@ def update_layout_mode_from_widget() -> None:
     st.session_state["layout_mode_widget"] = st.session_state["layout_mode"]
 
 
-def validate_award_code_input(value: str) -> tuple[str | None, str | None]:
-    selected_award_code = value.strip().upper()
+def validate_award_code_input(
+    value: str,
+    existing_output_sets: list[str] | None = None,
+) -> tuple[str | None, str | None]:
+    available_output_sets = existing_output_sets or []
+    selected_award_code = value.strip()
     if not selected_award_code:
         return None, "Enter an award code to review or run."
 
+    if selected_award_code in available_output_sets:
+        return selected_award_code, None
+
     try:
-        normalized_award_code = normalize_award_code(selected_award_code)
+        normalized_award_code = normalize_award_code(selected_award_code.upper())
     except ValueError:
-        return None, "Award code must look like `MA000002`."
+        return None, "Select an existing output set or enter an award code like `MA000002`."
 
     return normalized_award_code, None
+
+
+def looks_like_modern_award_code(value: str) -> bool:
+    """Return whether the selected value is a runnable MA-style award code."""
+    try:
+        normalize_award_code(value.upper())
+    except ValueError:
+        return False
+    return True
 
 
 def render_screens(
@@ -689,7 +732,7 @@ def render_key_navigation(
             "Previous",
             key=f"{state_key}_previous",
             on_click=move_selected_index,
-            args=(state_key, len(keys), -1),
+            args=(state_key, selected_value_key, widget_key, keys, -1),
             use_container_width=True,
         )
 
@@ -709,7 +752,7 @@ def render_key_navigation(
             "Next",
             key=f"{state_key}_next",
             on_click=move_selected_index,
-            args=(state_key, len(keys), 1),
+            args=(state_key, selected_value_key, widget_key, keys, 1),
             use_container_width=True,
         )
 
@@ -718,9 +761,12 @@ def render_key_navigation(
 
 def move_selected_index(
     state_key: str,
-    item_count: int,
+    selected_value_key: str,
+    widget_key: str,
+    keys: list[str],
     direction: int,
 ) -> None:
+    item_count = len(keys)
     if item_count == 0:
         return
 
@@ -732,6 +778,8 @@ def move_selected_index(
         updated_index = next_index(current_index, item_count)
 
     st.session_state[state_key] = updated_index
+    st.session_state[selected_value_key] = keys[updated_index]
+    st.session_state[widget_key] = keys[updated_index]
 
 
 def save_current_side_by_side_layout() -> None:
@@ -1258,7 +1306,11 @@ def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] |
 
 def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     """Run the pipeline synchronously for test and utility callers."""
-    url = default_award_url_for_code(award_code)
+    source_record = source_record_for_award(award_code)
+    if source_record["source_type"] == SOURCE_TYPE_FAIR_WORK_HTML:
+        url = str(source_record["source_url"])
+    else:
+        url = ""
     paths = build_paths(award_code, suffix=None, url=url)
     artifact_paths = artifact_paths_for_award(award_code)
     output_buffer = StringIO()
@@ -1268,7 +1320,14 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     try:
         with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
             if step is None:
-                run_default_pipeline(paths)
+                if source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
+                    run_pdf_step_1(paths, award_code, source_record)
+                    for selected_step in ("2", "3", "3b"):
+                        run_selected_step(paths, selected_step)
+                else:
+                    run_default_pipeline(paths)
+            elif step == "1" and source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
+                run_pdf_step_1(paths, award_code, source_record)
             elif step == "4":
                 summarize_overtime_entitlements(
                     interpretation_path=artifact_paths.revised_overtime_interpretation,
@@ -1304,6 +1363,27 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
         "validation_summary": load_5b_validation_summary(paths, step),
     }
+
+
+def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -> None:
+    """Run step 1 for a registered local PDF source."""
+    pdf_path = Path(str(source_record["source_path"]))
+    if not pdf_path.exists():
+        raise AwardPipelineError(f"Missing registered PDF source for {award_code}: {pdf_path}")
+
+    markdown_text, award, excluded_sections, diagnostics = extract_pdf_to_award(pdf_path)
+    processed_dir = paths.award_json_path.parent.parent
+    raw_dir = processed_dir / FETCH_AWARD_DIR / "raw"
+    write_pdf_outputs(
+        pdf_path=pdf_path,
+        markdown_text=markdown_text,
+        award=award,
+        excluded_sections=excluded_sections,
+        diagnostics=diagnostics,
+        output_stem_value=paths.output_stem,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+    )
 
 
 def render_json_expander(label: str, value: dict[str, Any]) -> None:

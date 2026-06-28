@@ -107,3 +107,9 @@ Likely implementation impact:
 - Update artifact discovery and output loading in the Streamlit review app.
 - Update archive-writing helpers so historical files stay grouped with the relevant award.
 - Update any scripts or tests that currently assume global step-based output directories.
+
+
+
+### Build a chat bot
+
+Turn the output into a chatbot, allowing 

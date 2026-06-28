@@ -17,7 +17,13 @@ from src.award_pipeline import (
     run_default_pipeline,
     run_selected_step,
 )
-from src.common.active_pipeline_paths import default_award_url_for_code
+from src.common.award_sources import (
+    SOURCE_TYPE_FAIR_WORK_HTML,
+    SOURCE_TYPE_LOCAL_PDF,
+    source_record_for_award,
+)
+from src.common.output_paths import FETCH_AWARD_DIR
+from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.output_data import artifact_paths_for_award, load_json_file
 
@@ -144,7 +150,11 @@ def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] |
 
 def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     """Run one pipeline step or the default flow and capture its outputs."""
-    url = default_award_url_for_code(award_code)
+    source_record = source_record_for_award(award_code)
+    if source_record["source_type"] == SOURCE_TYPE_FAIR_WORK_HTML:
+        url = str(source_record["source_url"])
+    else:
+        url = ""
     paths = build_paths(award_code, suffix=None, url=url)
     artifact_paths = artifact_paths_for_award(award_code)
     output_buffer = StringIO()
@@ -154,7 +164,14 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     try:
         with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
             if step is None:
-                run_default_pipeline(paths)
+                if source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
+                    run_pdf_step_1(paths, award_code, source_record)
+                    for selected_step in ("2", "3", "3b"):
+                        run_selected_step(paths, selected_step)
+                else:
+                    run_default_pipeline(paths)
+            elif step == "1" and source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
+                run_pdf_step_1(paths, award_code, source_record)
             elif step == "4":
                 summarize_overtime_entitlements(
                     interpretation_path=artifact_paths.revised_overtime_interpretation,
@@ -185,6 +202,27 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
         "validation_summary": load_5b_validation_summary(paths, step),
     }
+
+
+def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -> None:
+    """Run step 1 for a registered local PDF source."""
+    pdf_path = Path(str(source_record["source_path"]))
+    if not pdf_path.exists():
+        raise AwardPipelineError(f"Missing registered PDF source for {award_code}: {pdf_path}")
+
+    markdown_text, award, excluded_sections, diagnostics = extract_pdf_to_award(pdf_path)
+    processed_dir = paths.award_json_path.parent.parent
+    raw_dir = processed_dir / FETCH_AWARD_DIR / "raw"
+    write_pdf_outputs(
+        pdf_path=pdf_path,
+        markdown_text=markdown_text,
+        award=award,
+        excluded_sections=excluded_sections,
+        diagnostics=diagnostics,
+        output_stem_value=paths.output_stem,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
+    )
 
 
 def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str, Any]:
