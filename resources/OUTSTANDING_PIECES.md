@@ -108,8 +108,52 @@ Likely implementation impact:
 - Update archive-writing helpers so historical files stay grouped with the relevant award.
 - Update any scripts or tests that currently assume global step-based output directories.
 
+### Step 3 cohort and work-arrangement tagging may be needed
 
+Status:
+- Open
 
-### Build a chat bot
+Area:
+- `src/script_3_part1_classify_overtime_clauses.py`
+- `src/script_3_part2_generate_overtime_interpretation.py`
+- Screen 3 in the Streamlit review app
 
-Turn the output into a chatbot, allowing 
+Current behaviour:
+- Step `3.2` classifies shortlisted clauses by overtime role only.
+- The clause-classification artifact records whether a clause is an `Ordinary Hours Boundary`, `Overtime Trigger`, `Overtime Consequence`, `Related Rule`, or `Not Relevant`.
+- It does not explicitly record which employee cohort or work arrangement the clause applies to.
+- Step `3.4` therefore still has to infer scope such as:
+  - full-time / part-time / casual / all employees;
+  - day worker / shiftworker / all arrangements.
+
+Observed issue:
+- In `MA000120`, clause `21.3` states:
+  - `Ordinary hours may be worked between 6.00 am and 6.30 pm. Where broken shifts are worked the spread of hours can be no greater than 12 hours per day.`
+- One expert run incorrectly turned that into a full-time-specific rule even though the clause itself is framed generally.
+- Another expert run kept the clause broader, and the merged output preferred the broader reading.
+
+Why this matters:
+- The current structure makes it easier for a step `3.4` interpretation pass to import scope from nearby clauses or from a broader mental model of the award.
+- This creates a risk that a correct overtime-role classification still leads to an incorrect employee cohort or work-arrangement scope in the final rule output.
+- Reviewers currently have to detect that error only after the interpretation stage rather than during clause classification.
+
+Possible follow-up:
+- Extend step `3.2` so each shortlisted clause is also tagged for:
+  - employee cohort: `full-time`, `part-time`, `casual`, `all employees`, or mixed;
+  - work arrangement: `day worker`, `shiftworker`, `all`, or mixed.
+- Show those scope tags on Screen 3 in the Streamlit review app so reviewers can inspect them before interpretation generation.
+- Feed the scope tags into step `3.4` so the interpretation pass is constrained by explicit upstream scope data rather than inferring it from scratch.
+
+Important design risk:
+- Adding cohort or arrangement tags at clause level may create new errors when a clause is reviewed in isolation.
+- Some clauses only become correctly scoped when read together with:
+  - a separate employment-category clause;
+  - a cross-reference;
+  - a carve-out clause;
+  - a shiftwork override;
+  - or a general overtime entitlement clause.
+- A clause-level scope tag may therefore over-narrow or over-broaden the clause if the classifier is forced to decide without enough surrounding context.
+
+Reviewer question to resolve:
+- Should step `3.2` add explicit cohort and arrangement tagging now, or would that create too much false certainty because clauses are still being assessed one by one rather than in full clause context?
+

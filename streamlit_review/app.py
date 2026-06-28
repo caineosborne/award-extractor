@@ -723,6 +723,8 @@ def render_key_navigation(
         current_index = clamp_index(st.session_state.get(state_key, 0), len(keys))
 
     st.session_state[state_key] = current_index
+    if widget_key not in st.session_state or st.session_state.get(widget_key) not in keys:
+        st.session_state[widget_key] = keys[current_index]
 
     previous_column, selector_column, next_column = st.columns([1, 3, 1])
 
@@ -739,7 +741,6 @@ def render_key_navigation(
         selected_key = st.selectbox(
             f"{label} selector for {state_key}",
             keys,
-            index=current_index,
             label_visibility="collapsed",
             key=widget_key,
         )
