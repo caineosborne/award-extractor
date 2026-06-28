@@ -366,10 +366,7 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(
             call_kwargs["interpretation_path"],
             PROJECT_ROOT
-            / Path(
-                "data/processed/3_overtime_interpretations/"
-                "MA000018_overtime_interpretation.md"
-            ),
+            / Path("data/processed/MA000018/MA000018_overtime_interpretation.md"),
         )
         self.assertEqual(call_kwargs["classification_path"], Path("classification.json"))
         self.assertEqual(

@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from src.common.output_paths import ARCHIVE_DIR, write_text_with_archive
+from src.common.output_paths import (
+    ARCHIVE_DIR,
+    award_output_dir,
+    output_set_name_for_path,
+    write_text_with_archive,
+)
 from src.script_4a_summarize_overtime import output_path_for_interpretation
 from src.script_5b_validate_overtime_pseudocode import (
     validation_json_path_for_pseudocode,
@@ -15,9 +20,6 @@ from src.script_5b_validate_overtime_pseudocode import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PROCESSED_ROOT = PROJECT_ROOT / "data" / "processed"
-PAYMENT_CLASSIFICATION_DIR = PROCESSED_ROOT / "2_payment_clause_identifier"
-OVERTIME_INTERPRETATION_DIR = PROCESSED_ROOT / "3_overtime_interpretations"
-OVERTIME_FEEDBACK_DIR = OVERTIME_INTERPRETATION_DIR / "feedback"
 
 
 @dataclass(frozen=True)
@@ -50,66 +52,55 @@ class FileContent:
     text: str
 
 
-def discover_award_codes(payment_classification_dir: Path = PAYMENT_CLASSIFICATION_DIR) -> list[str]:
-    if not payment_classification_dir.exists():
+def discover_award_codes(processed_root: Path = PROCESSED_ROOT) -> list[str]:
+    if not processed_root.exists():
         return []
 
-    award_codes = []
+    award_codes: list[str] = []
 
-    for path in payment_classification_dir.glob("*_payment_classification.json"):
-        award_code = path.name.removesuffix("_payment_classification.json")
-        award_codes.append(award_code)
+    for path in processed_root.rglob("*_payment_classification.json"):
+        if ARCHIVE_DIR in path.parts:
+            continue
+        award_codes.append(output_set_name_for_path(path))
 
-    return sorted(award_codes)
+    return sorted(set(award_codes))
 
 
 def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
+    award_dir = award_output_dir(PROCESSED_ROOT / f"{award_code}_payment_classification.json")
+    feedback_dir = award_dir / "feedback"
+
     return ArtifactPaths(
-        payment_classification=PAYMENT_CLASSIFICATION_DIR
-        / f"{award_code}_payment_classification.json",
-        overtime_clause_classification=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_clause_classification.json",
-        original_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_interpretation.md",
-        original_overtime_interpretation_expert_a=OVERTIME_INTERPRETATION_DIR
+        payment_classification=award_dir / f"{award_code}_payment_classification.json",
+        overtime_clause_classification=award_dir / f"{award_code}_overtime_clause_classification.json",
+        original_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation.md",
+        original_overtime_interpretation_expert_a=award_dir
         / f"{award_code}_overtime_interpretation_expert_a.md",
-        original_overtime_interpretation_expert_b=OVERTIME_INTERPRETATION_DIR
+        original_overtime_interpretation_expert_b=award_dir
         / f"{award_code}_overtime_interpretation_expert_b.md",
-        original_overtime_interpretation_comparison=OVERTIME_INTERPRETATION_DIR
+        original_overtime_interpretation_comparison=award_dir
         / f"{award_code}_overtime_interpretation_comparison.json",
-        original_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_interpretation.json",
-        agentic_review_conversation=OVERTIME_FEEDBACK_DIR
+        original_overtime_rules_json=award_dir / f"{award_code}_overtime_interpretation.json",
+        agentic_review_conversation=feedback_dir
         / f"{award_code}_overtime_interpretation_agentic_review_conversation.md",
-        evaluator_feedback=OVERTIME_FEEDBACK_DIR
-        / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
-        evaluator_feedback_json=OVERTIME_FEEDBACK_DIR
+        evaluator_feedback=feedback_dir / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
+        evaluator_feedback_json=feedback_dir
         / f"{award_code}_overtime_interpretation_evaluator_feedback.json",
-        creator_response=OVERTIME_FEEDBACK_DIR
-        / f"{award_code}_overtime_interpretation_creator_response.md",
-        creator_response_json=OVERTIME_FEEDBACK_DIR
+        creator_response=feedback_dir / f"{award_code}_overtime_interpretation_creator_response.md",
+        creator_response_json=feedback_dir
         / f"{award_code}_overtime_interpretation_creator_response.json",
-        revised_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_interpretation_revised.md",
-        revised_overtime_rules_json=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_interpretation_revised.json",
+        revised_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation_revised.md",
+        revised_overtime_rules_json=award_dir / f"{award_code}_overtime_interpretation_revised.json",
         overtime_entitlements=output_path_for_interpretation(
-            OVERTIME_INTERPRETATION_DIR / f"{award_code}_overtime_interpretation_revised.md"
+            award_dir / f"{award_code}_overtime_interpretation_revised.md"
         ),
-        manual_4b_overtime_interpretation=OVERTIME_INTERPRETATION_DIR
-        / f"{award_code}_overtime_interpretation_4b.md",
-        core_overtime_pseudocode=PROCESSED_ROOT
-        / "5b_generate_overtime_pseudocode"
-        / f"{award_code}_core_overtime_pseudocode.md",
+        manual_4b_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation_4b.md",
+        core_overtime_pseudocode=award_dir / f"{award_code}_core_overtime_pseudocode.md",
         core_overtime_validation_json=validation_json_path_for_pseudocode(
-            PROCESSED_ROOT
-            / "5b_generate_overtime_pseudocode"
-            / f"{award_code}_core_overtime_pseudocode.md"
+            award_dir / f"{award_code}_core_overtime_pseudocode.md"
         ),
         core_overtime_validation_markdown=validation_markdown_path_for_pseudocode(
-            PROCESSED_ROOT
-            / "5b_generate_overtime_pseudocode"
-            / f"{award_code}_core_overtime_pseudocode.md"
+            award_dir / f"{award_code}_core_overtime_pseudocode.md"
         ),
     )
 

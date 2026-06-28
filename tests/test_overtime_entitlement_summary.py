@@ -39,7 +39,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
         self.assertEqual(
             result,
-            Path("data/processed/4a_overtime_entitlements/MA000018_overtime_entitlements.md"),
+            Path("data/processed/MA000018/MA000018_overtime_entitlements.md"),
         )
 
     def test_resolve_interpretation_path_returns_explicit_path(self):

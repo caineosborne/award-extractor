@@ -14,6 +14,7 @@ from streamlit_review.app import (
     run_pipeline_for_award,
     validate_award_code_input,
 )
+from streamlit_review.pipeline_runs import run_pipeline_for_award as background_run_pipeline_for_award
 from streamlit_review.output_data import (
     ArtifactPaths,
     artifact_paths_for_award,
@@ -568,7 +569,8 @@ def test_run_pipeline_for_award_uses_registered_local_pdf_for_step_1(monkeypatch
     def fake_build_paths(award_code: str, suffix, url: str):
         calls.append(("build_paths", award_code, suffix, url))
         return SimpleNamespace(
-            award_json_path=tmp_path / "processed" / "1_fetch_award" / "Sample.json",
+            award_json_path=tmp_path / "processed" / "Sample" / "Sample.json",
+            raw_html_path=tmp_path / "processed" / "Sample" / "raw" / "Sample.html",
             output_stem="Sample",
         )
 
@@ -601,4 +603,85 @@ def test_run_pipeline_for_award_uses_registered_local_pdf_for_step_1(monkeypatch
         ("artifact_paths_for_award", "Sample"),
         ("extract_pdf_to_award", pdf_path),
         ("write_pdf_outputs", pdf_path, "Sample"),
+    ]
+
+
+def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatch, tmp_path):
+    calls: list[tuple[str, object]] = []
+    status_updates: list[dict[str, object]] = []
+    live_log_path = tmp_path / "pipeline.log"
+
+    def fake_source_record_for_award(award_code: str) -> dict[str, str]:
+        calls.append(("source_record_for_award", award_code))
+        return {
+            "source_type": "fair_work_html",
+            "source_url": "https://example.com/MA000002.html",
+        }
+
+    def fake_build_paths(award_code: str, suffix, url: str):
+        calls.append(("build_paths", award_code, suffix, url))
+        return sentinel.paths
+
+    def fake_artifact_paths_for_award(award_code: str):
+        calls.append(("artifact_paths_for_award", award_code))
+        return SimpleNamespace(
+            revised_overtime_interpretation=sentinel.revised_path,
+            overtime_entitlements=sentinel.entitlements_path,
+        )
+
+    def fake_run_selected_step(paths, step: str) -> None:
+        calls.append(("run_selected_step", paths, step))
+        print(f"output from {step}")
+
+    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+        calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
+        print("output from 4")
+
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.source_record_for_award",
+        fake_source_record_for_award,
+    )
+    monkeypatch.setattr("streamlit_review.pipeline_runs.build_paths", fake_build_paths)
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.artifact_paths_for_award",
+        fake_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.run_selected_step",
+        fake_run_selected_step,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.summarize_overtime_entitlements",
+        fake_summarize_overtime_entitlements,
+    )
+
+    result = background_run_pipeline_for_award(
+        "MA000002",
+        None,
+        status_callback=status_updates.append,
+        log_path=live_log_path,
+    )
+
+    assert result["success"] is True
+    assert result["completed_steps"] == 6
+    assert result["total_steps"] == 6
+    assert "Starting step 1 of 6: Retrieve award" in live_log_path.read_text(encoding="utf-8")
+    assert "output from 5b" in live_log_path.read_text(encoding="utf-8")
+    assert status_updates[0]["total_steps"] == 6
+    assert status_updates[0]["current_step"] == "1"
+    assert status_updates[-1]["progress_fraction"] == 1.0
+    assert calls == [
+        ("source_record_for_award", "MA000002"),
+        ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
+        ("artifact_paths_for_award", "MA000002"),
+        ("run_selected_step", sentinel.paths, "1"),
+        ("run_selected_step", sentinel.paths, "2"),
+        ("run_selected_step", sentinel.paths, "3"),
+        ("run_selected_step", sentinel.paths, "3b"),
+        (
+            "summarize_overtime_entitlements",
+            sentinel.revised_path,
+            sentinel.entitlements_path,
+        ),
+        ("run_selected_step", sentinel.paths, "5b"),
     ]

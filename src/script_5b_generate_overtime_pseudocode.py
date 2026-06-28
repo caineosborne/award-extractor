@@ -22,6 +22,7 @@ from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     OVERTIME_PSEUDOCODE_DIR,
+    award_output_dir,
     path_in_category,
     write_text_with_archive,
 )
@@ -51,7 +52,7 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
     PROJECT_ROOT
     / "data"
     / "processed"
-    / OVERTIME_INTERPRETATIONS_DIR
+    / "MA000018"
     / "MA000018_overtime_interpretation_revised.md"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
@@ -74,8 +75,9 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
 
 
 def entitlement_path_for_award(award_code: str) -> Path:
-    entitlement_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_ENTITLEMENTS_DIR
-    return entitlement_dir / f"{award_code}_overtime_entitlements.md"
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = award_output_dir(processed_root / f"{award_code}_overtime_entitlements.md")
+    return award_dir / f"{award_code}_overtime_entitlements.md"
 
 
 def fallback_source_paths_for_path(path: Path) -> list[Path]:
@@ -92,11 +94,11 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
 
     if stem.endswith("_overtime_entitlements"):
         base_stem = stem.removesuffix("_overtime_entitlements")
-        interpretation_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_INTERPRETATIONS_DIR
+        award_dir = award_output_dir(path)
         return [
             path,
-            interpretation_dir / f"{base_stem}_overtime_interpretation_revised.md",
-            interpretation_dir / f"{base_stem}_overtime_interpretation.md",
+            award_dir / f"{base_stem}_overtime_interpretation_revised.md",
+            award_dir / f"{base_stem}_overtime_interpretation.md",
         ]
 
     if stem.endswith("_overtime_interpretation_revised"):
@@ -129,10 +131,9 @@ def select_overtime_interpretation_path(
 
 
 def default_overtime_interpretation_path(award_code: str) -> Path:
-    interpretation_dir = (
-        PROJECT_ROOT / "data" / "processed" / OVERTIME_INTERPRETATIONS_DIR
-    )
-    manual_4b_path = interpretation_dir / f"{award_code}_overtime_interpretation_4b.md"
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
+    manual_4b_path = award_dir / f"{award_code}_overtime_interpretation_4b.md"
     if manual_4b_path.exists():
         return manual_4b_path
 
@@ -140,11 +141,11 @@ def default_overtime_interpretation_path(award_code: str) -> Path:
     if entitlement_path.exists():
         return entitlement_path
 
-    revised_path = interpretation_dir / f"{award_code}_overtime_interpretation_revised.md"
+    revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
     if revised_path.exists():
         return revised_path
 
-    return interpretation_dir / f"{award_code}_overtime_interpretation.md"
+    return award_dir / f"{award_code}_overtime_interpretation.md"
 
 
 def source_stage_for_path(path: Path) -> str:

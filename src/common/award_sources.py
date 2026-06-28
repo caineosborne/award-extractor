@@ -12,6 +12,9 @@ from src.common.output_paths import FETCH_AWARD_DIR, FETCH_AWARD_SUPPORTING_DIR
 SOURCE_TYPE_FAIR_WORK_HTML = "fair_work_html"
 SOURCE_TYPE_LOCAL_PDF = "local_pdf"
 SOURCE_REGISTRY_PATH = (
+    PROJECT_ROOT / "data" / "processed" / "_source_registry" / "source_registry.json"
+)
+LEGACY_SOURCE_REGISTRY_PATH = (
     PROJECT_ROOT
     / "data"
     / "processed"
@@ -26,10 +29,18 @@ def load_source_registry(
     registry_path: Path = SOURCE_REGISTRY_PATH,
 ) -> OrderedDict[str, dict[str, Any]]:
     """Load the saved source registry when present."""
-    if not registry_path.exists():
+    selected_registry_path = registry_path
+    if (
+        registry_path == SOURCE_REGISTRY_PATH
+        and not registry_path.exists()
+        and LEGACY_SOURCE_REGISTRY_PATH.exists()
+    ):
+        selected_registry_path = LEGACY_SOURCE_REGISTRY_PATH
+
+    if not selected_registry_path.exists():
         return OrderedDict()
 
-    with registry_path.open(encoding="utf-8") as registry_file:
+    with selected_registry_path.open(encoding="utf-8") as registry_file:
         data = json.load(registry_file, object_pairs_hook=OrderedDict)
 
     if not isinstance(data, dict):

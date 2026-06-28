@@ -45,11 +45,32 @@ def main() -> None:
         "pid": os.getpid(),
         "log_path": str(log_path_for_award(args.award_code)),
         "validation_summary": None,
+        "completed_steps": 0,
+        "total_steps": None,
+        "progress_fraction": 0.0,
+        "current_step": None,
+        "current_step_label": None,
     }
     write_status(running_status)
 
     try:
-        result = run_pipeline_for_award(args.award_code, args.step)
+        def write_progress_status(progress_update: dict[str, object]) -> None:
+            write_status(
+                {
+                    **running_status,
+                    **progress_update,
+                    "state": "running",
+                    "finished_at": None,
+                    "duration_seconds": None,
+                }
+            )
+
+        result = run_pipeline_for_award(
+            args.award_code,
+            args.step,
+            status_callback=write_progress_status,
+            log_path=log_path_for_award(args.award_code),
+        )
     except Exception:
         log_text = traceback.format_exc()
         log_path_for_award(args.award_code).write_text(log_text, encoding="utf-8")
@@ -73,6 +94,13 @@ def main() -> None:
         "finished_at": finished_at,
         "duration_seconds": finished_at - started_at,
         "validation_summary": result.get("validation_summary"),
+        "completed_steps": result.get("completed_steps"),
+        "total_steps": result.get("total_steps"),
+        "progress_fraction": (
+            1.0 if result["success"] else result.get("progress_fraction", 0.0)
+        ),
+        "current_step": None,
+        "current_step_label": None,
     }
 
     if result["success"]:
@@ -92,9 +120,18 @@ def main() -> None:
             )
     else:
         final_status["state"] = "error"
-        final_status["message"] = (
-            f"{pipeline_run_label(args.step)} failed for {args.award_code}."
-        )
+        failed_step_label = result.get("failed_step_label")
+        completed_steps = result.get("completed_steps")
+        total_steps = result.get("total_steps")
+        if failed_step_label and isinstance(completed_steps, int) and isinstance(total_steps, int):
+            final_status["message"] = (
+                f"{pipeline_run_label(args.step)} failed for {args.award_code} at "
+                f"step {completed_steps + 1} of {total_steps}: {failed_step_label}."
+            )
+        else:
+            final_status["message"] = (
+                f"{pipeline_run_label(args.step)} failed for {args.award_code}."
+            )
 
     write_status(final_status)
 

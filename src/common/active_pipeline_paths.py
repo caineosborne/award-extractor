@@ -7,6 +7,7 @@ from src.common.output_paths import (
     OVERTIME_INTERPRETATION_FEEDBACK_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
+    award_output_dir,
     path_in_category,
 )
 
@@ -36,13 +37,9 @@ def default_award_url_for_code(award_code: str) -> str:
 
 def default_classification_path_for_award(award_code: str) -> Path:
     """Return the default step-2 classification artifact path for an award code."""
-    return (
-        PROJECT_ROOT
-        / "data"
-        / "processed"
-        / PAYMENT_CLAUSE_IDENTIFIER_DIR
-        / f"{award_code}_payment_classification.json"
-    )
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = award_output_dir(processed_root / f"{award_code}_payment_classification.json")
+    return award_dir / f"{award_code}_payment_classification.json"
 
 
 def interpretation_output_path_for_classification(classification_path: Path | str) -> Path:
@@ -91,13 +88,9 @@ def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
 
 def default_interpretation_path_for_award(award_code: str) -> Path:
     """Return the default step-3 interpretation artifact path for an award code."""
-    return (
-        PROJECT_ROOT
-        / "data"
-        / "processed"
-        / OVERTIME_INTERPRETATIONS_DIR
-        / f"{award_code}_overtime_interpretation.md"
-    )
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
+    return award_dir / f"{award_code}_overtime_interpretation.md"
 
 
 def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Path:

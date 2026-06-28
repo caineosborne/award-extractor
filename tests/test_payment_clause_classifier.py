@@ -739,15 +739,15 @@ class PaymentClauseClassifierTests(unittest.TestCase):
     def test_output_paths(self):
         self.assertEqual(
             output_path_for_award(Path("data/processed/MA000018.json")),
-            Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json"),
+            Path("data/processed/MA000018/MA000018_payment_classification.json"),
         )
         self.assertEqual(
             timestamped_output_path(
-                Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json"),
+                Path("data/processed/MA000018/MA000018_payment_classification.json"),
                 datetime(2026, 6, 16, 15, 30, 12),
             ),
             Path(
-                "data/processed/2_payment_clause_identifier/archive/"
+                "data/processed/MA000018/archive/"
                 "MA000018_payment_classification_20260616_153012.json"
             ),
         )

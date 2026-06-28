@@ -217,7 +217,7 @@ class PdfToAwardJsonTests(unittest.TestCase):
                 processed_dir=processed_dir,
             )
 
-            main_json_path = processed_dir / "1_fetch_award" / "sample.json"
+            main_json_path = processed_dir / "sample" / "sample.json"
             supporting_dir = main_json_path.parent / "supporting"
 
             self.assertTrue((raw_dir / "sample.md").exists())

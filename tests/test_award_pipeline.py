@@ -74,7 +74,7 @@ def test_main_runs_default_pipeline_through_step_3b():
     run_default_pipeline.assert_called_once()
     passed_paths = run_default_pipeline.call_args.args[0]
     assert passed_paths.interpretation_path == PROJECT_ROOT / Path(
-        "data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md"
+        "data/processed/MA000018/MA000018_overtime_interpretation.md"
     )
 
 
@@ -86,7 +86,7 @@ def test_main_runs_selected_active_step():
     passed_paths, passed_step = run_selected_step_mock.call_args.args
     assert passed_step == "3b"
     assert passed_paths.revised_interpretation_path == PROJECT_ROOT / Path(
-        "data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md"
+        "data/processed/MA000018/MA000018_overtime_interpretation_revised.md"
     )
 
 

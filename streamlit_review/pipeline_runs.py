@@ -6,6 +6,7 @@ import subprocess
 import sys
 import time
 import traceback
+from dataclasses import dataclass
 from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -22,7 +23,6 @@ from src.common.award_sources import (
     SOURCE_TYPE_LOCAL_PDF,
     source_record_for_award,
 )
-from src.common.output_paths import FETCH_AWARD_DIR
 from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.output_data import artifact_paths_for_award, load_json_file
@@ -38,6 +38,34 @@ PIPELINE_STEP_LABELS = {
     "4": "Format overtime guide",
     "5b": "Generate pseudocode",
 }
+
+
+@dataclass(frozen=True)
+class PipelinePlannedStep:
+    step_id: str
+    label: str
+    runner_kind: str
+
+
+class LiveLogWriter:
+    """Write captured output to both a memory buffer and the persisted run log."""
+
+    def __init__(self, log_path: Path, buffer: StringIO):
+        self.log_path = log_path
+        self.buffer = buffer
+        self.log_file = log_path.open("a", encoding="utf-8")
+
+    def write(self, text: str) -> int:
+        self.buffer.write(text)
+        self.log_file.write(text)
+        self.log_file.flush()
+        return len(text)
+
+    def flush(self) -> None:
+        self.log_file.flush()
+
+    def close(self) -> None:
+        self.log_file.close()
 
 
 def pipeline_run_label(step: str | None) -> str:
@@ -126,6 +154,45 @@ def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
     return "\n\n".join(sections)
 
 
+def progress_value(completed_steps: int, total_steps: int) -> float:
+    """Return the persisted progress fraction for one run."""
+    if total_steps <= 0:
+        return 0.0
+
+    return min(max(completed_steps / total_steps, 0.0), 1.0)
+
+
+def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelinePlannedStep]:
+    """Return the planned execution steps for one requested run."""
+    if step is None:
+        if source_type == SOURCE_TYPE_LOCAL_PDF:
+            return [
+                PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "pdf_step_1"),
+                PipelinePlannedStep("2", PIPELINE_STEP_LABELS["2"], "selected_step"),
+                PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
+                PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
+                PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),
+                PipelinePlannedStep("5b", PIPELINE_STEP_LABELS["5b"], "selected_step"),
+            ]
+
+        return [
+            PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "selected_step"),
+            PipelinePlannedStep("2", PIPELINE_STEP_LABELS["2"], "selected_step"),
+            PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
+            PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
+            PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),
+            PipelinePlannedStep("5b", PIPELINE_STEP_LABELS["5b"], "selected_step"),
+        ]
+
+    if step == "1" and source_type == SOURCE_TYPE_LOCAL_PDF:
+        return [PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "pdf_step_1")]
+
+    if step == "4":
+        return [PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step")]
+
+    return [PipelinePlannedStep(step, PIPELINE_STEP_LABELS[step], "selected_step")]
+
+
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
     """Load the step 5B validation summary when available."""
     if step != "5b":
@@ -148,7 +215,13 @@ def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] |
     }
 
 
-def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
+def run_pipeline_for_award(
+    award_code: str,
+    step: str | None,
+    *,
+    status_callback: Any | None = None,
+    log_path: Path | None = None,
+) -> dict[str, Any]:
     """Run one pipeline step or the default flow and capture its outputs."""
     source_record = source_record_for_award(award_code)
     if source_record["source_type"] == SOURCE_TYPE_FAIR_WORK_HTML:
@@ -157,29 +230,81 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         url = ""
     paths = build_paths(award_code, suffix=None, url=url)
     artifact_paths = artifact_paths_for_award(award_code)
+    planned_steps = pipeline_steps_for_run(str(source_record["source_type"]), step)
     output_buffer = StringIO()
     error_buffer = StringIO()
     started_at = time.perf_counter()
+    active_step: PipelinePlannedStep | None = None
+
+    output_writer: Any = output_buffer
+    error_writer: Any = error_buffer
+    live_output_writer: LiveLogWriter | None = None
+    live_error_writer: LiveLogWriter | None = None
+
+    if log_path is not None:
+        live_output_writer = LiveLogWriter(log_path, output_buffer)
+        live_error_writer = LiveLogWriter(log_path, error_buffer)
+        output_writer = live_output_writer
+        error_writer = live_error_writer
 
     try:
-        with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
-            if step is None:
-                if source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
-                    run_pdf_step_1(paths, award_code, source_record)
-                    for selected_step in ("2", "3", "3b"):
-                        run_selected_step(paths, selected_step)
-                else:
-                    run_default_pipeline(paths)
-            elif step == "1" and source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
-                run_pdf_step_1(paths, award_code, source_record)
-            elif step == "4":
-                summarize_overtime_entitlements(
-                    interpretation_path=artifact_paths.revised_overtime_interpretation,
-                    output_path=artifact_paths.overtime_entitlements,
+        with redirect_stdout(output_writer), redirect_stderr(error_writer):
+            for step_index, planned_step in enumerate(planned_steps, start=1):
+                active_step = planned_step
+
+                if status_callback is not None:
+                    status_callback(
+                        {
+                            "completed_steps": step_index - 1,
+                            "total_steps": len(planned_steps),
+                            "progress_fraction": progress_value(
+                                step_index - 1,
+                                len(planned_steps),
+                            ),
+                            "current_step": planned_step.step_id,
+                            "current_step_label": planned_step.label,
+                            "message": (
+                                f"Step {step_index} of {len(planned_steps)}: "
+                                f"{planned_step.label} for {award_code}."
+                            ),
+                        }
+                    )
+
+                print(
+                    f"Starting step {step_index} of {len(planned_steps)}: "
+                    f"{planned_step.label}"
                 )
-                print(f"Formatted overtime guide saved to {artifact_paths.overtime_entitlements}")
-            else:
-                run_selected_step(paths, step)
+
+                if planned_step.runner_kind == "pdf_step_1":
+                    run_pdf_step_1(paths, award_code, source_record)
+                elif planned_step.runner_kind == "formatter_step":
+                    summarize_overtime_entitlements(
+                        interpretation_path=artifact_paths.revised_overtime_interpretation,
+                        output_path=artifact_paths.overtime_entitlements,
+                    )
+                    print(
+                        "Formatted overtime guide saved to "
+                        f"{artifact_paths.overtime_entitlements}"
+                    )
+                else:
+                    run_selected_step(paths, planned_step.step_id)
+
+                print(
+                    f"Completed step {step_index} of {len(planned_steps)}: "
+                    f"{planned_step.label}"
+                )
+
+        if status_callback is not None:
+            status_callback(
+                {
+                    "completed_steps": len(planned_steps),
+                    "total_steps": len(planned_steps),
+                    "progress_fraction": 1.0,
+                    "current_step": None,
+                    "current_step_label": None,
+                    "message": f"{pipeline_run_label(step)} finished for {award_code}.",
+                }
+            )
     except Exception as exc:
         traceback.print_exc(file=error_buffer)
         combined_log = combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue())
@@ -188,19 +313,48 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
                 "success": False,
                 "duration_seconds": time.perf_counter() - started_at,
                 "log": combined_log,
+                "completed_steps": max(
+                    (planned_steps.index(active_step) if active_step else 0),
+                    0,
+                ),
+                "total_steps": len(planned_steps),
+                "progress_fraction": progress_value(
+                    max((planned_steps.index(active_step) if active_step else 0), 0),
+                    len(planned_steps),
+                ),
+                "failed_step": active_step.step_id if active_step else None,
+                "failed_step_label": active_step.label if active_step else None,
             }
 
         return {
             "success": False,
             "duration_seconds": time.perf_counter() - started_at,
             "log": combined_log,
+            "completed_steps": max(
+                (planned_steps.index(active_step) if active_step else 0),
+                0,
+            ),
+            "total_steps": len(planned_steps),
+            "progress_fraction": progress_value(
+                max((planned_steps.index(active_step) if active_step else 0), 0),
+                len(planned_steps),
+            ),
+            "failed_step": active_step.step_id if active_step else None,
+            "failed_step_label": active_step.label if active_step else None,
         }
+    finally:
+        if live_output_writer is not None:
+            live_output_writer.close()
+        if live_error_writer is not None:
+            live_error_writer.close()
 
     return {
         "success": True,
         "duration_seconds": time.perf_counter() - started_at,
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
         "validation_summary": load_5b_validation_summary(paths, step),
+        "completed_steps": len(planned_steps),
+        "total_steps": len(planned_steps),
     }
 
 
@@ -212,7 +366,7 @@ def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -
 
     markdown_text, award, excluded_sections, diagnostics = extract_pdf_to_award(pdf_path)
     processed_dir = paths.award_json_path.parent.parent
-    raw_dir = processed_dir / FETCH_AWARD_DIR / "raw"
+    raw_dir = paths.raw_html_path.parent
     write_pdf_outputs(
         pdf_path=pdf_path,
         markdown_text=markdown_text,
@@ -228,7 +382,7 @@ def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -
 def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str, Any]:
     """Start one background pipeline process for the selected award code."""
     current_status = normalized_status_for_award(award_code)
-    if current_status is not None and current_status.get("state") == "running":
+    if current_status is not None and current_status.get("state") in {"starting", "running"}:
         raise RuntimeError(f"A pipeline run is already in progress for {award_code}.")
 
     run_id = str(int(time.time() * 1000))
@@ -245,6 +399,11 @@ def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str
         "pid": None,
         "log_path": str(log_path_for_award(award_code)),
         "validation_summary": None,
+        "completed_steps": 0,
+        "total_steps": None,
+        "progress_fraction": 0.0,
+        "current_step": None,
+        "current_step_label": None,
     }
     write_status(initial_status)
     log_path_for_award(award_code).write_text("", encoding="utf-8")

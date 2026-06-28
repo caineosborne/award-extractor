@@ -14,7 +14,6 @@ from src.common.active_pipeline_paths import (
     overtime_clause_classification_output_path_for_classification,
     revised_output_path_for_interpretation,
 )
-from src.common.output_paths import FETCH_AWARD_DIR
 from src.script_1_fetch_award import fetch_and_extract_award, write_step_1_outputs
 from src.script_2_classify_payments import classify_award, output_path_for_award
 from src.script_3_interpret_overtime import generate_overtime_interpretation
@@ -87,9 +86,10 @@ def output_stem_for_award(award_code: str, suffix: str | None) -> str:
 def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipelinePaths:
     """Build all active-step artifact paths for one pipeline run."""
     output_stem = output_stem_for_award(award_code, suffix)
-    fetch_dir = PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR
-    raw_html_path = fetch_dir / "raw" / f"{output_stem}.html"
-    award_json_path = fetch_dir / f"{output_stem}.json"
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = processed_root / output_stem
+    raw_html_path = award_dir / "raw" / f"{output_stem}.html"
+    award_json_path = award_dir / f"{output_stem}.json"
 
     classification_path = output_path_for_award(award_json_path)
     overtime_clause_classification_path = overtime_clause_classification_output_path_for_classification(

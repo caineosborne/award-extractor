@@ -67,7 +67,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             output_path_for_summary(
                 Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md")
             ),
-            Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/MA000018/MA000018_core_overtime_pseudocode.md"),
         )
 
     def test_output_path_for_summary_uses_4b_source_when_present(self):
@@ -75,7 +75,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             output_path_for_summary(
                 Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_4b.md")
             ),
-            Path("data/processed/5b_generate_overtime_pseudocode/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/MA000018/MA000018_core_overtime_pseudocode.md"),
         )
 
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
@@ -180,15 +180,9 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_select_overtime_interpretation_path_accepts_award_code(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
-            interpretation_dir = (
-                project_root / "data" / "processed" / "3_overtime_interpretations"
-            )
-            entitlement_dir = (
-                project_root / "data" / "processed" / "4a_overtime_entitlements"
-            )
-            interpretation_dir.mkdir(parents=True)
-            entitlement_dir.mkdir(parents=True)
-            entitlement_path = entitlement_dir / "MA000003_overtime_entitlements.md"
+            award_dir = project_root / "data" / "processed" / "MA000003"
+            award_dir.mkdir(parents=True)
+            entitlement_path = award_dir / "MA000003_overtime_entitlements.md"
             entitlement_path.write_text("# 4A", encoding="utf-8")
 
             from unittest.mock import patch
@@ -327,20 +321,12 @@ None
     def test_default_overtime_interpretation_path_prefers_4b_then_4a_then_3b(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
-            interpretation_dir = (
-                project_root / "data" / "processed" / "3_overtime_interpretations"
-            )
-            entitlement_dir = (
-                project_root / "data" / "processed" / "4a_overtime_entitlements"
-            )
-            interpretation_dir.mkdir(parents=True)
-            entitlement_dir.mkdir(parents=True)
+            award_dir = project_root / "data" / "processed" / "MA000018"
+            award_dir.mkdir(parents=True)
 
-            manual_4b_path = interpretation_dir / "MA000018_overtime_interpretation_4b.md"
-            entitlement_path = entitlement_dir / "MA000018_overtime_entitlements.md"
-            revised_path = (
-                interpretation_dir / "MA000018_overtime_interpretation_revised.md"
-            )
+            manual_4b_path = award_dir / "MA000018_overtime_interpretation_4b.md"
+            entitlement_path = award_dir / "MA000018_overtime_entitlements.md"
+            revised_path = award_dir / "MA000018_overtime_interpretation_revised.md"
             revised_path.write_text("# Revised", encoding="utf-8")
 
             from unittest.mock import patch

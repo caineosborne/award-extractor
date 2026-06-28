@@ -19,7 +19,6 @@ from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import (
-    FETCH_AWARD_DIR,
     PAYMENT_CLAUSE_IDENTIFIER_DIR,
     path_in_category,
     timestamped_archive_path,
@@ -36,7 +35,7 @@ from src.prompts.payment_clause_classification import (
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_AWARD_PATH = (
-    PROJECT_ROOT / "data" / "processed" / FETCH_AWARD_DIR / "MA000018.json"
+    PROJECT_ROOT / "data" / "processed" / "MA000018" / "MA000018.json"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 SCHEMA_VERSION = "payment-classification-v2"

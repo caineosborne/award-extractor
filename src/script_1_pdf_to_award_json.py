@@ -9,7 +9,6 @@ from typing import Any
 import pymupdf4llm
 
 from src.common.output_paths import (
-    FETCH_AWARD_DIR,
     FETCH_AWARD_SUPPORTING_DIR,
     write_text_with_archive,
 )
@@ -121,7 +120,8 @@ def markdown_output_path(output_stem_value: str, raw_dir: Path) -> Path:
 
 def award_json_output_path(output_stem_value: str, processed_dir: Path) -> Path:
     """Return the main processed JSON path for one PDF."""
-    return processed_dir / FETCH_AWARD_DIR / f"{output_stem_value}.json"
+    award_dir = processed_dir / output_stem_value
+    return award_dir / f"{output_stem_value}.json"
 
 
 def diagnostics_output_path(output_stem_value: str, output_dir: Path) -> Path:
@@ -837,7 +837,11 @@ def main() -> None:
         raise SystemExit(f"PDF not found: {pdf_path}")
 
     processed_dir = Path(args.processed_dir)
-    raw_dir = Path(args.raw_dir) if args.raw_dir else processed_dir / FETCH_AWARD_DIR / "raw"
+    raw_dir = (
+        Path(args.raw_dir)
+        if args.raw_dir
+        else processed_dir / output_stem_from_pdf_path(Path(args.pdf_path)) / "raw"
+    )
     output_stem_value = normalize_pdf_stem(pdf_path, args.output_stem)
 
     markdown_text, award, excluded_sections, diagnostics = extract_pdf_to_award(pdf_path)

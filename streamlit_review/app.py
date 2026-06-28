@@ -31,7 +31,6 @@ from src.common.award_sources import (
     can_run_pipeline_for_award,
     source_record_for_award,
 )
-from src.common.output_paths import FETCH_AWARD_DIR
 from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.pipeline_runs import (
@@ -1113,10 +1112,12 @@ def render_pipeline_run_controls(
 ) -> None:
     st.header("Pipeline runs")
     st.caption(
-        "Runs the existing pipeline for the selected award code using the same workflow as `src/award_pipeline.py`."
+        "Runs the review workflow for the selected award code through the formatted ruleset and pseudocode steps."
     )
     current_status = normalized_status_for_award(selected_award_code)
-    run_is_active = bool(current_status and current_status.get("state") == "running")
+    run_is_active = bool(
+        current_status and current_status.get("state") in {"starting", "running"}
+    )
     run_controls_disabled = controls_disabled or run_is_active
 
     full_run_key = f"run_full_{selected_award_code}"
@@ -1186,6 +1187,22 @@ def render_pipeline_run_controls(
         ):
             execute_pipeline_run(selected_award_code, step="5b")
 
+    if run_is_active:
+        render_pipeline_run_status_autorefresh(selected_award_code)
+    else:
+        render_pipeline_run_status(selected_award_code, current_status)
+
+
+@st.fragment(run_every="5s")
+def render_pipeline_run_status_autorefresh(selected_award_code: str) -> None:
+    """Refresh the run status panel automatically while a run is active."""
+    current_status = normalized_status_for_award(selected_award_code)
+    state = str(current_status.get("state", "unknown")) if current_status else "unknown"
+
+    if state not in {"starting", "running"}:
+        st.rerun()
+        return
+
     render_pipeline_run_status(selected_award_code, current_status)
 
 
@@ -1208,9 +1225,28 @@ def render_pipeline_run_status(
     elif state in {"starting", "running"} and status_message:
         st.info(status_message)
 
-    if state == "running":
+    completed_steps = current_status.get("completed_steps")
+    total_steps = current_status.get("total_steps")
+    progress_fraction = current_status.get("progress_fraction")
+    current_step_label = current_status.get("current_step_label")
+
+    if isinstance(progress_fraction, (int, float)):
+        progress_percent = int(max(0.0, min(float(progress_fraction), 1.0)) * 100)
+        st.progress(progress_percent)
+
+    if (
+        isinstance(completed_steps, int)
+        and isinstance(total_steps, int)
+        and total_steps > 0
+    ):
+        progress_caption = f"Progress: {completed_steps} of {total_steps} steps completed."
+        if state == "running" and current_step_label:
+            progress_caption += f" Current step: {current_step_label}."
+        st.caption(progress_caption)
+
+    if state in {"starting", "running"}:
         st.caption(
-            "This run is continuing in the background. You can keep reviewing outputs and use Refresh run status to update this panel."
+            "This run is continuing in the background. This panel refreshes automatically every 5 seconds."
         )
 
     refresh_column, clear_column = st.columns(2, gap="small")
@@ -1233,11 +1269,23 @@ def render_pipeline_run_status(
             st.rerun()
 
     log_path = log_path_for_award(selected_award_code)
+    log_text = ""
     if log_path.exists():
         log_text = log_path.read_text(encoding="utf-8").strip()
+
+    if state in {"starting", "running"}:
+        st.markdown("**Live run log**")
         if log_text:
-            with st.expander("Pipeline run log", expanded=False):
-                st.code(log_text, language="text")
+            log_lines = log_text.splitlines()
+            displayed_log = "\n".join(log_lines[-200:])
+            if len(log_lines) > 200:
+                st.caption("Showing the most recent 200 log lines.")
+            st.code(displayed_log, language="text")
+        else:
+            st.code("No log output yet.", language="text")
+    elif log_text:
+        with st.expander("Pipeline run log", expanded=False):
+            st.code(log_text, language="text")
 
 
 def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
@@ -1373,7 +1421,7 @@ def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -
 
     markdown_text, award, excluded_sections, diagnostics = extract_pdf_to_award(pdf_path)
     processed_dir = paths.award_json_path.parent.parent
-    raw_dir = processed_dir / FETCH_AWARD_DIR / "raw"
+    raw_dir = paths.raw_html_path.parent
     write_pdf_outputs(
         pdf_path=pdf_path,
         markdown_text=markdown_text,

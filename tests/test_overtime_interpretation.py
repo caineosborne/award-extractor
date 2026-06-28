@@ -55,7 +55,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             output_path_for_classification(
                 Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json")
             ),
-            Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md"),
+            Path("data/processed/MA000018/MA000018_overtime_interpretation.md"),
         )
 
     def test_classification_output_path_for_classification(self):
@@ -63,10 +63,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             classification_output_path_for_classification(
                 Path("data/processed/2_payment_clause_identifier/MA000018_payment_classification.json")
             ),
-            Path(
-                "data/processed/3_overtime_interpretations/"
-                "MA000018_overtime_clause_classification.json"
-            ),
+            Path("data/processed/MA000018/MA000018_overtime_clause_classification.json"),
         )
 
     def test_format_clauses_for_prompt_uses_plain_clause_sections(self):
@@ -309,9 +306,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
             )
 
             written = output_path.read_text(encoding="utf-8")
-            classification_path = Path(temp_dir) / (
-                "3_overtime_interpretations/award_overtime_clause_classification.json"
-            )
+            classification_path = Path(temp_dir) / "award" / "award_overtime_clause_classification.json"
             classification_artifact = json.loads(
                 classification_path.read_text(encoding="utf-8")
             )
@@ -319,7 +314,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
                 (Path(temp_dir) / "archive").glob("award_overtime_interpretation_*.md")
             )
             classification_archive_files = list(
-                (Path(temp_dir) / "3_overtime_interpretations" / "archive").glob(
+                (Path(temp_dir) / "award" / "archive").glob(
                     "award_overtime_clause_classification_*.json"
                 )
             )

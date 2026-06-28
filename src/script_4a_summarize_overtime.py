@@ -16,6 +16,7 @@ from openai import OpenAI
 from src.common.output_paths import (
     OVERTIME_ENTITLEMENTS_DIR,
     OVERTIME_INTERPRETATIONS_DIR,
+    award_output_dir,
     path_in_category,
     write_text_with_archive,
 )
@@ -56,12 +57,13 @@ def looks_like_path(value: str) -> bool:
 
 
 def default_interpretation_path_for_award(award_code: str) -> Path:
-    interpretation_dir = PROJECT_ROOT / "data" / "processed" / OVERTIME_INTERPRETATIONS_DIR
-    revised_path = interpretation_dir / f"{award_code}_overtime_interpretation_revised.md"
+    processed_root = PROJECT_ROOT / "data" / "processed"
+    award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
+    revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
     if revised_path.exists():
         return revised_path
 
-    return interpretation_dir / f"{award_code}_overtime_interpretation.md"
+    return award_dir / f"{award_code}_overtime_interpretation.md"
 
 
 def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Path:

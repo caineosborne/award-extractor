@@ -10,7 +10,6 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.common.output_paths import (
-    FETCH_AWARD_DIR,
     FETCH_AWARD_SUPPORTING_DIR,
     write_text_with_archive,
 )
@@ -297,8 +296,9 @@ def raw_html_output_path(url: str, raw_dir: Path) -> Path:
 
 def award_json_output_path(url: str, processed_dir: Path) -> Path:
     """Build the main processed award JSON output path."""
-    fetch_award_dir = processed_dir / FETCH_AWARD_DIR
-    return fetch_award_dir / f"{output_stem(url)}.json"
+    selected_output_stem = output_stem(url)
+    award_dir = processed_dir / selected_output_stem
+    return award_dir / f"{selected_output_stem}.json"
 
 
 def write_primary_outputs(
@@ -371,7 +371,7 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help=(
             "Directory for raw MainContent HTML. Defaults to "
-            "data/processed/1_fetch_award/raw."
+            "data/processed/<award>/raw."
         ),
     )
     parser.add_argument(
@@ -388,7 +388,11 @@ def main() -> None:
     main_content, award = fetch_and_extract_award(args.url)
 
     processed_dir = Path(args.processed_dir)
-    raw_dir = Path(args.raw_dir) if args.raw_dir else processed_dir / FETCH_AWARD_DIR / "raw"
+    raw_dir = (
+        Path(args.raw_dir)
+        if args.raw_dir
+        else processed_dir / output_stem(args.url) / "raw"
+    )
 
     write_step_1_outputs(args.url, main_content, award, raw_dir, processed_dir)
 

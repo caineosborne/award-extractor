@@ -138,7 +138,7 @@ class FetchAwardTests(unittest.TestCase):
                 temp_path / "processed",
             )
 
-            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
+            fetch_award_dir = temp_path / "processed" / "MA000018"
             archive_dir = fetch_award_dir / "archive"
 
             self.assertTrue((fetch_award_dir / "MA000018.json").exists())
@@ -159,7 +159,7 @@ class FetchAwardTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
-            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
+            fetch_award_dir = temp_path / "processed" / "MA000018"
             fetch_award_dir.mkdir(parents=True, exist_ok=True)
             award_json_path = fetch_award_dir / "MA000018.json"
             award_json_path.write_text(json.dumps(award), encoding="utf-8")
@@ -196,7 +196,7 @@ class FetchAwardTests(unittest.TestCase):
                 temp_path / "processed",
             )
 
-            fetch_award_dir = temp_path / "processed" / "1_fetch_award"
+            fetch_award_dir = temp_path / "processed" / "MA000018"
             self.assertTrue((fetch_award_dir / "MA000018.json").exists())
             self.assertTrue((fetch_award_dir / "supporting" / "MA000018_sections.json").exists())
             self.assertTrue((fetch_award_dir / "supporting" / "MA000018.csv").exists())
