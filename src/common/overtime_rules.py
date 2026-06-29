@@ -19,6 +19,18 @@ OVERTIME_RULE_SCHEMA_VERSION = "overtime-rules-v1"
 OVERTIME_RULE_REVIEW_SCHEMA_VERSION = "overtime-rule-review-v1"
 ALLOWED_RULE_DECISIONS = ("keep", "modify", "remove")
 ALLOWED_REVIEW_RECOMMENDATIONS = ("keep", "modify", "remove")
+ALLOWED_EMPLOYEE_COHORTS = (
+    "full-time",
+    "part-time",
+    "casual",
+    "permanent",
+    "all",
+)
+ALLOWED_WORK_ARRANGEMENTS = (
+    "day-worker",
+    "shiftworker",
+    "all",
+)
 
 
 @dataclass(frozen=True)
@@ -33,6 +45,9 @@ class OvertimeRule:
     rule_plain_text: str
     source_clause_numbers: tuple[str, ...]
     source_classifications: tuple[str, ...]
+    employee_cohort: str = "all"
+    work_arrangement: str = "all"
+    other_scope_notes: str = ""
     review_status: str = "confirmed"
 
 
@@ -68,6 +83,36 @@ def _normalize_string_list(value: Any, field_name: str) -> tuple[str, ...]:
     return tuple(normalized)
 
 
+def employee_scope_from_employee_cohort(employee_cohort: str) -> tuple[str, ...]:
+    """Convert a coarse employee cohort label into concrete employee scope tags."""
+    normalized_cohort = employee_cohort.strip().lower()
+
+    if normalized_cohort == "full-time":
+        return ("full-time",)
+    if normalized_cohort == "part-time":
+        return ("part-time",)
+    if normalized_cohort == "casual":
+        return ("casual",)
+    if normalized_cohort == "permanent":
+        return ("full-time", "part-time")
+    return ("full-time", "part-time", "casual")
+
+
+def employee_cohort_from_employee_scope(employee_scope: Sequence[str]) -> str:
+    """Collapse detailed employee scope tags into the standard cohort label."""
+    normalized_scope = tuple(sorted({scope.strip().lower() for scope in employee_scope if scope}))
+
+    if normalized_scope == ("full-time",):
+        return "full-time"
+    if normalized_scope == ("part-time",):
+        return "part-time"
+    if normalized_scope == ("casual",):
+        return "casual"
+    if normalized_scope == ("full-time", "part-time"):
+        return "permanent"
+    return "all"
+
+
 def validate_rule_object(raw_rule: Mapping[str, Any], *, index: int) -> OvertimeRule:
     """Validate one overtime rule object and normalize it into a dataclass."""
     rule_id = str(raw_rule.get("rule_id") or "").strip()
@@ -88,6 +133,22 @@ def validate_rule_object(raw_rule: Mapping[str, Any], *, index: int) -> Overtime
         raw_rule.get("employee_scope", []),
         f"employee_scope for {rule_id}",
     )
+    employee_cohort = str(
+        raw_rule.get("employee_cohort")
+        or employee_cohort_from_employee_scope(employee_scope)
+    ).strip().lower()
+    if employee_cohort not in ALLOWED_EMPLOYEE_COHORTS:
+        raise ValueError(
+            f"employee_cohort for {rule_id} must be one of: "
+            + ", ".join(ALLOWED_EMPLOYEE_COHORTS)
+        )
+    work_arrangement = str(raw_rule.get("work_arrangement") or "all").strip().lower()
+    if work_arrangement not in ALLOWED_WORK_ARRANGEMENTS:
+        raise ValueError(
+            f"work_arrangement for {rule_id} must be one of: "
+            + ", ".join(ALLOWED_WORK_ARRANGEMENTS)
+        )
+    other_scope_notes = str(raw_rule.get("other_scope_notes") or "").strip()
     clause_references = _normalize_string_list(
         raw_rule.get("clause_references", []),
         f"clause_references for {rule_id}",
@@ -106,6 +167,9 @@ def validate_rule_object(raw_rule: Mapping[str, Any], *, index: int) -> Overtime
         rule_id=rule_id,
         section_heading=section_heading,
         employee_scope=employee_scope,
+        employee_cohort=employee_cohort,
+        work_arrangement=work_arrangement,
+        other_scope_notes=other_scope_notes,
         clause_references=clause_references,
         rule_markdown=rule_markdown,
         rule_plain_text=rule_plain_text,
@@ -120,6 +184,9 @@ def rule_to_dict(rule: OvertimeRule) -> dict[str, Any]:
         "rule_id": rule.rule_id,
         "section_heading": rule.section_heading,
         "employee_scope": list(rule.employee_scope),
+        "employee_cohort": rule.employee_cohort,
+        "work_arrangement": rule.work_arrangement,
+        "other_scope_notes": rule.other_scope_notes,
         "clause_references": list(rule.clause_references),
         "rule_markdown": rule.rule_markdown,
         "rule_plain_text": rule.rule_plain_text,
@@ -293,6 +360,11 @@ def rules_from_markdown_fallback(
                 section_heading=rule.section_heading,
                 employee_scope=rule.employee_scope
                 or employee_scope_from_heading(rule.section_heading),
+                employee_cohort=employee_cohort_from_employee_scope(
+                    rule.employee_scope or employee_scope_from_heading(rule.section_heading)
+                ),
+                work_arrangement="all",
+                other_scope_notes="",
                 clause_references=rule.clause_references,
                 rule_markdown=rule.rule_text,
                 rule_plain_text=rule.rule_text.lstrip("- ").strip(),
@@ -422,8 +494,16 @@ def validate_review_feedback_artifact(
     raw_new_rules = feedback_data.get("new_rules", [])
     if not isinstance(raw_new_rules, list):
         raise ValueError("Structured evaluator feedback new_rules must be an array.")
-
     validated_new_rules = validate_rule_list(raw_new_rules) if raw_new_rules else []
+    duplicate_new_rule_ids = {
+        rule.rule_id for rule in validated_new_rules
+    } & original_rule_ids
+    if duplicate_new_rule_ids:
+        duplicate_display = ", ".join(sorted(duplicate_new_rule_ids))
+        raise ValueError(
+            "Structured evaluator feedback new_rules duplicate original rule_ids: "
+            f"{duplicate_display}"
+        )
 
     return {
         "schema_version": OVERTIME_RULE_REVIEW_SCHEMA_VERSION,
@@ -439,7 +519,7 @@ def apply_review_decisions(
     evaluator_feedback: Mapping[str, Any],
     creator_decision_data: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Apply creator decisions and reject any silent or one-sided removals."""
+    """Apply creator decisions and reject any silent or one-sided removals or additions."""
     raw_rule_updates = creator_decision_data.get("rule_updates")
     if not isinstance(raw_rule_updates, list):
         raise ValueError("Creator review response must contain rule_updates.")
@@ -521,23 +601,111 @@ def apply_review_decisions(
             f"decision: {missing_display}"
         )
 
-    raw_new_rules = creator_decision_data.get("new_rules", [])
-    if not isinstance(raw_new_rules, list):
-        raise ValueError("Creator review response new_rules must be an array.")
-    new_rules = validate_rule_list(raw_new_rules) if raw_new_rules else []
+    raw_evaluator_new_rules = evaluator_feedback.get("new_rules", [])
+    if not isinstance(raw_evaluator_new_rules, list):
+        raise ValueError("Evaluator feedback new_rules must be an array.")
+    evaluator_new_rules: list[OvertimeRule] = []
+    for index, raw_rule in enumerate(raw_evaluator_new_rules, start=1):
+        if isinstance(raw_rule, OvertimeRule):
+            evaluator_new_rules.append(raw_rule)
+            continue
 
-    duplicate_new_rule_ids = {rule.rule_id for rule in new_rules} & {rule.rule_id for rule in final_rules}
-    if duplicate_new_rule_ids:
-        duplicate_display = ", ".join(sorted(duplicate_new_rule_ids))
-        raise ValueError(f"Creator new_rules duplicate existing rule_ids: {duplicate_display}")
+        if not isinstance(raw_rule, Mapping):
+            raise ValueError(f"Evaluator new rule {index} must be an object.")
 
-    final_rules.extend(new_rules)
+        evaluator_new_rules.append(validate_rule_object(raw_rule, index=index))
+    evaluator_new_rule_map = {
+        rule.rule_id: rule for rule in evaluator_new_rules
+    }
+    raw_new_rule_reviews = creator_decision_data.get("new_rule_reviews", [])
+    if not isinstance(raw_new_rule_reviews, list):
+        raise ValueError("Creator review response new_rule_reviews must be an array.")
+
+    seen_new_rule_ids: set[str] = set()
+    for raw_review in raw_new_rule_reviews:
+        if not isinstance(raw_review, Mapping):
+            raise ValueError("Each creator new_rule_reviews item must be an object.")
+
+        rule_id = str(raw_review.get("rule_id") or "").strip()
+        decision = str(raw_review.get("decision") or "").strip().lower()
+        reason = str(raw_review.get("reason") or "").strip()
+
+        if rule_id not in evaluator_new_rule_map:
+            raise ValueError(
+                f"Creator returned unknown evaluator-proposed new rule_id: {rule_id}"
+            )
+        if rule_id in seen_new_rule_ids:
+            raise ValueError(
+                f"Creator returned duplicate evaluator-proposed new rule_id: {rule_id}"
+            )
+        if decision not in {"accept", "modify", "reject"}:
+            raise ValueError(
+                f"Unsupported creator new-rule decision for {rule_id}: {decision}"
+            )
+        if not reason:
+            raise ValueError(f"Creator new-rule decision reason is empty for {rule_id}")
+
+        evaluator_new_rule = evaluator_new_rule_map[rule_id]
+        if decision == "accept":
+            final_rules.append(evaluator_new_rule)
+            final_decision = "accepted"
+        elif decision == "modify":
+            updated_rule_data = raw_review.get("updated_rule")
+            if not isinstance(updated_rule_data, Mapping):
+                raise ValueError(
+                    f"Creator new-rule decision for {rule_id} must include updated_rule when decision is modify."
+                )
+
+            merged_rule_data = rule_to_dict(evaluator_new_rule)
+            merged_rule_data.update(dict(updated_rule_data))
+            merged_rule_data["rule_id"] = rule_id
+            updated_rule = validate_rule_object(merged_rule_data, index=1)
+            if updated_rule.rule_id != rule_id:
+                raise ValueError(
+                    f"Modified evaluator-proposed new rule {rule_id} must preserve its original rule_id."
+                )
+            final_rules.append(updated_rule)
+            final_decision = "modified"
+        else:
+            final_decision = "rejected"
+
+        review_decisions.append(
+            {
+                "rule_id": rule_id,
+                "evaluator_recommendation": "add",
+                "creator_decision": decision,
+                "final_decision": final_decision,
+                "reason": reason,
+            }
+        )
+        seen_new_rule_ids.add(rule_id)
+
+    missing_new_rule_ids = set(evaluator_new_rule_map) - seen_new_rule_ids
+    if missing_new_rule_ids:
+        missing_display = ", ".join(sorted(missing_new_rule_ids))
+        raise ValueError(
+            "Creator review response omitted evaluator-proposed new rules. Every "
+            f"proposed new rule requires an explicit decision: {missing_display}"
+        )
+
+    duplicate_final_rule_ids: set[str] = set()
+    final_rule_ids: set[str] = set()
+    for rule in final_rules:
+        if rule.rule_id in final_rule_ids:
+            duplicate_final_rule_ids.add(rule.rule_id)
+        final_rule_ids.add(rule.rule_id)
+    if duplicate_final_rule_ids:
+        duplicate_display = ", ".join(sorted(duplicate_final_rule_ids))
+        raise ValueError(f"Final reviewed rules contain duplicate rule_ids: {duplicate_display}")
 
     reviewed_rule_status_by_id = {
         decision["rule_id"]: (
             "added_in_review"
-            if decision["final_decision"] == "modified"
-            and decision["evaluator_recommendation"] == "remove"
+            if decision["evaluator_recommendation"] == "add"
+            or (
+                decision["final_decision"] == "modified"
+                and decision["evaluator_recommendation"] == "remove"
+            )
             else "confirmed"
         )
         for decision in review_decisions

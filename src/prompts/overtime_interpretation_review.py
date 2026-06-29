@@ -385,7 +385,9 @@ def evaluator_structured_output_instructions() -> str:
         "- recommendation: keep, modify, or remove\n"
         "- rationale\n\n"
         "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
-        "If a missing supported rule should be added, include it in new_rules using the same structured shape as the step-3 rules JSON."
+        "Use new_rules only when a clearly supported overtime-creation rule is missing from the current draft.\n"
+        "Every new_rules item must be a complete structured rule object with a unique rule_id.\n"
+        "Do not silently replace an original rule with a new rule. Keep rule_reviews focused on the original rule_ids."
     )
 
 
@@ -394,14 +396,24 @@ def creator_structured_output_instructions() -> str:
         "Return JSON only with these top-level fields:\n"
         "- decision_record_markdown\n"
         "- rule_updates\n"
-        "- new_rules\n\n"
+        "- new_rule_reviews\n\n"
         "You must provide one rule_updates item for every original rule_id.\n"
         "Each rule_updates item must contain:\n"
         "- rule_id\n"
         "- decision: keep, modify, or remove\n"
         "- reason\n"
-        "- updated_rule when decision is modify\n\n"
-        "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove."
+        "- updated_rule when decision is modify, otherwise updated_rule must be null\n\n"
+        "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove.\n\n"
+        "You must also provide one new_rule_reviews item for every evaluator-proposed new rule.\n"
+        "Each new_rule_reviews item must contain:\n"
+        "- rule_id\n"
+        "- decision: accept, modify, or reject\n"
+        "- reason\n"
+        "- updated_rule when decision is modify, otherwise updated_rule must be null\n\n"
+        "The evaluator structured review JSON is the authoritative source for evaluator-proposed new rule_ids.\n"
+        "Only include new_rule_reviews for rule_ids that appear in the evaluator structured review JSON new_rules array.\n"
+        "Do not invent standalone new rules in the creator response. The creator may only accept, modify, or reject evaluator-proposed new_rules.\n"
+        "If you can address the issue by editing an existing rule only, prefer modifying an existing rule."
     )
 
 

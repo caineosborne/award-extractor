@@ -26,8 +26,12 @@ from src.common.active_pipeline_paths import interpretation_output_path_for_clas
 from src.common.output_paths import write_text_with_archive
 from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import (
+    ALLOWED_EMPLOYEE_COHORTS,
+    ALLOWED_WORK_ARRANGEMENTS,
     OvertimeRule,
     build_step_3_rules_artifact,
+    employee_cohort_from_employee_scope,
+    employee_scope_from_employee_cohort,
     json_output_path_for_markdown,
     make_json_serializable,
     rules_from_markdown_fallback,
@@ -105,6 +109,113 @@ def deduplicate_preserving_order(items: Sequence[str]) -> list[str]:
     return unique_items
 
 
+def employee_cohort_display(employee_cohort: str) -> str:
+    if employee_cohort == "full-time":
+        return "full-time employees"
+    if employee_cohort == "part-time":
+        return "part-time employees"
+    if employee_cohort == "casual":
+        return "casual employees"
+    if employee_cohort == "permanent":
+        return "permanent employees"
+    return "all employees"
+
+
+def work_arrangement_display(work_arrangement: str) -> str:
+    if work_arrangement == "day-worker":
+        return "day workers"
+    if work_arrangement == "shiftworker":
+        return "shiftworkers"
+    return "all work arrangements"
+
+
+def combined_employee_cohort(
+    classifications: Sequence[OvertimeClauseClassification],
+) -> str:
+    combined_scope: list[str] = []
+
+    for classification in classifications:
+        combined_scope.extend(
+            employee_scope_from_employee_cohort(classification.employee_cohort)
+        )
+
+    return employee_cohort_from_employee_scope(combined_scope)
+
+
+def combined_work_arrangement(
+    classifications: Sequence[OvertimeClauseClassification],
+) -> str:
+    arrangements = {
+        classification.work_arrangement
+        for classification in classifications
+        if classification.work_arrangement
+    }
+
+    if "all" in arrangements or len(arrangements) != 1:
+        return "all"
+
+    return next(iter(arrangements))
+
+
+def combined_other_scope_notes(
+    classifications: Sequence[OvertimeClauseClassification],
+) -> str:
+    notes: list[str] = []
+
+    for classification in classifications:
+        note = classification.other_scope_notes.strip()
+        if note and note not in notes:
+            notes.append(note)
+
+    return "; ".join(notes)
+
+
+def scope_validation_warnings_for_rule(
+    rule: OvertimeRule,
+    source_classifications: Sequence[OvertimeClauseClassification],
+) -> list[str]:
+    warnings: list[str] = []
+
+    if not source_classifications:
+        return warnings
+
+    expected_employee_cohort = combined_employee_cohort(source_classifications)
+    actual_employee_cohort = rule.employee_cohort
+    if actual_employee_cohort != expected_employee_cohort:
+        clause_numbers = ", ".join(
+            classification.clause_number for classification in source_classifications
+        )
+        warnings.append(
+            f"Rule '{rule.rule_id}' draws on clause {clause_numbers}, which is classified "
+            f"as applying to {employee_cohort_display(expected_employee_cohort)}, but the "
+            f"rule is written as applying to {employee_cohort_display(actual_employee_cohort)}."
+        )
+
+    expected_work_arrangement = combined_work_arrangement(source_classifications)
+    if rule.work_arrangement != expected_work_arrangement:
+        clause_numbers = ", ".join(
+            classification.clause_number for classification in source_classifications
+        )
+        warnings.append(
+            f"Rule '{rule.rule_id}' draws on clause {clause_numbers}, which is classified "
+            f"as applying to {work_arrangement_display(expected_work_arrangement)}, but the "
+            f"rule is written as applying to {work_arrangement_display(rule.work_arrangement)}."
+        )
+
+    expected_other_scope_notes = combined_other_scope_notes(source_classifications)
+    if expected_other_scope_notes and rule.other_scope_notes.strip() != expected_other_scope_notes:
+        clause_numbers = ", ".join(
+            classification.clause_number for classification in source_classifications
+        )
+        warnings.append(
+            f"Rule '{rule.rule_id}' draws on clause {clause_numbers}, which is classified "
+            f"with the scope note '{expected_other_scope_notes}', but the rule now records "
+            f"'{rule.other_scope_notes.strip() or 'no additional scope note'}'."
+        )
+
+    return warnings
+
+
 def missing_shortlisted_clause_warning(
     clause_number: str,
     *,
@@ -153,6 +264,15 @@ def format_working_paper_input(
 
 Classification:
 {", ".join(clause.classifications)}
+
+Employee cohort:
+{clause.employee_cohort}
+
+Work arrangement:
+{clause.work_arrangement}
+
+Other scope notes:
+{clause.other_scope_notes or "(none)"}
 
 Explanation:
 {clause.explanation}
@@ -208,6 +328,15 @@ def interpretation_response_json_schema() -> dict[str, Any]:
                             "type": "array",
                             "items": {"type": "string"},
                         },
+                        "employee_cohort": {
+                            "type": "string",
+                            "enum": list(ALLOWED_EMPLOYEE_COHORTS),
+                        },
+                        "work_arrangement": {
+                            "type": "string",
+                            "enum": list(ALLOWED_WORK_ARRANGEMENTS),
+                        },
+                        "other_scope_notes": {"type": "string"},
                         "clause_references": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -230,6 +359,9 @@ def interpretation_response_json_schema() -> dict[str, Any]:
                         "rule_id",
                         "section_heading",
                         "employee_scope",
+                        "employee_cohort",
+                        "work_arrangement",
+                        "other_scope_notes",
                         "clause_references",
                         "rule_markdown",
                         "rule_plain_text",
@@ -268,7 +400,7 @@ def validate_interpretation_rules(
     }
     represented_shortlisted_clause_numbers: set[str] = set()
 
-    for rule in rules:
+    for raw_rule, rule in zip(raw_rules, rules):
         if not RULE_ID_ALLOWED_PATTERN.fullmatch(rule.rule_id):
             raise OvertimeInterpretationError(
                 f"Rule id contains unsupported characters: {rule.rule_id}"
@@ -300,6 +432,27 @@ def validate_interpretation_rules(
                 f"Rule {rule.rule_id} is included despite not being linked to a known "
                 f"shortlisted step-3 source clause. Returned source clauses: "
                 f"{source_display}."
+            )
+
+        matching_source_classifications = [
+            classification
+            for classification in overtime_creation_clauses
+            if classification.clause_number in known_source_clauses
+        ]
+        raw_scope_fields_present = isinstance(raw_rule, Mapping) and any(
+            field_name in raw_rule
+            for field_name in (
+                "employee_cohort",
+                "work_arrangement",
+                "other_scope_notes",
+            )
+        )
+        if raw_scope_fields_present:
+            validation_warnings.extend(
+                scope_validation_warnings_for_rule(
+                    rule,
+                    matching_source_classifications,
+                )
             )
 
         unsupported_source_classifications = (
@@ -403,6 +556,9 @@ def build_expert_comparison_messages(
             "classifications": list(classification.classifications),
             "clause_text": classification.clause_text,
             "explanation": classification.explanation,
+            "employee_cohort": classification.employee_cohort,
+            "work_arrangement": classification.work_arrangement,
+            "other_scope_notes": classification.other_scope_notes,
         }
         for classification in overtime_creation_clauses
     ]
@@ -440,6 +596,15 @@ def comparison_response_json_schema() -> dict[str, Any]:
                         "rule_id": {"type": "string"},
                         "section_heading": {"type": "string"},
                         "employee_scope": {"type": "array", "items": {"type": "string"}},
+                        "employee_cohort": {
+                            "type": "string",
+                            "enum": list(ALLOWED_EMPLOYEE_COHORTS),
+                        },
+                        "work_arrangement": {
+                            "type": "string",
+                            "enum": list(ALLOWED_WORK_ARRANGEMENTS),
+                        },
+                        "other_scope_notes": {"type": "string"},
                         "clause_references": {
                             "type": "array",
                             "items": {"type": "string"},
@@ -459,6 +624,9 @@ def comparison_response_json_schema() -> dict[str, Any]:
                         "rule_id",
                         "section_heading",
                         "employee_scope",
+                        "employee_cohort",
+                        "work_arrangement",
+                        "other_scope_notes",
                         "clause_references",
                         "rule_markdown",
                         "rule_plain_text",
@@ -540,7 +708,8 @@ def compare_expert_interpretation_runs(
     except json.JSONDecodeError as exc:
         raise OvertimeInterpretationError("Comparison response was not valid JSON.") from exc
 
-    merged_rules = validate_rule_list(comparison_data.get("merged_rules", []))
+    raw_merged_rules = comparison_data.get("merged_rules", [])
+    merged_rules = validate_rule_list(raw_merged_rules)
     validation_warnings: list[str] = []
 
     run_a_rule_ids = {rule.rule_id for rule in run_a_rules}
@@ -571,9 +740,37 @@ def compare_expert_interpretation_runs(
         classification.clause_number for classification in overtime_creation_clauses
     }
     represented_clause_numbers: set[str] = set()
-    for rule in merged_rules:
+    for raw_rule, rule in zip(raw_merged_rules, merged_rules):
+        known_source_clauses: set[str] = set()
         for clause_number in rule.source_clause_numbers:
-            represented_clause_numbers.update(candidate_parent_clause_keys(clause_number))
+            candidate_keys = candidate_parent_clause_keys(clause_number)
+            represented_clause_numbers.update(candidate_keys)
+            known_source_clauses.update(
+                candidate
+                for candidate in candidate_keys
+                if candidate in shortlisted_clause_numbers
+            )
+
+        matching_source_classifications = [
+            classification
+            for classification in overtime_creation_clauses
+            if classification.clause_number in known_source_clauses
+        ]
+        raw_scope_fields_present = isinstance(raw_rule, Mapping) and any(
+            field_name in raw_rule
+            for field_name in (
+                "employee_cohort",
+                "work_arrangement",
+                "other_scope_notes",
+            )
+        )
+        if raw_scope_fields_present:
+            validation_warnings.extend(
+                scope_validation_warnings_for_rule(
+                    rule,
+                    matching_source_classifications,
+                )
+            )
 
     missing_shortlisted_clause_numbers = sorted(
         clause_number

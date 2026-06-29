@@ -1,8 +1,12 @@
 # Award Extractor Methodology
 
-This document explains how the current pipeline works.
+This document explains how the current pipeline works at a business and review-method level.
 
-It is about system behaviour, not operator instructions. For commands, file-by-file outputs, and code-reading notes, use `resources/TECHNICAL_GUIDE.md`.
+It is intentionally not the low-level implementation reference.
+
+Use:
+- `resources/TECHNICAL_GUIDE.md` for exact LLM inputs and outputs, JSON schemas, and deterministic validation logic;
+- `resources/outputs.md` for filenames and output locations.
 
 ## Purpose
 
@@ -82,7 +86,7 @@ The model receives:
 - one top-level clause;
 - its direct `L2` descendants.
 
-It returns strict JSON containing:
+It returns a structured classification result containing:
 - the top-level relevance decision;
 - the direct `L2` classification results.
 
@@ -90,17 +94,45 @@ It returns strict JSON containing:
 
 The code also makes some decisions without a model call. For example, top-level clauses with no substantive direct `L2` children can be marked non-relevant deterministically.
 
+The active step-2 flow also includes a deterministic post-classification repair layer for explicit overtime-trigger wording. This exists to catch model misses where a clause clearly creates or references overtime in operative text but the returned tags omit `Ordinary Hours & Overtime`.
+
+These deterministic repair rules are named in code and written back into the clause record so the audit trail shows:
+- which tag was added;
+- which deterministic rule name caused it; and
+- that the change was code-driven rather than model-driven.
+
+In step `2`, the intended source of each saved field is:
+- `top_level_clauses[*]`: model-generated, then Python-validated.
+- `classified_clauses[*].tags`: model-generated, then Python-validated, and may be deterministically repaired.
+- `classified_clauses[*].reason`: model-generated, but deterministic repair text may be appended where a tag was added by code.
+- `classified_clauses[*].deterministic_tag_adjustments`: code-generated only. This field is present only when a deterministic repair was applied.
+
+At present, the only step-2 tag that may be added deterministically is:
+- `Ordinary Hours & Overtime`
+
+All other step-2 tags remain model-generated and Python-validated only:
+- `Hourly Rate`
+- `Penalty`
+- `Allowance`
+- `Breaks (Meal Breaks)`
+- `Breaks (Between Work Periods)`
+- `Leave`
+- `Definition`
+- `Other Payment`
+
 ### Validation in Step 2
 
-There are two layers of validation:
+There are two layers of control:
 
-1. API-level structured output:
-- the model must return schema-conforming JSON.
+1. structured output control:
+- the model is required to return the expected structured payload;
 
-2. Python-side validation:
+2. deterministic validation and repair:
 - the returned top-level reference must match the clause group that was sent;
 - returned clause references must map back to real direct `L2` clauses;
 - non-relevant top-level clauses must not also return classified children.
+
+After that validation, deterministic repair rules may still add `Ordinary Hours & Overtime` where the clause text itself clearly supports it. These repairs are intended to make the shortlist safer for downstream overtime work, not to silently broaden unrelated payment clauses.
 
 If validation fails, the step fails.
 
@@ -143,12 +175,39 @@ Its job is to classify each clause into one or more of:
 - `Related Rule`
 - `Not Relevant`
 
-The output is strict structured JSON.
+The output is a structured clause-role classification artifact.
+
+Each shortlisted clause now also carries explicit scope tags:
+- `employee_cohort`
+- `work_arrangement`
+- `other_scope_notes`
+
+The scope-tagging design is intentionally two-layered:
+- the prompt tells the model to use `day-worker` or `shiftworker` only where the clause expressly supports that label; and
+- deterministic post-validation code normalises unsupported work-arrangement inferences back to `all`.
+
+This means the system does not rely on prompt wording alone for non-negotiable scope limits. For example, wording such as `Monday to Friday` or an ordinary-hours span during business hours is not treated as enough, by itself, to justify `day-worker`.
 
 This classification separates:
 - clauses that create overtime;
 - clauses that describe consequences after overtime already exists;
 - related clauses that give context but do not create overtime themselves.
+
+In step `3.2`, the intended source of each saved field is:
+- `classification`: model-generated and Python-validated.
+- `classifications`: model-generated and Python-validated.
+- `explanation`: model-generated and Python-validated.
+- `employee_cohort`: model-generated and Python-validated.
+- `other_scope_notes`: model-generated and Python-validated.
+- `work_arrangement`: model-generated, Python-validated, and may be deterministically normalised.
+
+At present, the only step-3.2 scope field that may be deterministically changed after the model response is:
+- `work_arrangement`
+
+That deterministic normalisation currently considers only these saved values:
+- keep `day-worker` only where the clause text expressly supports day-worker language;
+- keep `shiftworker` only where the clause text expressly supports shiftworker or shiftwork language;
+- otherwise save `all`.
 
 ### Validation in Step 3.2
 
@@ -158,6 +217,12 @@ The code checks:
 - every input clause was classified;
 - the classifications are from the allowed set;
 - the explanation field is present.
+- the scope-tag fields are present and within the allowed values.
+
+For `work_arrangement`, the deterministic check is intentionally conservative:
+- `shiftworker` is retained only where the clause text expressly supports shiftworker language;
+- `day-worker` is retained only where the clause text expressly supports day-worker language;
+- otherwise the saved value is normalised to `all`.
 
 If those checks fail, the step fails.
 
@@ -179,10 +244,13 @@ Each expert receives:
 - the shortlisted step-`3.3` clauses;
 - the same interpretation prompt.
 
-Each expert returns a structured rule set. Each rule includes fields such as:
+Each expert returns a structured rule set. Each rule records items such as:
 - `rule_id`
 - `section_heading`
 - `employee_scope`
+- `employee_cohort`
+- `work_arrangement`
+- `other_scope_notes`
 - `clause_references`
 - `rule_markdown`
 - `rule_plain_text`
@@ -218,6 +286,11 @@ Validation here has three layers:
 - all expert B rule IDs were accounted for;
 - shortlisted source clauses are still represented in the merged rules.
 
+The deterministic validation layer also compares the clause-level scope tags from step `3.2` against the rule-level scope returned by expert A, expert B, and the merged rules. These are warning-only checks. They are intended to surface issues such as:
+- a clause classified as applying to all employees being rewritten as full-time only;
+- a shiftworker clause losing its work-arrangement scope;
+- additional scope notes being narrowed or broadened in a way that is not obviously supported by the clause text.
+
 Some issues are non-fatal by design. When the artifact is still usable, warnings are written into the JSON and prepended to the markdown instead of stopping the run.
 
 ### What Step 3 produces
@@ -248,7 +321,7 @@ The evaluator acts as a supervisor. It identifies:
 - presentation issues;
 - traceability issues.
 
-Its preferred machine contract is structured JSON with:
+Its machine contract is a structured review record with:
 - `summary_markdown`
 - `rule_reviews`
 - `new_rules`
@@ -264,15 +337,24 @@ The creator receives:
 
 Its job is to return explicit rule-level decisions. This is important because the revision step is meant to show what changed and why, not silently replace the earlier interpretation.
 
+Under the current design:
+- the evaluator may propose additional tracked rules;
+- the creator must explicitly accept, modify, or reject those proposed additions;
+- code applies only the changes that pass deterministic safety checks.
+
 ### Validation in Step 3B
 
 The code validates that:
 - every original `rule_id` was explicitly addressed;
 - rules are not silently dropped;
 - removals are supported by the review record;
+- additions are not silently introduced;
+- additions are only applied where the tracked evaluator and creator records agree;
 - clause-coverage reductions can be surfaced as warnings.
 
 If structured creator output cannot be applied safely, the earlier interpretation is preserved and the workflow records the issue for manual review.
+
+When this happens, the creator-response markdown now prioritises the decision record and validation error in readable markdown, while still preserving the raw structured response as supporting detail.
 
 ### What Step 3B produces
 
@@ -312,12 +394,28 @@ Purpose:
 
 This step mixes free-text generation with hard deterministic post-generation checks.
 
+## Technical detail boundary
+
+This methodology document deliberately stops short of:
+- reproducing JSON schemas;
+- listing every field of every artifact;
+- restating exact validator function behaviour line by line.
+
+Those details now live in:
+- `resources/TECHNICAL_GUIDE.md`
+
 ## Streamlit review application
 
 Files:
 - `review_outputs.py`
 - `streamlit_review/app.py`
 - `streamlit_review/output_data.py`
+
+The Streamlit review application is the main operator surface for:
+- reviewing step outputs side by side;
+- monitoring long-running pipeline steps;
+- inspecting the structured JSON artifacts and their warnings;
+- deleting an award output set under the award-first processed-output layout.
 
 The Streamlit app is part of the working methodology because it is the review surface for generated artifacts.
 

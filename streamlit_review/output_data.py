@@ -185,6 +185,17 @@ def processed_files_matching_prefix(
         return []
 
     matching_paths: list[Path] = []
+    award_directory = processed_root / selected_prefix
+
+    if award_directory.exists() and award_directory.is_dir():
+        for path in award_directory.rglob("*"):
+            if not path.is_file():
+                continue
+
+            if ARCHIVE_DIR in path.parts:
+                continue
+
+            matching_paths.append(path)
 
     for path in processed_root.rglob("*"):
         if not path.is_file():
@@ -196,7 +207,7 @@ def processed_files_matching_prefix(
         if path.name.startswith(selected_prefix):
             matching_paths.append(path)
 
-    return sorted(matching_paths)
+    return sorted(set(matching_paths))
 
 
 def delete_processed_files_matching_prefix(
@@ -214,6 +225,20 @@ def delete_processed_files_matching_prefix(
 
     for path in matching_paths:
         path.unlink()
+
+    award_directory = processed_root / selected_prefix
+    if award_directory.exists() and award_directory.is_dir():
+        directories_to_consider = sorted(
+            [path for path in award_directory.rglob("*") if path.is_dir()],
+            reverse=True,
+        )
+        for directory in directories_to_consider:
+            if any(directory.iterdir()):
+                continue
+            directory.rmdir()
+
+        if not any(award_directory.iterdir()):
+            award_directory.rmdir()
 
     return matching_paths
 

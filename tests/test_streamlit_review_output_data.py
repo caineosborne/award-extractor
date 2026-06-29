@@ -316,6 +316,25 @@ def test_processed_files_matching_prefix_excludes_archive_files(tmp_path):
     ]
 
 
+def test_processed_files_matching_prefix_includes_award_first_directory_contents(tmp_path):
+    award_dir = tmp_path / "MA000018"
+    feedback_dir = award_dir / "feedback"
+    feedback_dir.mkdir(parents=True)
+
+    main_file = award_dir / "MA000018_payment_classification.json"
+    main_file.write_text("{}", encoding="utf-8")
+    feedback_file = feedback_dir / "MA000018_overtime_interpretation_creator_response.md"
+    feedback_file.write_text("# feedback", encoding="utf-8")
+    archived_file = award_dir / "archive" / "MA000018_payment_classification_20260623_101112.json"
+    archived_file.parent.mkdir(parents=True)
+    archived_file.write_text("{}", encoding="utf-8")
+
+    assert processed_files_matching_prefix("MA000018", processed_root=tmp_path) == [
+        main_file,
+        feedback_file,
+    ]
+
+
 def test_delete_processed_files_matching_prefix_deletes_only_non_archive_matches(tmp_path):
     latest_file = tmp_path / "2_payment_clause_identifier" / "MA000018_payment_classification.json"
     latest_file.parent.mkdir(parents=True)
@@ -339,6 +358,28 @@ def test_delete_processed_files_matching_prefix_deletes_only_non_archive_matches
     assert second_latest_file.exists() is False
     assert archive_file.exists() is True
     assert other_file.exists() is True
+
+
+def test_delete_processed_files_matching_prefix_deletes_award_first_directory_contents(tmp_path):
+    award_dir = tmp_path / "MA000018"
+    feedback_dir = award_dir / "feedback"
+    feedback_dir.mkdir(parents=True)
+
+    main_file = award_dir / "MA000018_payment_classification.json"
+    main_file.write_text("{}", encoding="utf-8")
+    feedback_file = feedback_dir / "MA000018_overtime_interpretation_creator_response.md"
+    feedback_file.write_text("# feedback", encoding="utf-8")
+    archive_file = award_dir / "archive" / "MA000018_payment_classification_20260623_101112.json"
+    archive_file.parent.mkdir(parents=True)
+    archive_file.write_text("{}", encoding="utf-8")
+
+    deleted_paths = delete_processed_files_matching_prefix("MA000018", processed_root=tmp_path)
+
+    assert deleted_paths == [main_file, feedback_file]
+    assert main_file.exists() is False
+    assert feedback_file.exists() is False
+    assert archive_file.exists() is True
+    assert award_dir.exists() is True
 
 
 def test_pipeline_run_label_formats_full_and_step_runs():

@@ -32,9 +32,7 @@ from src.common.model_call_budget import log_model_call_budget
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_io import load_json_object, load_text_file as load_text_document
 from src.common.pipeline_runtime import (
-    build_openrouter_client as create_openrouter_client,
     load_openai_environment as require_openai_environment,
-    load_openrouter_api_key as require_openrouter_api_key,
 )
 from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import (
@@ -74,7 +72,9 @@ from src.prompts.overtime_interpretation_review import (
 # 1. Imports / constants
 
 DEFAULT_INTERPRETATION_PATH = default_interpretation_path_for_award("MA000018")
-EVALUATOR_MODEL = "anthropic/claude-sonnet-4.6"
+EVALUATOR_MODEL = "gpt-5-mini"
+DEFAULT_EVALUATOR_MAX_OUTPUT_TOKENS = 8000
+DEFAULT_CREATOR_MAX_OUTPUT_TOKENS = 4000
 CREATOR_RESPONSE_PATTERN = re.compile(
     r"<creator_response>\s*(?P<creator_response>.*?)\s*</creator_response>\s*"
     r"<revised_interpretation>\s*(?P<revised_interpretation>.*?)\s*</revised_interpretation>",
@@ -82,6 +82,34 @@ CREATOR_RESPONSE_PATTERN = re.compile(
 )
 DEFAULT_INTER_CALL_DELAY_SECONDS = 30.0
 MAX_CREATOR_REPAIR_ATTEMPTS = 1
+MAX_EVALUATOR_REPAIR_ATTEMPTS = 2
+
+
+def _structured_rule_schema() -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rule_id": {"type": "string"},
+            "section_heading": {"type": "string"},
+            "employee_scope": {"type": "array", "items": {"type": "string"}},
+            "clause_references": {"type": "array", "items": {"type": "string"}},
+            "rule_markdown": {"type": "string"},
+            "rule_plain_text": {"type": "string"},
+            "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
+            "source_classifications": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": [
+            "rule_id",
+            "section_heading",
+            "employee_scope",
+            "clause_references",
+            "rule_markdown",
+            "rule_plain_text",
+            "source_clause_numbers",
+            "source_classifications",
+        ],
+    }
 
 
 class OvertimeInterpretationReviewError(RuntimeError):
@@ -145,25 +173,107 @@ def extract_chat_completion_text(response: Any) -> str:
     return extract_chat_response_text(response)
 
 
-def load_openrouter_api_key(env_path: Path | str = PROJECT_ROOT / ".env") -> str:
-    """Load the OpenRouter API key used for evaluator calls."""
-    return require_openrouter_api_key(
-        env_path=env_path,
-        error_type=OvertimeInterpretationReviewError,
-    )
+def extract_json_object_from_text(output_text: str) -> dict[str, Any]:
+    """Parse a JSON object from raw model text, including fenced JSON output."""
+    stripped_text = output_text.strip()
+    if not stripped_text:
+        raise ValueError("Model output was empty.")
+
+    try:
+        parsed_data = json.loads(stripped_text)
+    except json.JSONDecodeError:
+        repaired_text = _repair_multiline_json_strings(stripped_text)
+        if repaired_text != stripped_text:
+            try:
+                parsed_data = json.loads(repaired_text)
+            except json.JSONDecodeError:
+                parsed_data = None
+        else:
+            parsed_data = None
+
+        if parsed_data is not None:
+            if not isinstance(parsed_data, dict):
+                raise ValueError("Model output was not a JSON object.")
+            return parsed_data
+
+        fenced_match = re.search(
+            r"```(?:json)?\s*(\{.*\})\s*```",
+            stripped_text,
+            flags=re.DOTALL,
+        )
+        if fenced_match is not None:
+            return extract_json_object_from_text(fenced_match.group(1))
+
+        object_start = stripped_text.find("{")
+        object_end = stripped_text.rfind("}")
+        if object_start == -1 or object_end == -1 or object_end < object_start:
+            raise
+
+        candidate_text = stripped_text[object_start : object_end + 1]
+        parsed_data = json.loads(candidate_text)
+
+    if not isinstance(parsed_data, dict):
+        raise ValueError("Model output was not a JSON object.")
+
+    return parsed_data
+
+
+def _repair_multiline_json_strings(json_text: str) -> str:
+    """Escape raw control characters that appear inside JSON string values."""
+    repaired_chars: list[str] = []
+    in_string = False
+    escaped = False
+
+    for char in json_text:
+        if not in_string:
+            repaired_chars.append(char)
+            if char == '"':
+                in_string = True
+            continue
+
+        if escaped:
+            repaired_chars.append(char)
+            escaped = False
+            continue
+
+        if char == "\\":
+            repaired_chars.append(char)
+            escaped = True
+            continue
+
+        if char == '"':
+            repaired_chars.append(char)
+            in_string = False
+            continue
+
+        if char == "\n":
+            repaired_chars.append("\\n")
+            continue
+
+        if char == "\r":
+            repaired_chars.append("\\r")
+            continue
+
+        if char == "\t":
+            repaired_chars.append("\\t")
+            continue
+
+        repaired_chars.append(char)
+
+    return "".join(repaired_chars)
 
 
 def load_openai_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
-    """Load the OpenAI environment used for creator calls."""
+    """Load the OpenAI environment used for step 3B model calls."""
     require_openai_environment(
         env_path=env_path,
         error_type=OvertimeInterpretationReviewError,
     )
 
 
-def build_openrouter_client(api_key: str) -> OpenAI:
-    """Build the OpenRouter-backed client used by the evaluator model."""
-    return create_openrouter_client(api_key)
+def build_openai_client() -> OpenAI:
+    """Build the direct OpenAI client used by the step 3B models."""
+    return OpenAI()
 
 
 def load_text_file(path: Path | str, description: str) -> str:
@@ -321,6 +431,7 @@ def build_review_creator_messages(
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
+    evaluator_feedback_data: Mapping[str, Any] | None = None,
     prior_creator_decision_markdown: str | None = None,
     original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
@@ -369,6 +480,13 @@ def build_review_creator_messages(
                 ensure_ascii=False,
             )
             + "\n```\n"
+            + "\n\nEvaluator structured review JSON:\n```json\n"
+            + json.dumps(
+                make_json_serializable(dict(evaluator_feedback_data or {})),
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n```\n"
             + "\n\n"
             + creator_structured_output_instructions(),
         },
@@ -383,6 +501,7 @@ def build_creator_messages(
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
+    evaluator_feedback_data: Mapping[str, Any] | None = None,
     prior_creator_decision_markdown: str | None = None,
     original_rules_artifact: Mapping[str, Any] | None = None,
 ) -> list[dict[str, str]]:
@@ -396,6 +515,7 @@ def build_creator_messages(
         overtime_clause_classification_path=overtime_clause_classification_path,
         overtime_clause_classification=overtime_clause_classification,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
+        evaluator_feedback_data=evaluator_feedback_data,
         prior_creator_decision_markdown=prior_creator_decision_markdown,
     )
 
@@ -414,7 +534,36 @@ def build_creator_repair_messages(
         "Do not omit any original rule.\n"
         "Do not remove a rule unless both evaluator and creator explicitly support removal.\n"
         "If you marked a rule as modify but do not need to change any fields, use decision keep.\n"
-        "If you mark a rule as modify, include an updated_rule object or change the decision to keep.\n\n"
+        "If you mark a rule as modify, include an updated_rule object or change the decision to keep.\n"
+        "Do not invent creator-only new rules.\n"
+        "Treat the evaluator structured review JSON new_rules array as the only authoritative source of evaluator-proposed new rule_ids.\n"
+        "Do not include any new_rule_reviews entry unless its rule_id appears in that evaluator structured review JSON new_rules array.\n"
+        "Every evaluator-proposed new rule must appear in new_rule_reviews with decision accept, modify, or reject.\n"
+        "If you use decision modify for an evaluator-proposed new rule, include updated_rule.\n\n"
+        "Previous response:\n"
+        f"```json\n{prior_response_text}\n```"
+    )
+
+    repaired_messages = [dict(message) for message in original_messages]
+    repaired_messages.append({"role": "user", "content": repair_instruction})
+    return repaired_messages
+
+
+def build_evaluator_repair_messages(
+    original_messages: Sequence[Mapping[str, str]],
+    *,
+    validation_error: str,
+    prior_response_text: str,
+) -> list[dict[str, str]]:
+    """Ask the evaluator model to correct an invalid structured review response."""
+    repair_instruction = (
+        "Your previous structured JSON response failed validation.\n\n"
+        f"Validation error:\n- {validation_error}\n\n"
+        "Correct the JSON and return JSON only.\n"
+        "You must keep one rule_reviews item for every original rule_id.\n"
+        "Do not silently drop any original rule.\n"
+        "If you recommend removal, the rationale must clearly support that removal.\n"
+        "Only use new_rules for clearly supported missing overtime-creation rules.\n\n"
         "Previous response:\n"
         f"```json\n{prior_response_text}\n```"
     )
@@ -430,18 +579,142 @@ def fallback_creator_response_markdown(
     creator_output_text: str,
 ) -> str:
     """Build a manual-review record when structured creator output cannot be applied."""
-    return (
-        "# Creator response validation failure\n\n"
-        "The structured step 3B creator response could not be applied automatically.\n\n"
-        "## Validation error\n\n"
-        f"- {validation_error}\n\n"
-        "## Raw creator response\n\n"
-        "```text\n"
-        f"{creator_output_text}\n"
-        "```\n\n"
-        "The original step-3 rules were preserved as the revised output so a human can "
-        "review the failure manually."
+    parsed_response: dict[str, Any] | None = None
+    try:
+        loaded_response = json.loads(creator_output_text)
+        if isinstance(loaded_response, dict):
+            parsed_response = loaded_response
+    except json.JSONDecodeError:
+        parsed_response = None
+
+    rendered_sections: list[str] = [
+        "# Creator response validation failure",
+        "",
+        "The structured step 3B creator response could not be applied automatically.",
+        "",
+        "## Validation error",
+        "",
+        f"- {validation_error}",
+        "",
+    ]
+
+    decision_record_markdown = ""
+    if parsed_response is not None:
+        decision_record_markdown = str(
+            parsed_response.get("decision_record_markdown") or ""
+        ).strip()
+
+    if decision_record_markdown:
+        rendered_sections.extend(
+            [
+                "## Creator decision record",
+                "",
+                decision_record_markdown,
+                "",
+            ]
+        )
+
+    if parsed_response is not None:
+        rule_updates = parsed_response.get("rule_updates", [])
+        new_rule_reviews = parsed_response.get("new_rule_reviews", [])
+        rendered_sections.extend(
+            [
+                "## Structured response summary",
+                "",
+                f"- Rule updates returned: {len(rule_updates) if isinstance(rule_updates, list) else 0}",
+                f"- Evaluator-proposed new rule decisions returned: {len(new_rule_reviews) if isinstance(new_rule_reviews, list) else 0}",
+                "",
+            ]
+        )
+
+    rendered_sections.extend(
+        [
+            "## Raw creator response",
+            "",
+            "```json" if parsed_response is not None else "```text",
+            (
+                json.dumps(parsed_response, indent=2, ensure_ascii=False)
+                if parsed_response is not None
+                else creator_output_text
+            ),
+            "```",
+            "",
+            "The original step-3 rules were preserved as the revised output so a human can "
+            "review the failure manually.",
+        ]
     )
+
+    return "\n".join(rendered_sections)
+
+
+def fallback_evaluator_feedback_markdown(
+    *,
+    validation_error: str,
+    evaluator_output_text: str,
+) -> str:
+    """Build a manual-review record when structured evaluator output is invalid."""
+    parsed_response: dict[str, Any] | None = None
+    try:
+        loaded_response = extract_json_object_from_text(evaluator_output_text)
+        if isinstance(loaded_response, dict):
+            parsed_response = loaded_response
+    except (json.JSONDecodeError, ValueError):
+        parsed_response = None
+
+    rendered_sections: list[str] = [
+        "# Evaluator feedback validation failure",
+        "",
+        "The structured step 3B evaluator feedback could not be applied automatically.",
+        "",
+        "## Validation error",
+        "",
+        f"- {validation_error}",
+        "",
+    ]
+
+    if parsed_response is not None:
+        summary_markdown = str(parsed_response.get("summary_markdown") or "").strip()
+        rule_reviews = parsed_response.get("rule_reviews", [])
+        new_rules = parsed_response.get("new_rules", [])
+
+        if summary_markdown:
+            rendered_sections.extend(
+                [
+                    "## Extracted evaluator summary",
+                    "",
+                    summary_markdown,
+                    "",
+                ]
+            )
+
+        rendered_sections.extend(
+            [
+                "## Structured response summary",
+                "",
+                f"- Rule reviews returned: {len(rule_reviews) if isinstance(rule_reviews, list) else 0}",
+                f"- New rules returned: {len(new_rules) if isinstance(new_rules, list) else 0}",
+                "",
+            ]
+        )
+
+    rendered_sections.extend(
+        [
+            "## Raw evaluator response",
+            "",
+            "```json" if parsed_response is not None else "```text",
+            (
+                json.dumps(parsed_response, indent=2, ensure_ascii=False)
+                if parsed_response is not None
+                else evaluator_output_text
+            ),
+            "```",
+            "",
+            "The evaluator recommendations were not applied automatically. Review this "
+            "response manually before relying on the revised interpretation.",
+        ]
+    )
+
+    return "\n".join(rendered_sections)
 
 
 def evaluator_feedback_json_schema() -> dict[str, Any]:
@@ -469,28 +742,7 @@ def evaluator_feedback_json_schema() -> dict[str, Any]:
             "new_rules": {
                 "type": "array",
                 "items": {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "rule_id": {"type": "string"},
-                        "section_heading": {"type": "string"},
-                        "employee_scope": {"type": "array", "items": {"type": "string"}},
-                        "clause_references": {"type": "array", "items": {"type": "string"}},
-                        "rule_markdown": {"type": "string"},
-                        "rule_plain_text": {"type": "string"},
-                        "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
-                        "source_classifications": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": [
-                        "rule_id",
-                        "section_heading",
-                        "employee_scope",
-                        "clause_references",
-                        "rule_markdown",
-                        "rule_plain_text",
-                        "source_clause_numbers",
-                        "source_classifications",
-                    ],
+                    **_structured_rule_schema(),
                 },
             },
         },
@@ -514,62 +766,40 @@ def creator_review_json_schema() -> dict[str, Any]:
                         "decision": {"type": "string", "enum": ["keep", "modify", "remove"]},
                         "reason": {"type": "string"},
                         "updated_rule": {
-                            "type": "object",
-                            "additionalProperties": False,
-                            "properties": {
-                                "rule_id": {"type": "string"},
-                                "section_heading": {"type": "string"},
-                                "employee_scope": {"type": "array", "items": {"type": "string"}},
-                                "clause_references": {"type": "array", "items": {"type": "string"}},
-                                "rule_markdown": {"type": "string"},
-                                "rule_plain_text": {"type": "string"},
-                                "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
-                                "source_classifications": {"type": "array", "items": {"type": "string"}},
-                            },
-                            "required": [
-                                "rule_id",
-                                "section_heading",
-                                "employee_scope",
-                                "clause_references",
-                                "rule_markdown",
-                                "rule_plain_text",
-                                "source_clause_numbers",
-                                "source_classifications",
-                            ],
+                            "anyOf": [
+                                _structured_rule_schema(),
+                                {"type": "null"},
+                            ]
                         },
                     },
-                    "required": ["rule_id", "decision", "reason"],
+                    "required": ["rule_id", "decision", "reason", "updated_rule"],
                 },
             },
-            "new_rules": {
+            "new_rule_reviews": {
                 "type": "array",
                 "items": {
                     "type": "object",
                     "additionalProperties": False,
                     "properties": {
                         "rule_id": {"type": "string"},
-                        "section_heading": {"type": "string"},
-                        "employee_scope": {"type": "array", "items": {"type": "string"}},
-                        "clause_references": {"type": "array", "items": {"type": "string"}},
-                        "rule_markdown": {"type": "string"},
-                        "rule_plain_text": {"type": "string"},
-                        "source_clause_numbers": {"type": "array", "items": {"type": "string"}},
-                        "source_classifications": {"type": "array", "items": {"type": "string"}},
+                        "decision": {
+                            "type": "string",
+                            "enum": ["accept", "modify", "reject"],
+                        },
+                        "reason": {"type": "string"},
+                        "updated_rule": {
+                            "anyOf": [_structured_rule_schema(), {"type": "null"}]
+                        },
                     },
-                    "required": [
-                        "rule_id",
-                        "section_heading",
-                        "employee_scope",
-                        "clause_references",
-                        "rule_markdown",
-                        "rule_plain_text",
-                        "source_clause_numbers",
-                        "source_classifications",
-                    ],
+                    "required": ["rule_id", "decision", "reason", "updated_rule"],
                 },
             },
         },
-        "required": ["decision_record_markdown", "rule_updates", "new_rules"],
+        "required": [
+            "decision_record_markdown",
+            "rule_updates",
+            "new_rule_reviews",
+        ],
     }
 
 
@@ -635,14 +865,27 @@ def review_overtime_interpretation(
         "OVERTIME_INTERPRETATION_REVIEW_CREATOR_MODEL",
         DEFAULT_CREATOR_MODEL,
     )
+    selected_evaluator_max_output_tokens = int(
+        os.getenv(
+            "OVERTIME_INTERPRETATION_EVALUATOR_MAX_OUTPUT_TOKENS",
+            str(DEFAULT_EVALUATOR_MAX_OUTPUT_TOKENS),
+        )
+    )
+    selected_creator_max_output_tokens = int(
+        os.getenv(
+            "OVERTIME_INTERPRETATION_REVIEW_CREATOR_MAX_OUTPUT_TOKENS",
+            str(DEFAULT_CREATOR_MAX_OUTPUT_TOKENS),
+        )
+    )
 
     if evaluator_client is None:
-        # Build the OpenRouter client only when this function owns evaluator setup.
-        evaluator_client = build_openrouter_client(load_openrouter_api_key())
+        # Load OpenAI credentials only when this function owns evaluator setup.
+        load_openai_environment()
+        evaluator_client = build_openai_client()
     if creator_client is None:
         # Load OpenAI credentials only when this function owns creator setup.
         load_openai_environment()
-        creator_client = OpenAI()
+        creator_client = build_openai_client()
 
     if status_callback:
         status_callback("Loading interpretation and Script 2/3 classification sources")
@@ -676,17 +919,25 @@ def review_overtime_interpretation(
     if status_callback:
         status_callback(f"Awaiting evaluator model: {selected_evaluator_model}")
 
-    # Log the evaluator model-call budget before sending the request.
-    log_model_call_budget(
-        status_callback,
-        call_label="script_3b_evaluator_review",
-        model=selected_evaluator_model,
-        payload=evaluator_messages,
-    )
-    if hasattr(evaluator_client, "responses"):
+    current_evaluator_messages = evaluator_messages
+    evaluator_output_text = ""
+    evaluator_feedback_data: dict[str, Any] = {}
+    evaluator_feedback_markdown = ""
+    last_evaluator_validation_error = ""
+
+    for attempt_number in range(MAX_EVALUATOR_REPAIR_ATTEMPTS + 1):
+        # Log the evaluator model-call budget before sending the request.
+        log_model_call_budget(
+            status_callback,
+            call_label="script_3b_evaluator_review",
+            model=selected_evaluator_model,
+            payload=current_evaluator_messages,
+            max_output_tokens=selected_evaluator_max_output_tokens,
+        )
         evaluator_response = evaluator_client.responses.create(
             model=selected_evaluator_model,
-            input=evaluator_messages,
+            input=current_evaluator_messages,
+            max_output_tokens=selected_evaluator_max_output_tokens,
             text={
                 "format": {
                     "type": "json_schema",
@@ -696,43 +947,51 @@ def review_overtime_interpretation(
                 }
             },
         )
-    else:
-        evaluator_response = evaluator_client.chat.completions.create(
-            model=selected_evaluator_model,
-            messages=evaluator_messages,
-        )
-    evaluator_output_text = extract_response_text(evaluator_response)
-    if not evaluator_output_text:
-        evaluator_output_text = extract_chat_response_text(evaluator_response)
-    if not evaluator_output_text:
-        raise OvertimeInterpretationReviewError(
-            "OpenRouter evaluator response did not include output text."
-        )
-    try:
-        evaluator_feedback_data = validate_review_feedback_artifact(
-            json.loads(evaluator_output_text),
-            original_rules_artifact["rules"],
-        )
-        evaluator_feedback_markdown = str(evaluator_feedback_data["summary_markdown"])
-    except (json.JSONDecodeError, ValueError):
-        evaluator_feedback_markdown = extract_chat_response_text(evaluator_response)
-        if not evaluator_feedback_markdown:
-            raise OvertimeInterpretationReviewError(
-                "OpenRouter evaluator response did not include output text."
+        evaluator_output_text = extract_response_text(evaluator_response)
+        if not evaluator_output_text:
+            evaluator_output_text = extract_chat_response_text(evaluator_response)
+        if not evaluator_output_text:
+            last_evaluator_validation_error = (
+                "Evaluator response did not include output text."
             )
-        evaluator_feedback_data = {
-            "schema_version": OVERTIME_RULE_REVIEW_SCHEMA_VERSION,
-            "summary_markdown": evaluator_feedback_markdown,
-            "rule_reviews": [
-                {
-                    "rule_id": rule.rule_id,
-                    "recommendation": "keep",
-                    "rationale": "Legacy markdown feedback fallback.",
-                }
-                for rule in original_rules_artifact["rules"]
-            ],
-            "new_rules": [],
-        }
+            if attempt_number >= MAX_EVALUATOR_REPAIR_ATTEMPTS:
+                raise OvertimeInterpretationReviewError(
+                    last_evaluator_validation_error
+                )
+            if status_callback:
+                status_callback(
+                    "Evaluator response was empty; requesting one corrected response."
+                )
+            current_evaluator_messages = build_evaluator_repair_messages(
+                current_evaluator_messages,
+                validation_error=last_evaluator_validation_error,
+                prior_response_text="<empty response>",
+            )
+            continue
+        try:
+            evaluator_feedback_data = validate_review_feedback_artifact(
+                extract_json_object_from_text(evaluator_output_text),
+                original_rules_artifact["rules"],
+            )
+            evaluator_feedback_markdown = str(evaluator_feedback_data["summary_markdown"])
+            break
+        except (json.JSONDecodeError, ValueError) as error:
+            last_evaluator_validation_error = str(error)
+            if attempt_number >= MAX_EVALUATOR_REPAIR_ATTEMPTS:
+                raise OvertimeInterpretationReviewError(
+                    "Evaluator response could not be validated as structured JSON: "
+                    f"{last_evaluator_validation_error}"
+                )
+
+            if status_callback:
+                status_callback(
+                    "Evaluator response failed validation; requesting one corrected response."
+                )
+            current_evaluator_messages = build_evaluator_repair_messages(
+                current_evaluator_messages,
+                validation_error=last_evaluator_validation_error,
+                prior_response_text=evaluator_output_text,
+            )
 
     if status_callback:
         status_callback("Evaluator processed feedback")
@@ -757,6 +1016,7 @@ def review_overtime_interpretation(
         overtime_clause_classification_path=selected_overtime_clause_classification_path,
         overtime_clause_classification=overtime_clause_classification,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
+        evaluator_feedback_data=evaluator_feedback_data,
     )
     # Log the creator model-call budget before sending the revision request.
     log_model_call_budget(
@@ -764,6 +1024,7 @@ def review_overtime_interpretation(
         call_label="script_3b_creator_revision",
         model=selected_creator_model,
         payload=creator_messages,
+        max_output_tokens=selected_creator_max_output_tokens,
     )
     current_creator_messages = creator_messages
     creator_output_text = ""
@@ -777,18 +1038,34 @@ def review_overtime_interpretation(
         creator_response = creator_client.responses.create(
             model=selected_creator_model,
             input=current_creator_messages,
+            max_output_tokens=selected_creator_max_output_tokens,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "overtime_rule_review_revision",
+                    "schema": creator_review_json_schema(),
+                    "strict": True,
+                }
+            },
         )
         creator_output_text = extract_response_text(creator_response)
         if not creator_output_text:
-            raise OvertimeInterpretationReviewError(
-                "Creator response did not include output text."
+            last_validation_error = "Creator response did not include output text."
+            if attempt_number >= MAX_CREATOR_REPAIR_ATTEMPTS:
+                break
+            if status_callback:
+                status_callback(
+                    "Creator response was empty; requesting one corrected response."
+                )
+            current_creator_messages = build_creator_repair_messages(
+                current_creator_messages,
+                validation_error=last_validation_error,
+                prior_response_text="<empty response>",
             )
-
-        if CREATOR_RESPONSE_PATTERN.search(creator_output_text):
-            break
+            continue
 
         try:
-            creator_response_data = json.loads(creator_output_text)
+            creator_response_data = extract_json_object_from_text(creator_output_text)
             reviewed_rules_artifact = apply_review_decisions(
                 original_rules=original_rules_artifact["rules"],
                 evaluator_feedback=evaluator_feedback_data,
@@ -800,6 +1077,10 @@ def review_overtime_interpretation(
             revised_interpretation_markdown = str(
                 reviewed_rules_artifact["rendered_markdown"]
             )
+            creator_response_data = {
+                **creator_response_data,
+                "rendered_markdown": revised_interpretation_markdown,
+            }
             break
         except json.JSONDecodeError as exc:
             last_validation_error = f"Creator response was not valid JSON: {exc}"
@@ -820,63 +1101,34 @@ def review_overtime_interpretation(
         )
 
     if reviewed_rules_artifact is None:
-        try:
-            creator_response_markdown, revised_interpretation_markdown = (
-                split_creator_update_sections(creator_output_text)
-            )
-            reviewed_rules_artifact = {
-                "rules": rules_from_markdown_fallback(
-                    revised_interpretation_markdown,
-                    source_path=revised_output_path_for_interpretation(
-                        selected_interpretation_path
-                    ),
-                ),
-                "review_decisions": [
-                    {
-                        "rule_id": rule.rule_id,
-                        "evaluator_recommendation": "keep",
-                        "creator_decision": "keep",
-                        "final_decision": "kept",
-                        "reason": "Legacy creator response fallback.",
-                    }
-                    for rule in original_rules_artifact["rules"]
-                ],
-            }
-            creator_response_data = {
-                "decision_record_markdown": creator_response_markdown,
-                "rule_updates": [],
-                "new_rules": [],
-                "rendered_markdown": revised_interpretation_markdown,
-            }
-        except OvertimeInterpretationReviewError:
-            creator_response_markdown = fallback_creator_response_markdown(
-                validation_error=last_validation_error or "Unknown validation error.",
-                creator_output_text=creator_output_text,
-            )
-            revised_interpretation_markdown = str(
-                original_rules_artifact["rendered_markdown"]
-            )
-            reviewed_rules_artifact = {
-                "rules": list(original_rules_artifact["rules"]),
-                "review_decisions": [
-                    {
-                        "rule_id": rule.rule_id,
-                        "evaluator_recommendation": "keep",
-                        "creator_decision": "keep",
-                        "final_decision": "kept",
-                        "reason": "Preserved original rules after creator validation failure.",
-                    }
-                    for rule in original_rules_artifact["rules"]
-                ],
-            }
-            creator_response_data = {
-                "decision_record_markdown": creator_response_markdown,
-                "rule_updates": [],
-                "new_rules": [],
-                "rendered_markdown": revised_interpretation_markdown,
-                "validation_error": last_validation_error,
-                "raw_creator_response": creator_output_text,
-            }
+        creator_response_markdown = fallback_creator_response_markdown(
+            validation_error=last_validation_error or "Unknown validation error.",
+            creator_output_text=creator_output_text,
+        )
+        revised_interpretation_markdown = str(
+            original_rules_artifact["rendered_markdown"]
+        )
+        reviewed_rules_artifact = {
+            "rules": list(original_rules_artifact["rules"]),
+            "review_decisions": [
+                {
+                    "rule_id": rule.rule_id,
+                    "evaluator_recommendation": "keep",
+                    "creator_decision": "keep",
+                    "final_decision": "kept",
+                    "reason": "Preserved original rules after creator validation failure.",
+                }
+                for rule in original_rules_artifact["rules"]
+            ],
+        }
+        creator_response_data = {
+            "decision_record_markdown": creator_response_markdown,
+            "rule_updates": [],
+            "new_rule_reviews": [],
+            "rendered_markdown": revised_interpretation_markdown,
+            "validation_error": last_validation_error,
+            "raw_creator_response": creator_output_text,
+        }
 
     feedback_path = (
         Path(feedback_output_path)
@@ -1008,7 +1260,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--evaluator-model",
         default=None,
-        help=f"OpenRouter evaluator model to use. Defaults to {EVALUATOR_MODEL}.",
+        help=f"OpenAI evaluator model to use. Defaults to {EVALUATOR_MODEL}.",
     )
     parser.add_argument(
         "--creator-model",

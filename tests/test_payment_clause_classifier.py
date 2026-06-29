@@ -218,6 +218,75 @@ class PaymentClauseClassifierTests(unittest.TestCase):
             ["Definition", "Ordinary Hours & Overtime"],
         )
 
+    def test_classify_award_adds_overtime_tag_when_explicit_trigger_was_model_miss(self):
+        award = award_with_clause(
+            "10",
+            "Employment categories",
+            [
+                (
+                    "10.5",
+                    OrderedDict(
+                        [
+                            (
+                                "_content",
+                                [
+                                    "Casual employment",
+                                    "For work in excess of eight hours on any one day or shift or 38 hours in any one week, a casual employee will be paid in accordance with the penalties specified in clause 23.",
+                                ],
+                            )
+                        ]
+                    ),
+                )
+            ],
+        )
+        fake_client = FakeClient(
+            [
+                {
+                    "top_level_clause": {
+                        "reference": "10",
+                        "title": "Employment categories",
+                        "payment_relevant": True,
+                        "definition_relevant": True,
+                        "requires_l2_classification": True,
+                        "reason": "Defines casual employment and casual loading.",
+                    },
+                    "classified_clauses": [
+                        {
+                            "reference": "10.5",
+                            "tags": ["Definition", "Hourly Rate", "Penalty", "Other Payment"],
+                            "reason": "Defines casual employment and loading.",
+                        }
+                    ],
+                }
+            ]
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            award_path = Path(temp_dir) / "award.json"
+            award_path.write_text(json.dumps(award), encoding="utf-8")
+
+            result = classify_award(
+                award_path=award_path,
+                output_path=Path(temp_dir) / "payment_classification.json",
+                client=fake_client,
+            )
+
+        classified_clause = result["classified_clauses"]["10.5"]
+        self.assertIn("Ordinary Hours & Overtime", classified_clause["tags"])
+        self.assertEqual(
+            classified_clause["deterministic_tag_adjustments"],
+            [
+                {
+                    "tag_added": "Ordinary Hours & Overtime",
+                    "rule_names": ["explicit_excess_hours_reference_to_overtime"],
+                }
+            ],
+        )
+        self.assertIn(
+            "Deterministic explicit-overtime tagging added `Ordinary Hours & Overtime` to: 10.5.",
+            result["top_level_clauses"]["10"]["reason"],
+        )
+
     def test_substantive_l1_content_excludes_title_only_text(self):
         # Build this group directly because award_with_clause is for child-node cases.
         group = iter_top_level_groups(

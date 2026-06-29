@@ -12,8 +12,13 @@ from src.script_3b_review_overtime_interpretation import (
     build_relevant_clause_excerpt_markdown,
     build_creator_messages,
     build_evaluator_messages,
+    creator_review_json_schema,
     creator_response_path_for_interpretation,
+    evaluator_feedback_json_schema,
     evaluator_feedback_path_for_interpretation,
+    extract_json_object_from_text,
+    fallback_evaluator_feedback_markdown,
+    fallback_creator_response_markdown,
     parse_creator_update,
     revised_output_path_for_interpretation,
     review_overtime_interpretation,
@@ -39,7 +44,7 @@ class FakeChat:
 
 class FakeEvaluatorClient:
     def __init__(self, output_text):
-        self.chat = FakeChat(output_text)
+        self.responses = FakeResponses(output_text)
 
 
 class FakeResponses:
@@ -60,7 +65,81 @@ class FakeCreatorClient:
         self.responses = FakeResponses(output_text)
 
 
+class FakeResponseApiEvaluatorResponses:
+    def __init__(self, response_payload):
+        self.response_payload = response_payload
+        self.calls = []
+
+    def create(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.response_payload
+
+
+class FakeResponseApiEvaluatorClient:
+    def __init__(self, response_payload):
+        self.responses = FakeResponseApiEvaluatorResponses(response_payload)
+
+
 class OvertimeInterpretationReviewTests(unittest.TestCase):
+    def test_review_schemas_include_tracked_rule_arrays(self):
+        self.assertEqual(
+            evaluator_feedback_json_schema()["properties"]["new_rules"]["type"],
+            "array",
+        )
+        self.assertEqual(
+            creator_review_json_schema()["properties"]["new_rule_reviews"]["type"],
+            "array",
+        )
+
+    def test_extract_json_object_from_text_accepts_fenced_json(self):
+        parsed_data = extract_json_object_from_text(
+            "```json\n"
+            '{"summary_markdown": "# Feedback", "rule_reviews": [], "new_rules": []}\n'
+            "```"
+        )
+
+        self.assertEqual(parsed_data["summary_markdown"], "# Feedback")
+
+    def test_extract_json_object_from_text_repairs_multiline_string_values(self):
+        parsed_data = extract_json_object_from_text(
+            '{\n'
+            '"summary_markdown": "# Feedback\\n\\nLine one.\nLine two.",\n'
+            '"rule_reviews": [],\n'
+            '"new_rules": []\n'
+            "}"
+        )
+
+        self.assertIn("Line two.", parsed_data["summary_markdown"])
+
+    def test_fallback_creator_response_markdown_renders_decision_record_when_json_is_present(self):
+        markdown = fallback_creator_response_markdown(
+            validation_error="Rule cannot be removed.",
+            creator_output_text=json.dumps(
+                {
+                    "decision_record_markdown": "# Decision record\n\nAccepted one point.",
+                    "rule_updates": [{"rule_id": "rule-1", "decision": "remove", "reason": "No."}],
+                    "new_rule_reviews": [],
+                }
+            ),
+        )
+
+        self.assertIn("## Creator decision record", markdown)
+        self.assertIn("# Decision record", markdown)
+        self.assertIn("- Rule updates returned: 1", markdown)
+        self.assertIn("- Evaluator-proposed new rule decisions returned: 0", markdown)
+        self.assertIn("```json", markdown)
+
+    def test_fallback_evaluator_feedback_markdown_renders_clean_manual_review_record(self):
+        markdown = fallback_evaluator_feedback_markdown(
+            validation_error="Expecting ',' delimiter",
+            evaluator_output_text='{"summary_markdown":"Overall view","rule_reviews":[',
+        )
+
+        self.assertIn("# Evaluator feedback validation failure", markdown)
+        self.assertIn("## Validation error", markdown)
+        self.assertIn("## Raw evaluator response", markdown)
+        self.assertIn("```text", markdown)
+
     def test_output_paths_for_interpretation(self):
         interpretation_path = Path(
             "data/processed/3_overtime_interpretations/MA000018_overtime_interpretation.md"
@@ -169,6 +248,17 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 ]
             },
             evaluator_feedback_markdown="# Feedback\n\nAsk whether clause 20.1 should mention shiftworkers.",
+            evaluator_feedback_data={
+                "summary_markdown": "# Feedback\n\nAsk whether clause 20.1 should mention shiftworkers.",
+                "rule_reviews": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "recommendation": "modify",
+                        "rationale": "Clarify wording.",
+                    }
+                ],
+                "new_rules": [],
+            },
         )
 
         user_prompt = messages[1]["content"]
@@ -186,6 +276,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn("Keep clause references in the revised markdown bullets", user_prompt)
         self.assertIn("If a clause uses general wording such as \"employee\"", user_prompt)
         self.assertIn("Relevant clause excerpts", user_prompt)
+        self.assertIn("Evaluator structured review JSON", user_prompt)
         self.assertNotIn("Script 3 creator prompt context", user_prompt)
         self.assertNotIn("clause_classification_messages", user_prompt)
         self.assertNotIn("interpretation_messages", user_prompt)
@@ -269,7 +360,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                         },
                     }
                 ],
-                "new_rules": [],
+                "new_rule_reviews": [],
             },
         )
 
@@ -310,7 +401,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                         "reason": "Clarified wording.",
                     }
                 ],
-                "new_rules": [],
+                "new_rule_reviews": [],
             },
         )
 
@@ -318,6 +409,68 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(preserved_rule.rule_id, "all-employees_001")
         self.assertEqual(preserved_rule.rule_markdown, "- Original rule. [clause 20.1]")
         self.assertEqual(preserved_rule.review_status, "confirmed")
+
+    def test_apply_review_decisions_only_adds_new_rules_when_evaluator_and_creator_agree(self):
+        original_rule = OvertimeRule(
+            rule_id="all-employees_001",
+            section_heading="All employees",
+            employee_scope=("full-time", "part-time", "casual"),
+            clause_references=("23.1(a)",),
+            rule_markdown="- Work outside ordinary hours is overtime. [23.1(a)]",
+            rule_plain_text="Work outside ordinary hours is overtime.",
+            source_clause_numbers=("23.1(a)",),
+            source_classifications=("Overtime Trigger",),
+        )
+
+        result = apply_review_decisions(
+            original_rules=[original_rule],
+            evaluator_feedback={
+                "rule_reviews": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "recommendation": "modify",
+                        "rationale": "Split the rule.",
+                    }
+                ],
+                "new_rules": [
+                    {
+                        "rule_id": "all-employees_002",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time", "part-time", "casual"],
+                        "clause_references": ["22.1(b)"],
+                        "rule_markdown": "- If a meal break is interrupted by the employer, overtime is paid until an uninterrupted break is taken. [22.1(b)]",
+                        "rule_plain_text": "If a meal break is interrupted by the employer, overtime is paid until an uninterrupted break is taken.",
+                        "source_clause_numbers": ["22.1(b)"],
+                        "source_classifications": ["Overtime Trigger"],
+                    }
+                ],
+            },
+            creator_decision_data={
+                "decision_record_markdown": "# Decision record",
+                "rule_updates": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "decision": "modify",
+                        "reason": "Keep the general trigger and add atomic rules.",
+                        "updated_rule": {
+                            "rule_markdown": "- Work outside an employee's ordinary hours is overtime. [23.1(a)]",
+                            "rule_plain_text": "Work outside an employee's ordinary hours is overtime.",
+                        },
+                    }
+                ],
+                "new_rule_reviews": [
+                    {
+                        "rule_id": "all-employees_002",
+                        "decision": "accept",
+                        "reason": "Add the omitted meal-break overtime trigger.",
+                        "updated_rule": None,
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(len(result["rules"]), 2)
+        self.assertEqual(result["rules"][1].rule_id, "all-employees_002")
 
     def test_review_overtime_interpretation_filters_context_and_writes_outputs(self):
         classification = {
@@ -345,18 +498,44 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             ],
         }
         evaluator_client = FakeEvaluatorClient(
-            "# Overtime interpretation supervisor feedback\n\n"
-            "## Questions for the creator\n\n"
-            "- Should clause 20.1 be clearer?"
+            json.dumps(
+                {
+                    "summary_markdown": (
+                        "# Overtime interpretation supervisor feedback\n\n"
+                        "## Questions for the creator\n\n"
+                        "- Should clause 20.1 be clearer?"
+                    ),
+                    "rule_reviews": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "recommendation": "modify",
+                            "rationale": "Clarify clause 20.1.",
+                        }
+                    ],
+                    "new_rules": [],
+                }
+            )
         )
         creator_client = FakeCreatorClient(
-            "<creator_response>\n"
-            "# Creator response\n\nAccepted the clause 20.1 clarity question.\n"
-            "</creator_response>\n"
-            "<revised_interpretation>\n"
-            "# Overtime Interpretation Working Document\n\n"
-            "Clause 20.1 has been clarified.\n"
-            "</revised_interpretation>"
+            json.dumps(
+                {
+                    "decision_record_markdown": (
+                        "# Creator response\n\nAccepted the clause 20.1 clarity question."
+                    ),
+                    "rule_updates": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "decision": "modify",
+                            "reason": "Clarified clause 20.1.",
+                            "updated_rule": {
+                                "rule_markdown": "- Clause 20.1 has been clarified. [20.1]",
+                                "rule_plain_text": "Clause 20.1 has been clarified.",
+                            },
+                        }
+                    ],
+                    "new_rule_reviews": [],
+                }
+            )
         )
 
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -371,6 +550,29 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
 
             interpretation_path.write_text(
                 "## All Employees",
+                encoding="utf-8",
+            )
+            interpretation_path.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "overtime-rules-v1",
+                        "source_classification_file": "award_payment_classification.json",
+                        "source_clause_classification_file": "award_overtime_clause_classification.json",
+                        "rendered_markdown": "## All Employees\n\n- Clause 20.1 is overtime. [20.1]\n",
+                        "rules": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "section_heading": "All Employees",
+                                "employee_scope": ["full-time", "part-time", "casual"],
+                                "clause_references": ["20.1"],
+                                "rule_markdown": "- Clause 20.1 is overtime. [20.1]",
+                                "rule_plain_text": "Clause 20.1 is overtime.",
+                                "source_clause_numbers": ["20.1"],
+                                "source_classifications": ["Overtime Trigger"],
+                            }
+                        ],
+                    }
+                ),
                 encoding="utf-8",
             )
             classification_path.write_text(json.dumps(classification), encoding="utf-8")
@@ -389,7 +591,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 inter_call_delay_seconds=0,
             )
 
-            evaluator_prompt = evaluator_client.chat.completions.calls[0]["messages"][1][
+            evaluator_prompt = evaluator_client.responses.calls[0]["input"][1][
                 "content"
             ]
             creator_prompt = creator_client.responses.calls[0]["input"][1]["content"]
@@ -413,12 +615,20 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             revised_file_exists = artifacts.revised_interpretation_path.exists()
 
         self.assertEqual(
-            evaluator_client.chat.completions.calls[0]["model"],
+            evaluator_client.responses.calls[0]["model"],
             EVALUATOR_MODEL,
         )
         self.assertEqual(
             creator_client.responses.calls[0]["model"],
             DEFAULT_CREATOR_MODEL,
+        )
+        self.assertEqual(
+            evaluator_client.responses.calls[0]["text"]["format"]["type"],
+            "json_schema",
+        )
+        self.assertEqual(
+            creator_client.responses.calls[0]["text"]["format"]["type"],
+            "json_schema",
         )
         self.assertIn('"20.1"', evaluator_prompt)
         self.assertIn('"30.1"', evaluator_prompt)
@@ -454,10 +664,35 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 }
             ],
         }
-        evaluator_client = FakeEvaluatorClient("# Feedback\n\nReview clause 20.1.")
+        evaluator_client = FakeEvaluatorClient(
+            json.dumps(
+                {
+                    "summary_markdown": "# Feedback\n\nReview clause 20.1.",
+                    "rule_reviews": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "recommendation": "keep",
+                            "rationale": "Review clause 20.1.",
+                        }
+                    ],
+                    "new_rules": [],
+                }
+            )
+        )
         creator_client = FakeCreatorClient(
-            "<creator_response>\nAccepted.\n</creator_response>\n"
-            "<revised_interpretation>\n# Revised\n</revised_interpretation>"
+            json.dumps(
+                {
+                    "decision_record_markdown": "# Creator response\n\nAccepted.",
+                    "rule_updates": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "decision": "keep",
+                            "reason": "Accepted.",
+                        }
+                    ],
+                    "new_rule_reviews": [],
+                }
+            )
         )
         status_messages = []
 
@@ -471,6 +706,29 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 / "award_overtime_clause_classification.json"
             )
             interpretation_path.write_text("## All Employees", encoding="utf-8")
+            interpretation_path.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "overtime-rules-v1",
+                        "source_classification_file": "award_payment_classification.json",
+                        "source_clause_classification_file": "award_overtime_clause_classification.json",
+                        "rendered_markdown": "## All Employees\n\n- Clause 20.1 is overtime. [20.1]\n",
+                        "rules": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "section_heading": "All Employees",
+                                "employee_scope": ["full-time", "part-time", "casual"],
+                                "clause_references": ["20.1"],
+                                "rule_markdown": "- Clause 20.1 is overtime. [20.1]",
+                                "rule_plain_text": "Clause 20.1 is overtime.",
+                                "source_clause_numbers": ["20.1"],
+                                "source_classifications": ["Overtime Trigger"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
             classification_path.write_text(json.dumps(classification), encoding="utf-8")
             overtime_clause_classification_path.parent.mkdir()
             overtime_clause_classification_path.write_text(
@@ -502,6 +760,111 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                 for message in status_messages
             )
         )
+
+    def test_review_overtime_interpretation_accepts_fenced_json_from_response_api_evaluator(self):
+        classification = {
+            "classified_clauses": {
+                "20.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Overtime after ordinary hours.",
+                }
+            }
+        }
+        overtime_clause_classification = {
+            "schema_version": "overtime-clause-classification-v2",
+            "clauses": [
+                {
+                    "clause_number": "20.1",
+                    "classification": "Overtime Trigger",
+                    "classifications": ["Overtime Trigger"],
+                    "explanation": "Directly creates overtime.",
+                    "clause_text": "Overtime after ordinary hours.",
+                }
+            ],
+        }
+        evaluator_response = SimpleNamespace(
+            output=[
+                {
+                    "content": [
+                            {
+                                "type": "output_text",
+                                "text": (
+                                    "```json\n"
+                                '{"summary_markdown": "# Feedback", "rule_reviews": [{"rule_id": "all-employees_001", "recommendation": "keep", "rationale": "Keep the rule."}], "new_rules": []}\n'
+                                    "```"
+                                ),
+                            }
+                    ]
+                }
+            ]
+        )
+        evaluator_client = FakeResponseApiEvaluatorClient(evaluator_response)
+        creator_client = FakeCreatorClient(
+            json.dumps(
+                {
+                    "decision_record_markdown": "# Creator response\n\nAccepted.",
+                    "rule_updates": [
+                        {
+                            "rule_id": "all-employees_001",
+                            "decision": "keep",
+                            "reason": "Accepted.",
+                        }
+                    ],
+                    "new_rule_reviews": [],
+                }
+            )
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            interpretation_path = temp_path / "award_overtime_interpretation.md"
+            classification_path = temp_path / "award_payment_classification.json"
+            overtime_clause_classification_path = (
+                temp_path
+                / "3_overtime_interpretations"
+                / "award_overtime_clause_classification.json"
+            )
+            interpretation_path.write_text("## All Employees", encoding="utf-8")
+            interpretation_path.with_suffix(".json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": "overtime-rules-v1",
+                        "source_classification_file": "award_payment_classification.json",
+                        "source_clause_classification_file": "award_overtime_clause_classification.json",
+                        "rendered_markdown": "## All Employees\n\n- Clause 20.1 is overtime. [20.1]\n",
+                        "rules": [
+                            {
+                                "rule_id": "all-employees_001",
+                                "section_heading": "All Employees",
+                                "employee_scope": ["full-time", "part-time", "casual"],
+                                "clause_references": ["20.1"],
+                                "rule_markdown": "- Clause 20.1 is overtime. [20.1]",
+                                "rule_plain_text": "Clause 20.1 is overtime.",
+                                "source_clause_numbers": ["20.1"],
+                                "source_classifications": ["Overtime Trigger"],
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            classification_path.write_text(json.dumps(classification), encoding="utf-8")
+            overtime_clause_classification_path.parent.mkdir()
+            overtime_clause_classification_path.write_text(
+                json.dumps(overtime_clause_classification),
+                encoding="utf-8",
+            )
+
+            artifacts = review_overtime_interpretation(
+                interpretation_path=interpretation_path,
+                classification_path=classification_path,
+                overtime_clause_classification_path=overtime_clause_classification_path,
+                evaluator_client=evaluator_client,
+                creator_client=creator_client,
+                inter_call_delay_seconds=0,
+            )
+
+        self.assertIn("# Feedback", artifacts.evaluator_feedback_markdown)
 
     def test_review_overtime_interpretation_preserves_original_rules_after_creator_validation_failure(self):
         classification = {
@@ -543,30 +906,30 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             [
                 json.dumps(
                     {
-                        "decision_record_markdown": "# Decision",
+                    "decision_record_markdown": "# Decision",
                         "rule_updates": [
                             {
                                 "rule_id": "all-employees_001",
-                                "decision": "remove",
-                                "reason": "Remove it.",
-                            }
-                        ],
-                        "new_rules": [],
-                    }
-                ),
-                json.dumps(
-                    {
+                            "decision": "remove",
+                            "reason": "Remove it.",
+                        }
+                    ],
+                    "new_rule_reviews": [],
+                }
+            ),
+            json.dumps(
+                {
                         "decision_record_markdown": "# Still invalid",
                         "rule_updates": [
                             {
                                 "rule_id": "all-employees_001",
-                                "decision": "remove",
-                                "reason": "Remove it.",
-                            }
-                        ],
-                        "new_rules": [],
-                    }
-                ),
+                            "decision": "remove",
+                            "reason": "Remove it.",
+                        }
+                    ],
+                    "new_rule_reviews": [],
+                }
+            ),
             ]
         )
 
@@ -694,13 +1057,13 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
                                 "decision": "remove",
                                 "reason": "Accepted removal.",
                             },
-                            {
-                                "rule_id": "all-employees_002",
-                                "decision": "keep",
-                                "reason": "Keep the supported rule.",
-                            },
-                        ],
-                        "new_rules": [],
+                        {
+                            "rule_id": "all-employees_002",
+                            "decision": "keep",
+                            "reason": "Keep the supported rule.",
+                        },
+                    ],
+                        "new_rule_reviews": [],
                     }
                 )
             ]

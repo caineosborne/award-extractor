@@ -449,7 +449,7 @@ def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
 
     st.markdown("**Reason**")
     st.write(record.get("reason", ""))
-    render_json_expander("Selected L1 JSON", record)
+    render_json_expander("Selected L1 JSON", record, key_suffix=panel_key)
 
 
 def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -476,7 +476,7 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
     st.write(", ".join(record.get("tags", [])))
     st.markdown("**Reason**")
     st.write(record.get("reason", ""))
-    render_json_expander("Selected L2 JSON", record)
+    render_json_expander("Selected L2 JSON", record, key_suffix=panel_key)
 
 
 def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -505,6 +505,11 @@ def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -
 
     st.markdown(f"#### Clause {record.get('clause_number', selected_key)}")
     st.markdown(f"**Classifications:** {', '.join(classification_labels)}")
+    st.markdown(f"**Employee cohort:** {record.get('employee_cohort', 'all')}")
+    st.markdown(f"**Work arrangement:** {record.get('work_arrangement', 'all')}")
+    other_scope_notes = str(record.get("other_scope_notes", "")).strip()
+    if other_scope_notes:
+        st.markdown(f"**Other scope notes:** {other_scope_notes}")
     st.markdown("**Explanation**")
     st.write(record.get("explanation", ""))
     st.markdown("**Clause text**")
@@ -516,7 +521,11 @@ def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -
         disabled=True,
         key=overtime_clause_text_widget_key(panel_key, selected_key),
     )
-    render_json_expander("Selected overtime classification JSON", record)
+    render_json_expander(
+        "Selected overtime classification JSON",
+        record,
+        key_suffix=panel_key,
+    )
 
 
 def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) -> str:
@@ -606,7 +615,7 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str) -> None
                     st.write(reason)
                 st.divider()
 
-    render_json_expander("Expert comparison JSON", comparison_data)
+    render_json_expander("Expert comparison JSON", comparison_data, key_suffix=panel_key)
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -617,17 +626,17 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     evaluator_column, creator_column, outcome_column = st.columns(3, gap="medium")
 
     with evaluator_column:
-        with st.container(height=620, border=True):
+        with st.container(border=True):
             st.markdown("#### Evaluator feedback")
-            render_markdown_file(artifact_paths.evaluator_feedback)
+            render_evaluator_feedback_panel(artifact_paths.evaluator_feedback)
 
     with creator_column:
-        with st.container(height=620, border=True):
+        with st.container(border=True):
             st.markdown("#### Creator commentary")
-            render_markdown_file(artifact_paths.creator_response)
+            render_creator_commentary_panel(artifact_paths.creator_response)
 
     with outcome_column:
-        with st.container(height=620, border=True):
+        with st.container(border=True):
             st.markdown("#### Final outcome")
             revised_json_path = getattr(
                 artifact_paths,
@@ -641,6 +650,163 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
                 )
             else:
                 render_markdown_file(artifact_paths.revised_overtime_interpretation)
+
+
+def render_evaluator_feedback_panel(markdown_path: Path) -> None:
+    """Render evaluator feedback with markdown as the primary display source."""
+    render_file_details(markdown_path)
+
+    markdown_content = read_text_file(markdown_path)
+    if markdown_content.exists:
+        markdown_text = markdown_content.text.strip()
+        if (
+            markdown_text
+            and not markdown_text.startswith("# Evaluator feedback validation failure")
+            and not markdown_text.startswith("{")
+        ):
+            st.markdown(markdown_text)
+            return
+
+    json_path = markdown_path.with_suffix(".json")
+    json_data = load_json_or_show_error(json_path) if json_path.exists() else None
+    if isinstance(json_data, dict):
+        summary_markdown = str(json_data.get("summary_markdown", "")).strip()
+        rule_reviews = json_data.get("rule_reviews", [])
+        new_rules = json_data.get("new_rules", [])
+
+        if summary_markdown.startswith("# Evaluator feedback validation failure"):
+            main_markdown, raw_block = split_markdown_at_heading(
+                summary_markdown,
+                "## Raw evaluator response",
+            )
+            if main_markdown:
+                st.markdown(main_markdown)
+            if raw_block:
+                with st.expander("Raw evaluator response", expanded=False):
+                    st.markdown(
+                        strip_leading_heading(raw_block, "## Raw evaluator response")
+                    )
+            return
+
+        if summary_markdown.startswith("{"):
+            st.warning(
+                "The evaluator returned an incomplete structured response. "
+                "The saved review is shown as a raw payload for manual checking."
+            )
+            with st.expander("Raw evaluator response", expanded=False):
+                st.code(summary_markdown, language="json")
+            return
+
+        if summary_markdown:
+            st.markdown(summary_markdown)
+
+        if isinstance(rule_reviews, list) and rule_reviews:
+            with st.expander("Rule-by-rule recommendations", expanded=False):
+                for rule_review in rule_reviews:
+                    if not isinstance(rule_review, dict):
+                        continue
+                    rule_id = str(rule_review.get("rule_id", "")).strip()
+                    recommendation = str(
+                        rule_review.get("recommendation", "")
+                    ).strip()
+                    rationale = str(rule_review.get("rationale", "")).strip()
+                    heading = rule_id or "rule"
+                    if recommendation:
+                        heading = f"{heading} ({recommendation})"
+                    st.markdown(f"##### {heading}")
+                    if rationale:
+                        st.write(rationale)
+                    st.divider()
+
+        if isinstance(new_rules, list) and new_rules:
+            with st.expander("Suggested new rules", expanded=False):
+                for new_rule in new_rules:
+                    if not isinstance(new_rule, dict):
+                        continue
+                    rule_id = str(new_rule.get("rule_id", "")).strip()
+                    st.markdown(f"##### {rule_id or 'new rule'}")
+                    rule_markdown = str(new_rule.get("rule_markdown", "")).strip()
+                    if rule_markdown:
+                        st.markdown(rule_markdown)
+                    st.divider()
+
+        with st.expander("Structured evaluator feedback JSON", expanded=False):
+            render_json_expander(
+                "Evaluator feedback JSON",
+                json_data,
+                key_suffix=str(json_path),
+            )
+        return
+
+    render_markdown_file(markdown_path)
+
+
+def render_creator_commentary_panel(markdown_path: Path) -> None:
+    """Render creator commentary with markdown as the primary display source."""
+    render_file_details(markdown_path)
+
+    markdown_content = read_text_file(markdown_path)
+    if markdown_content.exists:
+        markdown_text = markdown_content.text.strip()
+        if (
+            markdown_text
+            and not markdown_text.startswith("# Creator response validation failure")
+            and not markdown_text.startswith("{")
+        ):
+            st.markdown(markdown_text)
+            return
+
+    json_path = markdown_path.with_suffix(".json")
+    json_data = load_json_or_show_error(json_path) if json_path.exists() else None
+    if isinstance(json_data, dict):
+        decision_record_markdown = str(
+            json_data.get("decision_record_markdown", "")
+        ).strip()
+        validation_error = str(json_data.get("validation_error", "")).strip()
+        raw_creator_response = str(json_data.get("raw_creator_response", "")).strip()
+
+        if validation_error:
+            st.warning(
+                "The creator response could not be applied automatically and requires manual review."
+            )
+            st.write(f"Validation issue: {validation_error}")
+
+        if decision_record_markdown:
+            st.markdown(decision_record_markdown)
+
+        if raw_creator_response:
+            with st.expander("Raw creator response", expanded=False):
+                st.code(raw_creator_response, language="json")
+
+        with st.expander("Structured creator commentary JSON", expanded=False):
+            render_json_expander(
+                "Creator commentary JSON",
+                json_data,
+                key_suffix=str(json_path),
+            )
+        return
+
+    render_markdown_file(markdown_path)
+
+
+def split_markdown_at_heading(markdown_text: str, heading: str) -> tuple[str, str]:
+    """Split a markdown document at the nominated heading."""
+    heading_index = markdown_text.find(heading)
+    if heading_index == -1:
+        return markdown_text.strip(), ""
+
+    main_markdown = markdown_text[:heading_index].strip()
+    trailing_markdown = markdown_text[heading_index:].strip()
+    return main_markdown, trailing_markdown
+
+
+def strip_leading_heading(markdown_text: str, heading: str) -> str:
+    """Remove a duplicated leading heading when content is shown inside an expander."""
+    stripped_text = markdown_text.strip()
+    if not stripped_text.startswith(heading):
+        return stripped_text
+
+    return stripped_text[len(heading) :].lstrip()
 
 
 def render_formatted_4a_screen(artifact_paths: Any, panel_key: str) -> None:
@@ -880,7 +1046,11 @@ def render_overtime_rules_json(
 
     if not isinstance(rules, list) or not rules:
         st.warning("No structured overtime rules were found in this JSON artifact.")
-        render_json_expander("Structured overtime rules JSON", rules_data)
+        render_json_expander(
+            "Structured overtime rules JSON",
+            rules_data,
+            key_suffix=str(json_path),
+        )
         return
 
     with st.expander("Rule-by-rule breakdown", expanded=False):
@@ -892,11 +1062,20 @@ def render_overtime_rules_json(
             section_heading = str(rule.get("section_heading", ""))
             clause_references = ", ".join(rule.get("clause_references", []))
             employee_scope = ", ".join(rule.get("employee_scope", []))
+            employee_cohort = str(rule.get("employee_cohort", "")).strip()
+            work_arrangement = str(rule.get("work_arrangement", "")).strip()
+            other_scope_notes = str(rule.get("other_scope_notes", "")).strip()
             st.markdown(f"##### {rule_id}")
             if section_heading:
                 st.caption(f"Section: {section_heading}")
             if employee_scope:
                 st.write(f"**Employee scope:** {employee_scope}")
+            if employee_cohort:
+                st.write(f"**Employee cohort:** {employee_cohort}")
+            if work_arrangement:
+                st.write(f"**Work arrangement:** {work_arrangement}")
+            if other_scope_notes:
+                st.write(f"**Other scope notes:** {other_scope_notes}")
             if clause_references:
                 st.write(f"**Clause references:** {clause_references}")
             st.markdown(rule.get("rule_markdown", ""))
@@ -905,7 +1084,11 @@ def render_overtime_rules_json(
                 st.caption(plain_text)
             st.divider()
 
-    render_json_expander("Structured overtime rules JSON", rules_data)
+    render_json_expander(
+        "Structured overtime rules JSON",
+        rules_data,
+        key_suffix=str(json_path),
+    )
 
 
 def render_missing_file(path: Path) -> None:
@@ -1188,22 +1371,6 @@ def render_pipeline_run_controls(
         ):
             execute_pipeline_run(selected_award_code, step="5b")
 
-    if run_is_active:
-        render_pipeline_run_status_autorefresh(selected_award_code)
-    else:
-        render_pipeline_run_status(selected_award_code, current_status)
-
-
-@st.fragment(run_every="5s")
-def render_pipeline_run_status_autorefresh(selected_award_code: str) -> None:
-    """Refresh the run status panel automatically while a run is active."""
-    current_status = normalized_status_for_award(selected_award_code)
-    state = str(current_status.get("state", "unknown")) if current_status else "unknown"
-
-    if state not in {"starting", "running"}:
-        st.rerun()
-        return
-
     render_pipeline_run_status(selected_award_code, current_status)
 
 
@@ -1287,7 +1454,6 @@ def render_pipeline_run_status(
     elif log_text:
         with st.expander("Pipeline run log", expanded=False):
             st.code(log_text, language="text")
-
 
 def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
     try:
@@ -1435,9 +1601,28 @@ def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -
     )
 
 
-def render_json_expander(label: str, value: dict[str, Any]) -> None:
+def render_json_expander(
+    label: str,
+    value: dict[str, Any],
+    *,
+    key_suffix: str = "",
+) -> None:
     with st.expander(label, expanded=False):
-        st.code(json.dumps(value, indent=2, ensure_ascii=False), language="json")
+        rendered_json = json.dumps(value, indent=2, ensure_ascii=False)
+        line_count = rendered_json.count("\n") + 1
+        widget_height = min(max(220, line_count * 20), 700)
+        unique_widget_key = (
+            f"{label}_{key_suffix}_{abs(hash(rendered_json))}_json_view"
+            if key_suffix
+            else f"{label}_{abs(hash(rendered_json))}_json_view"
+        )
+        st.text_area(
+            label,
+            value=rendered_json,
+            height=widget_height,
+            disabled=True,
+            key=unique_widget_key,
+        )
 
 
 def bool_label(value: Any) -> str:

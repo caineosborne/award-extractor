@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -23,6 +24,10 @@ from src.common.active_pipeline_paths import (
     PROJECT_ROOT,
     default_classification_path_for_award,
     overtime_clause_classification_output_path_for_classification,
+)
+from src.common.overtime_rules import (
+    ALLOWED_EMPLOYEE_COHORTS,
+    ALLOWED_WORK_ARRANGEMENTS,
 )
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_runtime import load_openai_environment
@@ -37,7 +42,11 @@ from src.script_2_classify_payments import parse_response_json
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
 DEFAULT_MODEL = "gpt-5.4-mini"
 OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
-SCHEMA_VERSION = "overtime-clause-classification-v2"
+SCHEMA_VERSION = "overtime-clause-classification-v3"
+SUPPORTED_SCHEMA_VERSIONS = (
+    "overtime-clause-classification-v2",
+    SCHEMA_VERSION,
+)
 OVERTIME_CLASSIFICATIONS = (
     "Ordinary Hours Boundary",
     "Overtime Trigger",
@@ -63,6 +72,9 @@ class OvertimeClauseClassification:
     classification: str
     clause_text: str
     explanation: str
+    employee_cohort: str = "all"
+    work_arrangement: str = "all"
+    other_scope_notes: str = ""
     classifications: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
@@ -129,6 +141,20 @@ def clause_source_text(clause: Mapping[str, Any]) -> str:
 def clause_text(clause: Mapping[str, Any]) -> str:
     """Return clause source text using the legacy helper name."""
     return clause_source_text(clause)
+
+
+def normalized_work_arrangement_from_clause_text(clause_text: str) -> str:
+    """Return an explicit work-arrangement tag supported by the clause text."""
+    normalized_text = clause_text.lower()
+
+    if re.search(r"\bday[- ]workers?\b", normalized_text):
+        return "day-worker"
+    if re.search(r"\bshiftworkers?\b", normalized_text):
+        return "shiftworker"
+    if re.search(r"\bshiftwork\b", normalized_text):
+        return "shiftworker"
+
+    return "all"
 
 
 def select_overtime_related_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
@@ -222,6 +248,15 @@ def classification_response_json_schema() -> dict[str, Any]:
                         },
                         "clause_text": {"type": "string"},
                         "explanation": {"type": "string"},
+                        "employee_cohort": {
+                            "type": "string",
+                            "enum": list(ALLOWED_EMPLOYEE_COHORTS),
+                        },
+                        "work_arrangement": {
+                            "type": "string",
+                            "enum": list(ALLOWED_WORK_ARRANGEMENTS),
+                        },
+                        "other_scope_notes": {"type": "string"},
                     },
                     "required": [
                         "clause_number",
@@ -229,6 +264,9 @@ def classification_response_json_schema() -> dict[str, Any]:
                         "classifications",
                         "clause_text",
                         "explanation",
+                        "employee_cohort",
+                        "work_arrangement",
+                        "other_scope_notes",
                     ],
                 },
             },
@@ -262,6 +300,9 @@ def validate_overtime_clause_classifications(
         classification = str(raw_clause.get("classification") or "")
         raw_classifications = raw_clause.get("classifications")
         explanation = str(raw_clause.get("explanation") or "")
+        employee_cohort = str(raw_clause.get("employee_cohort") or "all").strip().lower()
+        work_arrangement = str(raw_clause.get("work_arrangement") or "all").strip().lower()
+        other_scope_notes = str(raw_clause.get("other_scope_notes") or "").strip()
 
         if clause_number not in expected_clause_numbers:
             raise OvertimeInterpretationError(
@@ -308,12 +349,28 @@ def validate_overtime_clause_classifications(
             raise OvertimeInterpretationError(
                 f"Overtime clause classification explanation is empty: {clause_number}"
             )
+        if employee_cohort not in ALLOWED_EMPLOYEE_COHORTS:
+            raise OvertimeInterpretationError(
+                f"Unsupported employee cohort for {clause_number}: {employee_cohort}"
+            )
+        if work_arrangement not in ALLOWED_WORK_ARRANGEMENTS:
+            raise OvertimeInterpretationError(
+                f"Unsupported work arrangement for {clause_number}: {work_arrangement}"
+            )
 
         source_clause = overtime_clauses[clause_number]
         if not isinstance(source_clause, Mapping):
             raise OvertimeInterpretationError(
                 f"Overtime clause is not an object: {clause_number}"
             )
+
+        supported_work_arrangement = normalized_work_arrangement_from_clause_text(
+            clause_source_text(source_clause)
+        )
+        if work_arrangement == "day-worker" and supported_work_arrangement != "day-worker":
+            work_arrangement = "all"
+        elif work_arrangement == "shiftworker" and supported_work_arrangement != "shiftworker":
+            work_arrangement = "all"
 
         returned_clause_numbers.add(clause_number)
         clause_classifications.append(
@@ -322,6 +379,9 @@ def validate_overtime_clause_classifications(
                 classification=classification,
                 clause_text=clause_source_text(source_clause),
                 explanation=explanation,
+                employee_cohort=employee_cohort,
+                work_arrangement=work_arrangement,
+                other_scope_notes=other_scope_notes,
                 classifications=categories,
             )
         )
@@ -357,7 +417,7 @@ def load_overtime_clause_classification_artifact(
         )
 
     schema_version = data.get("schema_version")
-    if schema_version != SCHEMA_VERSION:
+    if schema_version not in SUPPORTED_SCHEMA_VERSIONS:
         raise OvertimeInterpretationError(
             "Overtime clause classification JSON has unsupported schema version: "
             f"{schema_version}"
@@ -416,6 +476,9 @@ def build_clause_classification_artifact(
                 "classifications": list(classification.classifications),
                 "clause_text": classification.clause_text,
                 "explanation": classification.explanation,
+                "employee_cohort": classification.employee_cohort,
+                "work_arrangement": classification.work_arrangement,
+                "other_scope_notes": classification.other_scope_notes,
             }
             for classification in classifications
         ],

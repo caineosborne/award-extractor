@@ -7,6 +7,7 @@ Prompt ownership:
 import argparse
 import json
 import os
+import re
 from collections import OrderedDict
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -44,6 +45,54 @@ PLACEHOLDER_PREFIX = "No Level"
 SUBSTANTIVE_L1_MINIMUM_CHARACTERS = 30
 
 
+@dataclass(frozen=True)
+class DeterministicTagRule:
+    """One explicit post-classification tagging rule for auditability."""
+
+    rule_name: str
+    tag_to_add: str
+    patterns: tuple[str, ...]
+
+
+EXPLICIT_OVERTIME_TRIGGER_RULES: tuple[DeterministicTagRule, ...] = (
+    DeterministicTagRule(
+        rule_name="explicit_overtime_will_be_paid",
+        tag_to_add="Ordinary Hours & Overtime",
+        patterns=(
+            r"\bovertime will be paid\b",
+            r"\bpaid overtime\b",
+            r"\bovertime is payable\b",
+        ),
+    ),
+    DeterministicTagRule(
+        rule_name="explicit_paid_at_overtime_rates",
+        tag_to_add="Ordinary Hours & Overtime",
+        patterns=(
+            r"\bpaid at overtime rates?\b",
+            r"\bpayment of overtime\b",
+        ),
+    ),
+    DeterministicTagRule(
+        rule_name="explicit_overtime_provisions_apply",
+        tag_to_add="Ordinary Hours & Overtime",
+        patterns=(r"\bovertime provisions\b.*\bapply\b",),
+    ),
+    DeterministicTagRule(
+        rule_name="explicit_without_payment_of_overtime",
+        tag_to_add="Ordinary Hours & Overtime",
+        patterns=(r"\bwithout payment of overtime\b",),
+    ),
+    DeterministicTagRule(
+        rule_name="explicit_excess_hours_reference_to_overtime",
+        tag_to_add="Ordinary Hours & Overtime",
+        patterns=(
+            r"\bfor work in excess of\b[\s\S]*\bovertime\b",
+            r"\bfor work in excess of\b[\s\S]*\bpenalties specified\b",
+        ),
+    ),
+)
+
+
 class PaymentClauseClassifierError(RuntimeError):
     """Raised when the classifier cannot continue with the current award."""
 
@@ -69,6 +118,15 @@ class TopLevelGroup:
     title: str
     text: str
     descendants: tuple[ClauseItem, ...]
+
+
+@dataclass(frozen=True)
+class DeterministicTagAdjustment:
+    """Record one deterministic tag repair applied after model classification."""
+
+    reference: str
+    tag_added: str
+    rule_names: tuple[str, ...]
 
 
 # 3. Small helpers
@@ -177,6 +235,20 @@ def unique_items(value: list[str]) -> list[str]:
         if item not in unique:
             unique.append(item)
     return unique
+
+
+def deterministic_overtime_rule_names(clause_text: str) -> list[str]:
+    """Return the named explicit-overtime rules matched by the clause text."""
+    normalized_text = clause_text.lower()
+    matched_rule_names: list[str] = []
+
+    for rule in EXPLICIT_OVERTIME_TRIGGER_RULES:
+        for pattern in rule.patterns:
+            if re.search(pattern, normalized_text, flags=re.IGNORECASE):
+                matched_rule_names.append(rule.rule_name)
+                break
+
+    return matched_rule_names
 
 
 # 4. Award parsing / grouping
@@ -556,6 +628,93 @@ def validate_group_classification(
     return top_result, classified
 
 
+def apply_deterministic_tag_repairs(
+    group: TopLevelGroup,
+    top_result: dict[str, Any],
+    classified: OrderedDict[str, dict[str, Any]],
+) -> list[DeterministicTagAdjustment]:
+    """Repair missed explicit overtime tags using named deterministic rules."""
+    adjustments: list[DeterministicTagAdjustment] = []
+
+    clause_items_by_reference: OrderedDict[str, ClauseItem] = OrderedDict(
+        (item.reference, item) for item in group.descendants
+    )
+    if not clause_items_by_reference and has_substantive_l1_content(group):
+        clause_items_by_reference[group.reference] = ClauseItem(
+            reference=group.reference,
+            title=group.title,
+            text=group.text,
+            node=OrderedDict(),
+        )
+
+    for reference, clause_item in clause_items_by_reference.items():
+        matched_rule_names = deterministic_overtime_rule_names(clause_item.text)
+        if not matched_rule_names:
+            continue
+
+        existing_record = classified.get(reference)
+        if existing_record is None:
+            existing_record = {
+                "text": clause_item.text,
+                "tags": [],
+                "reason": "",
+            }
+            classified[reference] = existing_record
+
+        if "Ordinary Hours & Overtime" in existing_record["tags"]:
+            continue
+
+        existing_record["tags"] = unique_items(
+            [*existing_record["tags"], "Ordinary Hours & Overtime"]
+        )
+        existing_record["deterministic_tag_adjustments"] = [
+            {
+                "tag_added": "Ordinary Hours & Overtime",
+                "rule_names": matched_rule_names,
+            }
+        ]
+
+        deterministic_reason = (
+            "Deterministic tag repair applied: added `Ordinary Hours & Overtime` "
+            "because the clause text matched the explicit overtime-trigger rule(s) "
+            + ", ".join(matched_rule_names)
+            + "."
+        )
+        existing_reason = str(existing_record.get("reason") or "").strip()
+        existing_record["reason"] = (
+            f"{existing_reason} {deterministic_reason}".strip()
+            if existing_reason
+            else deterministic_reason
+        )
+
+        adjustments.append(
+            DeterministicTagAdjustment(
+                reference=reference,
+                tag_added="Ordinary Hours & Overtime",
+                rule_names=tuple(matched_rule_names),
+            )
+        )
+
+    if adjustments:
+        top_result["payment_relevant"] = True
+        top_result["requires_l2_classification"] = True
+        adjustment_references = ", ".join(
+            adjustment.reference for adjustment in adjustments
+        )
+        deterministic_summary = (
+            "Deterministic explicit-overtime tagging added `Ordinary Hours & Overtime` "
+            f"to: {adjustment_references}."
+        )
+        existing_top_reason = str(top_result.get("reason") or "").strip()
+        top_result["reason"] = (
+            f"{existing_top_reason} {deterministic_summary}".strip()
+            if existing_top_reason
+            else deterministic_summary
+        )
+
+    return adjustments
+
+
 def classify_group(
     group: TopLevelGroup,
     client: Any,
@@ -583,7 +742,12 @@ def classify_group(
         )
 
     # Parse the JSON text and verify that the references make sense for this clause group.
-    return validate_group_classification(group, parse_response_json(output_text))
+    top_result, classified = validate_group_classification(
+        group,
+        parse_response_json(output_text),
+    )
+    apply_deterministic_tag_repairs(group, top_result, classified)
+    return top_result, classified
 
 
 # 6. Output writing

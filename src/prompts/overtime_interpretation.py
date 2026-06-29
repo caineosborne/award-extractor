@@ -52,6 +52,9 @@ For each clause return:
 - classifications: all applicable classifications for the clause
 - clause_text
 - explanation
+- employee_cohort: one of `full-time`, `part-time`, `casual`, `permanent`, or `all`
+- work_arrangement: one of `day-worker`, `shiftworker`, or `all`
+- other_scope_notes: free text for any other explicit scope limitation, otherwise an empty string
 
 Clauses:
 
@@ -80,6 +83,13 @@ Examples include:
 Where relying on an implicit trigger, clearly identify both:
 1. The ordinary hours rule.
 2. Why work outside that rule may result in overtime.
+
+Scope tagging instructions:
+- Use `all` where the clause uses general wording such as `employee` and does not limit the rule to a narrower cohort.
+- Use `permanent` where the clause applies to permanent employees generally and does not distinguish between full-time and part-time employees.
+- Use `day-worker` or `shiftworker` only where the clause expressly limits the rule to that arrangement.
+- Do not infer `day-worker` merely from wording such as Monday to Friday, daytime hours, or an ordinary span that happens to sit in business hours, unless the clause expressly uses day-worker language.
+- Use `other_scope_notes` only for real express limitations that do not fit the standard tags.
 """.strip()
 
 
@@ -135,6 +145,9 @@ For each rule return:
 - rule_id: stable snake or kebab style identifier, for example `all-employees_span-outside-hours`
 - section_heading
 - employee_scope
+- employee_cohort
+- work_arrangement
+- other_scope_notes
 - clause_references
 - rule_markdown: one markdown bullet beginning with `- `
 - rule_plain_text
@@ -147,8 +160,15 @@ Important:
 - Preserve ordinary-hours-boundary rules where work outside the boundary may become overtime.
 - Use the same rule wording in `rule_markdown` that you would otherwise have written in the working paper.
 - `employee_scope` must be explicit. Use `["full-time", "part-time", "casual"]` where the rule applies generally.
+- `employee_cohort` must be one of `full-time`, `part-time`, `casual`, `permanent`, or `all`.
+- `employee_scope` must align with `employee_cohort`.
+- Use `employee_cohort = "permanent"` with `employee_scope = ["full-time", "part-time"]`.
+- Use `employee_cohort = "all"` with `employee_scope = ["full-time", "part-time", "casual"]`.
+- `work_arrangement` must be one of `day-worker`, `shiftworker`, or `all`.
+- `other_scope_notes` must capture any additional express scope limitation not covered by the standard tags, otherwise use an empty string.
 - `source_clause_numbers` must point only to clauses in the supplied working paper.
 - `source_classifications` must contain only `Ordinary Hours Boundary` and/or `Overtime Trigger`.
+- The supplied clause classifications include upstream scope tags. Treat those tags as the starting point for scope and do not narrow or broaden them unless the cited clause text clearly requires it.
 
 For each overtime rule:
 
@@ -156,6 +176,7 @@ For each overtime rule:
 - Each bullet must contain only one payroll test, threshold, boundary, span, roster condition, break condition, or other circumstance that can cause hours to become overtime.
 - State the employee type affected only when the rule applies to a specific employee segment. Where the clause does not specify an employee type, assuming it is relevant to all employees. 
 - If the clause uses general wording such as "employee" and does not limit the rule to a specific cohort, treat it as applying to all employees.
+- If the source clause classification says a clause applies to all employees, do not rewrite it as full-time, part-time, casual, permanent, day-worker, or shiftworker only unless the cited clause text expressly requires that narrower scope.
 - Clearly describe the work, event, threshold, limit, roster condition, or break condition that causes hours to become overtime.
 - Include all conditions, thresholds, limits and requirements needed to implement the rule. Do not simply refer to other clauses, make sure we say what what the clauses say. 
 - Include all relevant clause references.
@@ -233,6 +254,9 @@ def build_expert_comparison_messages(
         "as `full-time team members` unless the clause text expressly requires that narrower "
         "scope. If one run is broader and the broader wording is supported by the cited "
         "clauses, prefer the broader wording.\n\n"
+        "The shortlisted clause inputs also contain upstream scope tags for employee cohort, "
+        "work arrangement, and other scope notes. Use those tags as guidance and do not "
+        "silently drop or narrow them unless the cited clause text supports the change.\n\n"
         "Every input rule from run A and run B must be accounted for. Every shortlisted "
         "source clause must still be represented somewhere in the merged output or the "
         "comparison summary must say why the clause does not produce a standalone rule.\n\n"

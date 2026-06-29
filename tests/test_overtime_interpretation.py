@@ -17,6 +17,7 @@ from src.script_3_interpret_overtime import (
     format_clauses_for_prompt,
     generate_overtime_interpretation,
     output_path_for_classification,
+    validate_overtime_clause_classifications,
     validate_interpretation_rules,
 )
 
@@ -93,6 +94,14 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("Related Rule", classification_enum)
         self.assertIn("Not Relevant", classification_enum)
         self.assertEqual(classifications_enum, classification_enum)
+        self.assertEqual(
+            clause_properties["employee_cohort"]["enum"],
+            ["full-time", "part-time", "casual", "permanent", "all"],
+        )
+        self.assertEqual(
+            clause_properties["work_arrangement"]["enum"],
+            ["day-worker", "shiftworker", "all"],
+        )
 
     def test_filter_overtime_creation_clauses_keeps_only_creation_categories(self):
         classifications = [
@@ -132,6 +141,39 @@ class OvertimeInterpretationTests(unittest.TestCase):
             ["10.1", "20.1", "40.1"],
         )
 
+    def test_validate_overtime_clause_classifications_does_not_infer_day_worker_from_monday_to_friday_text(self):
+        response_data = {
+            "clauses": [
+                {
+                    "clause_number": "21.2",
+                    "classification": "Ordinary Hours Boundary",
+                    "classifications": ["Ordinary Hours Boundary"],
+                    "clause_text": "Ordinary hours Monday to Friday.",
+                    "explanation": "Defines ordinary hours.",
+                    "employee_cohort": "all",
+                    "work_arrangement": "day-worker",
+                    "other_scope_notes": "Ordinary hours are confined to Monday to Friday.",
+                }
+            ]
+        }
+        overtime_clauses = {
+            "21.2": {
+                "text": (
+                    "21.2: Ordinary hours will be worked in periods not exceeding eight "
+                    "hours, in unbroken periods save for meal breaks, between Monday and "
+                    "Friday."
+                )
+            }
+        }
+
+        classifications = validate_overtime_clause_classifications(
+            response_data,
+            overtime_clauses,
+        )
+
+        self.assertEqual(len(classifications), 1)
+        self.assertEqual(classifications[0].work_arrangement, "all")
+
     def test_build_messages_includes_required_working_document_sections(self):
         messages = build_messages(
             "classification.json",
@@ -158,6 +200,9 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertIn("still state the employee type affected", user_prompt)
         self.assertIn("Each bullet must contain only one payroll test", user_prompt)
         self.assertIn("If the clause uses general wording such as \"employee\"", user_prompt)
+        self.assertIn("employee_cohort", user_prompt)
+        self.assertIn("work_arrangement", user_prompt)
+        self.assertIn("upstream scope tags", user_prompt)
         self.assertIn("Write the clause references directly in the markdown bullet", user_prompt)
         self.assertIn("Do not place a general rule under `Full time`", user_prompt)
         self.assertIn("Do not repeat a general rule", user_prompt)
@@ -250,6 +295,47 @@ class OvertimeInterpretationTests(unittest.TestCase):
             "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset.",
         )
 
+    def test_validate_interpretation_rules_records_scope_warning_when_rule_is_narrower_than_clause_scope(self):
+        response_data = {
+            "rules": [
+                {
+                    "rule_id": "full-time-outside-6am-630pm",
+                    "section_heading": "Full-time employees",
+                    "employee_scope": ["full-time"],
+                    "employee_cohort": "full-time",
+                    "work_arrangement": "all",
+                    "other_scope_notes": "",
+                    "clause_references": ["21.3"],
+                    "rule_markdown": "- For a full-time employee, ordinary hours may only be worked between 6.00 am and 6.30 pm. [21.3]",
+                    "rule_plain_text": "For a full-time employee, ordinary hours may only be worked between 6.00 am and 6.30 pm.",
+                    "source_clause_numbers": ["21.3"],
+                    "source_classifications": ["Ordinary Hours Boundary"],
+                }
+            ]
+        }
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="21.3",
+                classification="Ordinary Hours Boundary",
+                clause_text="21.3 Ordinary hours may be worked between 6.00 am and 6.30 pm.",
+                explanation="Defines the ordinary hours span.",
+                employee_cohort="all",
+                work_arrangement="all",
+                other_scope_notes="",
+            )
+        ]
+
+        _rules, warnings = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+
+        self.assertEqual(len(warnings), 1)
+        self.assertEqual(
+            warnings[0],
+            "Rule 'full-time-outside-6am-630pm' draws on clause 21.3, which is classified as applying to all employees, but the rule is written as applying to full-time employees.",
+        )
+
     def test_generate_overtime_interpretation_writes_markdown_with_mocked_client(self):
         data = {
             "classified_clauses": {
@@ -333,7 +419,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(classification_archive_files), 1)
         self.assertEqual(
             classification_artifact["schema_version"],
-            "overtime-clause-classification-v2",
+            "overtime-clause-classification-v3",
         )
         self.assertEqual(len(classification_artifact["clauses"]), 2)
         self.assertEqual(
@@ -731,7 +817,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(fake_client.responses.calls), 2)
         self.assertEqual(
             regenerated_classification["schema_version"],
-            "overtime-clause-classification-v2",
+            "overtime-clause-classification-v3",
         )
         self.assertEqual(len(archive_files), 1)
 
