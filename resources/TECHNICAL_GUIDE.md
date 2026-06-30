@@ -182,7 +182,7 @@ Saved audit fields:
 
 Owners:
 - `src/script_3_part1_classify_overtime_clauses.py`
-- `src/prompts/overtime_interpretation.py`
+- `src/prompts/overtime_ruleset.py`
 
 ### Deterministic pre-filter
 
@@ -278,7 +278,7 @@ These are the overtime-creation clauses passed into rule generation.
 
 Owners:
 - `src/script_3_part2_generate_overtime_interpretation.py`
-- `src/prompts/overtime_interpretation.py`
+- `src/prompts/overtime_ruleset.py`
 
 ### Expert generation calls
 

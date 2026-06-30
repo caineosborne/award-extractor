@@ -253,3 +253,145 @@ The current decision is:
 - keep the overtime creation/consequence split
 - simplify everything else toward the current production ruleset model
 - do not preserve broad legacy overtime-only behaviour as an equal active implementation
+
+## Additional simplification suggestions
+
+### 1. Remove legacy prompt compatibility layers
+
+The active prompt model should be:
+
+- one canonical prompt family for overtime clause classification
+- one canonical prompt family for overtime ruleset generation, with creation/consequence variants
+- one canonical review prompt family
+- one canonical formatter prompt family
+- one canonical pseudocode prompt family
+
+We should avoid carrying:
+
+- compatibility prompt modules that only proxy to the current prompt builders
+- duplicate legacy creation-only prompt text
+- multiple prompt entrypoints for the same active step
+
+If an older script still needs to exist, it should call the current prompt builder directly rather than owning a second prompt API.
+
+### 2. Remove legacy helper aliases inside active scripts
+
+There are still several places where the code keeps older helper names for compatibility, even though the active code path already uses the newer ruleset-native implementation.
+
+Examples of what should be reduced over time:
+
+- wrapper helpers like `build_messages` where the active concept is now a ruleset-specific builder
+- duplicate helper names such as both `build_clause_classification_messages` and `build_classification_messages`
+- duplicate clause-selection helper names like `filter_*` and `select_*` where only one naming style is needed
+- legacy compatibility exports kept only so older tests or scripts can import the old name
+
+Recommended direction:
+
+- one public helper name per active concept
+- compatibility shims only where an external entrypoint truly still depends on them
+- remove alias names once the calling code and tests have moved to the canonical name
+
+### 3. Shrink or remove compatibility entrypoint scripts
+
+Some top-level scripts now exist mainly to preserve older operator habits while delegating to the newer split implementation.
+
+That is acceptable temporarily, but it should not remain a permanent second conceptual workflow.
+
+Recommended direction:
+
+- keep only the public scripts the team actually intends operators to run
+- where a script is only a thin wrapper, either:
+  - remove it; or
+  - document clearly that it is a compatibility shim and keep its body extremely small
+
+In practice this likely means reviewing whether scripts like:
+
+- `src/script_3_interpret_overtime.py`
+
+still need to remain public, or whether the current ruleset-native entrypoints are now sufficient on their own.
+
+### 4. Remove fallback-first downstream behaviour
+
+The current simplification direction should prefer:
+
+- one current artifact path
+- one current source selection rule
+- one current ruleset-aware downstream flow
+
+We should keep reducing patterns like:
+
+- try legacy file A
+- else try legacy file B
+- else try current file C
+
+unless the fallback exists to support a genuine short-lived migration.
+
+Recommended direction:
+
+- active downstream steps should read the canonical ruleset-native artifacts only
+- migration support, where unavoidable, should sit in a narrow boundary layer
+- Streamlit should reflect the current canonical artifact set, not act as a long-term migration engine
+
+### 5. Simplify naming within deterministic helpers
+
+The deterministic helper layer is improving, but it still carries a mix of:
+
+- old overtime-only terminology
+- ruleset-native terminology
+- wrapper names that exist only because earlier code used them
+
+Recommended direction:
+
+- use `ruleset` consistently when the helper is ruleset-specific
+- use `clause_classification`, `revised_ruleset`, `formatted_ruleset`, and `pseudocode` consistently as artifact descriptors
+- reduce old names like `interpretation` where the active object is now clearly a ruleset artifact
+
+This should make the code easier to explain in an audit context because the filenames, helper names, and UI labels will describe the same thing.
+
+### 6. Reduce documentation drift from old architecture
+
+The repo documentation still contains references to earlier prompt/script layouts and older architectural concepts.
+
+Recommended direction:
+
+- update docs to describe only the active ruleset-native flow
+- mark any retained compatibility script explicitly as compatibility-only
+- avoid documenting old internal split history unless it still matters operationally
+
+This should especially apply to:
+
+- technical guide material
+- methodology notes
+- output inventories
+- simplification notes once the related work is completed
+
+### 7. Prefer one canonical data contract per step
+
+Where possible, each step should have:
+
+- one canonical JSON contract
+- one canonical markdown artifact
+- one canonical validation/report artifact if needed
+
+We should avoid multiple near-equivalent artifacts that represent the same business object in slightly different ways.
+
+The current ruleset split is valid because creation and consequence are genuinely different business objects.
+The rest of the duplication should be challenged.
+
+### 8. Keep step scripts boring
+
+The strongest simplification principle for this codebase is:
+
+- prompt text lives in prompt modules
+- deterministic naming/path rules live in helper modules
+- step scripts orchestrate inputs, outputs, and model calls
+
+Whenever a step script starts growing:
+
+- embedded workflow prose
+- duplicate prompt assembly
+- repeated path inference
+- repeated filename branching
+- multiple compatibility code paths
+
+that is a candidate for extraction or deletion.

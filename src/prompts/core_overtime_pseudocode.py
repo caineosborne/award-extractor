@@ -50,30 +50,38 @@ COMMON_CONSTRAINTS = """Common constraints:
 """
 
 
-CREATION_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
+SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
 
 Goal:
-- Convert the supplied reviewed overtime creation guide into bullet-point pseudocode.
-- Classify whether worked hours are `Ordinary_Hours` or `Overtime_Hours`.
-- Treat `Unallocated_Hours` as the total hours worked that still need ordinary/overtime classification.
-- For this task, any hours that are not ordinary hours are overtime.
-- Focus on what causes hours to become overtime, not on multiplier or dollar calculation.
+{goal}
 
 Available fields:
 {fields}
 
-Creation-specific constraints:
-- Apply rules only to currently `Unallocated_Hours`.
-- The same worked hour must never be classified into more than one bucket.
-- Assign remaining `Unallocated_Hours` to `Ordinary_Hours` after all overtime triggers have been applied.
-- Do not cover allowance calculations, dollar amounts, overtime multipliers, or penalty amounts.
-- If the ruleset applies to all employees, it is not necessary to repeat the employee cohort unless a rule targets a narrower cohort.
+Ruleset-specific constraints:
+{ruleset_constraints}
 
 {common_constraints}
 
 Required markdown structure:
 
-# Overtime pseudocode
+{required_markdown_structure}
+"""
+
+
+PSEUDOCODE_RULESET_VARIANTS = {
+    OVERTIME_CREATION_RULESET: {
+        "goal": """- Convert the supplied reviewed overtime creation guide into bullet-point pseudocode.
+- Classify whether worked hours are `Ordinary_Hours` or `Overtime_Hours`.
+- Treat `Unallocated_Hours` as the total hours worked that still need ordinary/overtime classification.
+- For this task, any hours that are not ordinary hours are overtime.
+- Focus on what causes hours to become overtime, not on multiplier or dollar calculation.""",
+        "ruleset_constraints": """- Apply rules only to currently `Unallocated_Hours`.
+- The same worked hour must never be classified into more than one bucket.
+- Assign remaining `Unallocated_Hours` to `Ordinary_Hours` after all overtime triggers have been applied.
+- Do not cover allowance calculations, dollar amounts, overtime multipliers, or penalty amounts.
+- If the ruleset applies to all employees, it is not necessary to repeat the employee cohort unless a rule targets a narrower cohort.""",
+        "required_markdown_structure": """# Overtime pseudocode
 
 ## Derived Fields
 
@@ -83,34 +91,30 @@ Required markdown structure:
 
 ## Pseudocode
 
-## Implementation notes
-"""
-
-
-CONSEQUENCE_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
-
-Goal:
-- Convert the supplied reviewed overtime consequence guide into bullet-point pseudocode.
+## Implementation notes""",
+        "user_instructions": (
+            "Treat this as overtime creation mode. Determine which worked hours become "
+            "overtime and which remain ordinary hours. Do not calculate overtime "
+            "multipliers or pay outcomes."
+        ),
+        "repair_instructions": (
+            "Keep this in overtime creation mode. Repair the pseudocode so it "
+            "correctly determines which hours become overtime, without switching into "
+            "multiplier or payment-consequence logic."
+        ),
+    },
+    OVERTIME_CONSEQUENCE_RULESET: {
+        "goal": """- Convert the supplied reviewed overtime consequence guide into bullet-point pseudocode.
 - Determine what overtime consequence applies once hours are already overtime.
 - Do not classify ordinary hours versus overtime hours in this mode unless a source rule expressly needs that distinction as a condition.
-- Focus on consequence outcomes such as multipliers, minimum payments, ordinary-rate exceptions, meal entitlements, paid-release outcomes, and weekend/public-holiday overrides.
-
-Available fields:
-{fields}
-
-Consequence-specific constraints:
-- Treat the input as already-overtime hours or already-identified overtime circumstances that now need the correct consequence applied.
+- Focus on consequence outcomes such as multipliers, minimum payments, ordinary-rate exceptions, meal entitlements, paid-release outcomes, and weekend/public-holiday overrides.""",
+        "ruleset_constraints": """- Treat the input as already-overtime hours or already-identified overtime circumstances that now need the correct consequence applied.
 - Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs in this mode.
 - Use implementation outputs such as `Overtime_Rate_Multiplier`, `Minimum_Payment_Hours`, `Meal_Allowance_Payable`, `Meal_Allowance_Amount`, `Paid_Release_Required`, `Paid_Release_Minimum_Hours`, `Apply_Ordinary_Rate_Instead`, `Weekend_Public_Holiday_Override`, or similarly explicit consequence outputs when supported by the rules.
 - Split distinct consequence outcomes into separate implementation rules when payroll would configure them separately.
 - Keep trigger wording only where it is needed to identify when the consequence applies.
-- If a source rule is informational context only and does not change the outcome, place it in `Implementation notes` rather than forcing it into executable pseudocode.
-
-{common_constraints}
-
-Required markdown structure:
-
-# Overtime consequence pseudocode
+- If a source rule is informational context only and does not change the outcome, place it in `Implementation notes` rather than forcing it into executable pseudocode.""",
+        "required_markdown_structure": """# Overtime consequence pseudocode
 
 ## Derived Fields
 
@@ -120,20 +124,36 @@ Required markdown structure:
 
 ## Pseudocode
 
-## Implementation notes
-"""
+## Implementation notes""",
+        "user_instructions": (
+            "Treat this as overtime consequence mode. The input rules already assume "
+            "the relevant hours or circumstances are overtime. Determine the correct "
+            "consequence to apply, such as multipliers, minimum payments, paid release, "
+            "meal entitlements, ordinary-rate exceptions, or other post-overtime "
+            "outcomes. Do not rebuild overtime creation logic unless a source rule "
+            "expressly needs it as a condition."
+        ),
+        "repair_instructions": (
+            "Keep this in overtime consequence mode. Repair the pseudocode so it "
+            "applies the correct consequence after overtime already exists. Do not "
+            "drift into classifying ordinary versus overtime hours unless a source rule "
+            "expressly requires that condition."
+        ),
+    },
+}
 
 
 def _system_prompt_for_ruleset(ruleset_key: str, fields: str) -> str:
-    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
-        return CONSEQUENCE_SYSTEM_PROMPT_TEMPLATE.format(
-            fields=fields,
-            common_constraints=COMMON_CONSTRAINTS,
-        )
-
-    return CREATION_SYSTEM_PROMPT_TEMPLATE.format(
+    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+        ruleset_key,
+        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+    )
+    return SYSTEM_PROMPT_TEMPLATE.format(
+        goal=ruleset_variant["goal"],
         fields=fields,
+        ruleset_constraints=ruleset_variant["ruleset_constraints"],
         common_constraints=COMMON_CONSTRAINTS,
+        required_markdown_structure=ruleset_variant["required_markdown_structure"],
     )
 
 
@@ -153,8 +173,13 @@ def build_messages(
             "Required rule inventory derived from the reviewed source markdown:\n"
             f"{render_inventory_for_prompt(source_inventory)}\n\n"
         )
+    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+        ruleset_key,
+        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+    )
     user_prompt = (
         f"Reviewed source markdown: {source_file}\n\n"
+        f"Ruleset mode instruction: {ruleset_variant['user_instructions']}\n\n"
         f"{inventory_text}"
         "Complete reviewed source markdown to convert:\n"
         f"{overtime_summary_markdown}"
@@ -178,8 +203,13 @@ def build_repair_messages(
         f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
     )
     system_prompt = _system_prompt_for_ruleset(ruleset_key, fields)
+    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+        ruleset_key,
+        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+    )
     user_prompt = (
         f"Reviewed source markdown: {source_file}\n\n"
+        f"Ruleset mode instruction: {ruleset_variant['repair_instructions']}\n\n"
         "The first pseudocode draft failed deterministic validation.\n\n"
         "Required rule inventory derived from the reviewed source markdown:\n"
         f"{render_inventory_for_prompt(source_inventory)}\n\n"

@@ -1,7 +1,7 @@
 """Step 3 overtime interpretation generator.
 
 Prompt ownership:
-- Uses `src/prompts/overtime_interpretation.py`.
+- Uses the canonical ruleset prompts in `src/prompts/overtime_ruleset.py`.
 
 This compatibility entrypoint keeps the existing step-3 public API while
 delegating the work to two clearer internal scripts:

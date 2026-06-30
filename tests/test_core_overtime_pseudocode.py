@@ -169,6 +169,14 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             messages[0]["content"],
         )
         self.assertIn(
+            "Treat this as overtime consequence mode.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Do not rebuild overtime creation logic unless a source rule expressly needs it as a condition.",
+            messages[1]["content"],
+        )
+        self.assertIn(
             "Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs",
             messages[0]["content"],
         )
@@ -206,6 +214,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("Rule ID", messages[1]["content"])
         self.assertIn("Failed rules", messages[1]["content"])
         self.assertIn("Carry the relevant source clause references into comments", messages[1]["content"])
+        self.assertIn("Keep this in overtime creation mode.", messages[1]["content"])
 
     def test_select_overtime_interpretation_path_falls_back_from_4b_to_revised(self):
         with tempfile.TemporaryDirectory() as temp_dir:
