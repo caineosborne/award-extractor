@@ -25,6 +25,8 @@ Task:
 - Do not invent rules.
 - Do not calculate dollar amounts.
 - Explain each classification in one sentence.
+- Classify the clause text that is actually provided, not the heading you expect to see.
+- Be conservative: do not label a clause as a trigger or consequence unless the operative text supports that label.
 
 Categories:
 - Ordinary Hours Boundary: defines ordinary hours limits, including ordinary hours per day, week, averaging period, span, spread, roster cycle, or ordinary hours arrangement.
@@ -41,6 +43,16 @@ Important:
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
 - Do not classify a clause as Ordinary Hours Boundary unless it defines a limit, threshold, span, spread, roster condition, or arrangement for ordinary hours.
 - Consequence handling is deferred. Still classify consequence clauses accurately so they can be used later.
+- Use `Overtime Consequence` only where the clause text tells the payroll system what result applies once overtime already exists, such as a multiplier, minimum payment, TOIL option, paid rest outcome, allowance consequence, or other post-overtime entitlement.
+- Do not use `Overtime Consequence` merely because the clause says hours "will be paid at overtime rates" as part of explaining when the hours become overtime. In that case the clause is usually primarily an `Overtime Trigger`, even if it also carries a consequence label secondarily.
+- Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
+
+Primary classification rules:
+- Choose `Ordinary Hours Boundary` as the primary classification when the main operative effect of the clause is to define the outer limit of ordinary hours.
+- Choose `Overtime Trigger` as the primary classification when the main operative effect of the clause is to say when hours become overtime.
+- Choose `Overtime Consequence` as the primary classification when the main operative effect of the clause is to say what payment or entitlement applies after overtime already exists.
+- If a clause contains both trigger and consequence content, choose the primary classification based on the dominant payroll question answered by the clause, not merely the order the words appear in.
+- Do not select `Not Relevant` when another label clearly applies.
 """
 
 

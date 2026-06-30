@@ -14,11 +14,13 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.common.output_paths import (
-    OVERTIME_ENTITLEMENTS_DIR,
-    OVERTIME_INTERPRETATIONS_DIR,
     award_output_dir,
-    path_in_category,
     write_text_with_archive,
+)
+from src.common.overtime_rulesets import (
+    OVERTIME_CONSEQUENCE_RULESET,
+    OVERTIME_CREATION_RULESET,
+    infer_overtime_ruleset_key_from_path,
 )
 from src.prompts.overtime_guide_formatting import build_messages
 
@@ -26,6 +28,10 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_MODEL = "gpt-5.4-mini"
 DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Template.md"
 DEFAULT_AWARD_CODE = "MA000018"
+RULESET_CHOICES = (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+)
 
 class OvertimeEntitlementSummaryError(RuntimeError):
     """Raised when the overtime formatter cannot complete its work."""
@@ -56,9 +62,20 @@ def looks_like_path(value: str) -> bool:
     return path.suffix != "" or "/" in value or "\\" in value
 
 
-def default_interpretation_path_for_award(award_code: str) -> Path:
+def default_interpretation_path_for_award(
+    award_code: str,
+    ruleset_key: str | None = None,
+) -> Path:
     processed_root = PROJECT_ROOT / "data" / "processed"
     award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
+    if ruleset_key == OVERTIME_CREATION_RULESET:
+        explicit_revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        if explicit_revised_path.exists():
+            return explicit_revised_path
+    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+        explicit_revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        if explicit_revised_path.exists():
+            return explicit_revised_path
     revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
     if revised_path.exists():
         return revised_path
@@ -66,28 +83,37 @@ def default_interpretation_path_for_award(award_code: str) -> Path:
     return award_dir / f"{award_code}_overtime_interpretation.md"
 
 
-def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Path:
+def resolve_interpretation_path(
+    award_or_interpretation_path: Path | str,
+    ruleset_key: str | None = None,
+) -> Path:
     value = str(award_or_interpretation_path)
     if looks_like_path(value):
         return Path(value)
 
-    return default_interpretation_path_for_award(value)
+    return default_interpretation_path_for_award(value, ruleset_key)
 
 
 def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
     path = Path(interpretation_path)
     stem = path.stem
 
+    if stem.endswith("_overtime_creation_ruleset_revised"):
+        stem = stem.removesuffix("_overtime_creation_ruleset_revised")
+        return path.with_name(f"{stem}_overtime_creation_ruleset_overtime_entitlements.md")
+
+    if stem.endswith("_overtime_consequence_ruleset_revised"):
+        stem = stem.removesuffix("_overtime_consequence_ruleset_revised")
+        return path.with_name(
+            f"{stem}_overtime_consequence_ruleset_overtime_entitlements.md"
+        )
+
     if stem.endswith("_overtime_interpretation_revised"):
         stem = stem.removesuffix("_overtime_interpretation_revised")
     elif stem.endswith("_overtime_interpretation"):
         stem = stem.removesuffix("_overtime_interpretation")
 
-    return path_in_category(
-        path,
-        OVERTIME_ENTITLEMENTS_DIR,
-        f"{stem}_overtime_entitlements.md",
-    )
+    return award_output_dir(path) / f"{stem}_overtime_entitlements.md"
 
 
 def strip_wrapping_markdown_fence(text: str) -> str:
@@ -159,6 +185,10 @@ def summarize_overtime_entitlements(
 
     selected_interpretation_path = Path(interpretation_path)
     selected_template_path = Path(template_path)
+    try:
+        ruleset_key = infer_overtime_ruleset_key_from_path(selected_interpretation_path)
+    except ValueError:
+        ruleset_key = OVERTIME_CREATION_RULESET
 
     interpretation_markdown = load_text_file(
         selected_interpretation_path,
@@ -177,6 +207,7 @@ def summarize_overtime_entitlements(
             interpretation_markdown,
             selected_template_path,
             template_markdown,
+            ruleset_key,
         ),
     )
     output_text = extract_response_text(response)
@@ -222,12 +253,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=f"OpenAI model to use. Defaults to OVERTIME_ENTITLEMENT_SUMMARY_MODEL or {DEFAULT_MODEL}.",
     )
+    parser.add_argument(
+        "--ruleset-key",
+        choices=RULESET_CHOICES,
+        default=None,
+        help="Optional ruleset key when resolving an award code input.",
+    )
     return parser.parse_args(argv)
 
 
 def main() -> None:
     args = parse_args()
-    interpretation_path = resolve_interpretation_path(args.award_or_interpretation_path)
+    interpretation_path = resolve_interpretation_path(
+        args.award_or_interpretation_path,
+        args.ruleset_key,
+    )
     summarize_overtime_entitlements(
         interpretation_path=interpretation_path,
         output_path=args.output_path,

@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from src.common.overtime_rules import OvertimeRule, apply_review_decisions
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 from src.script_3_interpret_overtime import DEFAULT_MODEL as DEFAULT_CREATOR_MODEL
 from src.script_3b_review_overtime_interpretation import (
     EVALUATOR_MODEL,
@@ -200,10 +201,10 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         user_prompt = messages[1]["content"]
 
         self.assertIn("supervisor", system_prompt)
-        self.assertIn("Will this clause increase overtime entitlement", system_prompt)
+        self.assertIn("What circumstances increase total overtime hours?", system_prompt)
         self.assertIn("Presentation issues", system_prompt)
         self.assertIn("duplicate bullets", system_prompt)
-        self.assertIn("classifications include Ordinary Hours Boundary", system_prompt)
+        self.assertIn("clauses in the Script 3 classification", system_prompt)
         self.assertIn("interpretation.md", user_prompt)
         self.assertIn("classification.json", user_prompt)
         self.assertIn("overtime_clause_classification.json", user_prompt)
@@ -213,7 +214,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn("Possible missed overtime creation clause.", user_prompt)
         self.assertIn("Check both Script 3 steps", user_prompt)
         self.assertIn("Also review presentation", user_prompt)
-        self.assertIn("classifications include Ordinary Hours Boundary", user_prompt)
+        self.assertIn("avoid dragging in materially out-of-scope content", user_prompt)
         self.assertIn("Script 3 creator prompt context", user_prompt)
         self.assertIn("clause_classification_messages", user_prompt)
         self.assertIn("interpretation_messages", user_prompt)
@@ -270,7 +271,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertIn('"rule_id": "all-employees_001"', user_prompt)
         self.assertIn("## Clause 20.1", user_prompt)
         self.assertNotIn('"30.1"', user_prompt)
-        self.assertIn("Will this clause increase overtime entitlement", user_prompt)
+        self.assertIn("What circumstances increase total overtime hours?", user_prompt)
         self.assertIn("accuracy", user_prompt)
         self.assertIn("presentation", user_prompt)
         self.assertIn("dedicated arrangement section", user_prompt)
@@ -285,6 +286,45 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertNotIn("interpretation_messages", user_prompt)
         self.assertIn("<creator_response>", user_prompt)
         self.assertIn("<revised_interpretation>", user_prompt)
+
+    def test_build_evaluator_messages_support_consequence_ruleset_focus(self):
+        messages = build_evaluator_messages(
+            interpretation_path="award_overtime_consequence_ruleset.md",
+            interpretation_markdown="## Overtime rates",
+            classification_path="classification.json",
+            payment_classification={
+                "classified_clauses": {
+                    "23.2": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Overtime is paid at 150% for the first 2 hours and 200% after that.",
+                    },
+                }
+            },
+            overtime_clause_classification_path="award_overtime_consequence_clause_classification.json",
+            overtime_clause_classification={
+                "ruleset_key": OVERTIME_CONSEQUENCE_RULESET,
+                "clauses": [
+                    {
+                        "clause_number": "23.2",
+                        "classification": "Overtime Consequence",
+                        "classifications": ["Overtime Consequence"],
+                        "explanation": "Defines overtime rates after overtime already exists.",
+                        "clause_text": "Overtime is paid at 150% for the first 2 hours and 200% after that.",
+                    }
+                ],
+            },
+            ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+        )
+
+        system_prompt = messages[0]["content"]
+        user_prompt = messages[1]["content"]
+
+        self.assertIn(
+            "What overtime consequence applies once hours are already overtime?",
+            system_prompt,
+        )
+        self.assertIn("Review this overtime consequence working document.", user_prompt)
+        self.assertIn("relevant to the selected ruleset", user_prompt)
 
     def test_build_creator_messages_prioritises_structured_review_clauses(self):
         messages = build_creator_messages(

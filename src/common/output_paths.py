@@ -33,6 +33,22 @@ NON_AWARD_SUBDIRECTORIES = {
 }
 
 ARTIFACT_SUFFIXES = (
+    "_overtime_consequence_ruleset_core_overtime_pseudocode_validation",
+    "_overtime_consequence_ruleset_core_overtime_pseudocode",
+    "_overtime_consequence_ruleset_overtime_entitlements",
+    "_overtime_consequence_ruleset_revised",
+    "_overtime_consequence_ruleset_expert_a",
+    "_overtime_consequence_ruleset_expert_b",
+    "_overtime_consequence_ruleset",
+    "_overtime_consequence_clause_classification",
+    "_overtime_creation_ruleset_core_overtime_pseudocode_validation",
+    "_overtime_creation_ruleset_core_overtime_pseudocode",
+    "_overtime_creation_ruleset_overtime_entitlements",
+    "_overtime_creation_ruleset_revised",
+    "_overtime_creation_ruleset_expert_a",
+    "_overtime_creation_ruleset_expert_b",
+    "_overtime_creation_ruleset",
+    "_overtime_creation_clause_classification",
     "_overtime_interpretation_revised_overtime_entitlements",
     "_overtime_entitlements_review_feedback",
     "_overtime_entitlements_updated_answer",

@@ -10,6 +10,12 @@ from src.common.output_paths import (
     award_output_dir,
     path_in_category,
 )
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    explicit_clause_classification_output_path,
+    explicit_ruleset_output_path,
+    infer_overtime_ruleset_key_from_path,
+)
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
@@ -56,6 +62,14 @@ def interpretation_output_path_for_classification(classification_path: Path | st
     )
 
 
+def ruleset_output_path_for_classification(
+    classification_path: Path | str,
+    ruleset_key: str,
+) -> Path:
+    """Derive the explicit ruleset output path from a step-2 classification path."""
+    return explicit_ruleset_output_path(classification_path, ruleset_key)
+
+
 def overtime_clause_classification_output_path_for_classification(
     classification_path: Path | str,
 ) -> Path:
@@ -72,6 +86,14 @@ def overtime_clause_classification_output_path_for_classification(
     )
 
 
+def ruleset_clause_classification_output_path_for_classification(
+    classification_path: Path | str,
+    ruleset_key: str,
+) -> Path:
+    """Derive the explicit clause-classification path for one ruleset."""
+    return explicit_clause_classification_output_path(classification_path, ruleset_key)
+
+
 def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
     """Extract an award code from a standard step-3 interpretation filename."""
     stem = Path(interpretation_path).stem
@@ -79,6 +101,14 @@ def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
         return stem.removesuffix("_overtime_interpretation")
     if stem.endswith("_overtime_interpretation_revised"):
         return stem.removesuffix("_overtime_interpretation_revised")
+    if stem.endswith("_overtime_creation_ruleset"):
+        return stem.removesuffix("_overtime_creation_ruleset")
+    if stem.endswith("_overtime_creation_ruleset_revised"):
+        return stem.removesuffix("_overtime_creation_ruleset_revised")
+    if stem.endswith("_overtime_consequence_ruleset"):
+        return stem.removesuffix("_overtime_consequence_ruleset")
+    if stem.endswith("_overtime_consequence_ruleset_revised"):
+        return stem.removesuffix("_overtime_consequence_ruleset_revised")
 
     raise ValueError(
         "Could not derive award code from interpretation path. "
@@ -121,10 +151,23 @@ def resolve_classification_path(
 def resolve_overtime_clause_classification_path(
     classification_path: Path | str,
     overtime_clause_classification_path: Path | str | None,
+    interpretation_path: Path | str | None = None,
 ) -> Path:
     """Resolve the step-3 clause classification path for review steps."""
     if overtime_clause_classification_path:
         return Path(overtime_clause_classification_path)
+
+    if interpretation_path is not None:
+        try:
+            ruleset_key = infer_overtime_ruleset_key_from_path(interpretation_path)
+        except ValueError:
+            ruleset_key = OVERTIME_CREATION_RULESET
+
+        if ruleset_key != OVERTIME_CREATION_RULESET:
+            return ruleset_clause_classification_output_path_for_classification(
+                classification_path,
+                ruleset_key,
+            )
 
     return overtime_clause_classification_output_path_for_classification(
         classification_path

@@ -1,4 +1,4 @@
-"""Prompt content for step 3B overtime interpretation review.
+"""Prompt content for step 3B overtime ruleset review.
 
 Used by:
 - `src/script_3b_review_overtime_interpretation.py`
@@ -13,13 +13,20 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from src.script_3_interpret_overtime import (
-    build_classification_messages,
-    build_messages as build_overtime_interpretation_messages,
-    clause_text,
-    filter_overtime_clauses,
-    filter_overtime_creation_clauses,
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    infer_overtime_ruleset_key_from_path,
+    overtime_ruleset_config,
+)
+from src.script_3_interpret_overtime import clause_text
+from src.script_3_part1_classify_overtime_clauses import (
+    build_clause_classification_messages,
+    select_overtime_creation_clauses,
+    select_ruleset_related_clauses,
     validate_overtime_clause_classifications,
+)
+from src.script_3_part2_generate_overtime_interpretation import (
+    build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from src.common.overtime_rules import OvertimeRule, rule_to_dict
 
@@ -31,20 +38,35 @@ def build_script_3_creator_prompt_context(
     classification_path: Path | str,
     payment_classification: Mapping[str, Any],
     overtime_clause_classification: Mapping[str, Any],
+    ruleset_key: str | None = None,
 ) -> dict[str, list[dict[str, str]]]:
     """Rebuild the core step-3 prompt context used by the creator model."""
-    overtime_clauses = filter_overtime_clauses(payment_classification)
+    selected_ruleset_key = ruleset_key or str(
+        overtime_clause_classification.get("ruleset_key") or OVERTIME_CREATION_RULESET
+    )
+    overtime_clauses = select_ruleset_related_clauses(
+        payment_classification,
+        selected_ruleset_key,
+    )
     clause_classifications = validate_overtime_clause_classifications(
         overtime_clause_classification,
         overtime_clauses,
+        selected_ruleset_key,
     )
-    overtime_creation_clauses = filter_overtime_creation_clauses(clause_classifications)
+    generation_ready_clauses = select_overtime_creation_clauses(
+        clause_classifications,
+        selected_ruleset_key,
+    )
 
     return {
-        "clause_classification_messages": build_classification_messages(overtime_clauses),
-        "interpretation_messages": build_overtime_interpretation_messages(
+        "clause_classification_messages": build_clause_classification_messages(
+            overtime_clauses,
+            selected_ruleset_key,
+        ),
+        "interpretation_messages": build_ruleset_interpretation_messages(
             str(classification_path),
-            overtime_creation_clauses,
+            generation_ready_clauses,
+            selected_ruleset_key,
         ),
     }
 
@@ -325,8 +347,10 @@ def build_full_evaluator_review_prompt(
     payment_classification: Mapping[str, Any],
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
+    ruleset_key: str,
 ) -> str:
     """Build the full evaluator prompt covering both step-3 artifacts."""
+    config = overtime_ruleset_config(ruleset_key)
     payment_classification_json = json.dumps(
         payment_classification,
         indent=2,
@@ -357,30 +381,31 @@ def build_full_evaluator_review_prompt(
             classification_path,
             payment_classification,
             overtime_clause_classification,
+            ruleset_key,
         ),
         indent=2,
         ensure_ascii=False,
     )
 
-    return f"""Review this overtime interpretation working document.
+    return f"""Review this {config.display_name.lower()} working document.
 
-Do not rewrite the interpretation. Provide supervisor-style questions and concise issue notes only.
+Do not rewrite the ruleset. Provide supervisor-style questions and concise issue notes only.
 
 Review against the full payment clause identifier JSON from Script 2. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
 
 Check both Script 3 steps:
-1. The intermediate clause classification JSON: did it correctly preserve clauses whose classifications include Ordinary Hours Boundary or Overtime Trigger, and avoid treating consequence-only clauses as overtime-creation sources?
-2. The final interpretation markdown: does it include only core overtime-creation rules supported by those clauses?
+1. The intermediate clause classification JSON: did it classify clauses in a way that supports the selected ruleset and avoid dragging in materially out-of-scope content?
+2. The final ruleset markdown: does it include only rules supported by the cited clauses and relevant to the selected ruleset?
 
 Key review question:
-Will this clause increase overtime entitlement by causing worked time to become overtime?
+{config.review_question}
 
 Also review presentation. The final document should be easy for a payroll reviewer to check and for a payroll implementation team to convert into configuration rules. Identify duplicate points, unclear employee scope, missing thresholds, unclear grouping, missing clause references, or bullets that combine materially different tests.
 
-Check whether the interpretation silently dropped any supported overtime-creation rule from the current draft.
+Check whether the ruleset silently dropped any supported rule for this ruleset from the current draft.
 If a rule appears valid and unaffected by the feedback, call out any apparent removal or weakening of that rule.
 
-Interpretation source: {interpretation_path}
+Ruleset source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
@@ -405,7 +430,7 @@ Script 3 intermediate overtime clause classification source: {overtime_clause_cl
 ```
 
 Script 3 creator prompt context reconstructed from the current Step 3 code.
-This is included so the evaluator reviews against the same data and instructions that the creator received.
+This is included so the evaluator reviews against the same data and instructions that the creator received for this ruleset.
 
 ```json
 {script_3_creator_prompt_context_json}
@@ -419,9 +444,11 @@ def build_minimal_creator_revision_prompt(
     relevant_clause_excerpt_markdown: str,
     evaluator_feedback_markdown: str,
     creator_review_action_pack_json: str,
+    ruleset_key: str,
     prior_creator_decision_markdown: str | None = None,
 ) -> str:
     """Build the one-pass creator prompt used to revise the interpretation draft."""
+    config = overtime_ruleset_config(ruleset_key)
     prior_creator_decision_section = ""
     if prior_creator_decision_markdown and prior_creator_decision_markdown.strip():
         prior_creator_decision_section = f"""
@@ -432,7 +459,7 @@ Prior creator decision record:
 ```
 """
 
-    return f"""Review the supervisor feedback and decide whether the interpretation needs updating.
+    return f"""Review the supervisor feedback and decide whether the ruleset needs updating.
 
 This is a one-pass update. Do not ask for another review cycle.
 
@@ -440,8 +467,8 @@ Use the evaluator review action pack JSON as the authoritative source for what t
 Use the evaluator summary markdown only as explanation of that JSON.
 Do not infer any extra add, remove, merge, or split action from evaluator prose unless it is reflected in the structured action pack.
 
-Keep the revised interpretation simple. Include only clauses that answer this question:
-Will this clause increase overtime entitlement by causing worked time to become overtime?
+Keep the revised ruleset simple. Include only rules that answer this question:
+{config.review_question}
 
 Apply accepted feedback about both:
 - accuracy: whether the rule is supported by the cited clause text; and
@@ -449,19 +476,19 @@ Apply accepted feedback about both:
 
 Preserve existing supported rules unless the accepted feedback requires changing or removing them.
 Do not remove a rule unless you explicitly state why it is unsupported, duplicative, or out of scope.
-If a rule is unaffected by the accepted feedback, keep it in the revised interpretation.
+If a rule is unaffected by the accepted feedback, keep it in the revised ruleset.
 
 Make the smallest changes necessary to address accepted feedback.
-Do not rewrite or simplify unrelated parts of the interpretation.
+Do not rewrite or simplify unrelated parts of the ruleset.
 
-If you remain substantively uncertain whether a clause should stay in or be removed as an overtime-creation rule, record that uncertainty explicitly in the creator response rather than silently finalising the point.
+If you remain substantively uncertain whether a rule should stay in or be removed from this ruleset, record that uncertainty explicitly in the creator response rather than silently finalising the point.
 
 Where accepted feedback concerns a named work arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement, use a dedicated arrangement section if that is clearer than spreading the rules across employee-type sections. In that arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
 Keep one overtime circumstance per bullet. Split combined bullets where they contain separate thresholds, spans, roster conditions, or other distinct payroll tests.
 Keep clause references in the revised markdown bullets, preferably at the end in square brackets.
 If a clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, place that rule under `All employees` or a general work-arrangement section, not under a narrower employee-type heading.
 
-Original interpretation source: {interpretation_path}
+Original ruleset source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
@@ -489,7 +516,7 @@ Write a short markdown decision record. Explain which feedback you accepted, whi
 
 </creator_response>
 <revised_interpretation>
-Write the complete revised overtime interpretation working document in markdown.
+Write the complete revised ruleset working document in markdown.
 </revised_interpretation>
 """
 
@@ -552,7 +579,7 @@ def evaluator_structured_output_instructions() -> str:
         "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
         "If you think two existing rules should be merged, express that through the relevant "
         "rule_reviews recommendations and rationales for those original rule_ids.\n"
-        "Use new_rules only when a clearly supported overtime-creation rule is missing from the current draft.\n"
+        "Use new_rules only when a clearly supported rule for the selected ruleset is missing from the current draft.\n"
         "Every new_rules item must be a complete structured rule object with a unique rule_id.\n"
         "Do not silently replace an original rule with a new rule. Keep rule_reviews focused on the original rule_ids."
     )
@@ -586,12 +613,16 @@ def creator_structured_output_instructions() -> str:
     )
 
 
-def build_agentic_creator_instructions(max_feedback_cycles: int) -> str:
+def build_agentic_creator_instructions(
+    max_feedback_cycles: int,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> str:
     """Return the standing instructions for the agentic step-3B creator."""
-    return f"""You are the creator responsible for finalising an Australian modern award overtime creation interpretation.
+    config = overtime_ruleset_config(ruleset_key)
+    return f"""You are the creator responsible for finalising an Australian modern award {config.display_name.lower()}.
 
-You are reviewing an existing Script 3 first draft. Keep the final interpretation simple and include only clauses that answer this question:
-Will this clause increase overtime entitlement by causing worked time to become overtime?
+You are reviewing an existing Script 3 first draft. Keep the final ruleset simple and include only rules that answer this question:
+{config.review_question}
 
 You have a tool named request_evaluator_feedback. Use it to ask the evaluator for review feedback on your current draft. You may use it up to {max_feedback_cycles} times. The first evaluator call is a substantive review. Later evaluator calls are lightweight pass/fail gates that return JSON only.
 
@@ -603,46 +634,45 @@ Apply accepted feedback about both:
 
 Preserve existing supported rules unless accepted feedback requires changing or removing them.
 Do not remove a rule unless you explicitly state why it is unsupported, duplicative, or out of scope.
-If a rule is unaffected by the accepted feedback, keep it in the revised interpretation.
+If a rule is unaffected by the accepted feedback, keep it in the revised ruleset.
 
 Later cycles are confirmation cycles, not fresh rewrites.
 After the first evaluator review, make the smallest changes necessary to resolve accepted feedback.
 Do not restructure or remove unrelated rules during later cycles.
 
-If you remain substantively uncertain whether a clause should be included or removed as an overtime-creation rule, do not treat the draft as ready to finalise. Record the uncertainty clearly so the evaluator can return needs_revision.
-
-Do not review rates, calculations, penalties, allowances, payment mechanics, or other consequences except to exclude them from overtime-creation rules.
+If you remain substantively uncertain whether a rule should be included or removed from this ruleset, do not treat the draft as ready to finalise. Record the uncertainty clearly so the evaluator can return needs_revision.
 
 When you are finished, return structured final output with:
 - conversation_markdown: a concise markdown audit record of the creator/evaluator conversation and your acceptance decisions;
-- revised_interpretation_markdown: the complete final revised overtime interpretation working document.
+- revised_interpretation_markdown: the complete final revised ruleset working document.
 """
 
 
-def evaluation_system_prompt() -> str:
+def evaluation_system_prompt(
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> str:
     """Return the system prompt for the one-pass interpretation evaluator."""
-    return """You are a supervisor reviewing an Australian modern award overtime creation interpretation.
+    config = overtime_ruleset_config(ruleset_key)
+    return f"""You are a supervisor reviewing an Australian modern award {config.display_name.lower()}.
 
 Your job is to provide useful feedback to the creator. Do not rewrite the document.
 Ask questions and identify concise issues that would help the creator decide whether an update is needed.
 
 Keep the review simple and focused on this question:
 
-Will this clause increase overtime entitlement by causing worked time to become overtime
+{config.review_question}
 
 Focus on:
 - clauses in the full payment classification JSON that may answer the key question but were missed by the Script 3 clause classification;
-- clauses whose Script 3 classifications include Ordinary Hours Boundary or Overtime Trigger but that do not actually answer the key question;
-- final interpretation bullets that are unsupported, missing, too broad, or include consequence-only rules;
-- valid overtime-creation rules in the current draft that appear to have been removed, weakened, or omitted without support;
+- clauses in the Script 3 classification that do not actually answer the key question for this ruleset;
+- final ruleset bullets that are unsupported, missing, too broad, or materially out of scope for this ruleset;
+- valid rules in the current draft that appear to have been removed, weakened, or omitted without support;
 - employee group, threshold, roster condition, span, spread, or clause-reference errors.
-- presentation issues that make the interpretation harder to review or implement, including duplicate bullets, unclear grouping, unclear employee scope, combined rules that should be split, split rules that should be combined, missing clause references, or consequence wording that should be removed.
-
-Do not review rates, calculations, penalties, allowances, payment mechanics, or other consequences except to say they should not be included as overtime-creation rules.
+- presentation issues that make the ruleset harder to review or implement, including duplicate bullets, unclear grouping, unclear employee scope, combined rules that should be split, split rules that should be combined, or missing clause references.
 
 Return markdown only with this structure:
 
-# Overtime interpretation supervisor feedback
+# Ruleset supervisor feedback
 
 ## Overall view
 

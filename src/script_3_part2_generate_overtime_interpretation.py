@@ -23,6 +23,11 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.active_pipeline_paths import interpretation_output_path_for_classification
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    explicit_ruleset_output_path,
+    overtime_ruleset_config,
+)
 from src.common.output_paths import write_text_with_archive
 from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import (
@@ -39,10 +44,9 @@ from src.common.overtime_rules import (
     validate_rule_list,
     write_rules_artifact,
 )
-from src.prompts.overtime_interpretation import (
-    OVERTIME_INTERPRETATION_SYSTEM_PROMPT,
-    build_expert_comparison_messages as build_expert_comparison_prompt_messages,
-    build_overtime_interpretation_user_prompt,
+from src.prompts.overtime_ruleset import (
+    build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
+    build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from src.script_2_classify_payments import parse_response_json
 from src.script_3_part1_classify_overtime_clauses import (
@@ -57,6 +61,7 @@ from src.script_3_part1_classify_overtime_clauses import (
     load_overtime_clause_classification_artifact,
     overtime_clause_classification_path_for_source,
     select_overtime_creation_clauses,
+    select_ruleset_related_clauses,
 )
 
 
@@ -230,9 +235,12 @@ def missing_shortlisted_clause_warning(
 
 def interpretation_output_path_for_source(
     classification_path: Path | str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> Path:
     """Return the default markdown interpretation path for step 3 part 2."""
-    return interpretation_output_path_for_classification(classification_path)
+    if ruleset_key == OVERTIME_CREATION_RULESET:
+        return interpretation_output_path_for_classification(classification_path)
+    return explicit_ruleset_output_path(classification_path, ruleset_key)
 
 
 def output_path_for_classification(classification_path: Path | str) -> Path:
@@ -288,17 +296,15 @@ Source Text:
 def build_interpretation_messages(
     source_file: str,
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Build the messages used to write the structured overtime rules."""
     working_paper_input = format_working_paper_input(overtime_creation_clauses)
-    user_prompt = build_overtime_interpretation_user_prompt(
-        source_file=source_file,
-        working_paper_input=working_paper_input,
+    return build_ruleset_interpretation_messages(
+        ruleset_key,
+        source_file,
+        working_paper_input,
     )
-    return [
-        {"role": "system", "content": OVERTIME_INTERPRETATION_SYSTEM_PROMPT},
-        {"role": "user", "content": user_prompt},
-    ]
 
 
 def build_messages(
@@ -306,7 +312,11 @@ def build_messages(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
 ) -> list[dict[str, str]]:
     """Return interpretation messages using the legacy helper name."""
-    return build_interpretation_messages(source_file, overtime_creation_clauses)
+    return build_interpretation_messages(
+        source_file,
+        overtime_creation_clauses,
+        OVERTIME_CREATION_RULESET,
+    )
 
 
 def interpretation_response_json_schema() -> dict[str, Any]:
@@ -378,8 +388,20 @@ def interpretation_response_json_schema() -> dict[str, Any]:
 def validate_interpretation_rules(
     response_data: Mapping[str, Any],
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> tuple[list[OvertimeRule], list[str]]:
     """Validate the structured rule output from the interpretation model."""
+    config = overtime_ruleset_config(ruleset_key)
+    supported_classification_label = (
+        "creation"
+        if ruleset_key == OVERTIME_CREATION_RULESET
+        else config.display_name.lower()
+    )
+    missing_clause_ruleset_label = (
+        "step 3.4 ruleset"
+        if ruleset_key == OVERTIME_CREATION_RULESET
+        else f"{config.display_name.lower()} ruleset"
+    )
     raw_rules = response_data.get("rules")
     if not isinstance(raw_rules, list):
         raise OvertimeInterpretationError("Interpretation response must contain rules array.")
@@ -394,7 +416,7 @@ def validate_interpretation_rules(
         ):
             valid_clause_numbers.add(clause_reference_match.group(0))
 
-    valid_classifications = set(OVERTIME_CREATION_CLASSIFICATIONS)
+    valid_classifications = set(config.generation_classifications)
     shortlisted_clause_numbers = {
         classification.clause_number for classification in overtime_creation_clauses
     }
@@ -474,7 +496,7 @@ def validate_interpretation_rules(
             validation_warnings.append(
                 f"Rule {rule.rule_id} cited additional non-creation classifications "
                 f"({unsupported_display}) but was accepted because it also contains an "
-                f"allowed creation classification ({supported_display})."
+                f"allowed {supported_classification_label} classification ({supported_display})."
             )
 
     missing_shortlisted_clauses = (
@@ -484,7 +506,7 @@ def validate_interpretation_rules(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
-                ruleset_label="step 3.4 ruleset",
+                ruleset_label=missing_clause_ruleset_label,
             )
         )
 
@@ -497,19 +519,22 @@ def request_structured_interpretation_run(
     model: str,
     source_path: Path,
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> tuple[list[OvertimeRule], list[str], str]:
     """Run one expert interpretation pass and return structured rules."""
+    config = overtime_ruleset_config(ruleset_key)
     try:
         response = client.responses.create(
             model=model,
             input=build_interpretation_messages(
                 str(source_path),
                 overtime_creation_clauses,
+                ruleset_key,
             ),
             text={
                 "format": {
                     "type": "json_schema",
-                    "name": "overtime_rules",
+                    "name": config.interpretation_schema_name,
                     "schema": interpretation_response_json_schema(),
                     "strict": True,
                 }
@@ -527,6 +552,7 @@ def request_structured_interpretation_run(
         structured_rules, validation_warnings = validate_interpretation_rules(
             response_data,
             overtime_creation_clauses,
+            ruleset_key,
         )
     except json.JSONDecodeError:
         structured_rules = rules_from_markdown_fallback(
@@ -547,6 +573,7 @@ def build_expert_comparison_messages(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
     run_a_rules: Sequence[OvertimeRule],
     run_b_rules: Sequence[OvertimeRule],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Build the prompt used to compare and merge two expert runs."""
     shortlisted_clauses = [
@@ -564,7 +591,8 @@ def build_expert_comparison_messages(
     ]
     run_a_rules_json = [rule_to_dict(rule) for rule in run_a_rules]
     run_b_rules_json = [rule_to_dict(rule) for rule in run_b_rules]
-    return build_expert_comparison_prompt_messages(
+    return build_ruleset_expert_comparison_messages(
+        ruleset_key=ruleset_key,
         source_path=source_path,
         shortlisted_clauses=shortlisted_clauses,
         run_a_rules_json=run_a_rules_json,
@@ -673,13 +701,16 @@ def compare_expert_interpretation_runs(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
     run_a_rules: Sequence[OvertimeRule],
     run_b_rules: Sequence[OvertimeRule],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> tuple[list[OvertimeRule], dict[str, Any], list[str]]:
     """Merge two expert rule sets using a comparison pass."""
+    config = overtime_ruleset_config(ruleset_key)
     messages = build_expert_comparison_messages(
         source_path=source_path,
         overtime_creation_clauses=overtime_creation_clauses,
         run_a_rules=run_a_rules,
         run_b_rules=run_b_rules,
+        ruleset_key=ruleset_key,
     )
     try:
         response = client.responses.create(
@@ -688,7 +719,7 @@ def compare_expert_interpretation_runs(
             text={
                 "format": {
                     "type": "json_schema",
-                    "name": "overtime_rule_comparison",
+                    "name": config.comparison_schema_name,
                     "schema": comparison_response_json_schema(),
                     "strict": True,
                 }
@@ -781,7 +812,7 @@ def compare_expert_interpretation_runs(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
-                ruleset_label="merged expert comparison ruleset",
+                ruleset_label=f"merged {config.display_name.lower()} expert comparison ruleset",
             )
         )
 
@@ -799,6 +830,7 @@ def compare_expert_interpretation_runs(
 def load_prepared_clause_classifications(
     source_path: Path,
     classification_output_path: Path,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Load part-1 output and validate it against the current step-2 source."""
     if not classification_output_path.exists():
@@ -808,15 +840,16 @@ def load_prepared_clause_classifications(
         )
 
     data = load_classification(source_path)
-    overtime_clauses = filter_overtime_clauses(data)
+    overtime_clauses = select_ruleset_related_clauses(data, ruleset_key)
     if not overtime_clauses:
         raise OvertimeInterpretationError(
-            f"No Ordinary Hours or Overtime clauses found in: {source_path}"
+            f"No {overtime_ruleset_config(ruleset_key).display_name.lower()} source clauses found in: {source_path}"
         )
 
     return load_overtime_clause_classification_artifact(
         classification_output_path,
         overtime_clauses,
+        ruleset_key,
     )
 
 
@@ -828,6 +861,7 @@ def generate_overtime_interpretation_from_classifications(
     comparison_model: str | None = None,
     expert_run_count: int = 1,
     client: Any | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
     """Run step 3 part 2 from an existing clause-classification artifact."""
     selected_model = model or os.getenv("OVERTIME_INTERPRETATION_MODEL", DEFAULT_MODEL)
@@ -850,20 +884,22 @@ def generate_overtime_interpretation_from_classifications(
     clause_classifications = load_prepared_clause_classifications(
         source_path,
         clause_classification_path,
+        ruleset_key,
     )
 
     overtime_creation_clauses = select_overtime_creation_clauses(
-        clause_classifications
+        clause_classifications,
+        ruleset_key,
     )
     if not overtime_creation_clauses:
         raise OvertimeInterpretationError(
-            "No Ordinary Hours Boundary or Overtime Trigger clauses found."
+            f"No generation-ready clauses found for the {overtime_ruleset_config(ruleset_key).display_name.lower()} ruleset."
         )
 
     destination = (
         Path(output_path)
         if output_path
-        else interpretation_output_path_for_source(source_path)
+        else interpretation_output_path_for_source(source_path, ruleset_key)
     )
     json_destination = json_output_path_for_markdown(destination)
 
@@ -880,6 +916,7 @@ def generate_overtime_interpretation_from_classifications(
                 model=selected_model,
                 source_path=source_path,
                 overtime_creation_clauses=overtime_creation_clauses,
+                ruleset_key=ruleset_key,
             )
         )
         expert_rulesets.append(structured_rules)
@@ -920,6 +957,7 @@ def generate_overtime_interpretation_from_classifications(
                 overtime_creation_clauses=overtime_creation_clauses,
                 run_a_rules=expert_rulesets[0],
                 run_b_rules=expert_rulesets[1],
+                ruleset_key=ruleset_key,
             )
         )
         validation_warnings = deduplicate_preserving_order(

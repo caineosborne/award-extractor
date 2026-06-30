@@ -1,9 +1,16 @@
 import json
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
+from src.prompts.overtime_ruleset import (
+    build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
+    build_interpretation_messages as build_ruleset_interpretation_messages,
+)
+from src.script_3_generate_overtime_ruleset import generate_overtime_ruleset
 from src.script_3_interpret_overtime import (
     DEFAULT_MODEL,
     OVERTIME_CREATION_CLASSIFICATIONS,
@@ -738,6 +745,122 @@ class OvertimeInterpretationTests(unittest.TestCase):
             comparison_artifact["accounted_run_b_rule_ids"],
             ["day-shift-over-8"],
         )
+
+    def test_generate_overtime_consequence_ruleset_writes_separate_files(self):
+        data = {
+            "classified_clauses": {
+                "21.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "Overtime is paid at 150% for the first 2 hours and 200% after that.",
+                    "reason": "Defines overtime rates.",
+                }
+            }
+        }
+        classification_json = json.dumps(
+            {
+                "clauses": [
+                    {
+                        "clause_number": "21.1",
+                        "classification": "Overtime Consequence",
+                        "classifications": ["Overtime Consequence"],
+                        "clause_text": "Overtime is paid at 150% for the first 2 hours and 200% after that.",
+                        "explanation": "Defines overtime payment once overtime already exists.",
+                        "employee_cohort": "all",
+                        "work_arrangement": "all",
+                        "other_scope_notes": "",
+                    }
+                ]
+            }
+        )
+        interpretation_json = json.dumps(
+            {
+                "rules": [
+                    {
+                        "rule_id": "overtime-first-two-hours",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time", "part-time", "casual"],
+                        "employee_cohort": "all",
+                        "work_arrangement": "all",
+                        "other_scope_notes": "",
+                        "clause_references": ["21.1"],
+                        "rule_markdown": "- The first 2 overtime hours are paid at 150% and subsequent overtime hours are paid at 200%. [21.1]",
+                        "rule_plain_text": "The first 2 overtime hours are paid at 150% and subsequent overtime hours are paid at 200%.",
+                        "source_clause_numbers": ["21.1"],
+                        "source_classifications": ["Overtime Consequence"],
+                    }
+                ]
+            }
+        )
+        fake_client = FakeClient([classification_json, interpretation_json])
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_path = Path(temp_dir) / "award_payment_classification.json"
+            input_path.write_text(json.dumps(data), encoding="utf-8")
+
+            result = generate_overtime_ruleset(
+                classification_path=input_path,
+                ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+                client=fake_client,
+                expert_run_count=1,
+            )
+
+            clause_path = (
+                Path(temp_dir)
+                / "award"
+                / "award_overtime_consequence_clause_classification.json"
+            )
+            output_path = (
+                Path(temp_dir)
+                / "award"
+                / "award_overtime_consequence_ruleset.md"
+            )
+
+            self.assertTrue(clause_path.exists())
+            self.assertTrue(output_path.exists())
+            self.assertIn("150%", result)
+            self.assertIn(
+                "Overtime is paid at 150% for the first 2 hours and 200% after that.",
+                fake_client.responses.calls[1]["input"][1]["content"],
+            )
+
+    def test_overtime_consequence_prompt_instructs_pruning_of_trigger_only_content(self):
+        messages = build_ruleset_interpretation_messages(
+            OVERTIME_CONSEQUENCE_RULESET,
+            "award_payment_classification.json",
+            "Clause 1",
+        )
+
+        self.assertIn(
+            "Prune trigger-only or boundary-only content",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Do not produce a standalone rule whose main purpose is to say when hours become overtime.",
+            messages[1]["content"],
+        )
+
+    def test_overtime_consequence_comparison_prompt_instructs_pruning_of_trigger_rules(self):
+        messages = build_ruleset_expert_comparison_messages(
+            ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+            source_path=Path("award_payment_classification.json"),
+            shortlisted_clauses=[],
+            run_a_rules_json=[],
+            run_b_rules_json=[],
+        )
+
+        self.assertIn(
+            "prefer pruning over preserving mixed trigger content",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Remove standalone trigger/boundary rules that survived expert drafting by mistake.",
+            messages[1]["content"],
+        )
+
+    def test_phase_1_ruleset_prompt_module_is_in_prompts_folder(self):
+        prompt_source = inspect.getsourcefile(build_ruleset_interpretation_messages)
+        self.assertIsNotNone(prompt_source)
+        self.assertIn("/src/prompts/", prompt_source)
 
     def test_generate_overtime_interpretation_regenerates_old_clause_classification(self):
         data = {

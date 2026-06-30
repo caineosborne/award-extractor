@@ -315,7 +315,10 @@ class AgenticOvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertEqual(fake_runner.calls[1]["agent_name"], "Overtime interpretation evaluator")
         self.assertNotIn("Script 3 creator prompt context", fake_runner.calls[0]["input_text"])
         self.assertIn("Relevant source clauses for the first pass", fake_runner.calls[0]["input_text"])
-        self.assertIn("Review this overtime interpretation working document.", fake_runner.calls[1]["input_text"])
+        self.assertIn(
+            "Review this overtime creation working document.",
+            fake_runner.calls[1]["input_text"],
+        )
         self.assertIn('{"status":"pass"|"needs_revision","reason":"..."}', fake_runner.calls[2]["input_text"])
         self.assertTrue(
             any(

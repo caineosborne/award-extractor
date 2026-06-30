@@ -16,6 +16,7 @@ from src.script_5b_generate_overtime_pseudocode import (
     overtime_rule_bullets,
     select_overtime_interpretation_path,
 )
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 from src.script_5b_validate_overtime_pseudocode import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -78,6 +79,18 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             Path("data/processed/MA000018/MA000018_core_overtime_pseudocode.md"),
         )
 
+    def test_output_path_for_summary_keeps_ruleset_isolation(self):
+        self.assertEqual(
+            output_path_for_summary(
+                Path(
+                    "data/processed/MA000018/MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
+                )
+            ),
+            Path(
+                "data/processed/MA000018/MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
+            ),
+        )
+
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
         markdown = """# Overtime entitlements
 
@@ -117,23 +130,52 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             self.assertIn(description, messages[0]["content"])
         self.assertIn("any hours that are not ordinary hours are overtime", messages[0]["content"])
         self.assertIn("even if headings or bullet formatting have been edited", messages[0]["content"])
-        self.assertIn("Do not rely on a rule having an exact markdown heading", messages[0]["content"])
+        self.assertIn(
+            "Do not rely on an exact markdown heading or bullet label",
+            messages[0]["content"],
+        )
         self.assertIn("Required additional inputs", messages[0]["content"])
         self.assertIn(
             "Do not list a derived field that is just a renamed component of an existing field",
             messages[0]["content"],
         )
         self.assertIn(
-            "totals such as hours worked in the day, week, or fortnight",
+            "Do not list straightforward calculations as separate derived fields",
             messages[0]["content"],
         )
         self.assertIn(
             "Treat `Required additional inputs` narrowly",
             messages[0]["content"],
         )
-        self.assertIn("Complete overtime interpretation markdown to convert", messages[1]["content"])
+        self.assertIn("Complete reviewed source markdown to convert", messages[1]["content"])
         self.assertIn("Daily excess rule", messages[1]["content"])
         self.assertIn("Clause interpretation table", messages[1]["content"])
+
+    def test_build_messages_supports_consequence_ruleset_mode(self):
+        summary_markdown = (
+            "# Overtime Consequences\n\n"
+            "## Casual Employees\n\n"
+            "- Casual employees are paid overtime at 175% for the first 2 hours. [23.2(b)]\n"
+        )
+
+        messages = build_messages(
+            "summary.md",
+            summary_markdown,
+            ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+        )
+
+        self.assertIn(
+            "Determine what overtime consequence applies once hours are already overtime.",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Include exact source clause references in comments",
+            messages[0]["content"],
+        )
 
     def test_build_repair_messages_include_validation_report_and_initial_draft(self):
         summary_markdown = "# Overtime\n\n- Rule one. Clause **11.1(a)**."
@@ -163,6 +205,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("Validation report describing the missing", messages[1]["content"])
         self.assertIn("Rule ID", messages[1]["content"])
         self.assertIn("Failed rules", messages[1]["content"])
+        self.assertIn("Carry the relevant source clause references into comments", messages[1]["content"])
 
     def test_select_overtime_interpretation_path_falls_back_from_4b_to_revised(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -192,6 +235,29 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
                 project_root,
             ):
                 selected_path = select_overtime_interpretation_path("MA000003")
+
+        self.assertEqual(selected_path, entitlement_path)
+
+    def test_select_overtime_interpretation_path_accepts_ruleset_award_code(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            award_dir = project_root / "data" / "processed" / "MA000003"
+            award_dir.mkdir(parents=True)
+            entitlement_path = (
+                award_dir / "MA000003_overtime_consequence_ruleset_overtime_entitlements.md"
+            )
+            entitlement_path.write_text("# 4A", encoding="utf-8")
+
+            from unittest.mock import patch
+
+            with patch(
+                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                project_root,
+            ):
+                selected_path = select_overtime_interpretation_path(
+                    "MA000003",
+                    OVERTIME_CONSEQUENCE_RULESET,
+                )
 
         self.assertEqual(selected_path, entitlement_path)
 

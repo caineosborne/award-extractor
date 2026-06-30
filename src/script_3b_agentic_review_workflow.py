@@ -41,6 +41,8 @@ from src.script_3b_review_overtime_interpretation import (
     revised_output_path_for_interpretation,
 )
 from src.prompts.agentic_review import (
+    build_agentic_creator_input,
+    build_agentic_source_context_prompt,
     build_evaluator_agent_instructions,
     build_feedback_cycle_input,
 )
@@ -186,18 +188,11 @@ def build_agentic_source_context(
         ),
     )
 
-    return f"""Original Script 3 interpretation source: {interpretation_path}
-
-```markdown
-{interpretation_markdown}
-```
-
-Relevant source clauses for the first pass:
-
-```markdown
-{interpretation_messages[1]["content"]}
-```
-"""
+    return build_agentic_source_context_prompt(
+        interpretation_path=str(interpretation_path),
+        interpretation_markdown=interpretation_markdown,
+        interpretation_user_prompt=interpretation_messages[1]["content"],
+    )
 
 
 def build_evaluator_agent(evaluator_model: str) -> Agent:
@@ -430,12 +425,7 @@ async def run_agentic_overtime_interpretation_review_async(
         output_type=AgenticReviewFinalOutput,
     )
 
-    creator_input = f"""Review and revise the existing Script 3 first draft.
-
-Use the evaluator feedback tool before finalising unless the draft clearly needs no evaluator input.
-
-{source_context}
-"""
+    creator_input = build_agentic_creator_input(source_context)
 
     if status_callback:
         status_callback(f"Awaiting creator agent: {selected_creator_model}")

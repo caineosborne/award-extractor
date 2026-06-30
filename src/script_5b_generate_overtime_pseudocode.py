@@ -18,20 +18,18 @@ from openai import OpenAI
 
 from src.common.active_pipeline_paths import looks_like_path
 from src.common.llm_io import extract_response_text
-from src.common.output_paths import (
-    OVERTIME_ENTITLEMENTS_DIR,
-    OVERTIME_INTERPRETATIONS_DIR,
-    OVERTIME_PSEUDOCODE_DIR,
-    award_output_dir,
-    path_in_category,
-    write_text_with_archive,
-)
+from src.common.output_paths import award_output_dir, write_text_with_archive
 from src.common.overtime_rules import (
     OVERTIME_RULE_SCHEMA_VERSION,
     build_rule_inventory_from_rules,
     json_output_path_for_markdown,
     load_rules_artifact,
     rules_from_markdown_fallback,
+)
+from src.common.overtime_rulesets import (
+    OVERTIME_CONSEQUENCE_RULESET,
+    OVERTIME_CREATION_RULESET,
+    infer_overtime_ruleset_key_from_path,
 )
 from src.common.rule_inventory import RuleInventory
 from src.prompts.core_overtime_pseudocode import (
@@ -57,6 +55,10 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 MAX_VALIDATION_REPAIR_ATTEMPTS = 1
+RULESET_CHOICES = (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+)
 
 PSEUDOCODE_FIELDS = PROMPT_PSEUDOCODE_FIELDS
 build_messages = prompt_build_messages
@@ -74,9 +76,16 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
         )
 
 
-def entitlement_path_for_award(award_code: str) -> Path:
+def entitlement_path_for_award(
+    award_code: str,
+    ruleset_key: str | None = None,
+) -> Path:
     processed_root = PROJECT_ROOT / "data" / "processed"
     award_dir = award_output_dir(processed_root / f"{award_code}_overtime_entitlements.md")
+    if ruleset_key == OVERTIME_CREATION_RULESET:
+        return award_dir / f"{award_code}_overtime_creation_ruleset_overtime_entitlements.md"
+    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+        return award_dir / f"{award_code}_overtime_consequence_ruleset_overtime_entitlements.md"
     return award_dir / f"{award_code}_overtime_entitlements.md"
 
 
@@ -90,6 +99,42 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
             path.with_name(f"{base_stem}_overtime_entitlements.md"),
             path.with_name(f"{base_stem}_overtime_interpretation_revised.md"),
             path.with_name(f"{base_stem}_overtime_interpretation.md"),
+        ]
+
+    if stem.endswith("_overtime_creation_ruleset_revised"):
+        base_stem = stem.removesuffix("_overtime_creation_ruleset_revised")
+        return [
+            path.with_name(f"{base_stem}_overtime_creation_ruleset_overtime_entitlements.md"),
+            path,
+            path.with_name(f"{base_stem}_overtime_creation_ruleset.md"),
+        ]
+
+    if stem.endswith("_overtime_consequence_ruleset_revised"):
+        base_stem = stem.removesuffix("_overtime_consequence_ruleset_revised")
+        return [
+            path.with_name(
+                f"{base_stem}_overtime_consequence_ruleset_overtime_entitlements.md"
+            ),
+            path,
+            path.with_name(f"{base_stem}_overtime_consequence_ruleset.md"),
+        ]
+
+    if stem.endswith("_overtime_creation_ruleset_overtime_entitlements"):
+        base_stem = stem.removesuffix("_overtime_creation_ruleset_overtime_entitlements")
+        return [
+            path,
+            path.with_name(f"{base_stem}_overtime_creation_ruleset_revised.md"),
+            path.with_name(f"{base_stem}_overtime_creation_ruleset.md"),
+        ]
+
+    if stem.endswith("_overtime_consequence_ruleset_overtime_entitlements"):
+        base_stem = stem.removesuffix(
+            "_overtime_consequence_ruleset_overtime_entitlements"
+        )
+        return [
+            path,
+            path.with_name(f"{base_stem}_overtime_consequence_ruleset_revised.md"),
+            path.with_name(f"{base_stem}_overtime_consequence_ruleset.md"),
         ]
 
     if stem.endswith("_overtime_entitlements"):
@@ -113,12 +158,13 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
 
 def select_overtime_interpretation_path(
     source_path: Path | str = DEFAULT_OVERTIME_SUMMARY_PATH,
+    ruleset_key: str | None = None,
 ) -> Path:
     selected_source = str(source_path)
     if looks_like_path(selected_source):
         candidate_paths = fallback_source_paths_for_path(Path(selected_source))
     else:
-        candidate_paths = [default_overtime_interpretation_path(selected_source)]
+        candidate_paths = [default_overtime_interpretation_path(selected_source, ruleset_key)]
 
     for candidate_path in candidate_paths:
         if candidate_path.exists():
@@ -130,9 +176,28 @@ def select_overtime_interpretation_path(
     )
 
 
-def default_overtime_interpretation_path(award_code: str) -> Path:
+def default_overtime_interpretation_path(
+    award_code: str,
+    ruleset_key: str | None = None,
+) -> Path:
     processed_root = PROJECT_ROOT / "data" / "processed"
     award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
+    if ruleset_key == OVERTIME_CREATION_RULESET:
+        entitlement_path = entitlement_path_for_award(award_code, ruleset_key)
+        if entitlement_path.exists():
+            return entitlement_path
+        revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        if revised_path.exists():
+            return revised_path
+        return award_dir / f"{award_code}_overtime_creation_ruleset.md"
+    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+        entitlement_path = entitlement_path_for_award(award_code, ruleset_key)
+        if entitlement_path.exists():
+            return entitlement_path
+        revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        if revised_path.exists():
+            return revised_path
+        return award_dir / f"{award_code}_overtime_consequence_ruleset.md"
     manual_4b_path = award_dir / f"{award_code}_overtime_interpretation_4b.md"
     if manual_4b_path.exists():
         return manual_4b_path
@@ -153,8 +218,16 @@ def source_stage_for_path(path: Path) -> str:
 
     if stem.endswith("_overtime_interpretation_4b"):
         return "4b"
+    if stem.endswith("_overtime_creation_ruleset_overtime_entitlements"):
+        return "4a"
+    if stem.endswith("_overtime_consequence_ruleset_overtime_entitlements"):
+        return "4a"
     if stem.endswith("_overtime_entitlements"):
         return "4a"
+    if stem.endswith("_overtime_creation_ruleset_revised"):
+        return "3b"
+    if stem.endswith("_overtime_consequence_ruleset_revised"):
+        return "3b"
     if stem.endswith("_overtime_interpretation_revised"):
         return "3b"
     return "3"
@@ -255,6 +328,22 @@ def overtime_rule_bullets(markdown: str) -> str:
 def output_path_for_summary(summary_path: Path | str) -> Path:
     path = Path(summary_path)
     stem = path.stem
+    if stem.endswith("_overtime_creation_ruleset_overtime_entitlements"):
+        stem = stem.removesuffix("_overtime_creation_ruleset_overtime_entitlements")
+        return path.with_name(f"{stem}_overtime_creation_ruleset_core_overtime_pseudocode.md")
+    elif stem.endswith("_overtime_consequence_ruleset_overtime_entitlements"):
+        stem = stem.removesuffix("_overtime_consequence_ruleset_overtime_entitlements")
+        return path.with_name(
+            f"{stem}_overtime_consequence_ruleset_core_overtime_pseudocode.md"
+        )
+    elif stem.endswith("_overtime_creation_ruleset_revised"):
+        stem = stem.removesuffix("_overtime_creation_ruleset_revised")
+        return path.with_name(f"{stem}_overtime_creation_ruleset_core_overtime_pseudocode.md")
+    elif stem.endswith("_overtime_consequence_ruleset_revised"):
+        stem = stem.removesuffix("_overtime_consequence_ruleset_revised")
+        return path.with_name(
+            f"{stem}_overtime_consequence_ruleset_core_overtime_pseudocode.md"
+        )
     if stem.endswith("_overtime_interpretation_4b"):
         stem = stem.removesuffix("_overtime_interpretation_4b")
     elif stem.endswith("_overtime_entitlements"):
@@ -263,11 +352,7 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
         stem = stem.removesuffix("_overtime_interpretation_revised")
     elif stem.endswith("_overtime_interpretation"):
         stem = stem.removesuffix("_overtime_interpretation")
-    return path_in_category(
-        path,
-        OVERTIME_PSEUDOCODE_DIR,
-        f"{stem}_core_overtime_pseudocode.md",
-    )
+    return award_output_dir(path) / f"{stem}_core_overtime_pseudocode.md"
 
 
 def request_pseudocode_output(
@@ -288,7 +373,9 @@ def request_pseudocode_output(
     if not output_text:
         raise CoreOvertimePseudocodeError("OpenAI response did not include output text.")
 
-    return output_text
+    if output_text.endswith("\n"):
+        return output_text
+    return output_text + "\n"
 
 
 def generate_core_overtime_pseudocode(
@@ -296,13 +383,20 @@ def generate_core_overtime_pseudocode(
     output_path: Path | str | None = None,
     model: str | None = None,
     client: Any | None = None,
+    ruleset_key: str | None = None,
 ) -> str:
     selected_model = model or os.getenv("CORE_OVERTIME_PSEUDOCODE_MODEL", DEFAULT_MODEL)
     if client is None:
         load_environment()
         client = OpenAI()
 
-    source_path = select_overtime_interpretation_path(summary_path)
+    source_path = select_overtime_interpretation_path(summary_path, ruleset_key)
+    try:
+        effective_ruleset_key = ruleset_key or infer_overtime_ruleset_key_from_path(
+            source_path
+        )
+    except ValueError:
+        effective_ruleset_key = OVERTIME_CREATION_RULESET
     rules_artifact = load_overtime_rules(source_path)
     summary_text = str(rules_artifact["rendered_markdown"])
     source_inventory = build_rule_inventory_from_rules(
@@ -317,7 +411,12 @@ def generate_core_overtime_pseudocode(
     output_text = request_pseudocode_output(
         client=client,
         model=selected_model,
-        messages=build_messages(str(source_path), summary_text, source_inventory),
+        messages=build_messages(
+            str(source_path),
+            summary_text,
+            source_inventory,
+            effective_ruleset_key,
+        ),
     )
 
     repair_attempts = 0
@@ -352,6 +451,7 @@ def generate_core_overtime_pseudocode(
                 source_inventory=source_inventory,
                 initial_pseudocode_markdown=output_text,
                 validation_report_markdown=validation_markdown,
+                ruleset_key=effective_ruleset_key,
             ),
         )
 
@@ -379,20 +479,31 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=None,
         help=f"OpenAI model to use. Defaults to CORE_OVERTIME_PSEUDOCODE_MODEL or {DEFAULT_MODEL}.",
     )
+    parser.add_argument(
+        "--ruleset-key",
+        choices=RULESET_CHOICES,
+        default=None,
+        help="Optional ruleset key when resolving an award code input.",
+    )
     return parser.parse_args(argv)
 
 
 def main() -> None:
     args = parse_args()
+    selected_source_path = select_overtime_interpretation_path(
+        args.summary_path,
+        args.ruleset_key,
+    )
     generate_core_overtime_pseudocode(
         summary_path=args.summary_path,
         output_path=args.output_path,
         model=args.model,
+        ruleset_key=args.ruleset_key,
     )
     destination = (
         Path(args.output_path)
         if args.output_path
-        else output_path_for_summary(args.summary_path)
+        else output_path_for_summary(selected_source_path)
     )
     print(f"Core overtime pseudocode saved to {destination}")
     print(

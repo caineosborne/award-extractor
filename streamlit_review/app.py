@@ -31,6 +31,10 @@ from src.common.award_sources import (
     can_run_pipeline_for_award,
     source_record_for_award,
 )
+from src.common.overtime_rulesets import (
+    OVERTIME_CONSEQUENCE_RULESET,
+    OVERTIME_CREATION_RULESET,
+)
 from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
 from streamlit_review.pipeline_runs import (
@@ -57,7 +61,9 @@ from streamlit_review.output_data import (
     previous_index,
     processed_files_matching_prefix,
     read_text_file,
+    ruleset_artifact_paths_for_award,
     source_path_for_core_overtime_pseudocode,
+    source_path_for_ruleset_core_overtime_pseudocode,
     source_path_for_manual_4b_editor,
     write_text_file_with_archive,
 )
@@ -74,6 +80,11 @@ SCREEN_REVIEW_FEEDBACK = "8. Reviewer feedback and commentary"
 SCREEN_FORMATTED_4A = "9. Final formatted ruleset"
 SCREEN_MANUAL_4B_EDITOR = "10. Manually edited ruleset"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Pseudocode"
+
+RULESET_OPTIONS = {
+    "Overtime creation": OVERTIME_CREATION_RULESET,
+    "Overtime consequence": OVERTIME_CONSEQUENCE_RULESET,
+}
 
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
@@ -150,6 +161,7 @@ def main() -> None:
         return
 
     artifact_paths = artifact_paths_for_award(validated_award_code)
+    selected_ruleset = st.session_state.get("step3_ruleset", OVERTIME_CREATION_RULESET)
 
     st.caption(f"Reviewing generated outputs for `{validated_award_code}`.")
 
@@ -162,6 +174,7 @@ def main() -> None:
         screen_two=screen_two,
         layout_mode=layout_mode,
         artifact_paths=artifact_paths,
+        ruleset_key=selected_ruleset,
     )
 
 
@@ -214,9 +227,18 @@ def render_sidebar(award_codes: list[str]) -> str:
             )
 
         st.divider()
+        selected_label = st.selectbox(
+            "Step 3 ruleset",
+            list(RULESET_OPTIONS),
+            key="step3_ruleset_label",
+        )
+        st.session_state["step3_ruleset"] = RULESET_OPTIONS[selected_label]
+
+        st.divider()
         render_pipeline_run_controls(
             selected_award_code=validated_award_code or selected_award_code,
             controls_disabled=pipeline_controls_disabled,
+            ruleset_key=st.session_state["step3_ruleset"],
         )
 
         st.divider()
@@ -371,34 +393,60 @@ def render_screens(
     screen_two: str,
     layout_mode: str,
     artifact_paths: Any,
+    ruleset_key: str,
 ) -> None:
     if layout_mode == "Single expanded" or screen_two == "None":
         with st.container(height=790, border=True):
-            render_screen_panel(screen_one, artifact_paths, panel_key="screen_one")
+            render_screen_panel(
+                screen_one,
+                artifact_paths,
+                panel_key="screen_one",
+                ruleset_key=ruleset_key,
+            )
         return
 
     left_column, right_column = st.columns(2, gap="medium")
 
     with left_column:
         with st.container(height=790, border=True):
-            render_screen_panel(screen_one, artifact_paths, panel_key="screen_one")
+            render_screen_panel(
+                screen_one,
+                artifact_paths,
+                panel_key="screen_one",
+                ruleset_key=ruleset_key,
+            )
 
     with right_column:
         with st.container(height=790, border=True):
-            render_screen_panel(screen_two, artifact_paths, panel_key="screen_two")
+            render_screen_panel(
+                screen_two,
+                artifact_paths,
+                panel_key="screen_two",
+                ruleset_key=ruleset_key,
+            )
 
 
-def render_screen_panel(screen_name: str, artifact_paths: Any, panel_key: str) -> None:
+def render_screen_panel(
+    screen_name: str,
+    artifact_paths: Any,
+    panel_key: str,
+    ruleset_key: str,
+) -> None:
     render_panel_heading(
         screen_name,
         panel_key,
         artifact_paths,
     )
 
-    render_screen(screen_name, artifact_paths, panel_key)
+    render_screen(screen_name, artifact_paths, panel_key, ruleset_key)
 
 
-def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None:
+def render_screen(
+    screen_name: str,
+    artifact_paths: Any,
+    panel_key: str,
+    ruleset_key: str,
+) -> None:
     renderers: dict[str, Callable[[Any, str], None]] = {
         SCREEN_L1_PAYMENT: render_l1_payment_screen,
         SCREEN_L2_PAYMENT: render_l2_payment_screen,
@@ -414,10 +462,11 @@ def render_screen(screen_name: str, artifact_paths: Any, panel_key: str) -> None
     }
 
     renderer = renderers[screen_name]
-    renderer(artifact_paths, panel_key)
+    renderer(artifact_paths, panel_key, ruleset_key)
 
 
-def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
+def render_l1_payment_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del ruleset_key
     render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
@@ -452,7 +501,8 @@ def render_l1_payment_screen(artifact_paths: Any, panel_key: str) -> None:
     render_json_expander("Selected L1 JSON", record, key_suffix=panel_key)
 
 
-def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
+def render_l2_payment_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del ruleset_key
     render_file_details(artifact_paths.payment_classification)
 
     payment_classification = load_json_or_show_error(artifact_paths.payment_classification)
@@ -479,11 +529,15 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str) -> None:
     render_json_expander("Selected L2 JSON", record, key_suffix=panel_key)
 
 
-def render_overtime_classification_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_file_details(artifact_paths.overtime_clause_classification)
+def render_overtime_classification_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        ruleset_key,
+    )
+    render_file_details(ruleset_artifacts.clause_classification)
 
     overtime_classification = load_json_or_show_error(
-        artifact_paths.overtime_clause_classification
+        ruleset_artifacts.clause_classification
     )
     if overtime_classification is None:
         return
@@ -532,39 +586,54 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
     return f"{panel_key}_overtime_clause_text_{selected_clause_key}"
 
 
-def render_original_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    json_path = getattr(
-        artifact_paths,
-        "original_overtime_rules_json",
-        artifact_paths.original_overtime_interpretation.with_suffix(".json"),
+def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        ruleset_key,
     )
+    json_path = ruleset_artifacts.combined_json
     render_overtime_rules_json(
         json_path,
-        source_markdown_path=artifact_paths.original_overtime_interpretation,
+        source_markdown_path=ruleset_artifacts.combined_markdown,
     )
 
 
-def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    json_path = artifact_paths.original_overtime_interpretation_expert_a.with_suffix(".json")
+def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        ruleset_key,
+    )
+    json_path = ruleset_artifacts.expert_a_markdown.with_suffix(".json")
     render_overtime_rules_json(
         json_path,
-        source_markdown_path=artifact_paths.original_overtime_interpretation_expert_a,
+        source_markdown_path=ruleset_artifacts.expert_a_markdown,
     )
 
 
-def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str) -> None:
-    json_path = artifact_paths.original_overtime_interpretation_expert_b.with_suffix(".json")
+def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        ruleset_key,
+    )
+    json_path = ruleset_artifacts.expert_b_markdown.with_suffix(".json")
     render_overtime_rules_json(
         json_path,
-        source_markdown_path=artifact_paths.original_overtime_interpretation_expert_b,
+        source_markdown_path=ruleset_artifacts.expert_b_markdown,
     )
 
 
-def render_expert_comparison_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_file_details(artifact_paths.original_overtime_interpretation_comparison)
+def render_expert_comparison_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        ruleset_key,
+    )
+    render_file_details(ruleset_artifacts.comparison_json)
 
     comparison_data = load_json_or_show_error(
-        artifact_paths.original_overtime_interpretation_comparison
+        ruleset_artifacts.comparison_json
     )
     if comparison_data is None:
         return
@@ -618,7 +687,12 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str) -> None
     render_json_expander("Expert comparison JSON", comparison_data, key_suffix=panel_key)
 
 
-def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
+def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        selected_award_code(),
+        ruleset_key,
+    )
     if artifact_paths.agentic_review_conversation.exists():
         with st.expander("Agentic review conversation", expanded=False):
             render_markdown_file(artifact_paths.agentic_review_conversation)
@@ -628,28 +702,24 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str) -> None:
     with evaluator_column:
         with st.container(border=True):
             st.markdown("#### Evaluator feedback")
-            render_evaluator_feedback_panel(artifact_paths.evaluator_feedback)
+            render_evaluator_feedback_panel(ruleset_artifacts.evaluator_feedback)
 
     with creator_column:
         with st.container(border=True):
             st.markdown("#### Creator commentary")
-            render_creator_commentary_panel(artifact_paths.creator_response)
+            render_creator_commentary_panel(ruleset_artifacts.creator_response)
 
     with outcome_column:
         with st.container(border=True):
             st.markdown("#### Final outcome")
-            revised_json_path = getattr(
-                artifact_paths,
-                "revised_overtime_rules_json",
-                artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
-            )
+            revised_json_path = ruleset_artifacts.revised_json
             if revised_json_path.exists():
                 render_overtime_rules_json(
                     revised_json_path,
-                    source_markdown_path=artifact_paths.revised_overtime_interpretation,
+                    source_markdown_path=ruleset_artifacts.revised_markdown,
                 )
             else:
-                render_markdown_file(artifact_paths.revised_overtime_interpretation)
+                render_markdown_file(ruleset_artifacts.revised_markdown)
 
 
 def render_evaluator_feedback_panel(markdown_path: Path) -> None:
@@ -811,14 +881,20 @@ def strip_leading_heading(markdown_text: str, heading: str) -> str:
     return stripped_text[len(heading) :].lstrip()
 
 
-def render_formatted_4a_screen(artifact_paths: Any, panel_key: str) -> None:
+def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        selected_award_code(),
+        ruleset_key,
+    )
     render_markdown_file(
-        artifact_paths.overtime_entitlements,
-        source_path=artifact_paths.revised_overtime_interpretation,
+        ruleset_artifacts.formatted_markdown,
+        source_path=ruleset_artifacts.revised_markdown,
     )
 
 
-def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
+def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del ruleset_key
     source_path = source_path_for_manual_4b_editor(artifact_paths)
     source_content = read_text_file(source_path)
 
@@ -861,12 +937,17 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str) -> None:
         st.caption(f"Archive copy: `{format_path_for_display(archive_path)}`")
 
 
-def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str) -> None:
-    render_markdown_file(
-        artifact_paths.core_overtime_pseudocode,
-        source_path=source_path_for_core_overtime_pseudocode(artifact_paths),
+def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+    del panel_key, artifact_paths
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        selected_award_code(),
+        ruleset_key,
     )
-    render_validation_summary(artifact_paths)
+    render_markdown_file(
+        ruleset_artifacts.pseudocode_markdown,
+        source_path=source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifacts),
+    )
+    render_ruleset_validation_summary(ruleset_artifacts)
 
 
 def manual_4b_editor_widget_key(panel_key: str, output_path: Path) -> str:
@@ -1295,6 +1376,7 @@ def render_processed_file_cleanup_controls() -> None:
 def render_pipeline_run_controls(
     selected_award_code: str,
     controls_disabled: bool,
+    ruleset_key: str,
 ) -> None:
     st.header("Pipeline runs")
     st.caption(
@@ -1313,7 +1395,7 @@ def render_pipeline_run_controls(
         use_container_width=True,
         disabled=run_controls_disabled,
     ):
-        execute_pipeline_run(selected_award_code, step=None)
+        execute_pipeline_run(selected_award_code, step=None, ruleset_key=ruleset_key)
 
     step_one_column, step_two_column = st.columns(2, gap="small")
     step_three_column, step_three_b_column = st.columns(2, gap="small")
@@ -1344,7 +1426,7 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3")
+            execute_pipeline_run(selected_award_code, step="3", ruleset_key=ruleset_key)
 
     with step_three_b_column:
         if st.button(
@@ -1353,7 +1435,7 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3b")
+            execute_pipeline_run(selected_award_code, step="3b", ruleset_key=ruleset_key)
 
     with step_four_column:
         if st.button(
@@ -1362,7 +1444,7 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="4")
+            execute_pipeline_run(selected_award_code, step="4", ruleset_key=ruleset_key)
 
     with step_five_b_column:
         if st.button(
@@ -1371,7 +1453,7 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="5b")
+            execute_pipeline_run(selected_award_code, step="5b", ruleset_key=ruleset_key)
 
     render_pipeline_run_status(selected_award_code, current_status)
 
@@ -1457,9 +1539,13 @@ def render_pipeline_run_status(
         with st.expander("Pipeline run log", expanded=False):
             st.code(log_text, language="text")
 
-def execute_pipeline_run(selected_award_code: str, step: str | None) -> None:
+def execute_pipeline_run(
+    selected_award_code: str,
+    step: str | None,
+    ruleset_key: str | None = None,
+) -> None:
     try:
-        start_background_pipeline_run(selected_award_code, step)
+        start_background_pipeline_run(selected_award_code, step, ruleset_key=ruleset_key)
     except RuntimeError as exc:
         st.error(str(exc))
         return
@@ -1655,6 +1741,37 @@ def render_validation_summary(artifact_paths: Any) -> None:
     metric_three.metric("Unresolved rules", unresolved_count)
 
     validation_report = read_text_file(artifact_paths.core_overtime_validation_markdown)
+    if validation_report.exists:
+        with st.expander("5B validation report", expanded=False):
+            st.markdown(validation_report.text)
+
+
+def render_ruleset_validation_summary(ruleset_artifacts: Any) -> None:
+    validation_data = load_optional_json_file(
+        ruleset_artifacts.pseudocode_validation_json
+    )
+    if validation_data is None:
+        st.info("No 5B validation report was found for this output yet.")
+        return
+
+    overall_status = str(validation_data.get("overall_status", "unknown"))
+    passed_count = int(validation_data.get("passed_rule_count", 0))
+    failed_count = int(validation_data.get("failed_rule_count", 0))
+    unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
+
+    if overall_status == "passed":
+        st.success("5B validation passed.")
+    elif overall_status == "unresolved":
+        st.warning("5B validation completed with unresolved coverage checks.")
+    else:
+        st.warning("5B validation found coverage issues.")
+
+    metric_one, metric_two, metric_three = st.columns(3)
+    metric_one.metric("Passed rules", passed_count)
+    metric_two.metric("Failed rules", failed_count)
+    metric_three.metric("Unresolved rules", unresolved_count)
+
+    validation_report = read_text_file(ruleset_artifacts.pseudocode_validation_markdown)
     if validation_report.exists:
         with st.expander("5B validation report", expanded=False):
             st.markdown(validation_report.text)

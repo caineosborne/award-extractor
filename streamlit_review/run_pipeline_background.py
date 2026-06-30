@@ -25,6 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--award-code", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--step", default=None)
+    parser.add_argument("--ruleset-key", default=None)
     return parser.parse_args()
 
 
@@ -38,7 +39,7 @@ def main() -> None:
         "step": args.step,
         "run_id": args.run_id,
         "state": "running",
-        "message": f"{pipeline_run_label(args.step)} is running for {args.award_code}.",
+        "message": f"{pipeline_run_label(args.step, args.ruleset_key)} is running for {args.award_code}.",
         "started_at": started_at,
         "finished_at": None,
         "duration_seconds": None,
@@ -50,6 +51,7 @@ def main() -> None:
         "progress_fraction": 0.0,
         "current_step": None,
         "current_step_label": None,
+        "ruleset_key": args.ruleset_key,
     }
     write_status(running_status)
 
@@ -68,6 +70,7 @@ def main() -> None:
         result = run_pipeline_for_award(
             args.award_code,
             args.step,
+            ruleset_key=args.ruleset_key,
             status_callback=write_progress_status,
             log_path=log_path_for_award(args.award_code),
         )
@@ -79,7 +82,7 @@ def main() -> None:
             {
                 **running_status,
                 "state": "error",
-                "message": f"{pipeline_run_label(args.step)} failed for {args.award_code}.",
+                "message": f"{pipeline_run_label(args.step, args.ruleset_key)} failed for {args.award_code}.",
                 "finished_at": finished_at,
                 "duration_seconds": finished_at - started_at,
             }
@@ -108,14 +111,14 @@ def main() -> None:
         if validation_summary and validation_summary["overall_status"] != "passed":
             final_status["state"] = "warning"
             final_status["message"] = (
-                f"{pipeline_run_label(args.step)} completed for {args.award_code} in "
+                f"{pipeline_run_label(args.step, args.ruleset_key)} completed for {args.award_code} in "
                 f"{final_status['duration_seconds']:.1f}s with validation issues "
                 f"({validation_summary['overall_status']})."
             )
         else:
             final_status["state"] = "success"
             final_status["message"] = (
-                f"{pipeline_run_label(args.step)} completed for {args.award_code} in "
+                f"{pipeline_run_label(args.step, args.ruleset_key)} completed for {args.award_code} in "
                 f"{final_status['duration_seconds']:.1f}s."
             )
     else:
@@ -125,12 +128,12 @@ def main() -> None:
         total_steps = result.get("total_steps")
         if failed_step_label and isinstance(completed_steps, int) and isinstance(total_steps, int):
             final_status["message"] = (
-                f"{pipeline_run_label(args.step)} failed for {args.award_code} at "
+                f"{pipeline_run_label(args.step, args.ruleset_key)} failed for {args.award_code} at "
                 f"step {completed_steps + 1} of {total_steps}: {failed_step_label}."
             )
         else:
             final_status["message"] = (
-                f"{pipeline_run_label(args.step)} failed for {args.award_code}."
+                f"{pipeline_run_label(args.step, args.ruleset_key)} failed for {args.award_code}."
             )
 
     write_status(final_status)

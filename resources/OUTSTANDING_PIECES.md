@@ -2,7 +2,7 @@
 
 This document records the current known gaps that still deserve follow-up in the active pipeline.
 
-It has been reviewed against the current codebase after the recent Step `3B` contract, validation, and documentation updates.
+It has been reviewed against the current codebase after the recent Step `3B` contract, validation, Streamlit review-surface, and documentation updates.
 
 ## Resolved items
 
@@ -75,6 +75,26 @@ Why it is no longer listed as active:
 - the earlier issue was that evaluator prose had too much practical authority in the creator prompt;
 - the current direct `3B` path now gives the structured review JSON priority.
 
+### Streamlit review screen no longer exposed structured 3B review detail during normal successful runs
+
+Status:
+- Resolved
+
+Current state:
+- the Streamlit review screen now shows both:
+  - the readable evaluator and creator markdown summaries; and
+  - the structured JSON artifacts behind those summaries.
+- evaluator rule-by-rule recommendations and evaluator-proposed new rules are again visible in the review UI.
+- creator structured commentary JSON is also visible even when the markdown decision record renders normally.
+
+What changed:
+- the evaluator and creator panels no longer return early after rendering markdown;
+- the structured JSON expanders and rule-by-rule sections remain available on successful runs.
+
+Why it is no longer listed as active:
+- the earlier issue was a UI rendering regression rather than a data-generation problem;
+- the structured `3B` artifacts are again exposed for review in Streamlit.
+
 ## Active issues
 
 ### Step 3B evaluator occasionally returns empty or truncated structured output in live runs
@@ -114,4 +134,5 @@ The active priority should be:
 
 1. finish stabilising live step `3B` evaluator output;
 2. rerun representative awards such as `MA000120` to confirm the reviewed interpretation path passes cleanly without manual-review fallback;
-3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in `3B` outputs or move to later presentation layers.
+3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in `3B` outputs or move to later presentation layers;
+4. keep the Streamlit review screen aligned with the structured artifact contracts as `3B` evolves.

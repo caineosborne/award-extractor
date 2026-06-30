@@ -25,6 +25,11 @@ from src.common.active_pipeline_paths import (
     default_classification_path_for_award,
     overtime_clause_classification_output_path_for_classification,
 )
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    explicit_clause_classification_output_path,
+    overtime_ruleset_config,
+)
 from src.common.overtime_rules import (
     ALLOWED_EMPLOYEE_COHORTS,
     ALLOWED_WORK_ARRANGEMENTS,
@@ -32,28 +37,23 @@ from src.common.overtime_rules import (
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_runtime import load_openai_environment
 from src.common.llm_io import extract_response_text
-from src.prompts.overtime_interpretation import (
-    OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT,
-    OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT,
+from src.prompts.overtime_ruleset import (
+    build_clause_classification_messages as build_ruleset_clause_classification_messages,
 )
 from src.script_2_classify_payments import parse_response_json
 
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
 DEFAULT_MODEL = "gpt-5.4-mini"
-OVERTIME_TAGS = ("Ordinary Hours & Overtime",)
+OVERTIME_TAGS = overtime_ruleset_config(OVERTIME_CREATION_RULESET).source_tags
 SCHEMA_VERSION = "overtime-clause-classification-v3"
 SUPPORTED_SCHEMA_VERSIONS = (
     "overtime-clause-classification-v2",
     SCHEMA_VERSION,
 )
-OVERTIME_CLASSIFICATIONS = (
-    "Ordinary Hours Boundary",
-    "Overtime Trigger",
-    "Overtime Consequence",
-    "Related Rule",
-    "Not Relevant",
-)
+OVERTIME_CLASSIFICATIONS = overtime_ruleset_config(
+    OVERTIME_CREATION_RULESET
+).allowed_classifications
 OVERTIME_CREATION_CLASSIFICATIONS = (
     "Ordinary Hours Boundary",
     "Overtime Trigger",
@@ -123,6 +123,14 @@ def overtime_clause_classification_path_for_source(
     )
 
 
+def ruleset_clause_classification_path_for_source(
+    classification_path: Path | str,
+    ruleset_key: str,
+) -> Path:
+    """Return the explicit ruleset clause-classification artifact path."""
+    return explicit_clause_classification_output_path(classification_path, ruleset_key)
+
+
 def classification_output_path_for_classification(
     classification_path: Path | str,
 ) -> Path:
@@ -157,32 +165,40 @@ def normalized_work_arrangement_from_clause_text(clause_text: str) -> str:
     return "all"
 
 
-def select_overtime_related_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
+def select_ruleset_related_clauses(
+    data: Mapping[str, Any],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> dict[str, Any]:
     """Keep only step-2 clauses tagged as ordinary-hours or overtime related."""
     classified_clauses = data.get("classified_clauses", {})
     if not isinstance(classified_clauses, Mapping):
         raise OvertimeInterpretationError("classified_clauses must be an object.")
 
+    config = overtime_ruleset_config(ruleset_key)
     overtime_related_clauses: dict[str, Any] = {}
 
     for clause_id, clause in classified_clauses.items():
         if not isinstance(clause, Mapping):
             continue
 
-        if any(tag in clause.get("tags", []) for tag in OVERTIME_TAGS):
+        if any(tag in clause.get("tags", []) for tag in config.source_tags):
             overtime_related_clauses[clause_id] = clause
 
     return overtime_related_clauses
 
 
+def select_overtime_related_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
+    return select_ruleset_related_clauses(data, OVERTIME_CREATION_RULESET)
+
+
 def filter_overtime_related_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
     """Return overtime-related clauses using the legacy internal helper name."""
-    return select_overtime_related_clauses(data)
+    return select_ruleset_related_clauses(data, OVERTIME_CREATION_RULESET)
 
 
 def filter_overtime_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
     """Return overtime-related clauses using the legacy helper name."""
-    return select_overtime_related_clauses(data)
+    return select_ruleset_related_clauses(data, OVERTIME_CREATION_RULESET)
 
 
 def format_clauses_for_prompt(overtime_clauses: Mapping[str, Any]) -> str:
@@ -200,29 +216,28 @@ def format_clauses_for_prompt(overtime_clauses: Mapping[str, Any]) -> str:
 
 def build_clause_classification_messages(
     overtime_clauses: Mapping[str, Any],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Build the messages used for the clause-role classification pass."""
     clauses_text = format_clauses_for_prompt(overtime_clauses)
-    return [
-        {"role": "system", "content": OVERTIME_CLAUSE_CLASSIFICATION_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": OVERTIME_CLAUSE_CLASSIFICATION_USER_PROMPT.format(
-                clauses_text=clauses_text
-            ),
-        },
-    ]
+    return build_ruleset_clause_classification_messages(ruleset_key, clauses_text)
 
 
 def build_classification_messages(
     overtime_clauses: Mapping[str, Any],
 ) -> list[dict[str, str]]:
     """Return clause-classification messages using the legacy helper name."""
-    return build_clause_classification_messages(overtime_clauses)
+    return build_clause_classification_messages(
+        overtime_clauses,
+        OVERTIME_CREATION_RULESET,
+    )
 
 
-def classification_response_json_schema() -> dict[str, Any]:
+def classification_response_json_schema(
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> dict[str, Any]:
     """Define the strict JSON schema expected from clause classification."""
+    config = overtime_ruleset_config(ruleset_key)
     return {
         "type": "object",
         "additionalProperties": False,
@@ -236,13 +251,13 @@ def classification_response_json_schema() -> dict[str, Any]:
                         "clause_number": {"type": "string"},
                         "classification": {
                             "type": "string",
-                            "enum": list(OVERTIME_CLASSIFICATIONS),
+                            "enum": list(config.allowed_classifications),
                         },
                         "classifications": {
                             "type": "array",
                             "items": {
                                 "type": "string",
-                                "enum": list(OVERTIME_CLASSIFICATIONS),
+                                "enum": list(config.allowed_classifications),
                             },
                             "minItems": 1,
                         },
@@ -278,8 +293,10 @@ def classification_response_json_schema() -> dict[str, Any]:
 def validate_overtime_clause_classifications(
     response_data: Mapping[str, Any],
     overtime_clauses: Mapping[str, Any],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Validate the clause-classification output against the shortlisted clauses."""
+    config = overtime_ruleset_config(ruleset_key)
     raw_clauses = response_data.get("clauses")
     if not isinstance(raw_clauses, list):
         raise OvertimeInterpretationError(
@@ -312,7 +329,7 @@ def validate_overtime_clause_classifications(
             raise OvertimeInterpretationError(
                 f"Duplicate overtime clause classification reference: {clause_number}"
             )
-        if classification not in OVERTIME_CLASSIFICATIONS:
+        if classification not in config.allowed_classifications:
             raise OvertimeInterpretationError(
                 f"Unsupported overtime clause classification: {classification}"
             )
@@ -332,7 +349,7 @@ def validate_overtime_clause_classifications(
             )
 
         unsupported_classifications = [
-            item for item in categories if item not in OVERTIME_CLASSIFICATIONS
+            item for item in categories if item not in config.allowed_classifications
         ]
         if unsupported_classifications:
             unsupported = ", ".join(unsupported_classifications)
@@ -399,6 +416,7 @@ def validate_overtime_clause_classifications(
 def load_overtime_clause_classification_artifact(
     classification_path: Path | str,
     overtime_clauses: Mapping[str, Any],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Load and validate a saved clause-classification artifact."""
     path = Path(classification_path)
@@ -423,24 +441,30 @@ def load_overtime_clause_classification_artifact(
             f"{schema_version}"
         )
 
-    return validate_overtime_clause_classifications(data, overtime_clauses)
+    return validate_overtime_clause_classifications(
+        data,
+        overtime_clauses,
+        ruleset_key,
+    )
 
 
 def classify_overtime_clauses(
     overtime_clauses: Mapping[str, Any],
     client: Any,
     model: str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Ask the model to classify each shortlisted clause by overtime role."""
+    config = overtime_ruleset_config(ruleset_key)
     try:
         response = client.responses.create(
             model=model,
-            input=build_clause_classification_messages(overtime_clauses),
+            input=build_clause_classification_messages(overtime_clauses, ruleset_key),
             text={
                 "format": {
                     "type": "json_schema",
-                    "name": "overtime_clause_classification",
-                    "schema": classification_response_json_schema(),
+                    "name": config.clause_classification_schema_name,
+                    "schema": classification_response_json_schema(ruleset_key),
                     "strict": True,
                 }
             },
@@ -457,18 +481,22 @@ def classify_overtime_clauses(
     return validate_overtime_clause_classifications(
         parse_response_json(output_text),
         overtime_clauses,
+        ruleset_key,
     )
 
 
 def build_clause_classification_artifact(
     source_file: Path | str,
     classifications: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> dict[str, Any]:
     """Build the JSON artifact that part 2 will read."""
+    config = overtime_ruleset_config(ruleset_key)
     return {
         "schema_version": SCHEMA_VERSION,
+        "ruleset_key": ruleset_key,
         "source_classification_file": str(source_file),
-        "included_categories_for_interpretation": list(OVERTIME_CREATION_CLASSIFICATIONS),
+        "included_categories_for_interpretation": list(config.generation_classifications),
         "clauses": [
             {
                 "clause_number": classification.clause_number,
@@ -490,7 +518,11 @@ def classification_artifact(
     classifications: Sequence[OvertimeClauseClassification],
 ) -> dict[str, Any]:
     """Return the clause-classification artifact using the legacy helper name."""
-    return build_clause_classification_artifact(source_file, classifications)
+    return build_clause_classification_artifact(
+        source_file,
+        classifications,
+        OVERTIME_CREATION_RULESET,
+    )
 
 
 def load_or_create_overtime_clause_classifications(
@@ -499,6 +531,7 @@ def load_or_create_overtime_clause_classifications(
     classification_output_path: Path,
     client: Any,
     model: str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Reuse a valid clause-classification file or regenerate it from step 2."""
     if classification_output_path.exists():
@@ -506,6 +539,7 @@ def load_or_create_overtime_clause_classifications(
             return load_overtime_clause_classification_artifact(
                 classification_output_path,
                 overtime_clauses,
+                ruleset_key,
             )
         except OvertimeInterpretationError:
             pass
@@ -514,9 +548,14 @@ def load_or_create_overtime_clause_classifications(
         overtime_clauses,
         client,
         model,
+        ruleset_key,
     )
     classification_text = json.dumps(
-        build_clause_classification_artifact(source_path, clause_classifications),
+        build_clause_classification_artifact(
+            source_path,
+            clause_classifications,
+            ruleset_key,
+        ),
         indent=2,
         ensure_ascii=False,
     )
@@ -526,13 +565,15 @@ def load_or_create_overtime_clause_classifications(
 
 def select_overtime_creation_clauses(
     classifications: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Keep only clause roles that can create overtime entitlement."""
+    config = overtime_ruleset_config(ruleset_key)
     overtime_creation_clauses: list[OvertimeClauseClassification] = []
 
     for classification in classifications:
         if any(
-            category in OVERTIME_CREATION_CLASSIFICATIONS
+            category in config.generation_classifications
             for category in classification.classifications
         ):
             overtime_creation_clauses.append(classification)
@@ -544,7 +585,10 @@ def filter_overtime_creation_clauses(
     classifications: Sequence[OvertimeClauseClassification],
 ) -> list[OvertimeClauseClassification]:
     """Return overtime-creation clauses using the legacy helper name."""
-    return select_overtime_creation_clauses(classifications)
+    return select_overtime_creation_clauses(
+        classifications,
+        OVERTIME_CREATION_RULESET,
+    )
 
 
 def prepare_overtime_clause_classifications(
@@ -552,6 +596,7 @@ def prepare_overtime_clause_classifications(
     classification_output_path: Path | str | None = None,
     model: str | None = None,
     client: Any | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Run step 3 part 1 and write the intermediate clause-classification artifact."""
     selected_model = model or os.getenv("OVERTIME_INTERPRETATION_MODEL", DEFAULT_MODEL)
@@ -561,16 +606,20 @@ def prepare_overtime_clause_classifications(
 
     source_path = Path(classification_path)
     data = load_classification(source_path)
-    overtime_clauses = select_overtime_related_clauses(data)
+    overtime_clauses = select_ruleset_related_clauses(data, ruleset_key)
     if not overtime_clauses:
         raise OvertimeInterpretationError(
-            f"No Ordinary Hours or Overtime clauses found in: {source_path}"
+            f"No {overtime_ruleset_config(ruleset_key).display_name.lower()} source clauses found in: {source_path}"
         )
 
     destination = (
         Path(classification_output_path)
         if classification_output_path
-        else overtime_clause_classification_path_for_source(source_path)
+        else (
+            overtime_clause_classification_path_for_source(source_path)
+            if ruleset_key == OVERTIME_CREATION_RULESET
+            else ruleset_clause_classification_path_for_source(source_path, ruleset_key)
+        )
     )
 
     return load_or_create_overtime_clause_classifications(
@@ -579,6 +628,7 @@ def prepare_overtime_clause_classifications(
         classification_output_path=destination,
         client=client,
         model=selected_model,
+        ruleset_key=ruleset_key,
     )
 
 

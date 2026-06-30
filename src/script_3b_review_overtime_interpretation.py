@@ -53,6 +53,11 @@ from src.common.overtime_rules import (
     validate_review_feedback_artifact,
     write_rules_artifact,
 )
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+    infer_overtime_ruleset_key_from_path,
+)
 from src.script_3_interpret_overtime import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL as DEFAULT_CREATOR_MODEL,
@@ -84,6 +89,10 @@ CREATOR_RESPONSE_PATTERN = re.compile(
 DEFAULT_INTER_CALL_DELAY_SECONDS = 30.0
 MAX_CREATOR_REPAIR_ATTEMPTS = 1
 MAX_EVALUATOR_REPAIR_ATTEMPTS = 2
+REVIEW_RULESET_CHOICES = (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+)
 
 
 def _structured_rule_schema() -> dict[str, Any]:
@@ -299,13 +308,18 @@ def load_review_source_artifacts(
     interpretation_path: Path | str,
     classification_path: Path | str,
     overtime_clause_classification_path: Path | str | None,
-) -> tuple[Path, Path, Path, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
+) -> tuple[Path, Path, Path, str, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
     """Load and validate all source artifacts needed for the step-3B review."""
     selected_interpretation_path = Path(interpretation_path)
     selected_classification_path = Path(classification_path)
+    try:
+        inferred_ruleset_key = infer_overtime_ruleset_key_from_path(selected_interpretation_path)
+    except ValueError:
+        inferred_ruleset_key = OVERTIME_CREATION_RULESET
     selected_overtime_clause_classification_path = resolve_overtime_clause_classification_path(
         selected_classification_path,
         overtime_clause_classification_path,
+        selected_interpretation_path,
     )
     selected_rules_json_path = json_output_path_for_markdown(selected_interpretation_path)
 
@@ -350,6 +364,7 @@ def load_review_source_artifacts(
         selected_interpretation_path,
         selected_classification_path,
         selected_overtime_clause_classification_path,
+        inferred_ruleset_key,
         original_rules_artifact,
         interpretation_markdown,
         classification_data,
@@ -361,7 +376,7 @@ def load_review_sources(
     interpretation_path: Path | str,
     classification_path: Path | str,
     overtime_clause_classification_path: Path | str | None,
-) -> tuple[Path, Path, Path, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
+) -> tuple[Path, Path, Path, str, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
     """Return review source artifacts using the legacy helper name."""
     return load_review_source_artifacts(
         interpretation_path,
@@ -381,10 +396,11 @@ def build_review_evaluator_messages(
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
     original_rules_artifact: Mapping[str, Any] | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Build the evaluator prompt set for the step-3B review."""
     return [
-        {"role": "system", "content": evaluation_system_prompt()},
+        {"role": "system", "content": evaluation_system_prompt(ruleset_key)},
         {
             "role": "user",
             # Build the full evaluator review prompt from the interpretation and source artifacts.
@@ -396,6 +412,7 @@ def build_review_evaluator_messages(
                 payment_classification=payment_classification,
                 overtime_clause_classification_path=overtime_clause_classification_path,
                 overtime_clause_classification=overtime_clause_classification,
+                ruleset_key=ruleset_key,
             )
             + "\n\n"
             + evaluator_structured_output_instructions(),
@@ -411,6 +428,7 @@ def build_evaluator_messages(
     overtime_clause_classification_path: Path | str,
     overtime_clause_classification: Mapping[str, Any],
     original_rules_artifact: Mapping[str, Any] | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Return evaluator messages using the legacy helper name."""
     return build_review_evaluator_messages(
@@ -421,6 +439,7 @@ def build_evaluator_messages(
         payment_classification=payment_classification,
         overtime_clause_classification_path=overtime_clause_classification_path,
         overtime_clause_classification=overtime_clause_classification,
+        ruleset_key=ruleset_key,
     )
 
 
@@ -435,6 +454,7 @@ def build_review_creator_messages(
     evaluator_feedback_data: Mapping[str, Any] | None = None,
     prior_creator_decision_markdown: str | None = None,
     original_rules_artifact: Mapping[str, Any] | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Build the creator prompt set used to revise the interpretation."""
     # Extract only the clause excerpts that matter to the evaluator's feedback.
@@ -458,6 +478,7 @@ def build_review_creator_messages(
         classification_path,
         payment_classification,
         overtime_clause_classification,
+        ruleset_key,
     )
 
     return [
@@ -476,6 +497,7 @@ def build_review_creator_messages(
                     indent=2,
                     ensure_ascii=False,
                 ),
+                ruleset_key=ruleset_key,
                 prior_creator_decision_markdown=prior_creator_decision_markdown,
             )
             + "\n\nOriginal step-3 rules JSON:\n```json\n"
@@ -517,6 +539,7 @@ def build_creator_messages(
     evaluator_feedback_data: Mapping[str, Any] | None = None,
     prior_creator_decision_markdown: str | None = None,
     original_rules_artifact: Mapping[str, Any] | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Return creator messages using the legacy helper name."""
     return build_review_creator_messages(
@@ -530,6 +553,7 @@ def build_creator_messages(
         evaluator_feedback_markdown=evaluator_feedback_markdown,
         evaluator_feedback_data=evaluator_feedback_data,
         prior_creator_decision_markdown=prior_creator_decision_markdown,
+        ruleset_key=ruleset_key,
     )
 
 
@@ -567,6 +591,7 @@ def build_evaluator_repair_messages(
     *,
     validation_error: str,
     prior_response_text: str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[dict[str, str]]:
     """Ask the evaluator model to correct an invalid structured review response."""
     repair_instruction = (
@@ -576,7 +601,7 @@ def build_evaluator_repair_messages(
         "You must keep one rule_reviews item for every original rule_id.\n"
         "Do not silently drop any original rule.\n"
         "If you recommend removal, the rationale must clearly support that removal.\n"
-        "Only use new_rules for clearly supported missing overtime-creation rules.\n\n"
+        "Only use new_rules for clearly supported missing rules for the selected ruleset.\n\n"
         "Previous response:\n"
         f"```json\n{prior_response_text}\n```"
     )
@@ -867,6 +892,7 @@ def review_overtime_interpretation(
     creator_client: Any | None = None,
     status_callback: Callable[[str], None] | None = None,
     inter_call_delay_seconds: float = DEFAULT_INTER_CALL_DELAY_SECONDS,
+    ruleset_key: str | None = None,
 ) -> OvertimeInterpretationReviewArtifacts:
     """Run the one-pass evaluator and creator review workflow for step 3B."""
     # Pick explicit model overrides first, then environment variables, then defaults.
@@ -908,6 +934,7 @@ def review_overtime_interpretation(
         selected_interpretation_path,
         selected_classification_path,
         selected_overtime_clause_classification_path,
+        inferred_ruleset_key,
         original_rules_artifact,
         interpretation_markdown,
         classification_data,
@@ -917,6 +944,7 @@ def review_overtime_interpretation(
         classification_path=classification_path,
         overtime_clause_classification_path=overtime_clause_classification_path,
     )
+    selected_ruleset_key = ruleset_key or inferred_ruleset_key
 
     # Build the evaluator prompt from the current interpretation and its source evidence.
     evaluator_messages = build_review_evaluator_messages(
@@ -927,6 +955,7 @@ def review_overtime_interpretation(
         payment_classification=classification_data,
         overtime_clause_classification_path=selected_overtime_clause_classification_path,
         overtime_clause_classification=overtime_clause_classification,
+        ruleset_key=selected_ruleset_key,
     )
 
     if status_callback:
@@ -979,6 +1008,7 @@ def review_overtime_interpretation(
                 current_evaluator_messages,
                 validation_error=last_evaluator_validation_error,
                 prior_response_text="<empty response>",
+                ruleset_key=selected_ruleset_key,
             )
             continue
         try:
@@ -1004,6 +1034,7 @@ def review_overtime_interpretation(
                 current_evaluator_messages,
                 validation_error=last_evaluator_validation_error,
                 prior_response_text=evaluator_output_text,
+                ruleset_key=selected_ruleset_key,
             )
 
     if status_callback:
@@ -1030,6 +1061,7 @@ def review_overtime_interpretation(
         overtime_clause_classification=overtime_clause_classification,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
         evaluator_feedback_data=evaluator_feedback_data,
+        ruleset_key=selected_ruleset_key,
     )
     # Log the creator model-call budget before sending the revision request.
     log_model_call_budget(
@@ -1283,6 +1315,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             f"OVERTIME_INTERPRETATION_REVIEW_CREATOR_MODEL or {DEFAULT_CREATOR_MODEL}."
         ),
     )
+    parser.add_argument(
+        "--ruleset-key",
+        choices=REVIEW_RULESET_CHOICES,
+        default=None,
+        help=(
+            "Optional ruleset key for explicit ruleset review, for example "
+            "`overtime_consequence`."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -1301,6 +1342,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     overtime_clause_classification_path = resolve_overtime_clause_classification_path(
         classification_path,
         args.overtime_clause_classification_path,
+        interpretation_path,
     )
 
     print(f"Starting overtime interpretation review for {interpretation_path}")
@@ -1315,6 +1357,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         evaluator_model=args.evaluator_model,
         creator_model=args.creator_model,
         status_callback=lambda message: print(f"Status: {message}"),
+        ruleset_key=args.ruleset_key,
     )
 
     print(f"Evaluator feedback saved to {artifacts.evaluator_feedback_path}")

@@ -47,6 +47,13 @@ Generate the overtime interpretation:
 uv run script-3-interpret-overtime data/processed/2_payment_clause_identifier/MA000018_payment_classification.json
 ```
 
+Generate one explicit Phase 1 overtime ruleset:
+
+```bash
+uv run script-3-generate-overtime-ruleset data/processed/2_payment_clause_identifier/MA000018_payment_classification.json --ruleset overtime_creation
+uv run script-3-generate-overtime-ruleset data/processed/2_payment_clause_identifier/MA000018_payment_classification.json --ruleset overtime_consequence
+```
+
 Run the two maintained step-3 sub-parts separately if needed:
 
 ```bash
@@ -87,6 +94,7 @@ The main review screens are now reviewer-facing:
 - final formatted ruleset
 - manually edited ruleset
 - pseudocode
+- step-3 ruleset selector for overtime creation vs overtime consequence
 
 For step `3B`, the review screen shows both:
 - the readable evaluator and creator markdown summaries; and

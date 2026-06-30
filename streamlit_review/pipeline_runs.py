@@ -18,14 +18,30 @@ from src.award_pipeline import (
     run_default_pipeline,
     run_selected_step,
 )
+from src.common.active_pipeline_paths import (
+    creator_response_path_for_interpretation,
+    evaluator_feedback_path_for_interpretation,
+    revised_output_path_for_interpretation,
+    ruleset_clause_classification_output_path_for_classification,
+    ruleset_output_path_for_classification,
+)
 from src.common.award_sources import (
     SOURCE_TYPE_FAIR_WORK_HTML,
     SOURCE_TYPE_LOCAL_PDF,
     source_record_for_award,
 )
+from src.common.overtime_rulesets import overtime_ruleset_config
+from src.script_3_generate_overtime_ruleset import generate_overtime_ruleset
+from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
 from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
 from src.script_4a_summarize_overtime import summarize_overtime_entitlements
-from streamlit_review.output_data import artifact_paths_for_award, load_json_file
+from src.script_5b_generate_overtime_pseudocode import generate_core_overtime_pseudocode
+from streamlit_review.output_data import (
+    artifact_paths_for_award,
+    load_json_file,
+    ruleset_artifact_paths_for_award,
+    source_path_for_ruleset_core_overtime_pseudocode,
+)
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 PIPELINE_RUN_DIR = PROJECT_ROOT / "data" / "processed" / "_streamlit_pipeline_runs"
@@ -68,8 +84,20 @@ class LiveLogWriter:
         self.log_file.close()
 
 
-def pipeline_run_label(step: str | None) -> str:
+def pipeline_run_label(step: str | None, ruleset_key: str | None = None) -> str:
     """Return the human-readable label for one pipeline run."""
+    if ruleset_key:
+        ruleset_name = overtime_ruleset_config(ruleset_key).display_name.lower()
+        if step is None:
+            return f"{ruleset_name} pipeline run"
+        if step == "3":
+            return f"Generate {ruleset_name} ruleset"
+        if step == "3b":
+            return f"Review {ruleset_name} ruleset"
+        if step == "4":
+            return f"Format {ruleset_name} ruleset"
+        if step == "5b":
+            return f"Generate {ruleset_name} pseudocode"
     if step is None:
         return "Active pipeline run"
 
@@ -219,6 +247,7 @@ def run_pipeline_for_award(
     award_code: str,
     step: str | None,
     *,
+    ruleset_key: str | None = None,
     status_callback: Any | None = None,
     log_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -278,16 +307,74 @@ def run_pipeline_for_award(
                 if planned_step.runner_kind == "pdf_step_1":
                     run_pdf_step_1(paths, award_code, source_record)
                 elif planned_step.runner_kind == "formatter_step":
-                    summarize_overtime_entitlements(
-                        interpretation_path=artifact_paths.revised_overtime_interpretation,
-                        output_path=artifact_paths.overtime_entitlements,
-                    )
-                    print(
-                        "Formatted overtime guide saved to "
-                        f"{artifact_paths.overtime_entitlements}"
-                    )
+                    if ruleset_key is not None:
+                        ruleset_artifacts = ruleset_artifact_paths_for_award(
+                            award_code,
+                            ruleset_key,
+                        )
+                        summarize_overtime_entitlements(
+                            interpretation_path=ruleset_artifacts.revised_markdown,
+                            output_path=ruleset_artifacts.formatted_markdown,
+                        )
+                        print(
+                            "Formatted overtime guide saved to "
+                            f"{ruleset_artifacts.formatted_markdown}"
+                        )
+                    else:
+                        summarize_overtime_entitlements(
+                            interpretation_path=artifact_paths.revised_overtime_interpretation,
+                            output_path=artifact_paths.overtime_entitlements,
+                        )
+                        print(
+                            "Formatted overtime guide saved to "
+                            f"{artifact_paths.overtime_entitlements}"
+                        )
                 else:
-                    run_selected_step(paths, planned_step.step_id)
+                    if planned_step.step_id == "3" and ruleset_key is not None:
+                        generate_overtime_ruleset(
+                            classification_path=paths.classification_path,
+                            ruleset_key=ruleset_key,
+                        )
+                    elif planned_step.step_id == "3b" and ruleset_key is not None:
+                        interpretation_path = ruleset_output_path_for_classification(
+                            paths.classification_path,
+                            ruleset_key,
+                        )
+                        review_overtime_interpretation(
+                            interpretation_path=interpretation_path,
+                            classification_path=paths.classification_path,
+                            overtime_clause_classification_path=ruleset_clause_classification_output_path_for_classification(
+                                paths.classification_path,
+                                ruleset_key,
+                            ),
+                            feedback_output_path=evaluator_feedback_path_for_interpretation(
+                                interpretation_path
+                            ),
+                            creator_response_output_path=creator_response_path_for_interpretation(
+                                interpretation_path
+                            ),
+                            revised_output_path=revised_output_path_for_interpretation(
+                                interpretation_path
+                            ),
+                            ruleset_key=ruleset_key,
+                        )
+                    elif planned_step.step_id == "5b" and ruleset_key is not None:
+                        ruleset_artifacts = ruleset_artifact_paths_for_award(
+                            award_code,
+                            ruleset_key,
+                        )
+                        generate_core_overtime_pseudocode(
+                            summary_path=source_path_for_ruleset_core_overtime_pseudocode(
+                                ruleset_artifacts
+                            ),
+                            output_path=ruleset_artifacts.pseudocode_markdown,
+                        )
+                        print(
+                            "Core overtime pseudocode saved to "
+                            f"{ruleset_artifacts.pseudocode_markdown}"
+                        )
+                    else:
+                        run_selected_step(paths, planned_step.step_id)
 
                 print(
                     f"Completed step {step_index} of {len(planned_steps)}: "
@@ -302,7 +389,7 @@ def run_pipeline_for_award(
                     "progress_fraction": 1.0,
                     "current_step": None,
                     "current_step_label": None,
-                    "message": f"{pipeline_run_label(step)} finished for {award_code}.",
+                    "message": f"{pipeline_run_label(step, ruleset_key)} finished for {award_code}.",
                 }
             )
     except Exception as exc:
@@ -379,7 +466,12 @@ def run_pdf_step_1(paths: Any, award_code: str, source_record: dict[str, Any]) -
     )
 
 
-def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str, Any]:
+def start_background_pipeline_run(
+    award_code: str,
+    step: str | None,
+    *,
+    ruleset_key: str | None = None,
+) -> dict[str, Any]:
     """Start one background pipeline process for the selected award code."""
     current_status = normalized_status_for_award(award_code)
     if current_status is not None and current_status.get("state") in {"starting", "running"}:
@@ -392,7 +484,7 @@ def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str
         "step": step,
         "run_id": run_id,
         "state": "starting",
-        "message": f"{pipeline_run_label(step)} is starting for {award_code}.",
+        "message": f"{pipeline_run_label(step, ruleset_key)} is starting for {award_code}.",
         "started_at": started_at,
         "finished_at": None,
         "duration_seconds": None,
@@ -404,6 +496,7 @@ def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str
         "progress_fraction": 0.0,
         "current_step": None,
         "current_step_label": None,
+        "ruleset_key": ruleset_key,
     }
     write_status(initial_status)
     log_path_for_award(award_code).write_text("", encoding="utf-8")
@@ -419,6 +512,8 @@ def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str
     ]
     if step is not None:
         command.extend(["--step", step])
+    if ruleset_key is not None:
+        command.extend(["--ruleset-key", ruleset_key])
 
     process = subprocess.Popen(
         command,
@@ -431,7 +526,9 @@ def start_background_pipeline_run(award_code: str, step: str | None) -> dict[str
 
     initial_status["pid"] = process.pid
     initial_status["state"] = "running"
-    initial_status["message"] = f"{pipeline_run_label(step)} is running for {award_code}."
+    initial_status["message"] = (
+        f"{pipeline_run_label(step, ruleset_key)} is running for {award_code}."
+    )
     write_status(initial_status)
 
     return initial_status

@@ -14,6 +14,7 @@ from src.script_4a_summarize_overtime import (
     strip_wrapping_markdown_fence,
     summarize_overtime_entitlements,
 )
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 
 
 class FakeResponses:
@@ -41,6 +42,36 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             result,
             Path("data/processed/MA000018/MA000018_overtime_entitlements.md"),
         )
+
+    def test_output_path_for_ruleset_revised_interpretation_keeps_ruleset_isolation(self):
+        result = output_path_for_interpretation(
+            Path("data/processed/MA000018/MA000018_overtime_consequence_ruleset_revised.md")
+        )
+
+        self.assertEqual(
+            result,
+            Path(
+                "data/processed/MA000018/MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
+            ),
+        )
+
+    def test_resolve_interpretation_path_supports_ruleset_award_lookup(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            project_root = Path(temp_dir)
+            award_dir = project_root / "data" / "processed" / "MA000999"
+            award_dir.mkdir(parents=True)
+            revised_path = award_dir / "MA000999_overtime_consequence_ruleset_revised.md"
+            revised_path.write_text("# Revised", encoding="utf-8")
+
+            from unittest.mock import patch
+
+            with patch("src.script_4a_summarize_overtime.PROJECT_ROOT", project_root):
+                result = resolve_interpretation_path(
+                    "MA000999",
+                    OVERTIME_CONSEQUENCE_RULESET,
+                )
+
+        self.assertEqual(result, revised_path)
 
     def test_resolve_interpretation_path_returns_explicit_path(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -77,16 +108,31 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "## All employees\n\n- After 38 hours in a week. [20.1]",
             "Template.md",
             "# Overtime Triggers\n\n## All Employees\n-",
+            "overtime_creation",
         )
 
-        self.assertIn("human-readable overtime guide", messages[0]["content"])
-        self.assertIn("Interpretation source: interpretation.md", messages[1]["content"])
-        self.assertIn("Template source: Template.md", messages[1]["content"])
+        self.assertIn("reviewed overtime ruleset", messages[0]["content"])
+        self.assertIn("Reviewed ruleset source: interpretation.md", messages[1]["content"])
         self.assertIn("After 38 hours in a week. [20.1]", messages[1]["content"])
         self.assertIn("# Overtime Triggers", messages[1]["content"])
-        self.assertIn("Use the template headings exactly as provided", messages[1]["content"])
-        self.assertIn("omit that heading entirely", messages[1]["content"])
-        self.assertIn("no rule was provided", messages[1]["content"])
+        self.assertIn("Only include a heading", messages[1]["content"])
+        self.assertIn("Do not add headings outside this structure", messages[1]["content"])
+
+    def test_build_messages_supports_consequence_ruleset_formatting(self):
+        messages = build_messages(
+            "interpretation.md",
+            "## All employees\n\n- Overtime on Sunday is paid at double time. [23.5]",
+            "Template.md",
+            "# unused",
+            OVERTIME_CONSEQUENCE_RULESET,
+        )
+
+        self.assertIn("# Overtime Consequences", messages[1]["content"])
+        self.assertIn(
+            "what is paid, owed, or applied once overtime already exists",
+            messages[1]["content"],
+        )
+        self.assertIn("weekend/public-holiday overtime consequences", messages[1]["content"])
 
     def test_load_text_file_reads_template_markdown(self):
         template_text = load_text_file(DEFAULT_TEMPLATE_PATH, "Template markdown")
@@ -128,7 +174,6 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertEqual(len(archive_files), 1)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn("award_overtime_interpretation_revised.md", fake_client.responses.calls[0]["input"][1]["content"])
-        self.assertIn("Template.md", fake_client.responses.calls[0]["input"][1]["content"])
         self.assertNotIn("Clause 19.2 was not represented.", fake_client.responses.calls[0]["input"][1]["content"])
 
 

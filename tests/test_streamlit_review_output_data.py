@@ -1,9 +1,21 @@
 import json
+import inspect
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import sentinel
 
+import pytest
+
+from src.prompts.agentic_review import (
+    build_agentic_creator_input,
+    build_agentic_source_context_prompt,
+)
+from src.prompts.overtime_ruleset import (
+    build_clause_classification_messages as build_ruleset_clause_classification_messages,
+    build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
+    build_interpretation_messages as build_ruleset_interpretation_messages,
+)
 from streamlit_review.app import (
     available_award_code_index,
     combine_pipeline_logs,
@@ -11,12 +23,16 @@ from streamlit_review.app import (
     move_selected_index,
     overtime_clause_text_widget_key,
     pipeline_run_label,
+    render_pipeline_run_controls,
     render_creator_commentary_panel,
     render_evaluator_feedback_panel,
     run_pipeline_for_award,
     validate_award_code_input,
 )
-from streamlit_review.pipeline_runs import run_pipeline_for_award as background_run_pipeline_for_award
+from streamlit_review.pipeline_runs import (
+    pipeline_run_label as background_pipeline_run_label,
+    run_pipeline_for_award as background_run_pipeline_for_award,
+)
 from streamlit_review.output_data import (
     ArtifactPaths,
     artifact_paths_for_award,
@@ -34,8 +50,17 @@ from streamlit_review.output_data import (
     previous_index,
     processed_files_matching_prefix,
     read_text_file,
+    ruleset_artifact_paths_for_award,
     source_path_for_core_overtime_pseudocode,
     source_path_for_manual_4b_editor,
+)
+from src.common.overtime_rulesets import (
+    OVERTIME_CONSEQUENCE_RULESET,
+    OVERTIME_CREATION_RULESET,
+)
+from src.common.active_pipeline_paths import (
+    ruleset_clause_classification_output_path_for_classification,
+    ruleset_output_path_for_classification,
 )
 from src.common.award_sources import (
     SOURCE_TYPE_LOCAL_PDF,
@@ -104,6 +129,111 @@ def test_artifact_paths_for_award():
         paths.core_overtime_validation_markdown.name
         == "MA000018_core_overtime_pseudocode_validation.md"
     )
+
+
+def test_ruleset_artifact_paths_for_award():
+    paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
+
+    assert (
+        paths.clause_classification.name
+        == "MA000018_overtime_consequence_clause_classification.json"
+    )
+    assert paths.expert_a_markdown.name == "MA000018_overtime_consequence_ruleset_expert_a.md"
+    assert paths.expert_b_markdown.name == "MA000018_overtime_consequence_ruleset_expert_b.md"
+    assert paths.comparison_json.name == "MA000018_overtime_consequence_ruleset_comparison.json"
+    assert paths.combined_markdown.name == "MA000018_overtime_consequence_ruleset.md"
+    assert paths.combined_json.name == "MA000018_overtime_consequence_ruleset.json"
+    assert (
+        paths.formatted_markdown.name
+        == "MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
+    )
+    assert (
+        paths.pseudocode_markdown.name
+        == "MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
+    )
+
+
+def test_creation_ruleset_artifact_paths_fall_back_to_legacy_files_when_explicit_files_are_missing(
+    tmp_path,
+    monkeypatch,
+):
+    processed_root = tmp_path / "processed"
+    award_dir = processed_root / "MA000120"
+    award_dir.mkdir(parents=True)
+
+    legacy_files = [
+        "MA000120_overtime_clause_classification.json",
+        "MA000120_overtime_interpretation_expert_a.md",
+        "MA000120_overtime_interpretation_expert_b.md",
+        "MA000120_overtime_interpretation_comparison.json",
+        "MA000120_overtime_interpretation.md",
+    ]
+    for filename in legacy_files:
+        (award_dir / filename).write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
+
+    paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
+
+    assert paths.clause_classification.name == "MA000120_overtime_clause_classification.json"
+    assert paths.expert_a_markdown.name == "MA000120_overtime_interpretation_expert_a.md"
+    assert paths.expert_b_markdown.name == "MA000120_overtime_interpretation_expert_b.md"
+    assert paths.comparison_json.name == "MA000120_overtime_interpretation_comparison.json"
+    assert paths.combined_markdown.name == "MA000120_overtime_interpretation.md"
+    assert paths.combined_json.name == "MA000120_overtime_interpretation.json"
+
+
+def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
+    tmp_path,
+    monkeypatch,
+):
+    processed_root = tmp_path / "processed"
+    award_dir = processed_root / "MA000120"
+    award_dir.mkdir(parents=True)
+
+    explicit_files = [
+        "MA000120_overtime_creation_clause_classification.json",
+        "MA000120_overtime_creation_ruleset_expert_a.md",
+        "MA000120_overtime_creation_ruleset_expert_b.md",
+        "MA000120_overtime_creation_ruleset_comparison.json",
+        "MA000120_overtime_creation_ruleset.md",
+    ]
+    for filename in explicit_files:
+        (award_dir / filename).write_text("", encoding="utf-8")
+
+    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
+
+    paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
+
+    assert paths.clause_classification.name == "MA000120_overtime_creation_clause_classification.json"
+    assert paths.expert_a_markdown.name == "MA000120_overtime_creation_ruleset_expert_a.md"
+    assert paths.expert_b_markdown.name == "MA000120_overtime_creation_ruleset_expert_b.md"
+    assert paths.comparison_json.name == "MA000120_overtime_creation_ruleset_comparison.json"
+    assert paths.combined_markdown.name == "MA000120_overtime_creation_ruleset.md"
+    assert paths.combined_json.name == "MA000120_overtime_creation_ruleset.json"
+    assert (
+        paths.formatted_markdown.name
+        == "MA000120_overtime_creation_ruleset_overtime_entitlements.md"
+    )
+    assert (
+        paths.pseudocode_markdown.name
+        == "MA000120_overtime_creation_ruleset_core_overtime_pseudocode.md"
+    )
+
+
+def test_phase_1_prompt_builders_live_under_prompts_folder():
+    prompt_builders = [
+        build_ruleset_clause_classification_messages,
+        build_ruleset_interpretation_messages,
+        build_ruleset_expert_comparison_messages,
+        build_agentic_source_context_prompt,
+        build_agentic_creator_input,
+    ]
+
+    for prompt_builder in prompt_builders:
+        prompt_source = inspect.getsourcefile(prompt_builder)
+        assert prompt_source is not None
+        assert "/src/prompts/" in prompt_source
 
 
 def test_l1_payment_records_preserve_json_key_order():
@@ -496,6 +626,74 @@ def test_pipeline_run_label_formats_full_and_step_runs():
     assert pipeline_run_label("4") == "Format overtime guide"
 
 
+def test_background_pipeline_run_label_includes_ruleset_when_provided():
+    assert background_pipeline_run_label(None) == "Active pipeline run"
+    assert (
+        background_pipeline_run_label("3", OVERTIME_CONSEQUENCE_RULESET)
+        == "Generate overtime consequence ruleset"
+    )
+    assert (
+        background_pipeline_run_label("3b", OVERTIME_CONSEQUENCE_RULESET)
+        == "Review overtime consequence ruleset"
+    )
+    assert (
+        background_pipeline_run_label("4", OVERTIME_CONSEQUENCE_RULESET)
+        == "Format overtime consequence ruleset"
+    )
+    assert (
+        background_pipeline_run_label("5b", OVERTIME_CONSEQUENCE_RULESET)
+        == "Generate overtime consequence pseudocode"
+    )
+    assert (
+        background_pipeline_run_label(None, OVERTIME_CONSEQUENCE_RULESET)
+        == "overtime consequence pipeline run"
+    )
+
+
+@pytest.mark.parametrize(
+    ("trigger_key", "expected_step"),
+    [
+        ("run_full_MA000120", None),
+        ("run_step_3b_MA000120", "3b"),
+        ("run_step_4_MA000120", "4"),
+        ("run_step_5b_MA000120", "5b"),
+    ],
+)
+def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
+    monkeypatch,
+    trigger_key: str,
+    expected_step: str | None,
+):
+    calls: list[tuple[str, str | None, str | None]] = []
+
+    class DummyColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    def fake_button(_label: str, *, key: str, **_kwargs) -> bool:
+        return key == trigger_key
+
+    monkeypatch.setattr("streamlit_review.app.normalized_status_for_award", lambda _award: None)
+    monkeypatch.setattr("streamlit_review.app.render_pipeline_run_status", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("streamlit_review.app.execute_pipeline_run", lambda award_code, step, ruleset_key=None: calls.append((award_code, step, ruleset_key)))
+    monkeypatch.setattr("streamlit_review.app.st.button", fake_button)
+    monkeypatch.setattr(
+        "streamlit_review.app.st.columns",
+        lambda count, gap="small": tuple(DummyColumn() for _ in range(count)),
+    )
+
+    render_pipeline_run_controls(
+        selected_award_code="MA000120",
+        controls_disabled=False,
+        ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+    )
+
+    assert calls == [("MA000120", expected_step, OVERTIME_CONSEQUENCE_RULESET)]
+
+
 def test_available_award_code_index_prefers_current_selection_when_present():
     award_codes = ["MA000002", "MA000018", "ColesRetailEnterpriseAgreement2024"]
 
@@ -833,4 +1031,172 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
             sentinel.entitlements_path,
         ),
         ("run_selected_step", sentinel.paths, "5b"),
+    ]
+
+
+def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
+    monkeypatch,
+    tmp_path,
+):
+    calls: list[tuple[str, object]] = []
+    award_code = "MA000120"
+    classification_path = (
+        tmp_path / award_code / f"{award_code}_payment_classification.json"
+    )
+    classification_path.parent.mkdir(parents=True, exist_ok=True)
+    classification_path.write_text("{}", encoding="utf-8")
+
+    combined_markdown = ruleset_output_path_for_classification(
+        classification_path,
+        OVERTIME_CONSEQUENCE_RULESET,
+    )
+    combined_json = combined_markdown.with_suffix(".json")
+    revised_markdown = combined_markdown.with_name(
+        f"{combined_markdown.stem}_revised.md"
+    )
+    revised_json = revised_markdown.with_suffix(".json")
+    formatted_markdown = combined_markdown.with_name(
+        f"{combined_markdown.stem}_overtime_entitlements.md"
+    )
+    pseudocode_markdown = combined_markdown.with_name(
+        f"{combined_markdown.stem}_core_overtime_pseudocode.md"
+    )
+    combined_markdown.parent.mkdir(parents=True, exist_ok=True)
+    combined_markdown.write_text("# Combined", encoding="utf-8")
+    combined_json.write_text("{}", encoding="utf-8")
+
+    ruleset_artifacts = SimpleNamespace(
+        revised_markdown=revised_markdown,
+        revised_json=revised_json,
+        combined_markdown=combined_markdown,
+        combined_json=combined_json,
+        formatted_markdown=formatted_markdown,
+        pseudocode_markdown=pseudocode_markdown,
+    )
+
+    def fake_source_record_for_award(selected_award_code: str) -> dict[str, str]:
+        calls.append(("source_record_for_award", selected_award_code))
+        return {
+            "source_type": "fair_work_html",
+            "source_url": f"https://example.com/{selected_award_code}.html",
+        }
+
+    def fake_build_paths(selected_award_code: str, suffix, url: str):
+        calls.append(("build_paths", selected_award_code, suffix, url))
+        return SimpleNamespace(classification_path=classification_path)
+
+    def fake_artifact_paths_for_award(selected_award_code: str):
+        calls.append(("artifact_paths_for_award", selected_award_code))
+        return sentinel.legacy_artifacts
+
+    def fake_ruleset_artifact_paths_for_award(selected_award_code: str, ruleset_key: str):
+        calls.append(("ruleset_artifact_paths_for_award", selected_award_code, ruleset_key))
+        return ruleset_artifacts
+
+    def fake_run_selected_step(paths, step: str) -> None:
+        calls.append(("run_selected_step", paths.classification_path, step))
+
+    def fake_generate_overtime_ruleset(*, classification_path: Path, ruleset_key: str) -> None:
+        calls.append(("generate_overtime_ruleset", classification_path, ruleset_key))
+
+    def fake_review_overtime_interpretation(**kwargs) -> None:
+        calls.append(
+            (
+                "review_overtime_interpretation",
+                kwargs["interpretation_path"],
+                kwargs["overtime_clause_classification_path"],
+                kwargs["ruleset_key"],
+            )
+        )
+        kwargs["revised_output_path"].parent.mkdir(parents=True, exist_ok=True)
+        kwargs["revised_output_path"].write_text("# Revised", encoding="utf-8")
+
+    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+        calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
+        output_path.write_text("# Formatted", encoding="utf-8")
+
+    def fake_generate_core_overtime_pseudocode(*, summary_path, output_path) -> None:
+        calls.append(("generate_core_overtime_pseudocode", summary_path, output_path))
+
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.source_record_for_award",
+        fake_source_record_for_award,
+    )
+    monkeypatch.setattr("streamlit_review.pipeline_runs.build_paths", fake_build_paths)
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.artifact_paths_for_award",
+        fake_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.ruleset_artifact_paths_for_award",
+        fake_ruleset_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.run_selected_step",
+        fake_run_selected_step,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.generate_overtime_ruleset",
+        fake_generate_overtime_ruleset,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.review_overtime_interpretation",
+        fake_review_overtime_interpretation,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.summarize_overtime_entitlements",
+        fake_summarize_overtime_entitlements,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.generate_core_overtime_pseudocode",
+        fake_generate_core_overtime_pseudocode,
+    )
+
+    result = background_run_pipeline_for_award(
+        award_code,
+        None,
+        ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+    )
+
+    assert result["success"] is True
+    assert calls == [
+        ("source_record_for_award", award_code),
+        ("build_paths", award_code, None, f"https://example.com/{award_code}.html"),
+        ("artifact_paths_for_award", award_code),
+        ("run_selected_step", classification_path, "1"),
+        ("run_selected_step", classification_path, "2"),
+        (
+            "generate_overtime_ruleset",
+            classification_path,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "review_overtime_interpretation",
+            combined_markdown,
+            ruleset_clause_classification_output_path_for_classification(
+                classification_path,
+                OVERTIME_CONSEQUENCE_RULESET,
+            ),
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "summarize_overtime_entitlements",
+            revised_markdown,
+            formatted_markdown,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "generate_core_overtime_pseudocode",
+            formatted_markdown,
+            pseudocode_markdown,
+        ),
     ]
