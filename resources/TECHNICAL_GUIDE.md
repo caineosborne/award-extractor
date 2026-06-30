@@ -525,9 +525,10 @@ Default model:
 Prompt input:
 - original interpretation markdown;
 - relevant clause excerpts selected from upstream artifacts;
-- evaluator markdown feedback;
 - original step-3 rules JSON;
 - evaluator structured review JSON;
+- creator review action pack JSON derived from original rules plus evaluator structured review;
+- evaluator markdown feedback, treated as explanatory context rather than the authoritative source of review actions;
 - creator structured-output instructions.
 
 Response format:
@@ -577,6 +578,7 @@ Contract:
 - creator must address every original rule;
 - creator may only accept, modify, or reject evaluator-proposed `new_rules`;
 - creator must not invent standalone creator-only new rules.
+- creator should derive operational add/remove/modify decisions from the evaluator structured review JSON and action pack, not from evaluator prose alone.
 
 ### Deterministic validation and application
 
@@ -603,6 +605,13 @@ Implemented in `apply_review_decisions()`:
 - clause-coverage reductions are surfaced via `clause_coverage_warnings()`;
 - revised markdown gets validation warnings prepended via `prepend_validation_warnings()`;
 - revised JSON and markdown are written together by `write_rules_artifact()`.
+
+### Prompting note
+
+The current creator prompt deliberately downplays evaluator markdown prose:
+- the original rules JSON and evaluator structured review JSON are the authoritative machine contract;
+- a derived action-pack JSON is passed to the creator to keep the original-rule decisions and evaluator-proposed `new_rules` visible in one place;
+- evaluator markdown is still shown for reviewer-style explanation, but should not be treated as authority for extra add/remove/split/merge actions that are not reflected in the structured JSON.
 
 ### Failure behaviour
 

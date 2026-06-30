@@ -88,6 +88,10 @@ The main review screens are now reviewer-facing:
 - manually edited ruleset
 - pseudocode
 
+For step `3B`, the review screen shows both:
+- the readable evaluator and creator markdown summaries; and
+- the structured JSON artifacts, including evaluator rule-by-rule recommendations and proposed new rules.
+
 ## Tests
 
 Run the test suite with:

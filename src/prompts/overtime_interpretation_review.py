@@ -79,6 +79,8 @@ def build_relevant_clause_excerpt_markdown(
     payment_classification: Mapping[str, Any],
     overtime_clause_classification: Mapping[str, Any],
     evaluator_feedback_markdown: str,
+    evaluator_feedback_data: Mapping[str, Any] | None = None,
+    original_rules_artifact: Mapping[str, Any] | None = None,
     prior_creator_decision_markdown: str | None = None,
 ) -> str:
     """Build a focused clause excerpt pack for the creator revision step."""
@@ -96,10 +98,19 @@ def build_relevant_clause_excerpt_markdown(
             if clause_number:
                 overtime_clause_by_number[clause_number] = raw_clause
 
-    referenced_clause_numbers = extract_clause_references(
-        evaluator_feedback_markdown,
-        prior_creator_decision_markdown or "",
-    )
+    referenced_clause_numbers: list[str] = []
+
+    if evaluator_feedback_data:
+        referenced_clause_numbers = clause_references_from_structured_review(
+            evaluator_feedback_data=evaluator_feedback_data,
+            original_rules_artifact=original_rules_artifact,
+        )
+
+    if not referenced_clause_numbers:
+        referenced_clause_numbers = extract_clause_references(
+            evaluator_feedback_markdown,
+            prior_creator_decision_markdown or "",
+        )
 
     if not referenced_clause_numbers:
         referenced_clause_numbers = interpretation_clause_references(interpretation_markdown)
@@ -161,6 +172,149 @@ def build_relevant_clause_excerpt_markdown(
         sections.extend(["", "No clause excerpts were selected."])
 
     return "\n".join(sections).strip()
+
+
+def clause_references_from_structured_review(
+    *,
+    evaluator_feedback_data: Mapping[str, Any],
+    original_rules_artifact: Mapping[str, Any] | None = None,
+) -> list[str]:
+    """Extract clause references from the structured evaluator review first."""
+    referenced_clause_numbers: list[str] = []
+    original_rule_map: dict[str, Mapping[str, Any]] = {}
+
+    if original_rules_artifact:
+        raw_original_rules = original_rules_artifact.get("rules", [])
+        if isinstance(raw_original_rules, list):
+            for raw_rule in raw_original_rules:
+                if isinstance(raw_rule, OvertimeRule):
+                    original_rule_map[raw_rule.rule_id] = rule_to_dict(raw_rule)
+                elif isinstance(raw_rule, Mapping):
+                    rule_id = str(raw_rule.get("rule_id") or "").strip()
+                    if rule_id:
+                        original_rule_map[rule_id] = raw_rule
+
+    raw_rule_reviews = evaluator_feedback_data.get("rule_reviews", [])
+    if isinstance(raw_rule_reviews, list):
+        for raw_review in raw_rule_reviews:
+            if not isinstance(raw_review, Mapping):
+                continue
+
+            rationale = str(raw_review.get("rationale") or "").strip()
+            referenced_clause_numbers.extend(extract_clause_references(rationale))
+
+            recommendation = str(raw_review.get("recommendation") or "").strip().lower()
+            if recommendation == "keep":
+                continue
+
+            rule_id = str(raw_review.get("rule_id") or "").strip()
+            source_rule = original_rule_map.get(rule_id)
+            if isinstance(source_rule, Mapping):
+                raw_clause_numbers = source_rule.get("source_clause_numbers", [])
+                if isinstance(raw_clause_numbers, list):
+                    referenced_clause_numbers.extend(
+                        str(clause_number).strip()
+                        for clause_number in raw_clause_numbers
+                        if str(clause_number).strip()
+                    )
+
+    raw_new_rules = evaluator_feedback_data.get("new_rules", [])
+    if isinstance(raw_new_rules, list):
+        for raw_rule in raw_new_rules:
+            if isinstance(raw_rule, OvertimeRule):
+                referenced_clause_numbers.extend(raw_rule.source_clause_numbers)
+                referenced_clause_numbers.extend(raw_rule.clause_references)
+                referenced_clause_numbers.extend(
+                    extract_clause_references(
+                        raw_rule.rule_markdown,
+                        raw_rule.rule_plain_text,
+                    )
+                )
+                continue
+
+            if not isinstance(raw_rule, Mapping):
+                continue
+
+            for field_name in ("source_clause_numbers", "clause_references"):
+                raw_values = raw_rule.get(field_name, [])
+                if isinstance(raw_values, list):
+                    referenced_clause_numbers.extend(
+                        str(value).strip()
+                        for value in raw_values
+                        if str(value).strip()
+                    )
+
+            referenced_clause_numbers.extend(
+                extract_clause_references(
+                    str(raw_rule.get("rule_markdown") or ""),
+                    str(raw_rule.get("rule_plain_text") or ""),
+                )
+            )
+
+    return extract_clause_references("\n".join(referenced_clause_numbers))
+
+
+def build_creator_review_action_pack(
+    *,
+    original_rules_artifact: Mapping[str, Any] | None,
+    evaluator_feedback_data: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Build the authoritative structured action pack for the creator step."""
+    serialized_original_rules: list[dict[str, Any]] = []
+
+    if original_rules_artifact:
+        raw_original_rules = original_rules_artifact.get("rules", [])
+        if isinstance(raw_original_rules, list):
+            for raw_rule in raw_original_rules:
+                if isinstance(raw_rule, OvertimeRule):
+                    serialized_original_rules.append(rule_to_dict(raw_rule))
+                elif isinstance(raw_rule, Mapping):
+                    serialized_original_rules.append(dict(raw_rule))
+
+    original_rule_map = {
+        str(rule.get("rule_id") or "").strip(): rule
+        for rule in serialized_original_rules
+        if str(rule.get("rule_id") or "").strip()
+    }
+
+    original_rule_reviews: list[dict[str, Any]] = []
+    raw_rule_reviews = (evaluator_feedback_data or {}).get("rule_reviews", [])
+    if isinstance(raw_rule_reviews, list):
+        for raw_review in raw_rule_reviews:
+            if not isinstance(raw_review, Mapping):
+                continue
+
+            rule_id = str(raw_review.get("rule_id") or "").strip()
+            if not rule_id:
+                continue
+
+            original_rule_reviews.append(
+                {
+                    "rule_id": rule_id,
+                    "recommendation": str(raw_review.get("recommendation") or "").strip(),
+                    "rationale": str(raw_review.get("rationale") or "").strip(),
+                    "original_rule": original_rule_map.get(rule_id),
+                }
+            )
+
+    serialized_new_rules: list[dict[str, Any]] = []
+    raw_new_rules = (evaluator_feedback_data or {}).get("new_rules", [])
+    if isinstance(raw_new_rules, list):
+        for raw_rule in raw_new_rules:
+            if isinstance(raw_rule, OvertimeRule):
+                serialized_new_rules.append(rule_to_dict(raw_rule))
+            elif isinstance(raw_rule, Mapping):
+                serialized_new_rules.append(dict(raw_rule))
+
+    return {
+        "authoritative_review_contract": {
+            "original_rule_reviews": original_rule_reviews,
+            "evaluator_proposed_new_rules": serialized_new_rules,
+        },
+        "explanatory_summary_markdown": str(
+            (evaluator_feedback_data or {}).get("summary_markdown") or ""
+        ).strip(),
+    }
 
 
 def build_full_evaluator_review_prompt(
@@ -264,6 +418,7 @@ def build_minimal_creator_revision_prompt(
     interpretation_markdown: str,
     relevant_clause_excerpt_markdown: str,
     evaluator_feedback_markdown: str,
+    creator_review_action_pack_json: str,
     prior_creator_decision_markdown: str | None = None,
 ) -> str:
     """Build the one-pass creator prompt used to revise the interpretation draft."""
@@ -280,6 +435,10 @@ Prior creator decision record:
     return f"""Review the supervisor feedback and decide whether the interpretation needs updating.
 
 This is a one-pass update. Do not ask for another review cycle.
+
+Use the evaluator review action pack JSON as the authoritative source for what the evaluator actually recommended.
+Use the evaluator summary markdown only as explanation of that JSON.
+Do not infer any extra add, remove, merge, or split action from evaluator prose unless it is reflected in the structured action pack.
 
 Keep the revised interpretation simple. Include only clauses that answer this question:
 Will this clause increase overtime entitlement by causing worked time to become overtime?
@@ -308,7 +467,13 @@ Original interpretation source: {interpretation_path}
 {interpretation_markdown}
 ```
 
-Supervisor feedback:
+Authoritative evaluator review action pack:
+
+```json
+{creator_review_action_pack_json}
+```
+
+Explanatory evaluator summary markdown:
 
 ```markdown
 {evaluator_feedback_markdown}
@@ -385,6 +550,8 @@ def evaluator_structured_output_instructions() -> str:
         "- recommendation: keep, modify, or remove\n"
         "- rationale\n\n"
         "Only recommend remove when the rule should not exist in downstream payroll logic.\n"
+        "If you think two existing rules should be merged, express that through the relevant "
+        "rule_reviews recommendations and rationales for those original rule_ids.\n"
         "Use new_rules only when a clearly supported overtime-creation rule is missing from the current draft.\n"
         "Every new_rules item must be a complete structured rule object with a unique rule_id.\n"
         "Do not silently replace an original rule with a new rule. Keep rule_reviews focused on the original rule_ids."
@@ -411,8 +578,10 @@ def creator_structured_output_instructions() -> str:
         "- reason\n"
         "- updated_rule when decision is modify, otherwise updated_rule must be null\n\n"
         "The evaluator structured review JSON is the authoritative source for evaluator-proposed new rule_ids.\n"
+        "The evaluator structured review JSON is also the authoritative source for add, remove, keep, and modify decisions on original rules.\n"
         "Only include new_rule_reviews for rule_ids that appear in the evaluator structured review JSON new_rules array.\n"
         "Do not invent standalone new rules in the creator response. The creator may only accept, modify, or reject evaluator-proposed new_rules.\n"
+        "If the evaluator rationale suggests merging or splitting rules, implement that only through valid rule_updates and evaluator-proposed new_rules from the structured JSON contract.\n"
         "If you can address the issue by editing an existing rule only, prefer modifying an existing rule."
     )
 

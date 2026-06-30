@@ -333,13 +333,16 @@ A human-readable markdown feedback artifact is also written.
 The creator receives:
 - the original interpretation;
 - the evaluator feedback;
-- the original step-3 rules JSON.
+- the original step-3 rules JSON;
+- the evaluator structured review JSON.
 
 Its job is to return explicit rule-level decisions. This is important because the revision step is meant to show what changed and why, not silently replace the earlier interpretation.
 
 Under the current design:
 - the evaluator may propose additional tracked rules;
 - the creator must explicitly accept, modify, or reject those proposed additions;
+- the creator prompt now includes an authoritative structured review action pack derived from the evaluator JSON and the original rules JSON;
+- evaluator markdown remains in the prompt as explanation and audit context, but it is no longer intended to be the authoritative source for add, remove, merge, or split actions;
 - code applies only the changes that pass deterministic safety checks.
 
 ### Validation in Step 3B
@@ -350,6 +353,7 @@ The code validates that:
 - removals are supported by the review record;
 - additions are not silently introduced;
 - additions are only applied where the tracked evaluator and creator records agree;
+- the revised ruleset is rebuilt from structured creator decisions rather than from free-text creator prose;
 - clause-coverage reductions can be surfaced as warnings.
 
 If structured creator output cannot be applied safely, the earlier interpretation is preserved and the workflow records the issue for manual review.
@@ -362,6 +366,10 @@ The main active endpoint of the project is the reviewed interpretation set:
 - evaluator feedback markdown and JSON;
 - creator response markdown and JSON;
 - revised overtime interpretation markdown and JSON.
+
+In the review UI, both the human-readable markdown and the structured JSON remain visible. This is intentional:
+- markdown is easier for reviewer reading;
+- JSON is the operational contract for deterministic validation and rule-by-rule traceability.
 
 ## Step 4A. Formatted overtime guide
 

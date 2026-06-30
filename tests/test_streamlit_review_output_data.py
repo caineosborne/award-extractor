@@ -11,6 +11,8 @@ from streamlit_review.app import (
     move_selected_index,
     overtime_clause_text_widget_key,
     pipeline_run_label,
+    render_creator_commentary_panel,
+    render_evaluator_feedback_panel,
     run_pipeline_for_award,
     validate_award_code_input,
 )
@@ -275,6 +277,112 @@ def test_missing_text_file_returns_status_without_exception(tmp_path):
     assert file_content.path == missing_path
     assert file_content.exists is False
     assert file_content.text == ""
+
+
+class _FakeExpander:
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
+class _FakeStreamlit:
+    def __init__(self):
+        self.markdown_calls: list[str] = []
+        self.write_calls: list[str] = []
+        self.code_calls: list[tuple[str, str | None]] = []
+
+    def markdown(self, text: str) -> None:
+        self.markdown_calls.append(text)
+
+    def write(self, text: str) -> None:
+        self.write_calls.append(text)
+
+    def code(self, text: str, language: str | None = None) -> None:
+        self.code_calls.append((text, language))
+
+    def divider(self) -> None:
+        return None
+
+    def warning(self, text: str) -> None:
+        self.write_calls.append(text)
+
+    def expander(self, _label: str, expanded: bool = False):
+        return _FakeExpander()
+
+
+def test_render_evaluator_feedback_panel_keeps_structured_sections_when_markdown_exists(
+    tmp_path,
+    monkeypatch,
+):
+    markdown_path = tmp_path / "award_overtime_interpretation_evaluator_feedback.md"
+    markdown_path.write_text("# Feedback\n\nSummary.", encoding="utf-8")
+    json_path = markdown_path.with_suffix(".json")
+    json_data = {
+        "summary_markdown": "# Feedback\n\nSummary.",
+        "rule_reviews": [
+            {
+                "rule_id": "rule-1",
+                "recommendation": "modify",
+                "rationale": "Clarify scope.",
+            }
+        ],
+        "new_rules": [
+            {
+                "rule_id": "rule-2",
+                "rule_markdown": "- Add this rule.",
+            }
+        ],
+    }
+    json_path.write_text(json.dumps(json_data), encoding="utf-8")
+
+    fake_streamlit = _FakeStreamlit()
+    json_expanders: list[str] = []
+
+    monkeypatch.setattr("streamlit_review.app.st", fake_streamlit)
+    monkeypatch.setattr("streamlit_review.app.render_file_details", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "streamlit_review.app.render_json_expander",
+        lambda label, value, **kwargs: json_expanders.append(label),
+    )
+
+    render_evaluator_feedback_panel(markdown_path)
+
+    assert "# Feedback\n\nSummary." in fake_streamlit.markdown_calls
+    assert "##### rule-1 (modify)" in fake_streamlit.markdown_calls
+    assert "##### rule-2" in fake_streamlit.markdown_calls
+    assert "Evaluator feedback JSON" in json_expanders
+
+
+def test_render_creator_commentary_panel_keeps_structured_json_when_markdown_exists(
+    tmp_path,
+    monkeypatch,
+):
+    markdown_path = tmp_path / "award_overtime_interpretation_creator_response.md"
+    markdown_path.write_text("Accepted the structured review.", encoding="utf-8")
+    json_path = markdown_path.with_suffix(".json")
+    json_data = {
+        "decision_record_markdown": "Accepted the structured review.",
+        "rule_updates": [],
+        "new_rule_reviews": [],
+    }
+    json_path.write_text(json.dumps(json_data), encoding="utf-8")
+
+    fake_streamlit = _FakeStreamlit()
+    json_expanders: list[str] = []
+
+    monkeypatch.setattr("streamlit_review.app.st", fake_streamlit)
+    monkeypatch.setattr("streamlit_review.app.render_file_details", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        "streamlit_review.app.render_json_expander",
+        lambda label, value, **kwargs: json_expanders.append(label),
+    )
+
+    render_creator_commentary_panel(markdown_path)
+
+    assert "Accepted the structured review." in fake_streamlit.markdown_calls
+    assert "Creator commentary JSON" in json_expanders
 
 
 def test_index_navigation_wraps_and_clamps():

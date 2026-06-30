@@ -59,6 +59,7 @@ from src.script_3_interpret_overtime import (
     load_classification,
 )
 from src.prompts.overtime_interpretation_review import (
+    build_creator_review_action_pack,
     build_full_evaluator_review_prompt,
     build_minimal_creator_revision_prompt,
     build_relevant_clause_excerpt_markdown,
@@ -442,7 +443,14 @@ def build_review_creator_messages(
         payment_classification=payment_classification,
         overtime_clause_classification=overtime_clause_classification,
         evaluator_feedback_markdown=evaluator_feedback_markdown,
+        evaluator_feedback_data=evaluator_feedback_data,
+        original_rules_artifact=original_rules_artifact,
         prior_creator_decision_markdown=prior_creator_decision_markdown,
+    )
+
+    creator_review_action_pack = build_creator_review_action_pack(
+        original_rules_artifact=original_rules_artifact,
+        evaluator_feedback_data=evaluator_feedback_data,
     )
 
     # Rebuild the original script-3 creator prompt context for consistency with the source workflow.
@@ -463,6 +471,11 @@ def build_review_creator_messages(
                 interpretation_markdown=interpretation_markdown,
                 relevant_clause_excerpt_markdown=relevant_clause_excerpt_markdown,
                 evaluator_feedback_markdown=evaluator_feedback_markdown,
+                creator_review_action_pack_json=json.dumps(
+                    creator_review_action_pack,
+                    indent=2,
+                    ensure_ascii=False,
+                ),
                 prior_creator_decision_markdown=prior_creator_decision_markdown,
             )
             + "\n\nOriginal step-3 rules JSON:\n```json\n"

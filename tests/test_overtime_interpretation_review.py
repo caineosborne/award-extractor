@@ -265,6 +265,9 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
 
         self.assertIn("# Original", user_prompt)
         self.assertIn("# Feedback", user_prompt)
+        self.assertIn("Authoritative evaluator review action pack", user_prompt)
+        self.assertIn('"authoritative_review_contract"', user_prompt)
+        self.assertIn('"rule_id": "all-employees_001"', user_prompt)
         self.assertIn("## Clause 20.1", user_prompt)
         self.assertNotIn('"30.1"', user_prompt)
         self.assertIn("Will this clause increase overtime entitlement", user_prompt)
@@ -282,6 +285,86 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
         self.assertNotIn("interpretation_messages", user_prompt)
         self.assertIn("<creator_response>", user_prompt)
         self.assertIn("<revised_interpretation>", user_prompt)
+
+    def test_build_creator_messages_prioritises_structured_review_clauses(self):
+        messages = build_creator_messages(
+            interpretation_path="interpretation.md",
+            interpretation_markdown="# Original\n\n- Base rule. [20.1]",
+            classification_path="classification.json",
+            payment_classification={
+                "classified_clauses": {
+                    "20.1": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Overtime after ordinary hours.",
+                    },
+                    "21.5": {
+                        "tags": ["Ordinary Hours & Overtime"],
+                        "text": "Interrupted meal breaks create overtime.",
+                    },
+                }
+            },
+            overtime_clause_classification_path="overtime_clause_classification.json",
+            overtime_clause_classification={
+                "clauses": [
+                    {
+                        "clause_number": "20.1",
+                        "classification": "Overtime Trigger",
+                        "classifications": ["Overtime Trigger"],
+                        "explanation": "Directly creates overtime.",
+                        "clause_text": "Overtime after ordinary hours.",
+                    },
+                    {
+                        "clause_number": "21.5",
+                        "classification": "Overtime Trigger",
+                        "classifications": ["Overtime Trigger"],
+                        "explanation": "Creates overtime for interrupted meal breaks.",
+                        "clause_text": "Interrupted meal breaks create overtime.",
+                    },
+                ]
+            },
+            evaluator_feedback_markdown="# Feedback\n\nGeneral concern with wording only.",
+            evaluator_feedback_data={
+                "summary_markdown": "# Feedback\n\nGeneral concern with wording only.",
+                "rule_reviews": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "recommendation": "modify",
+                        "rationale": "Clarify the existing rule.",
+                    }
+                ],
+                "new_rules": [
+                    {
+                        "rule_id": "all-employees_002",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time", "part-time", "casual"],
+                        "clause_references": ["21.5"],
+                        "rule_markdown": "- If a meal break is interrupted, the time becomes overtime. [21.5]",
+                        "rule_plain_text": "If a meal break is interrupted, the time becomes overtime.",
+                        "source_clause_numbers": ["21.5"],
+                        "source_classifications": ["Overtime Trigger"],
+                    }
+                ],
+            },
+            original_rules_artifact={
+                "rules": [
+                    {
+                        "rule_id": "all-employees_001",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time", "part-time", "casual"],
+                        "clause_references": ["20.1"],
+                        "rule_markdown": "- Base rule. [20.1]",
+                        "rule_plain_text": "Base rule.",
+                        "source_clause_numbers": ["20.1"],
+                        "source_classifications": ["Overtime Trigger"],
+                    }
+                ]
+            },
+        )
+
+        user_prompt = messages[1]["content"]
+
+        self.assertIn("## Clause 20.1", user_prompt)
+        self.assertIn("## Clause 21.5", user_prompt)
 
     def test_build_relevant_clause_excerpt_markdown_uses_referenced_clauses_only(self):
         clause_excerpt_markdown = build_relevant_clause_excerpt_markdown(

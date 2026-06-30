@@ -656,6 +656,7 @@ def render_evaluator_feedback_panel(markdown_path: Path) -> None:
     """Render evaluator feedback with markdown as the primary display source."""
     render_file_details(markdown_path)
 
+    rendered_summary_markdown = False
     markdown_content = read_text_file(markdown_path)
     if markdown_content.exists:
         markdown_text = markdown_content.text.strip()
@@ -665,7 +666,7 @@ def render_evaluator_feedback_panel(markdown_path: Path) -> None:
             and not markdown_text.startswith("{")
         ):
             st.markdown(markdown_text)
-            return
+            rendered_summary_markdown = True
 
     json_path = markdown_path.with_suffix(".json")
     json_data = load_json_or_show_error(json_path) if json_path.exists() else None
@@ -697,7 +698,7 @@ def render_evaluator_feedback_panel(markdown_path: Path) -> None:
                 st.code(summary_markdown, language="json")
             return
 
-        if summary_markdown:
+        if summary_markdown and not rendered_summary_markdown:
             st.markdown(summary_markdown)
 
         if isinstance(rule_reviews, list) and rule_reviews:
@@ -745,6 +746,7 @@ def render_creator_commentary_panel(markdown_path: Path) -> None:
     """Render creator commentary with markdown as the primary display source."""
     render_file_details(markdown_path)
 
+    rendered_markdown = False
     markdown_content = read_text_file(markdown_path)
     if markdown_content.exists:
         markdown_text = markdown_content.text.strip()
@@ -754,7 +756,7 @@ def render_creator_commentary_panel(markdown_path: Path) -> None:
             and not markdown_text.startswith("{")
         ):
             st.markdown(markdown_text)
-            return
+            rendered_markdown = True
 
     json_path = markdown_path.with_suffix(".json")
     json_data = load_json_or_show_error(json_path) if json_path.exists() else None
@@ -771,7 +773,7 @@ def render_creator_commentary_panel(markdown_path: Path) -> None:
             )
             st.write(f"Validation issue: {validation_error}")
 
-        if decision_record_markdown:
+        if decision_record_markdown and not rendered_markdown:
             st.markdown(decision_record_markdown)
 
         if raw_creator_response:

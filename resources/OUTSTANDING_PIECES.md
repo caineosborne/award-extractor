@@ -1,159 +1,117 @@
 # Outstanding Pieces
 
-This document records current known gaps, design questions, and follow-up work items in the active overtime pipeline.
+This document records the current known gaps that still deserve follow-up in the active pipeline.
 
-## Active issues
+It has been reviewed against the current codebase after the recent Step `3B` contract, validation, and documentation updates.
+
+## Resolved items
+
+These earlier items are no longer outstanding in their original form.
 
 ### Step 3 completeness validation gap between 3.2 and 3.4
 
 Status:
-- Open
+- Resolved as warning-based validation
 
-Area:
-- `src/script_3_interpret_overtime.py`
+Current state:
+- `src/script_3_part2_generate_overtime_interpretation.py` now records warning-level completeness issues when shortlisted overtime-creation clauses from step `3.2` are not represented in:
+  - the expert rulesets; and
+  - the merged comparison ruleset.
+- The same warning path is carried into the saved step-3 artifacts and prepended to the markdown working paper.
 
-Current behaviour:
-- Step `3.2` writes `*_overtime_clause_classification.json`.
-- Step `3.4` validates that each generated overtime rule points back to at least one known shortlisted source clause from the step `3.2` result.
-- Step `3.4` does not validate that every shortlisted clause from the `3.2` overtime-creation set is represented somewhere in the final step `3.4` rules JSON.
+What changed:
+- step `3.4` still does not hard-fail on every omission;
+- but it no longer leaves the omission silent.
 
-Why this matters:
-- A clause can be present in the validated `3.2` output and still be omitted from the final step `3.4` interpretation without causing the script to fail.
-- This means the current step `3.4` validation is traceability validation, but not completeness validation.
-- In an audit context, this leaves a gap between "all shortlisted source clauses were considered" and "all shortlisted source clauses are represented or explicitly excluded".
-
-Observed rule:
-- Current validation requires:
-  - each `3.4` rule to cite a known shortlisted clause;
-  - each cited source classification to be allowed;
-  - each rule object to be structurally valid.
-- Current validation does not require:
-  - every shortlisted `Ordinary Hours Boundary` or `Overtime Trigger` clause from `3.2` to appear in the `3.4` rules artifact.
-
-Suggested follow-up:
-- Add a deterministic completeness check after `validate_interpretation_rules()`.
-- Compare the shortlisted `overtime_creation_clauses` set against the union of `source_clause_numbers` used by the final step `3.4` rules.
-- Fail the step, or produce an explicit exception artifact, when a shortlisted clause is not represented.
-- If the intended design is to allow exclusion, require an explicit structured exclusion record for each omitted shortlisted clause.
-
-Reviewer question to resolve:
-- Should step `3.4` require every shortlisted clause to appear in the final rules JSON, or should it allow omissions when the model gives an explicit structured reason for exclusion?
+Why it is no longer listed as an active gap:
+- the original concern was silent omission;
+- current behaviour surfaces that omission deterministically for review.
 
 ### Processed output layout should be award-first
 
 Status:
-- Open
+- Resolved
 
-Area:
-- `data/processed/`
-- path helpers under `src/common/`
-- Streamlit review discovery and artifact loading
-
-Current behaviour:
-- Processed outputs are primarily grouped by artifact type and pipeline step.
-- `data/processed/3_overtime_interpretations/` mixes multiple awards in one flat directory.
-- Active files and archived versions are separated by artifact category rather than by review task.
-
-Why this matters:
-- One directory mixes multiple awards, which makes manual review harder.
-- Active files and historical versions are separated by artifact type, not by the award being reviewed.
-- Reviewing one award requires mentally filtering a long flat file list.
-- The current structure is becoming harder to scan as more awards are processed.
-
-Options discussed:
-
-Option 1:
-- Keep step-based folders, but group them under an award folder.
-
-Example:
-
-```text
-data/processed/
-  MA000002/
-    1_fetch_award/
-    2_payment_clause_identifier/
-    3_overtime_interpretations/
-    4a_overtime_entitlements/
-    5b_generate_overtime_pseudocode/
-    6_final_consistency_review/
-  MA000018/
-    ...
-```
-
-Option 2:
-- Keep one award folder with the active artifacts together, plus an `archive/` folder inside the award folder.
-
-Example:
-
-```text
-data/processed/
-  MA000002/
-    MA000002_payment_classification.json
-    MA000002_overtime_clause_classification.json
-    MA000002_overtime_interpretation.md
-    MA000002_overtime_interpretation.json
-    MA000002_overtime_interpretation_expert_a.md
-    ...
-    archive/
-```
-
-Recommended direction:
-- Prefer Option 2.
-- It better matches how the outputs are actually reviewed: award by award.
-- It would make the Streamlit review flow, manual inspection, and cleanup tasks more straightforward.
-
-Likely implementation impact:
-- Update path builders in `src/common/`.
-- Update artifact discovery and output loading in the Streamlit review app.
-- Update archive-writing helpers so historical files stay grouped with the relevant award.
-- Update any scripts or tests that currently assume global step-based output directories.
+Current state:
+- active outputs are now grouped under award-first folders such as:
+  - `data/processed/MA000120/`
+- feedback and archive artifacts are stored with the relevant award output set.
+- Streamlit artifact discovery and path helpers have been updated to use the award-first layout.
 
 ### Step 3 cohort and work-arrangement tagging may be needed
+
+Status:
+- Resolved
+
+Current state:
+- step `3.2` now records:
+  - `employee_cohort`
+  - `work_arrangement`
+  - `other_scope_notes`
+- step `3.4` validates generated rule scope against the clause-classification scope and emits warnings when scope drifts.
+- `work_arrangement` is also deterministically normalised back to `all` unless the clause text expressly supports a narrower arrangement.
+
+Why it is no longer listed as active:
+- the earlier gap was absence of explicit upstream scope tagging;
+- that tagging and downstream comparison now exist.
+
+### Step 3B creator over-inferred evaluator-proposed new rules from evaluator prose
+
+Status:
+- Resolved as prompt-contract hardening
+
+Current state:
+- the direct step `3B` creator flow now treats evaluator structured JSON as the authoritative operational contract;
+- the creator prompt includes a structured review action pack built from:
+  - the original step-3 rules JSON; and
+  - the evaluator structured review JSON;
+- evaluator markdown remains present as explanation, but is no longer intended to authorise extra creator-side adds, removals, merges, or splits.
+
+What changed:
+- relevant clause excerpts are now selected from structured evaluator review data first;
+- creator instructions explicitly say not to infer extra change actions from evaluator prose unless those actions are reflected in the structured review contract.
+
+Why it is no longer listed as active:
+- the earlier issue was that evaluator prose had too much practical authority in the creator prompt;
+- the current direct `3B` path now gives the structured review JSON priority.
+
+## Active issues
+
+### Step 3B evaluator occasionally returns empty or truncated structured output in live runs
 
 Status:
 - Open
 
 Area:
-- `src/script_3_part1_classify_overtime_clauses.py`
-- `src/script_3_part2_generate_overtime_interpretation.py`
-- Screen 3 in the Streamlit review app
+- `src/script_3b_review_overtime_interpretation.py`
+- `src/common/llm_io.py`
 
 Current behaviour:
-- Step `3.2` classifies shortlisted clauses by overtime role only.
-- The clause-classification artifact records whether a clause is an `Ordinary Hours Boundary`, `Overtime Trigger`, `Overtime Consequence`, `Related Rule`, or `Not Relevant`.
-- It does not explicitly record which employee cohort or work arrangement the clause applies to.
-- Step `3.4` therefore still has to infer scope such as:
-  - full-time / part-time / casual / all employees;
-  - day worker / shiftworker / all arrangements.
+- evaluator calls now retry on:
+  - empty response text;
+  - invalid structured JSON;
+  - deterministic validation failure.
+- evaluator output budget was increased to reduce truncation.
+- this improved stability materially in live runs.
 
-Observed issue:
-- In `MA000120`, clause `21.3` states:
-  - `Ordinary hours may be worked between 6.00 am and 6.30 pm. Where broken shifts are worked the spread of hours can be no greater than 12 hours per day.`
-- One expert run incorrectly turned that into a full-time-specific rule even though the clause itself is framed generally.
-- Another expert run kept the clause broader, and the merged output preferred the broader reading.
+Remaining issue:
+- live runs can still occasionally produce:
+  - an empty evaluator response; or
+  - malformed/truncated JSON that exhausts the repair loop.
 
-Why this matters:
-- The current structure makes it easier for a step `3.4` interpretation pass to import scope from nearby clauses or from a broader mental model of the award.
-- This creates a risk that a correct overtime-role classification still leads to an incorrect employee cohort or work-arrangement scope in the final rule output.
-- Reviewers currently have to detect that error only after the interpretation stage rather than during clause classification.
+Why this still matters:
+- step `3B` is intended to be the main audited review path;
+- unstable evaluator transport undermines repeatability even when the deterministic layer handles failures safely.
 
-Possible follow-up:
-- Extend step `3.2` so each shortlisted clause is also tagged for:
-  - employee cohort: `full-time`, `part-time`, `casual`, `all employees`, or mixed;
-  - work arrangement: `day worker`, `shiftworker`, `all`, or mixed.
-- Show those scope tags on Screen 3 in the Streamlit review app so reviewers can inspect them before interpretation generation.
-- Feed the scope tags into step `3.4` so the interpretation pass is constrained by explicit upstream scope data rather than inferring it from scratch.
+Suggested follow-up:
+- inspect whether the evaluator prompt should be shortened further;
+- consider splitting long evaluator summaries from the structured rule-by-rule record if output size remains unstable;
+- consider increasing retry observability by saving the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
 
-Important design risk:
-- Adding cohort or arrangement tags at clause level may create new errors when a clause is reviewed in isolation.
-- Some clauses only become correctly scoped when read together with:
-  - a separate employment-category clause;
-  - a cross-reference;
-  - a carve-out clause;
-  - a shiftwork override;
-  - or a general overtime entitlement clause.
-- A clause-level scope tag may therefore over-narrow or over-broaden the clause if the classifier is forced to decide without enough surrounding context.
+## Current recommendation
 
-Reviewer question to resolve:
-- Should step `3.2` add explicit cohort and arrangement tagging now, or would that create too much false certainty because clauses are still being assessed one by one rather than in full clause context?
+The active priority should be:
 
+1. finish stabilising live step `3B` evaluator output;
+2. rerun representative awards such as `MA000120` to confirm the reviewed interpretation path passes cleanly without manual-review fallback;
+3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in `3B` outputs or move to later presentation layers.
