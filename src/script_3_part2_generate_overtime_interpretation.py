@@ -406,8 +406,13 @@ def validate_interpretation_rules(
     if not isinstance(raw_rules, list):
         raise OvertimeInterpretationError("Interpretation response must contain rules array.")
 
-    rules = validate_rule_list(raw_rules)
     validation_warnings: list[str] = []
+    normalized_raw_rules, duplicate_rule_id_warnings = normalize_duplicate_rule_ids(
+        raw_rules,
+        context_label="Interpretation output",
+    )
+    validation_warnings.extend(duplicate_rule_id_warnings)
+    rules = validate_rule_list(normalized_raw_rules)
     valid_clause_numbers: set[str] = set()
     for classification in overtime_creation_clauses:
         valid_clause_numbers.add(classification.clause_number)
@@ -422,7 +427,7 @@ def validate_interpretation_rules(
     }
     represented_shortlisted_clause_numbers: set[str] = set()
 
-    for raw_rule, rule in zip(raw_rules, rules):
+    for raw_rule, rule in zip(normalized_raw_rules, rules):
         if not RULE_ID_ALLOWED_PATTERN.fullmatch(rule.rule_id):
             raise OvertimeInterpretationError(
                 f"Rule id contains unsupported characters: {rule.rule_id}"
@@ -511,6 +516,97 @@ def validate_interpretation_rules(
         )
 
     return rules, validation_warnings
+
+
+def normalize_duplicate_rule_ids(
+    raw_rules: Sequence[Any],
+    *,
+    context_label: str,
+) -> tuple[list[Any], list[str]]:
+    """Rename duplicate rule ids so validation can continue with explicit warnings."""
+    normalized_rules: list[Any] = []
+    validation_warnings: list[str] = []
+    seen_rule_id_counts: dict[str, int] = {}
+
+    for index, raw_rule in enumerate(raw_rules, start=1):
+        if not isinstance(raw_rule, Mapping):
+            normalized_rules.append(raw_rule)
+            continue
+
+        normalized_rule = dict(raw_rule)
+        original_rule_id = str(normalized_rule.get("rule_id") or "").strip()
+        if not original_rule_id:
+            normalized_rules.append(normalized_rule)
+            continue
+
+        current_count = seen_rule_id_counts.get(original_rule_id, 0) + 1
+        seen_rule_id_counts[original_rule_id] = current_count
+
+        if current_count == 1:
+            normalized_rules.append(normalized_rule)
+            continue
+
+        updated_rule_id = f"{original_rule_id}-{current_count}"
+        normalized_rule["rule_id"] = updated_rule_id
+        normalized_rules.append(normalized_rule)
+        validation_warnings.append(
+            f"{context_label} returned duplicate rule_id `{original_rule_id}`. "
+            f"Rule {index} was renamed to `{updated_rule_id}`."
+        )
+
+    return normalized_rules, validation_warnings
+
+
+def normalize_duplicate_merged_rule_ids(
+    comparison_data: Mapping[str, Any],
+) -> tuple[list[Any], list[dict[str, Any]], list[str]]:
+    """Rename duplicate merged rule ids and keep merge explanations aligned."""
+    raw_merged_rules = comparison_data.get("merged_rules", [])
+    merge_explanations = comparison_data.get("merge_explanations", [])
+    normalized_raw_rules, validation_warnings = normalize_duplicate_rule_ids(
+        raw_merged_rules,
+        context_label="Comparison output",
+    )
+
+    occurrence_tracker: dict[str, int] = {}
+    renamed_rule_ids: list[str] = []
+    for raw_rule in normalized_raw_rules:
+        if not isinstance(raw_rule, Mapping):
+            renamed_rule_ids.append("")
+            continue
+
+        renamed_rule_ids.append(str(raw_rule.get("rule_id") or "").strip())
+
+    normalized_merge_explanations: list[dict[str, Any]] = []
+    for explanation in merge_explanations:
+        if not isinstance(explanation, Mapping):
+            continue
+
+        normalized_explanation = dict(explanation)
+        original_rule_id = str(normalized_explanation.get("merged_rule_id") or "").strip()
+        if original_rule_id:
+            occurrence_tracker[original_rule_id] = occurrence_tracker.get(original_rule_id, 0) + 1
+            occurrence_index = occurrence_tracker[original_rule_id]
+
+            matching_rule_id = ""
+            matching_count = 0
+            for renamed_rule_id in renamed_rule_ids:
+                if not renamed_rule_id:
+                    continue
+                if renamed_rule_id == original_rule_id or renamed_rule_id.startswith(
+                    f"{original_rule_id}-"
+                ):
+                    matching_count += 1
+                    if matching_count == occurrence_index:
+                        matching_rule_id = renamed_rule_id
+                        break
+
+            if matching_rule_id:
+                normalized_explanation["merged_rule_id"] = matching_rule_id
+
+        normalized_merge_explanations.append(normalized_explanation)
+
+    return normalized_raw_rules, normalized_merge_explanations, validation_warnings
 
 
 def request_structured_interpretation_run(
@@ -739,9 +835,11 @@ def compare_expert_interpretation_runs(
     except json.JSONDecodeError as exc:
         raise OvertimeInterpretationError("Comparison response was not valid JSON.") from exc
 
-    raw_merged_rules = comparison_data.get("merged_rules", [])
+    raw_merged_rules, normalized_merge_explanations, duplicate_rule_id_warnings = (
+        normalize_duplicate_merged_rule_ids(comparison_data)
+    )
     merged_rules = validate_rule_list(raw_merged_rules)
-    validation_warnings: list[str] = []
+    validation_warnings: list[str] = list(duplicate_rule_id_warnings)
 
     run_a_rule_ids = {rule.rule_id for rule in run_a_rules}
     run_b_rule_ids = {rule.rule_id for rule in run_b_rules}
@@ -822,7 +920,7 @@ def compare_expert_interpretation_runs(
         ).strip(),
         "accounted_run_a_rule_ids": sorted(accounted_run_a_rule_ids),
         "accounted_run_b_rule_ids": sorted(accounted_run_b_rule_ids),
-        "merge_explanations": comparison_data.get("merge_explanations", []),
+        "merge_explanations": normalized_merge_explanations,
     }
     return merged_rules, comparison_metadata, validation_warnings
 

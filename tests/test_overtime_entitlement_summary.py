@@ -112,11 +112,35 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         )
 
         self.assertIn("reviewed overtime ruleset", messages[0]["content"])
+        self.assertIn(
+            "Write each rule as clearly and operationally as possible",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Keep clause references visible in every rule bullet",
+            messages[0]["content"],
+        )
         self.assertIn("Reviewed ruleset source: interpretation.md", messages[1]["content"])
         self.assertIn("After 38 hours in a week. [20.1]", messages[1]["content"])
         self.assertIn("# Overtime Triggers", messages[1]["content"])
         self.assertIn("Only include a heading", messages[1]["content"])
         self.assertIn("Do not add headings outside this structure", messages[1]["content"])
+        self.assertIn(
+            "Preserve ordinary-hours boundary rules clearly and explicitly",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Keep the actual operative numbers and conditions in the bullet text",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Place each rule under the most specific supported heading, not under `Other` by default.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Do not place a general rule in `### Other` merely because it was added during review or evaluator feedback.",
+            messages[1]["content"],
+        )
 
     def test_build_messages_supports_consequence_ruleset_formatting(self):
         messages = build_messages(
@@ -133,6 +157,14 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             messages[1]["content"],
         )
         self.assertIn("weekend/public-holiday overtime consequences", messages[1]["content"])
+        self.assertIn(
+            "Keep the actual multiplier, block, minimum payment, entitlement, and cohort condition in the bullet text itself.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Place each rule under the most specific supported heading, not under `### Other` by default.",
+            messages[1]["content"],
+        )
 
     def test_load_text_file_reads_template_markdown(self):
         template_text = load_text_file(DEFAULT_TEMPLATE_PATH, "Template markdown")

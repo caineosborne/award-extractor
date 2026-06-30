@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from src.common.overtime_rules import OvertimeRule
 from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 from src.prompts.overtime_ruleset import (
     build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
@@ -259,6 +260,68 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(rules[0].rule_id, "broken-shift-beyond-12-hour-span")
         self.assertEqual(len(warnings), 1)
         self.assertIn("accepted because it also contains an allowed creation classification", warnings[0])
+
+    def test_validate_interpretation_rules_renames_duplicate_rule_ids(self):
+        response_data = {
+            "rules": [
+                {
+                    "rule_id": "shiftworker_ordinary_hours_average_38_hours",
+                    "section_heading": "Shiftworkers",
+                    "employee_scope": ["full-time"],
+                    "employee_cohort": "full-time",
+                    "work_arrangement": "shiftworker",
+                    "other_scope_notes": "",
+                    "clause_references": ["15.1"],
+                    "rule_markdown": "- First version. [15.1]",
+                    "rule_plain_text": "First version.",
+                    "source_clause_numbers": ["15.1"],
+                    "source_classifications": ["Ordinary Hours Boundary"],
+                },
+                {
+                    "rule_id": "shiftworker_ordinary_hours_average_38_hours",
+                    "section_heading": "Shiftworkers",
+                    "employee_scope": ["part-time"],
+                    "employee_cohort": "part-time",
+                    "work_arrangement": "shiftworker",
+                    "other_scope_notes": "",
+                    "clause_references": ["15.2"],
+                    "rule_markdown": "- Second version. [15.2]",
+                    "rule_plain_text": "Second version.",
+                    "source_clause_numbers": ["15.2"],
+                    "source_classifications": ["Ordinary Hours Boundary"],
+                },
+            ]
+        }
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="15.1",
+                classification="Ordinary Hours Boundary",
+                classifications=["Ordinary Hours Boundary"],
+                clause_text="Clause 15.1 text.",
+                explanation="Defines ordinary hours.",
+            ),
+            OvertimeClauseClassification(
+                clause_number="15.2",
+                classification="Ordinary Hours Boundary",
+                classifications=["Ordinary Hours Boundary"],
+                clause_text="Clause 15.2 text.",
+                explanation="Defines ordinary hours.",
+            ),
+        ]
+
+        rules, warnings = validate_interpretation_rules(
+            response_data,
+            overtime_creation_clauses,
+        )
+
+        self.assertEqual(rules[0].rule_id, "shiftworker_ordinary_hours_average_38_hours")
+        self.assertEqual(rules[1].rule_id, "shiftworker_ordinary_hours_average_38_hours-2")
+        self.assertIn(
+            "Interpretation output returned duplicate rule_id "
+            "`shiftworker_ordinary_hours_average_38_hours`. Rule 2 was renamed to "
+            "`shiftworker_ordinary_hours_average_38_hours-2`.",
+            warnings,
+        )
 
     def test_validate_interpretation_rules_records_missing_shortlisted_clause_as_warning(self):
         response_data = {
@@ -1106,6 +1169,115 @@ class OvertimeInterpretationTests(unittest.TestCase):
         )
 
         self.assertEqual(warnings, [])
+
+    def test_compare_expert_interpretation_runs_renames_duplicate_merged_rule_ids(self):
+        comparison_json = json.dumps(
+            {
+                "comparison_summary_markdown": "# Comparison",
+                "accounted_run_a_rule_ids": ["rule-a", "rule-b"],
+                "accounted_run_b_rule_ids": [],
+                "merge_explanations": [
+                    {
+                        "merged_rule_id": "duplicate-rule",
+                        "run_a_rule_ids": ["rule-a"],
+                        "run_b_rule_ids": [],
+                        "reason": "First reason.",
+                    },
+                    {
+                        "merged_rule_id": "duplicate-rule",
+                        "run_a_rule_ids": ["rule-b"],
+                        "run_b_rule_ids": [],
+                        "reason": "Second reason.",
+                    },
+                ],
+                "merged_rules": [
+                    {
+                        "rule_id": "duplicate-rule",
+                        "section_heading": "All employees",
+                        "employee_scope": ["full-time"],
+                        "employee_cohort": "full-time",
+                        "work_arrangement": "all",
+                        "other_scope_notes": "",
+                        "clause_references": ["10.1"],
+                        "rule_markdown": "- First. [10.1]",
+                        "rule_plain_text": "First.",
+                        "source_clause_numbers": ["10.1"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    },
+                    {
+                        "rule_id": "duplicate-rule",
+                        "section_heading": "All employees",
+                        "employee_scope": ["part-time"],
+                        "employee_cohort": "part-time",
+                        "work_arrangement": "all",
+                        "other_scope_notes": "",
+                        "clause_references": ["10.2"],
+                        "rule_markdown": "- Second. [10.2]",
+                        "rule_plain_text": "Second.",
+                        "source_clause_numbers": ["10.2"],
+                        "source_classifications": ["Ordinary Hours Boundary"],
+                    },
+                ],
+            }
+        )
+        fake_client = FakeClient([comparison_json])
+        overtime_creation_clauses = [
+            OvertimeClauseClassification(
+                clause_number="10.1",
+                classification="Ordinary Hours Boundary",
+                clause_text="Clause 10.1 text.",
+                explanation="Defines ordinary hours.",
+            ),
+            OvertimeClauseClassification(
+                clause_number="10.2",
+                classification="Ordinary Hours Boundary",
+                clause_text="Clause 10.2 text.",
+                explanation="Defines ordinary hours.",
+            ),
+        ]
+        run_a_rules = [
+            OvertimeRule(
+                rule_id="rule-a",
+                section_heading="All employees",
+                employee_scope=("full-time",),
+                clause_references=("10.1",),
+                rule_markdown="- Rule A. [10.1]",
+                rule_plain_text="Rule A.",
+                source_clause_numbers=("10.1",),
+                source_classifications=("Ordinary Hours Boundary",),
+            ),
+            OvertimeRule(
+                rule_id="rule-b",
+                section_heading="All employees",
+                employee_scope=("part-time",),
+                clause_references=("10.2",),
+                rule_markdown="- Rule B. [10.2]",
+                rule_plain_text="Rule B.",
+                source_clause_numbers=("10.2",),
+                source_classifications=("Ordinary Hours Boundary",),
+            ),
+        ]
+
+        merged_rules, comparison_metadata, warnings = compare_expert_interpretation_runs(
+            client=fake_client,
+            model=DEFAULT_MODEL,
+            source_path=Path("award_payment_classification.json"),
+            overtime_creation_clauses=overtime_creation_clauses,
+            run_a_rules=run_a_rules,
+            run_b_rules=[],
+        )
+
+        self.assertEqual(merged_rules[0].rule_id, "duplicate-rule")
+        self.assertEqual(merged_rules[1].rule_id, "duplicate-rule-2")
+        self.assertEqual(
+            comparison_metadata["merge_explanations"][1]["merged_rule_id"],
+            "duplicate-rule-2",
+        )
+        self.assertIn(
+            "Comparison output returned duplicate rule_id `duplicate-rule`. "
+            "Rule 2 was renamed to `duplicate-rule-2`.",
+            warnings,
+        )
 
 
 if __name__ == "__main__":
