@@ -15,6 +15,10 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
+from src.prompts.overtime_prompt_shared import (
+    SHARED_OVERTIME_CATEGORIES,
+    SHARED_PRIMARY_CLASSIFICATION_RULES,
+)
 from src.prompts.payment_clause_classification import DEFINITIONS, TAG_DEFINITIONS
 
 
@@ -37,11 +41,7 @@ Task:
 - Be conservative: do not label a clause as a trigger or consequence unless the text supports that label.
 
 Shared categories:
-- Ordinary Hours Boundary: defines ordinary hours limits, including ordinary hours per day, week, averaging period, span, spread, roster cycle, or ordinary hours arrangement.
-- Overtime Trigger: directly states when hours are overtime or when overtime applies.
-- Overtime Consequence: defines overtime rates, payment calculation, time off instead of payment, minimum payment, or what happens after overtime already exists.
-- Related Rule: influences interpretation but does not itself create overtime and is not an overtime consequence.
-- Not Relevant: does not materially affect the selected overtime ruleset.
+{SHARED_OVERTIME_CATEGORIES}
 
 Shared decision rules:
 - A clause can carry more than one classification when it genuinely does more than one thing.
@@ -50,11 +50,7 @@ Shared decision rules:
 - Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
 
 Primary classification rules:
-- Choose `Ordinary Hours Boundary` as the primary classification when the main operative effect of the clause is to define the outer limit of ordinary hours.
-- Choose `Overtime Trigger` as the primary classification when the main operative effect of the clause is to say when hours become overtime.
-- Choose `Overtime Consequence` as the primary classification when the main operative effect of the clause is to say what payment or entitlement applies after overtime already exists.
-- If a clause contains both trigger and consequence content, choose the primary classification based on the dominant payroll question answered by the clause, not merely the order the words appear in.
-- Do not select `Not Relevant` when another label clearly applies.
+{SHARED_PRIMARY_CLASSIFICATION_RULES}
 """
 
 
@@ -111,6 +107,30 @@ Use clause references wherever possible.
 """
 
 
+INTERPRETATION_VARIANT_SYSTEM_PROMPTS = {
+    OVERTIME_CREATION_RULESET: INTERPRETATION_SYSTEM_PROMPT,
+    OVERTIME_CONSEQUENCE_RULESET: """You are an expert payroll award interpretation assistant.
+
+Analyse the provided award clauses carefully and conservatively.
+
+Do not invent rules.
+
+Do not infer beyond the provided clauses unless clearly marked as an assumption.
+
+Use clause references wherever possible.
+
+For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
+
+Treat employee-cohort coverage as critical:
+- Make sure the output clearly states the overtime multiplier or other direct consequence for each employee cohort supported by the clauses.
+- Prioritise full-time and part-time employee multipliers where the award states them.
+- Also capture casual employee overtime multipliers or rate rules where the clauses state them.
+- Do not leave a cohort's multiplier unstated if the supplied clauses provide it.
+- If different cohorts have different overtime multiplier rules, keep them separate and explicit.
+""",
+}
+
+
 INTERPRETATION_VARIANT_USER_PROMPTS = {
     OVERTIME_CREATION_RULESET: """Source classification file: {source_file}
 
@@ -142,20 +162,21 @@ Important:
 - Do not silently merge rules that require different payroll tests.
 - Preserve ordinary-hours-boundary rules where work outside the boundary may become overtime.
 - source_classifications must contain only `Ordinary Hours Boundary` and/or `Overtime Trigger`.
-- upstream scope tags
+- Use the upstream scope tags as the starting point for scope. Do not narrow or broaden scope unless the cited clause text clearly requires it.
+- Each rule must be readable in isolation by a payroll reviewer. State the operative threshold, limit, or condition in the rule text itself.
+- Do not rely on a clause reference as a substitute for the rule content. If a clause says 11.5 ordinary hours is the daily maximum, say that 11.5-hour limit in the rule.
+- Include all conditions, thresholds, limits, and requirements needed to implement the rule. Spell out the operational rule, then include clause references as evidence.
+- Keep clause references in the markdown bullet, preferably at the end in square brackets such as `[15.1(c)(ii), 15.2(b)]`.
+- Each bullet must contain only one payroll test, threshold, boundary, span, roster condition, break condition, or other circumstance that can cause hours to become overtime.
+- Consider both explicit and implicit triggers. An implicit trigger includes an ordinary-hours boundary where work outside that boundary may become overtime.
+- If the clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, treat it as a general rule.
+- Do not place a general rule under `Full time`, `Part-time employees`, or `Casual employees` unless the clause genuinely limits that rule to the narrower cohort.
+- Add a specific employee segment section only when that segment has a distinct overtime circumstance, threshold, condition, or clause source.
+- Add a dedicated work-arrangement section when several overtime rules arise from the same named arrangement.
+- In a work-arrangement section, still state the employee type affected when the rule is not identical for all employees.
+- Do not repeat a general rule under narrower headings unless the segment-specific version is materially different.
 - Do not include overtime rates, overtime calculations, penalty rates, allowances, or clauses that do not affect whether hours become overtime.
-- Do not include:
-- Special Instructions:
-- explicit and implicit triggers
-- specific employee segment section only when needed
-- dedicated work-arrangement section when appropriate
-- still state the employee type affected
-- Each bullet must contain only one payroll test
-- If the clause uses general wording such as "employee"
-- Write the clause references directly in the markdown bullet
-- Do not place a general rule under `Full time`
-- Do not repeat a general rule
-- Avoid duplicate rules:
+- Avoid duplicate rules. If two bullets have the same threshold, condition, and clause source, combine them. Keep separate bullets where the payroll test is materially different.
 
 Clauses:
 
@@ -194,6 +215,8 @@ Important:
 - Do not produce a standalone rule whose main purpose is to say when hours become overtime.
 - If a shortlisted clause does not yield a standalone consequence rule after pruning, omit it from the rules and let the comparison step explain why.
 - Do not include penalty rates or allowances unless the clause expressly says they form part of the overtime consequence.
+- Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort. If the clauses state different overtime multiplier outcomes for full-time, part-time, or casual employees, include those cohort-specific rules explicitly.
+- Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
 
 Clauses:
 
@@ -226,7 +249,10 @@ def build_interpretation_messages(
     working_paper_input: str,
 ) -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": INTERPRETATION_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": INTERPRETATION_VARIANT_SYSTEM_PROMPTS[ruleset_key],
+        },
         {
             "role": "user",
             "content": INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(

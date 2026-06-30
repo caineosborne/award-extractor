@@ -199,21 +199,20 @@ class OvertimeInterpretationTests(unittest.TestCase):
 
         self.assertIn("expert payroll award interpretation assistant", system_prompt)
         self.assertIn("What circumstances increase Total Overtime Hours?", user_prompt)
-        self.assertIn("Special Instructions:", user_prompt)
-        self.assertIn("explicit and implicit triggers", user_prompt)
-        self.assertIn("Do not include:", user_prompt)
-        self.assertIn("specific employee segment section only when", user_prompt)
-        self.assertIn("dedicated work-arrangement section", user_prompt)
-        self.assertIn("still state the employee type affected", user_prompt)
+        self.assertIn("Each rule must be readable in isolation", user_prompt)
+        self.assertIn("Do not rely on a clause reference as a substitute", user_prompt)
+        self.assertIn("If a clause says 11.5 ordinary hours is the daily maximum", user_prompt)
+        self.assertIn("Include all conditions, thresholds, limits, and requirements", user_prompt)
         self.assertIn("Each bullet must contain only one payroll test", user_prompt)
+        self.assertIn("explicit and implicit triggers", user_prompt)
         self.assertIn("If the clause uses general wording such as \"employee\"", user_prompt)
         self.assertIn("employee_cohort", user_prompt)
         self.assertIn("work_arrangement", user_prompt)
-        self.assertIn("upstream scope tags", user_prompt)
-        self.assertIn("Write the clause references directly in the markdown bullet", user_prompt)
+        self.assertIn("Use the upstream scope tags as the starting point for scope", user_prompt)
+        self.assertIn("Keep clause references in the markdown bullet", user_prompt)
         self.assertIn("Do not place a general rule under `Full time`", user_prompt)
-        self.assertIn("Do not repeat a general rule", user_prompt)
-        self.assertIn("Avoid duplicate rules:", user_prompt)
+        self.assertIn("Do not repeat a general rule under narrower headings", user_prompt)
+        self.assertIn("Avoid duplicate rules.", user_prompt)
         self.assertNotIn("What data is required", user_prompt)
         self.assertNotIn("What assumptions are being made", user_prompt)
         self.assertIn("## Clause 20.1", user_prompt)
@@ -299,7 +298,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
         self.assertEqual(len(warnings), 1)
         self.assertEqual(
             warnings[0],
-            "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset.",
+            "Clause 22.8 was identified as relevant to overtime, but it is not present in the draft ruleset before review.",
         )
 
     def test_validate_interpretation_rules_records_scope_warning_when_rule_is_narrower_than_clause_scope(self):
@@ -523,13 +522,13 @@ class OvertimeInterpretationTests(unittest.TestCase):
 
         self.assertIn("# Validation notes", written_markdown)
         self.assertIn(
-            "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset.",
+            "Clause 22.8 was identified as relevant to overtime, but it is not present in the draft ruleset before review.",
             written_markdown,
         )
         self.assertEqual(
             written_json["validation_warnings"],
             [
-                "Clause 22.8 was identified as relevant to overtime, but it is not present in the step 3.4 ruleset."
+                "Clause 22.8 was identified as relevant to overtime, but it is not present in the draft ruleset before review."
             ],
         )
 
@@ -804,11 +803,7 @@ class OvertimeInterpretationTests(unittest.TestCase):
                 expert_run_count=1,
             )
 
-            clause_path = (
-                Path(temp_dir)
-                / "award"
-                / "award_overtime_consequence_clause_classification.json"
-            )
+            clause_path = classification_output_path_for_classification(input_path)
             output_path = (
                 Path(temp_dir)
                 / "award"
@@ -831,11 +826,31 @@ class OvertimeInterpretationTests(unittest.TestCase):
         )
 
         self.assertIn(
+            "the most important implementation outcome is the actual overtime consequence",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Prioritise full-time and part-time employee multipliers",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Also capture casual employee overtime multipliers or rate rules",
+            messages[0]["content"],
+        )
+        self.assertIn(
             "Prune trigger-only or boundary-only content",
             messages[1]["content"],
         )
         self.assertIn(
             "Do not produce a standalone rule whose main purpose is to say when hours become overtime.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Do not assume that a full-time or part-time multiplier rule automatically covers casual employees.",
             messages[1]["content"],
         )
 

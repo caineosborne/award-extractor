@@ -136,3 +136,10 @@ The active priority should be:
 2. rerun representative awards such as `MA000120` to confirm the reviewed interpretation path passes cleanly without manual-review fallback;
 3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in `3B` outputs or move to later presentation layers;
 4. keep the Streamlit review screen aligned with the structured artifact contracts as `3B` evolves.
+
+
+___________
+
+Added
+
+Running the shortcut buttons shoudl load both screens - not just the consequences/creation

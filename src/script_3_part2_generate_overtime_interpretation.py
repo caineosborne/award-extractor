@@ -398,7 +398,7 @@ def validate_interpretation_rules(
         else config.display_name.lower()
     )
     missing_clause_ruleset_label = (
-        "step 3.4 ruleset"
+        "draft ruleset before review"
         if ruleset_key == OVERTIME_CREATION_RULESET
         else f"{config.display_name.lower()} ruleset"
     )
@@ -840,16 +840,19 @@ def load_prepared_clause_classifications(
         )
 
     data = load_classification(source_path)
-    overtime_clauses = select_ruleset_related_clauses(data, ruleset_key)
+    overtime_clauses = select_ruleset_related_clauses(
+        data,
+        OVERTIME_CREATION_RULESET,
+    )
     if not overtime_clauses:
         raise OvertimeInterpretationError(
-            f"No {overtime_ruleset_config(ruleset_key).display_name.lower()} source clauses found in: {source_path}"
+            f"No overtime source clauses found in: {source_path}"
         )
 
     return load_overtime_clause_classification_artifact(
         classification_output_path,
         overtime_clauses,
-        ruleset_key,
+        OVERTIME_CREATION_RULESET,
     )
 
 

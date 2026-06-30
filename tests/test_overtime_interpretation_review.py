@@ -1258,7 +1258,7 @@ class OvertimeInterpretationReviewTests(unittest.TestCase):
             )
 
         expected_warning = (
-            "Original step 3.4 clause 20.2 was present before review but is not "
+            "The earlier draft clause 20.2 was present before review but is not "
             "referenced after review."
         )
         self.assertIn("# Validation notes", artifacts.revised_interpretation_markdown)

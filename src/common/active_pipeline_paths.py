@@ -90,8 +90,11 @@ def ruleset_clause_classification_output_path_for_classification(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
-    """Derive the explicit clause-classification path for one ruleset."""
-    return explicit_clause_classification_output_path(classification_path, ruleset_key)
+    """Return the canonical clause-classification path shared by all rulesets."""
+    del ruleset_key
+    return overtime_clause_classification_output_path_for_classification(
+        classification_path
+    )
 
 
 def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
@@ -156,19 +159,7 @@ def resolve_overtime_clause_classification_path(
     """Resolve the step-3 clause classification path for review steps."""
     if overtime_clause_classification_path:
         return Path(overtime_clause_classification_path)
-
-    if interpretation_path is not None:
-        try:
-            ruleset_key = infer_overtime_ruleset_key_from_path(interpretation_path)
-        except ValueError:
-            ruleset_key = OVERTIME_CREATION_RULESET
-
-        if ruleset_key != OVERTIME_CREATION_RULESET:
-            return ruleset_clause_classification_output_path_for_classification(
-                classification_path,
-                ruleset_key,
-            )
-
+    del interpretation_path
     return overtime_clause_classification_output_path_for_classification(
         classification_path
     )

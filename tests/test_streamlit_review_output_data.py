@@ -17,16 +17,21 @@ from src.prompts.overtime_ruleset import (
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from streamlit_review.app import (
+    award_code_for_artifact_paths,
     available_award_code_index,
+    build_review_decision_rows,
     combine_pipeline_logs,
     manual_4b_editor_widget_key,
     move_selected_index,
     overtime_clause_text_widget_key,
     pipeline_run_label,
+    recommendation_not_implemented,
     render_pipeline_run_controls,
     render_creator_commentary_panel,
     render_evaluator_feedback_panel,
+    review_decision_concerns,
     run_pipeline_for_award,
+    summarize_review_decision_rows,
     validate_award_code_input,
 )
 from streamlit_review.pipeline_runs import (
@@ -35,6 +40,7 @@ from streamlit_review.pipeline_runs import (
 )
 from streamlit_review.output_data import (
     ArtifactPaths,
+    RulesetArtifactPaths,
     artifact_paths_for_award,
     clamp_index,
     delete_processed_files_matching_prefix,
@@ -53,6 +59,8 @@ from streamlit_review.output_data import (
     ruleset_artifact_paths_for_award,
     source_path_for_core_overtime_pseudocode,
     source_path_for_manual_4b_editor,
+    source_path_for_ruleset_core_overtime_pseudocode,
+    source_path_for_ruleset_manual_4b_editor,
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
@@ -131,12 +139,18 @@ def test_artifact_paths_for_award():
     )
 
 
+def test_award_code_for_artifact_paths_uses_payment_classification_stem():
+    paths = artifact_paths_for_award("MA000018")
+
+    assert award_code_for_artifact_paths(paths) == "MA000018"
+
+
 def test_ruleset_artifact_paths_for_award():
     paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
 
     assert (
         paths.clause_classification.name
-        == "MA000018_overtime_consequence_clause_classification.json"
+        == "MA000018_overtime_clause_classification.json"
     )
     assert paths.expert_a_markdown.name == "MA000018_overtime_consequence_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "MA000018_overtime_consequence_ruleset_expert_b.md"
@@ -147,6 +161,7 @@ def test_ruleset_artifact_paths_for_award():
         paths.formatted_markdown.name
         == "MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
     )
+    assert paths.manual_4b_markdown.name == "MA000018_overtime_consequence_ruleset_4b.md"
     assert (
         paths.pseudocode_markdown.name
         == "MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
@@ -181,6 +196,7 @@ def test_creation_ruleset_artifact_paths_fall_back_to_legacy_files_when_explicit
     assert paths.comparison_json.name == "MA000120_overtime_interpretation_comparison.json"
     assert paths.combined_markdown.name == "MA000120_overtime_interpretation.md"
     assert paths.combined_json.name == "MA000120_overtime_interpretation.json"
+    assert paths.manual_4b_markdown.name == "MA000120_overtime_interpretation_4b.md"
 
 
 def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
@@ -192,7 +208,7 @@ def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
     award_dir.mkdir(parents=True)
 
     explicit_files = [
-        "MA000120_overtime_creation_clause_classification.json",
+        "MA000120_overtime_clause_classification.json",
         "MA000120_overtime_creation_ruleset_expert_a.md",
         "MA000120_overtime_creation_ruleset_expert_b.md",
         "MA000120_overtime_creation_ruleset_comparison.json",
@@ -205,7 +221,7 @@ def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
 
     paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
 
-    assert paths.clause_classification.name == "MA000120_overtime_creation_clause_classification.json"
+    assert paths.clause_classification.name == "MA000120_overtime_clause_classification.json"
     assert paths.expert_a_markdown.name == "MA000120_overtime_creation_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "MA000120_overtime_creation_ruleset_expert_b.md"
     assert paths.comparison_json.name == "MA000120_overtime_creation_ruleset_comparison.json"
@@ -215,6 +231,7 @@ def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
         paths.formatted_markdown.name
         == "MA000120_overtime_creation_ruleset_overtime_entitlements.md"
     )
+    assert paths.manual_4b_markdown.name == "MA000120_overtime_creation_ruleset_4b.md"
     assert (
         paths.pseudocode_markdown.name
         == "MA000120_overtime_creation_ruleset_core_overtime_pseudocode.md"
@@ -399,6 +416,102 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_4a_then_revised_sourc
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == manual_4b_path
 
 
+def test_ruleset_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_path):
+    combined_path = tmp_path / "award_overtime_creation_ruleset.md"
+    revised_path = tmp_path / "award_overtime_creation_ruleset_revised.md"
+    formatted_path = tmp_path / "award_overtime_creation_ruleset_overtime_entitlements.md"
+    manual_4b_path = tmp_path / "award_overtime_creation_ruleset_4b.md"
+
+    ruleset_artifact_paths = RulesetArtifactPaths(
+        ruleset_key=OVERTIME_CREATION_RULESET,
+        clause_classification=tmp_path / "award_overtime_clause_classification.json",
+        expert_a_markdown=tmp_path / "award_overtime_creation_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "award_overtime_creation_ruleset_expert_b.md",
+        comparison_json=tmp_path / "award_overtime_creation_ruleset_comparison.json",
+        combined_markdown=combined_path,
+        combined_json=tmp_path / "award_overtime_creation_ruleset.json",
+        evaluator_feedback=tmp_path / "award_overtime_creation_ruleset_evaluator_feedback.md",
+        evaluator_feedback_json=tmp_path
+        / "award_overtime_creation_ruleset_evaluator_feedback.json",
+        creator_response=tmp_path / "award_overtime_creation_ruleset_creator_response.md",
+        creator_response_json=tmp_path / "award_overtime_creation_ruleset_creator_response.json",
+        revised_markdown=revised_path,
+        revised_json=tmp_path / "award_overtime_creation_ruleset_revised.json",
+        formatted_markdown=formatted_path,
+        manual_4b_markdown=manual_4b_path,
+        pseudocode_markdown=tmp_path / "award_overtime_creation_ruleset_core_overtime_pseudocode.md",
+        pseudocode_validation_json=tmp_path
+        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path
+        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.md",
+    )
+
+    assert source_path_for_ruleset_manual_4b_editor(ruleset_artifact_paths) == combined_path
+
+    revised_path.write_text("# Revised 3B", encoding="utf-8")
+    assert source_path_for_ruleset_manual_4b_editor(ruleset_artifact_paths) == revised_path
+
+    formatted_path.write_text("# 4A", encoding="utf-8")
+    assert source_path_for_ruleset_manual_4b_editor(ruleset_artifact_paths) == formatted_path
+
+    manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
+    assert source_path_for_ruleset_manual_4b_editor(ruleset_artifact_paths) == manual_4b_path
+
+
+def test_ruleset_core_overtime_pseudocode_prefers_ruleset_4b_then_4a_then_revised_source(
+    tmp_path,
+):
+    combined_path = tmp_path / "award_overtime_creation_ruleset.md"
+    revised_path = tmp_path / "award_overtime_creation_ruleset_revised.md"
+    revised_json_path = tmp_path / "award_overtime_creation_ruleset_revised.json"
+    formatted_path = tmp_path / "award_overtime_creation_ruleset_overtime_entitlements.md"
+    manual_4b_path = tmp_path / "award_overtime_creation_ruleset_4b.md"
+
+    ruleset_artifact_paths = RulesetArtifactPaths(
+        ruleset_key=OVERTIME_CREATION_RULESET,
+        clause_classification=tmp_path / "award_overtime_clause_classification.json",
+        expert_a_markdown=tmp_path / "award_overtime_creation_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "award_overtime_creation_ruleset_expert_b.md",
+        comparison_json=tmp_path / "award_overtime_creation_ruleset_comparison.json",
+        combined_markdown=combined_path,
+        combined_json=tmp_path / "award_overtime_creation_ruleset.json",
+        evaluator_feedback=tmp_path / "award_overtime_creation_ruleset_evaluator_feedback.md",
+        evaluator_feedback_json=tmp_path
+        / "award_overtime_creation_ruleset_evaluator_feedback.json",
+        creator_response=tmp_path / "award_overtime_creation_ruleset_creator_response.md",
+        creator_response_json=tmp_path / "award_overtime_creation_ruleset_creator_response.json",
+        revised_markdown=revised_path,
+        revised_json=revised_json_path,
+        formatted_markdown=formatted_path,
+        manual_4b_markdown=manual_4b_path,
+        pseudocode_markdown=tmp_path / "award_overtime_creation_ruleset_core_overtime_pseudocode.md",
+        pseudocode_validation_json=tmp_path
+        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path
+        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.md",
+    )
+
+    assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == combined_path
+
+    revised_json_path.write_text("{}", encoding="utf-8")
+    assert (
+        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
+        == revised_json_path
+    )
+
+    formatted_path.write_text("# 4A", encoding="utf-8")
+    assert (
+        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
+        == formatted_path
+    )
+
+    manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
+    assert (
+        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
+        == manual_4b_path
+    )
+
+
 def test_missing_text_file_returns_status_without_exception(tmp_path):
     missing_path = tmp_path / "missing.md"
 
@@ -513,6 +626,102 @@ def test_render_creator_commentary_panel_keeps_structured_json_when_markdown_exi
 
     assert "Accepted the structured review." in fake_streamlit.markdown_calls
     assert "Creator commentary JSON" in json_expanders
+
+
+def test_recommendation_not_implemented_flags_rejected_additions():
+    assert recommendation_not_implemented(
+        evaluator_recommendation="add",
+        creator_decision="reject",
+        final_decision="rejected",
+    )
+    assert not recommendation_not_implemented(
+        evaluator_recommendation="add",
+        creator_decision="accept",
+        final_decision="accepted",
+    )
+
+
+def test_build_review_decision_rows_surfaces_rejected_new_rules():
+    evaluator_feedback_data = {
+        "rule_reviews": [
+            {
+                "rule_id": "rule-1",
+                "recommendation": "modify",
+                "rationale": "Clarify the existing rule.",
+            }
+        ],
+        "new_rules": [
+            {
+                "rule_id": "rule-2",
+                "rule_markdown": "- Add this missing rule. [15.1(c)(ii)]",
+            }
+        ],
+    }
+    creator_response_data = {
+        "rule_updates": [
+            {
+                "rule_id": "rule-1",
+                "decision": "keep",
+                "reason": "Left unchanged.",
+                "updated_rule": None,
+            }
+        ],
+        "new_rule_reviews": [
+            {
+                "rule_id": "rule-2",
+                "decision": "reject",
+                "reason": "Rejected as duplicate.",
+                "updated_rule": None,
+            }
+        ],
+    }
+    revised_rules_data = {
+        "review_decisions": [
+            {
+                "rule_id": "rule-1",
+                "evaluator_recommendation": "modify",
+                "creator_decision": "keep",
+                "final_decision": "kept",
+                "reason": "Left unchanged.",
+            },
+            {
+                "rule_id": "rule-2",
+                "evaluator_recommendation": "add",
+                "creator_decision": "reject",
+                "final_decision": "rejected",
+                "reason": "Rejected as duplicate.",
+            },
+        ],
+        "rules": [
+            {
+                "rule_id": "rule-1",
+                "rule_markdown": "- Existing final rule. [10.1]",
+                "clause_references": ["10.1"],
+            }
+        ],
+    }
+
+    rows = build_review_decision_rows(
+        evaluator_feedback_data=evaluator_feedback_data,
+        creator_response_data=creator_response_data,
+        revised_rules_data=revised_rules_data,
+    )
+
+    assert len(rows) == 2
+    rejected_row = rows[1]
+    assert rejected_row["rule_id"] == "rule-2"
+    assert rejected_row["proposed_rule_markdown"] == "- Add this missing rule. [15.1(c)(ii)]"
+    assert rejected_row["creator_reason"] == "Rejected as duplicate."
+    assert rejected_row["is_concern"] is True
+
+    concerns = review_decision_concerns(rows)
+    assert [row["rule_id"] for row in concerns] == ["rule-1", "rule-2"]
+
+    summary = summarize_review_decision_rows(rows)
+    assert summary["total"] == 2
+    assert summary["rejected"] == 1
+    assert summary["kept"] == 1
+    assert summary["not_implemented"] == 2
 
 
 def test_index_navigation_wraps_and_clamps():
@@ -1058,6 +1267,7 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
     formatted_markdown = combined_markdown.with_name(
         f"{combined_markdown.stem}_overtime_entitlements.md"
     )
+    manual_4b_markdown = combined_markdown.with_name(f"{combined_markdown.stem}_4b.md")
     pseudocode_markdown = combined_markdown.with_name(
         f"{combined_markdown.stem}_core_overtime_pseudocode.md"
     )
@@ -1071,6 +1281,7 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         combined_markdown=combined_markdown,
         combined_json=combined_json,
         formatted_markdown=formatted_markdown,
+        manual_4b_markdown=manual_4b_markdown,
         pseudocode_markdown=pseudocode_markdown,
     )
 

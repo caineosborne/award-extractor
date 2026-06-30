@@ -152,6 +152,31 @@ That means:
 
 We should avoid naming active outputs around older internal distinctions like “part 1” and “part 2” unless those remain public operator concepts.
 
+### Step 1 output reduction
+
+Step `1` should be simplified so the default active run only writes the core artifacts that are still needed downstream:
+
+- raw source extract
+  - HTML flow: raw HTML
+  - PDF flow: raw markdown
+- main parsed award JSON
+
+These are the files we should explicitly preserve:
+
+- `<award>.json`
+- the corresponding raw extract under `raw/`
+
+The other step `1` supporting outputs should no longer be written by default if they are not part of the active production workflow.
+
+This includes the current supporting and diagnostic artifacts such as:
+
+- section index JSON
+- heading summary CSV
+- PDF diagnostics JSON
+- PDF excluded sections JSON
+
+If any of these still need to exist for debugging or occasional manual analysis, they should move behind an explicit optional mode rather than remain part of every default run.
+
 ### Streamlit
 
 Simplify Streamlit so it only uses the active ruleset-native model for current runs and current artifact review.

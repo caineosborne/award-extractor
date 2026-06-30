@@ -54,7 +54,7 @@ def test_explicit_ruleset_paths_match_award_first_layout():
         classification_path,
         OVERTIME_CONSEQUENCE_RULESET,
     ) == Path(
-        "data/processed/MA000018/MA000018_overtime_consequence_clause_classification.json"
+        "data/processed/MA000018/MA000018_overtime_clause_classification.json"
     )
     assert ruleset_output_path_for_classification(
         classification_path,
@@ -70,7 +70,7 @@ def test_resolve_clause_classification_path_uses_ruleset_when_interpretation_is_
         classification_path,
         None,
         interpretation_path,
-    ) == Path("data/processed/MA000018/MA000018_overtime_consequence_clause_classification.json")
+    ) == Path("data/processed/MA000018/MA000018_overtime_clause_classification.json")
 
 
 def test_resolve_paths_support_award_codes_and_explicit_inputs():

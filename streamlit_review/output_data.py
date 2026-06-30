@@ -66,6 +66,7 @@ class RulesetArtifactPaths:
     revised_markdown: Path
     revised_json: Path
     formatted_markdown: Path
+    manual_4b_markdown: Path
     pseudocode_markdown: Path
     pseudocode_validation_json: Path
     pseudocode_validation_markdown: Path
@@ -140,7 +141,7 @@ def ruleset_artifact_paths_for_award(
 
     if ruleset_key == OVERTIME_CREATION_RULESET:
         explicit_base_stem = f"{award_code}_overtime_creation_ruleset"
-        explicit_clause_stem = f"{award_code}_overtime_creation_clause_classification"
+        explicit_clause_stem = f"{award_code}_overtime_clause_classification"
         explicit_combined_markdown = award_dir / f"{explicit_base_stem}.md"
 
         if explicit_combined_markdown.exists():
@@ -164,6 +165,7 @@ def ruleset_artifact_paths_for_award(
                 revised_json=award_dir / f"{explicit_base_stem}_revised.json",
                 formatted_markdown=award_dir
                 / f"{explicit_base_stem}_overtime_entitlements.md",
+                manual_4b_markdown=award_dir / f"{explicit_base_stem}_4b.md",
                 pseudocode_markdown=award_dir
                 / f"{explicit_base_stem}_core_overtime_pseudocode.md",
                 pseudocode_validation_json=award_dir
@@ -192,6 +194,7 @@ def ruleset_artifact_paths_for_award(
             revised_markdown=award_dir / f"{award_code}_overtime_interpretation_revised.md",
             revised_json=award_dir / f"{award_code}_overtime_interpretation_revised.json",
             formatted_markdown=award_dir / f"{award_code}_overtime_entitlements.md",
+            manual_4b_markdown=award_dir / f"{award_code}_overtime_interpretation_4b.md",
             pseudocode_markdown=award_dir / f"{award_code}_core_overtime_pseudocode.md",
             pseudocode_validation_json=award_dir
             / f"{award_code}_core_overtime_pseudocode_validation.json",
@@ -200,7 +203,7 @@ def ruleset_artifact_paths_for_award(
         )
     elif ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         base_stem = f"{award_code}_overtime_consequence_ruleset"
-        clause_stem = f"{award_code}_overtime_consequence_clause_classification"
+        clause_stem = f"{award_code}_overtime_clause_classification"
     else:
         raise ValueError(f"Unsupported ruleset key: {ruleset_key}")
 
@@ -220,6 +223,7 @@ def ruleset_artifact_paths_for_award(
         revised_markdown=award_dir / f"{base_stem}_revised.md",
         revised_json=award_dir / f"{base_stem}_revised.json",
         formatted_markdown=award_dir / f"{base_stem}_overtime_entitlements.md",
+        manual_4b_markdown=award_dir / f"{base_stem}_4b.md",
         pseudocode_markdown=award_dir / f"{base_stem}_core_overtime_pseudocode.md",
         pseudocode_validation_json=award_dir
         / f"{base_stem}_core_overtime_pseudocode_validation.json",
@@ -257,6 +261,21 @@ def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
     return artifact_paths.original_overtime_interpretation
 
 
+def source_path_for_ruleset_manual_4b_editor(
+    ruleset_artifact_paths: RulesetArtifactPaths,
+) -> Path:
+    if ruleset_artifact_paths.manual_4b_markdown.exists():
+        return ruleset_artifact_paths.manual_4b_markdown
+
+    if ruleset_artifact_paths.formatted_markdown.exists():
+        return ruleset_artifact_paths.formatted_markdown
+
+    if ruleset_artifact_paths.revised_markdown.exists():
+        return ruleset_artifact_paths.revised_markdown
+
+    return ruleset_artifact_paths.combined_markdown
+
+
 def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> Path:
     if artifact_paths.manual_4b_overtime_interpretation.exists():
         return artifact_paths.manual_4b_overtime_interpretation
@@ -287,6 +306,9 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
 def source_path_for_ruleset_core_overtime_pseudocode(
     ruleset_artifact_paths: RulesetArtifactPaths,
 ) -> Path:
+    if ruleset_artifact_paths.manual_4b_markdown.exists():
+        return ruleset_artifact_paths.manual_4b_markdown
+
     if ruleset_artifact_paths.formatted_markdown.exists():
         return ruleset_artifact_paths.formatted_markdown
 

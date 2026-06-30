@@ -64,7 +64,7 @@ from streamlit_review.output_data import (
     ruleset_artifact_paths_for_award,
     source_path_for_core_overtime_pseudocode,
     source_path_for_ruleset_core_overtime_pseudocode,
-    source_path_for_manual_4b_editor,
+    source_path_for_ruleset_manual_4b_editor,
     write_text_file_with_archive,
 )
 
@@ -436,6 +436,7 @@ def render_screen_panel(
         screen_name,
         panel_key,
         artifact_paths,
+        ruleset_key,
     )
 
     render_screen(screen_name, artifact_paths, panel_key, ruleset_key)
@@ -687,39 +688,314 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str, ruleset
     render_json_expander("Expert comparison JSON", comparison_data, key_suffix=panel_key)
 
 
+def award_code_for_artifact_paths(artifact_paths: Any) -> str:
+    """Derive the selected award code from the active artifact bundle."""
+    payment_stem = artifact_paths.payment_classification.stem
+    return payment_stem.removesuffix("_payment_classification")
+
+
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        selected_award_code(),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     if artifact_paths.agentic_review_conversation.exists():
         with st.expander("Agentic review conversation", expanded=False):
             render_markdown_file(artifact_paths.agentic_review_conversation)
 
-    evaluator_column, creator_column, outcome_column = st.columns(3, gap="medium")
+    evaluator_data = load_json_or_show_error(ruleset_artifacts.evaluator_feedback_json)
+    creator_data = load_json_or_show_error(ruleset_artifacts.creator_response_json)
+    revised_data = load_json_or_show_error(ruleset_artifacts.revised_json)
 
-    with evaluator_column:
-        with st.container(border=True):
-            st.markdown("#### Evaluator feedback")
-            render_evaluator_feedback_panel(ruleset_artifacts.evaluator_feedback)
+    if evaluator_data is None or creator_data is None or revised_data is None:
+        return
 
-    with creator_column:
+    decision_rows = build_review_decision_rows(
+        evaluator_feedback_data=evaluator_data,
+        creator_response_data=creator_data,
+        revised_rules_data=revised_data,
+    )
+    concern_rows = review_decision_concerns(decision_rows)
+    decision_summary = summarize_review_decision_rows(decision_rows)
+    validation_warnings = revised_data.get("validation_warnings", [])
+
+    review_column, outcome_column = st.columns([1.2, 1.0], gap="medium")
+
+    with review_column:
         with st.container(border=True):
-            st.markdown("#### Creator commentary")
-            render_creator_commentary_panel(ruleset_artifacts.creator_response)
+            st.markdown("#### Review decision ledger")
+            render_review_decision_summary(decision_summary)
+
+            if concern_rows or validation_warnings:
+                st.markdown("##### Concern items")
+                if concern_rows:
+                    for row in concern_rows:
+                        render_review_decision_card(row, expanded=True)
+                if isinstance(validation_warnings, list):
+                    for warning in validation_warnings:
+                        st.warning(str(warning))
+            else:
+                st.info("No rejected or unimplemented evaluator recommendations were found.")
+
+            st.markdown("##### Rule-by-rule decisions")
+            for row in decision_rows:
+                render_review_decision_card(row, expanded=False)
 
     with outcome_column:
         with st.container(border=True):
             st.markdown("#### Final outcome")
-            revised_json_path = ruleset_artifacts.revised_json
-            if revised_json_path.exists():
-                render_overtime_rules_json(
-                    revised_json_path,
-                    source_markdown_path=ruleset_artifacts.revised_markdown,
-                )
-            else:
-                render_markdown_file(ruleset_artifacts.revised_markdown)
+            render_overtime_rules_json(
+                ruleset_artifacts.revised_json,
+                source_markdown_path=ruleset_artifacts.revised_markdown,
+            )
+
+    with st.expander("Raw evaluator commentary", expanded=False):
+        render_evaluator_feedback_panel(ruleset_artifacts.evaluator_feedback)
+
+    with st.expander("Raw creator commentary", expanded=False):
+        render_creator_commentary_panel(ruleset_artifacts.creator_response)
+
+
+def summarize_review_decision_rows(decision_rows: list[dict[str, Any]]) -> dict[str, int]:
+    summary = {
+        "total": len(decision_rows),
+        "accepted": 0,
+        "modified": 0,
+        "kept": 0,
+        "rejected": 0,
+        "not_implemented": 0,
+    }
+
+    for row in decision_rows:
+        final_decision = str(row.get("final_decision", "")).strip().lower()
+        if final_decision in summary:
+            summary[final_decision] += 1
+
+        if bool(row.get("is_concern")):
+            summary["not_implemented"] += 1
+
+    return summary
+
+
+def build_review_decision_rows(
+    *,
+    evaluator_feedback_data: dict[str, Any],
+    creator_response_data: dict[str, Any],
+    revised_rules_data: dict[str, Any],
+) -> list[dict[str, Any]]:
+    evaluator_reviews = evaluator_feedback_data.get("rule_reviews", [])
+    evaluator_new_rules = evaluator_feedback_data.get("new_rules", [])
+    creator_rule_updates = creator_response_data.get("rule_updates", [])
+    creator_new_rule_reviews = creator_response_data.get("new_rule_reviews", [])
+    review_decisions = revised_rules_data.get("review_decisions", [])
+    final_rules = revised_rules_data.get("rules", [])
+
+    evaluator_review_map = {
+        str(review.get("rule_id", "")).strip(): review
+        for review in evaluator_reviews
+        if isinstance(review, dict)
+    }
+    evaluator_new_rule_map = {
+        str(rule.get("rule_id", "")).strip(): rule
+        for rule in evaluator_new_rules
+        if isinstance(rule, dict)
+    }
+    creator_rule_update_map = {
+        str(update.get("rule_id", "")).strip(): update
+        for update in creator_rule_updates
+        if isinstance(update, dict)
+    }
+    creator_new_rule_review_map = {
+        str(review.get("rule_id", "")).strip(): review
+        for review in creator_new_rule_reviews
+        if isinstance(review, dict)
+    }
+    final_rule_map = {
+        str(rule.get("rule_id", "")).strip(): rule
+        for rule in final_rules
+        if isinstance(rule, dict)
+    }
+
+    rows: list[dict[str, Any]] = []
+
+    for review_decision in review_decisions:
+        if not isinstance(review_decision, dict):
+            continue
+
+        rule_id = str(review_decision.get("rule_id", "")).strip()
+        evaluator_recommendation = str(
+            review_decision.get("evaluator_recommendation", "")
+        ).strip()
+        creator_decision = str(review_decision.get("creator_decision", "")).strip()
+        final_decision = str(review_decision.get("final_decision", "")).strip()
+
+        evaluator_review = evaluator_review_map.get(rule_id)
+        evaluator_new_rule = evaluator_new_rule_map.get(rule_id)
+        creator_rule_update = creator_rule_update_map.get(rule_id)
+        creator_new_rule_review = creator_new_rule_review_map.get(rule_id)
+        final_rule = final_rule_map.get(rule_id)
+
+        evaluator_rationale = ""
+        proposed_rule_markdown = ""
+        if isinstance(evaluator_review, dict):
+            evaluator_rationale = str(evaluator_review.get("rationale", "")).strip()
+        if isinstance(evaluator_new_rule, dict):
+            proposed_rule_markdown = str(
+                evaluator_new_rule.get("rule_markdown", "")
+            ).strip()
+
+        creator_reason = str(review_decision.get("reason", "")).strip()
+        creator_payload = creator_rule_update or creator_new_rule_review or {}
+        creator_updated_rule_markdown = ""
+        if isinstance(creator_payload, dict):
+            updated_rule = creator_payload.get("updated_rule")
+            if isinstance(updated_rule, dict):
+                creator_updated_rule_markdown = str(
+                    updated_rule.get("rule_markdown", "")
+                ).strip()
+
+        final_rule_markdown = ""
+        clause_references: list[str] = []
+        if isinstance(final_rule, dict):
+            final_rule_markdown = str(final_rule.get("rule_markdown", "")).strip()
+            raw_clause_references = final_rule.get("clause_references", [])
+            if isinstance(raw_clause_references, list):
+                clause_references = [
+                    str(reference).strip()
+                    for reference in raw_clause_references
+                    if str(reference).strip()
+                ]
+
+        is_concern = recommendation_not_implemented(
+            evaluator_recommendation=evaluator_recommendation,
+            creator_decision=creator_decision,
+            final_decision=final_decision,
+        )
+
+        rows.append(
+            {
+                "rule_id": rule_id,
+                "evaluator_recommendation": evaluator_recommendation,
+                "creator_decision": creator_decision,
+                "final_decision": final_decision,
+                "evaluator_rationale": evaluator_rationale,
+                "creator_reason": creator_reason,
+                "proposed_rule_markdown": proposed_rule_markdown,
+                "creator_updated_rule_markdown": creator_updated_rule_markdown,
+                "final_rule_markdown": final_rule_markdown,
+                "clause_references": clause_references,
+                "is_concern": is_concern,
+            }
+        )
+
+    return rows
+
+
+def recommendation_not_implemented(
+    *,
+    evaluator_recommendation: str,
+    creator_decision: str,
+    final_decision: str,
+) -> bool:
+    normalized_recommendation = evaluator_recommendation.strip().lower()
+    normalized_creator_decision = creator_decision.strip().lower()
+    normalized_final_decision = final_decision.strip().lower()
+
+    if normalized_recommendation == "add":
+        return normalized_final_decision == "rejected"
+
+    if normalized_recommendation in {"modify", "remove"}:
+        return normalized_creator_decision == "keep"
+
+    return False
+
+
+def review_decision_concerns(
+    decision_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    return [row for row in decision_rows if bool(row.get("is_concern"))]
+
+
+def render_review_decision_summary(summary: dict[str, int]) -> None:
+    st.markdown(
+        " | ".join(
+            [
+                f"**Total decisions:** {summary['total']}",
+                f"**Accepted additions:** {summary['accepted']}",
+                f"**Modified:** {summary['modified']}",
+                f"**Kept:** {summary['kept']}",
+                f"**Rejected:** {summary['rejected']}",
+                f"**Not implemented:** {summary['not_implemented']}",
+            ]
+        )
+    )
+
+
+def render_review_decision_card(
+    decision_row: dict[str, Any],
+    *,
+    expanded: bool,
+) -> None:
+    rule_id = str(decision_row.get("rule_id", "")).strip()
+    evaluator_recommendation = str(
+        decision_row.get("evaluator_recommendation", "")
+    ).strip()
+    creator_decision = str(decision_row.get("creator_decision", "")).strip()
+    final_decision = str(decision_row.get("final_decision", "")).strip()
+    clause_references = decision_row.get("clause_references", [])
+    clause_text = ", ".join(clause_references) if isinstance(clause_references, list) else ""
+
+    label = (
+        f"{rule_id or 'rule'} | evaluator: {evaluator_recommendation or 'n/a'} | "
+        f"creator: {creator_decision or 'n/a'} | final: {final_decision or 'n/a'}"
+    )
+
+    with st.expander(label, expanded=expanded):
+        if bool(decision_row.get("is_concern")):
+            st.warning("Evaluator recommendation was not implemented in the final ruleset.")
+
+        if clause_text:
+            st.write(f"Clause references: {clause_text}")
+
+        st.write(
+            " | ".join(
+                [
+                    f"Evaluator recommendation: {evaluator_recommendation or 'n/a'}",
+                    f"Creator decision: {creator_decision or 'n/a'}",
+                    f"Final outcome: {final_decision or 'n/a'}",
+                ]
+            )
+        )
+
+        evaluator_rationale = str(decision_row.get("evaluator_rationale", "")).strip()
+        if evaluator_rationale:
+            st.markdown("**Evaluator rationale**")
+            st.write(evaluator_rationale)
+
+        proposed_rule_markdown = str(
+            decision_row.get("proposed_rule_markdown", "")
+        ).strip()
+        if proposed_rule_markdown:
+            st.markdown("**Evaluator proposed rule**")
+            st.markdown(proposed_rule_markdown)
+
+        creator_reason = str(decision_row.get("creator_reason", "")).strip()
+        if creator_reason:
+            st.markdown("**Creator reason**")
+            st.write(creator_reason)
+
+        creator_updated_rule_markdown = str(
+            decision_row.get("creator_updated_rule_markdown", "")
+        ).strip()
+        if creator_updated_rule_markdown:
+            st.markdown("**Creator revised rule text**")
+            st.markdown(creator_updated_rule_markdown)
+
+        final_rule_markdown = str(decision_row.get("final_rule_markdown", "")).strip()
+        if final_rule_markdown:
+            st.markdown("**Final rule in revised ruleset**")
+            st.markdown(final_rule_markdown)
 
 
 def render_evaluator_feedback_panel(markdown_path: Path) -> None:
@@ -884,7 +1160,7 @@ def strip_leading_heading(markdown_text: str, heading: str) -> str:
 def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        selected_award_code(),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     render_markdown_file(
@@ -894,12 +1170,16 @@ def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key:
 
 
 def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del ruleset_key
-    source_path = source_path_for_manual_4b_editor(artifact_paths)
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        award_code_for_artifact_paths(artifact_paths),
+        ruleset_key,
+    )
+    save_path = ruleset_artifacts.manual_4b_markdown
+    source_path = source_path_for_ruleset_manual_4b_editor(ruleset_artifacts)
     source_content = read_text_file(source_path)
 
     render_file_details(
-        artifact_paths.manual_4b_overtime_interpretation,
+        save_path,
         source_path=source_path,
         file_label="Save target",
         source_label="Editor source",
@@ -911,7 +1191,7 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_
 
     editor_key = manual_4b_editor_widget_key(
         panel_key,
-        artifact_paths.manual_4b_overtime_interpretation,
+        save_path,
     )
     edited_markdown = st.text_area(
         "4B overtime markdown",
@@ -927,20 +1207,20 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_
             return
 
         archive_path = write_text_file_with_archive(
-            artifact_paths.manual_4b_overtime_interpretation,
+            save_path,
             edited_markdown,
         )
         st.success(
             "Saved updated version to "
-            f"`{format_path_for_display(artifact_paths.manual_4b_overtime_interpretation)}`."
+            f"`{format_path_for_display(save_path)}`."
         )
         st.caption(f"Archive copy: `{format_path_for_display(archive_path)}`")
 
 
 def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del panel_key, artifact_paths
+    del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        selected_award_code(),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     render_markdown_file(
@@ -1072,6 +1352,18 @@ def strip_prepended_validation_block(rendered_markdown: str) -> str:
 
 def format_validation_warning_for_display(warning: str) -> str:
     """Normalize older warning text into the current reviewer-friendly wording."""
+    coverage_loss_match = re.fullmatch(
+        r"Original step 3\.4 clause (.+) was present before review but is not referenced after review\.",
+        warning,
+    )
+    if coverage_loss_match:
+        clause_number = coverage_loss_match.group(1)
+        return (
+            f"The earlier draft cited clause {clause_number}, but the final reviewed "
+            "ruleset no longer cites it. Check whether that rule or clause reference "
+            "was intentionally removed during the review phase."
+        )
+
     direct_match = re.fullmatch(
         r"Shortlisted clause ([^ ]+) from step 3\.2 is not referenced by any step 3\.4 rule\.",
         warning,
@@ -1081,6 +1373,17 @@ def format_validation_warning_for_display(warning: str) -> str:
         return (
             f"Clause {clause_number} was shortlisted as potentially relevant to overtime, "
             "but no rule in this ruleset currently represents it."
+        )
+
+    pre_review_match = re.fullmatch(
+        r"Clause (.+) was identified as relevant to overtime, but it is not present in the step 3\.4 ruleset\.",
+        warning,
+    )
+    if pre_review_match:
+        clause_number = pre_review_match.group(1)
+        return (
+            f"Clause {clause_number} was identified as relevant to overtime, but it is "
+            "not present in the draft ruleset before review."
         )
 
     merged_match = re.fullmatch(
@@ -1228,6 +1531,7 @@ def render_panel_heading(
     heading: str,
     panel_key: str,
     artifact_paths: Any,
+    ruleset_key: str,
 ) -> None:
     st.markdown(f"### {heading}")
 
@@ -1270,7 +1574,7 @@ def render_panel_heading(
 
     with button_column:
         if st.button("Refresh", key=f"{panel_key}_refresh", use_container_width=True):
-            refresh_panel(panel_key, heading, artifact_paths)
+            refresh_panel(panel_key, heading, artifact_paths, ruleset_key)
 
 
 def move_screen_selection(panel_key: str, direction: int) -> None:
@@ -1312,11 +1616,20 @@ def restore_side_by_side_view() -> None:
     sync_layout_widgets_from_state()
 
 
-def refresh_panel(panel_key: str, screen_name: str, artifact_paths: Any) -> None:
+def refresh_panel(
+    panel_key: str,
+    screen_name: str,
+    artifact_paths: Any,
+    ruleset_key: str,
+) -> None:
     if screen_name == SCREEN_MANUAL_4B_EDITOR:
+        ruleset_artifacts = ruleset_artifact_paths_for_award(
+            award_code_for_artifact_paths(artifact_paths),
+            ruleset_key,
+        )
         editor_key = manual_4b_editor_widget_key(
             panel_key,
-            artifact_paths.manual_4b_overtime_interpretation,
+            ruleset_artifacts.manual_4b_markdown,
         )
         st.session_state.pop(editor_key, None)
 

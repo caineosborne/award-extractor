@@ -7,6 +7,10 @@ Used by:
 import json
 from pathlib import Path
 
+from src.prompts.overtime_prompt_shared import (
+    SHARED_OVERTIME_CATEGORIES,
+    SHARED_PRIMARY_CLASSIFICATION_RULES,
+)
 from src.prompts.payment_clause_classification import DEFINITIONS, TAG_DEFINITIONS
 
 
@@ -29,11 +33,7 @@ Task:
 - Be conservative: do not label a clause as a trigger or consequence unless the operative text supports that label.
 
 Categories:
-- Ordinary Hours Boundary: defines ordinary hours limits, including ordinary hours per day, week, averaging period, span, spread, roster cycle, or ordinary hours arrangement.
-- Overtime Trigger: directly states when hours are overtime or when overtime applies.
-- Overtime Consequence: defines overtime rates, payment calculation, time off instead of payment, minimum payment, or what happens after overtime already exists.
-- Related Rule: influences interpretation but does not itself create overtime and is not an overtime consequence.
-- Not Relevant: does not materially affect overtime creation or overtime consequences.
+{SHARED_OVERTIME_CATEGORIES}
 
 Important:
 - Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
@@ -48,11 +48,7 @@ Important:
 - Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
 
 Primary classification rules:
-- Choose `Ordinary Hours Boundary` as the primary classification when the main operative effect of the clause is to define the outer limit of ordinary hours.
-- Choose `Overtime Trigger` as the primary classification when the main operative effect of the clause is to say when hours become overtime.
-- Choose `Overtime Consequence` as the primary classification when the main operative effect of the clause is to say what payment or entitlement applies after overtime already exists.
-- If a clause contains both trigger and consequence content, choose the primary classification based on the dominant payroll question answered by the clause, not merely the order the words appear in.
-- Do not select `Not Relevant` when another label clearly applies.
+{SHARED_PRIMARY_CLASSIFICATION_RULES}
 """
 
 

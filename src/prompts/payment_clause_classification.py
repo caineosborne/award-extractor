@@ -21,15 +21,15 @@ ALLOWED_TAGS = (
 
 DEFINITIONS = """Definitions:
 - ordinary hours: The hours worked by an employee that do not include overtime. For example, the ordinary hours of a full-time employee are usually 38 hours per week.
-- overtime: The time worked outside of ordinary hours. Awards and registered agreements state when overtime can be worked and the rate of pay for working overtime.
+- overtime: The time worked outside of ordinary hours. Awards and registered agreements state when overtime can be worked and the rate of pay for working overtime. 
 - penalty: A higher pay rate that can apply when an employee works evenings, weekends or public holidays. These rates are provided in awards and registered agreements.
 - shiftworker: An employee who works fixed hours of work, such as shifts or rosters, that are outside or partly outside normal working hours, such as 9am to 5pm. Awards and registered agreements often provide a specific definition of shiftworker.
 """
 
 TAG_DEFINITIONS = """Tag definitions:
-- Hourly Rate: clauses related to an employee's base hourly rate, wage table, classification rate, minimum rate, or dollar amount per hour, excluding allowances.
-- Ordinary Hours & Overtime: clauses defining ordinary hours, overtime hours, the boundary between ordinary and overtime hours, or minimum shift/payment periods tied to worked hours.
-- Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.  THis may be callsed shift workek allowance. 
+- Hourly Rate: clauses related to an employee's base hourly rate, wage table, classification rate, minimum rate, or dollar amount per hour, excluding allowances, and excluding specific multipliers or loadings (eg excluding statements like overtime will be paid at 200%, or night penalties will be paid at 150%)
+- Ordinary Hours & Overtime: clauses defining ordinary hours, overtime hours, the boundary between ordinary and overtime hours, or minimum shift/payment periods tied to worked hours. This includes statements about payment for overitme, including statements like 'overtime will be paid at 150%'
+- Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.  THis may be callsed shift workek allowance.  This includes statements about the payment multipliers for penalties, like 'night penalties will be paid at 115%'
 - Allowance: additional payment based on duties, work type, location, equipment, expenses, qualifications, or skills, rather than the specific hours worked.
 - Breaks (Meal Breaks): clauses about entitlement to meal breaks, lunch breaks, crib breaks, or payment when meal breaks are missed or interrupted. 
 - Breaks (Between Work Periods): clauses about required gaps, rest periods, or minimum breaks between shifts or work periods. This includes broken shifts - where a shift is worked in two segments. 

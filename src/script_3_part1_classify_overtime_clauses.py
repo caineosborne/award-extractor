@@ -127,8 +127,9 @@ def ruleset_clause_classification_path_for_source(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
-    """Return the explicit ruleset clause-classification artifact path."""
-    return explicit_clause_classification_output_path(classification_path, ruleset_key)
+    """Return the canonical clause-classification artifact path shared by all rulesets."""
+    del ruleset_key
+    return overtime_clause_classification_path_for_source(classification_path)
 
 
 def classification_output_path_for_classification(
@@ -606,20 +607,19 @@ def prepare_overtime_clause_classifications(
 
     source_path = Path(classification_path)
     data = load_classification(source_path)
-    overtime_clauses = select_ruleset_related_clauses(data, ruleset_key)
+    overtime_clauses = select_ruleset_related_clauses(
+        data,
+        OVERTIME_CREATION_RULESET,
+    )
     if not overtime_clauses:
         raise OvertimeInterpretationError(
-            f"No {overtime_ruleset_config(ruleset_key).display_name.lower()} source clauses found in: {source_path}"
+            f"No overtime source clauses found in: {source_path}"
         )
 
     destination = (
         Path(classification_output_path)
         if classification_output_path
-        else (
-            overtime_clause_classification_path_for_source(source_path)
-            if ruleset_key == OVERTIME_CREATION_RULESET
-            else ruleset_clause_classification_path_for_source(source_path, ruleset_key)
-        )
+        else overtime_clause_classification_path_for_source(source_path)
     )
 
     return load_or_create_overtime_clause_classifications(
@@ -628,7 +628,7 @@ def prepare_overtime_clause_classifications(
         classification_output_path=destination,
         client=client,
         model=selected_model,
-        ruleset_key=ruleset_key,
+        ruleset_key=OVERTIME_CREATION_RULESET,
     )
 
 

@@ -1196,7 +1196,7 @@ def review_overtime_interpretation(
     revised_validation_warnings = clause_coverage_warnings(
         original_rules=original_rules_artifact["rules"],
         revised_rules=reviewed_rules_artifact["rules"],
-        context_label="Original step 3.4",
+        context_label="The earlier draft",
     )
     revised_interpretation_markdown = prepend_validation_warnings(
         revised_interpretation_markdown,

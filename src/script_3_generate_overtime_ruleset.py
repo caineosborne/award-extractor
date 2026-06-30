@@ -10,11 +10,11 @@ from typing import Any
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
-    explicit_clause_classification_output_path,
     explicit_ruleset_output_path,
 )
 from src.script_3_part1_classify_overtime_clauses import (
     DEFAULT_CLASSIFICATION_PATH,
+    overtime_clause_classification_path_for_source,
     prepare_overtime_clause_classifications,
 )
 from src.script_3_part2_generate_overtime_interpretation import (
@@ -44,7 +44,7 @@ def generate_overtime_ruleset(
     selected_clause_output_path = (
         Path(clause_classification_output_path)
         if clause_classification_output_path
-        else explicit_clause_classification_output_path(source_path, ruleset_key)
+        else overtime_clause_classification_path_for_source(source_path)
     )
     selected_output_path = (
         Path(output_path)
