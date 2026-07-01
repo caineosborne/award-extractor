@@ -296,7 +296,10 @@ The goal is:
 
 ### 7. Remove legacy behaviour instead of preserving it
 
-The current codebase has too many compatibility layers, fallback paths, and duplicate names.
+Phase 7A - review all code to ompatibility layers, fallback paths, and duplicate names.
+
+Remove what is no longer needed in the new format.  
+
 
 The simplification direction should be:
 
@@ -312,7 +315,7 @@ Specifically, reduce:
 - wrapper scripts that exist only to preserve an old concept
 - automatic archival behaviour that creates extra timestamped copies by default
 
-### 7A. Remove automatic timestamp archives from the default workflow
+### 7B. Remove automatic timestamp archives from the default workflow
 
 Automatic timestamp archive files are not part of the core audit workflow and add noise to the output folders.
 
@@ -334,7 +337,7 @@ It also makes it clearer which files are:
 - current working outputs
 - intentionally preserved snapshots
 
-### 7B. Streamlit should own explicit snapshot saving
+### 7C. Streamlit should own explicit snapshot saving
 
 If operators want to keep a point-in-time version of an artifact, Streamlit should provide an explicit control for that.
 
@@ -677,17 +680,18 @@ Status:
 
 - completed
 
-#### Phase 4.5. Review completed step folders and reduce `core.py`
+#### Phase 4.5. Review completed step folders and reduce `core.py` - COMPLETED
 
 Scope:
 
-- review `src/step_2_2_classify_overtime_clauses/`
-- review `src/step_3_1_generate_ruleset/`
-- review `src/step_3_2_review_ruleset/`
+- review `src/step_2_2_classify_overtime_clauses/`, `src/step_3_1_generate_ruleset/`, and `src/step_3_2_review_ruleset/`
+- treat this phase primarily as a structural cleanup for `step_3_1` and `step_3_2`, which still contain large mixed-responsibility `core.py` files
+- use the completed `step_2_1` and `step_5_1` layouts as the reference pattern for file ownership and orchestration style
 - move functions out of `core.py` where a clearer owner file already exists
 - keep behaviour stable while improving the internal file layout
 - keep all active files for those steps inside their step folders, `src/common/`, or `src/prompts/`
 - do not reintroduce active runtime imports from `script_*` files
+- prefer explicit, responsibility-named files over one large shared module, even if that means adding `schema.py` or `verification.py`
 
 Function placement:
 
@@ -698,6 +702,37 @@ Function placement:
 - `schema.py` or `types.py` should be added where dataclasses, schema constants, allowed values, or structured response shapes are shared across multiple files.
 - `src/prompts/` should own prompt text and prompt-specific formatting helpers.
 - `core.py` should be deleted if it becomes empty. If it remains, it should contain only small step-local constants or types that are genuinely shared by multiple files and do not clearly belong elsewhere.
+
+Implementation intent:
+
+- `step_2_2` is a smaller cleanup target. Only move code out of `core.py` where ownership is obvious. It does not need forced file proliferation if the result would be less readable.
+- `step_3_1` and `step_3_2` are the real focus of this phase. The goal is not merely to shrink `core.py`, but to make each step readable top-to-bottom from `run.py` through `llm.py`, `deterministic.py`, and any supporting files.
+- prefer the `step_2_1` pattern when shared data structures dominate and the `step_5_1` pattern when deterministic validation deserves its own file
+- avoid moving functions into `core.py` just because they are currently hard to place; if needed, introduce `schema.py` or `verification.py` instead
+- keep `__init__.py` minimal so file reorganization does not create import cycles
+
+Step 3.1 refactor target:
+
+- `run.py` should remain the readable orchestration entrypoint for the full expert-drafting workflow
+- `run.py` should own: expert run count checks, input resolution calls, client/model setup calls, the sequencing of expert A, expert B, optional additional experts, merge handling, warning combination, and final artifact writing calls
+- `run.py` should not own: prompt building, model request payload construction, raw model response parsing, expert-comparison parsing, or low-level validation logic
+- `llm.py` should own: `load_openai_client(...)`, `selected_models(...)`, `draft_expert_a(...)`, `draft_expert_b(...)`, `draft_additional_expert(...)`, `merge_expert_drafts(...)`, and the lower-level request helpers those visible functions depend on
+- `llm.py` should also own the current model-facing helpers that are still buried in `core.py`, including environment loading, request execution, raw response extraction/parsing, and model-specific validation or repair of structured outputs
+- `deterministic.py` should own: source artifact loading, path resolution, expert draft output path construction, merged output path construction, warning combination helpers if they are purely deterministic, artifact serialization, and markdown/json writing
+- if rule-validation, clause-coverage checks, or source-to-rule consistency checks are large enough to obscure `deterministic.py`, add `verification.py` and move them there
+- if rule dataclasses, regex constants, response-shape constants, or shared structured metadata no longer fit cleanly in one file, add `schema.py`
+- prompt builders used by the expert drafting and comparison calls should live in `src/prompts/` or `llm.py`, not in `run.py` and not in `core.py`
+
+Step 3.2 refactor target:
+
+- `run.py` already has the right visible surface. Keep `run_evaluator_review(...)`, `run_creator_review(...)`, and `recreate_revised_ruleset(...)` there as operator-visible workflow steps
+- `run.py` should continue to own only orchestration: loading inputs, resolving active models/clients, sequencing evaluator then creator, handling status callbacks, and dispatching final writes
+- `run.py` should not own prompt assembly details, raw model call mechanics, JSON extraction, creator-response parsing, or deterministic artifact loading/writing details
+- `llm.py` should own: `load_client(...)`, model selection helpers, evaluator request loops, creator request loops, response text extraction, creator/evaluator repair attempts, creator response parsing, and model-output validation specific to the review prompt contract
+- `deterministic.py` should own: interpretation/classification source loading, ruleset-key inference, output path resolution, feedback/creator/revised artifact writing, and any non-model transformation used by `run_evaluator_review(...)`, `run_creator_review(...)`, or `recreate_revised_ruleset(...)`
+- add `verification.py` if deterministic checks around review outputs, coverage warnings, or reconstructed rulesets are large enough to obscure deterministic loading/writing
+- add `schema.py` if the step needs a clearer home for review artifact dataclasses, response-shape constants, regex patterns, allowed values, or other shared step-local structured definitions
+- prompt-message builders used by the evaluator and creator flows should live in `src/prompts/` or `llm.py`, not in `core.py`
 
 Required visible function ownership:
 
@@ -714,23 +749,41 @@ Supporting function guidance:
 - Prompt-message builders used by `run_evaluator_review(...)` or `run_creator_review(...)` should live in `src/prompts/` or `llm.py`, not in `core.py`.
 - Path resolution, artifact loading, artifact writing, and deterministic rule/coverage checks used by those visible functions should live in `deterministic.py` or `verification.py`.
 - Dataclasses, enums, and step-local schema constants shared across multiple files should move to `types.py` or `schema.py` when they no longer fit cleanly in one owner file.
+- When moving code, preserve the current public function names and call signatures unless a signature change is required to achieve the split cleanly.
+- Prefer moving existing functions with minimal rewriting over opportunistic redesign. The structural split is the goal of this phase.
+- If a helper is only used by one file after the split, keep it in that file rather than creating a new shared module.
 
 Deliverable:
 
 - `step_2_2`, `step_3_1`, and `step_3_2` stay script-free but no longer concentrate copied implementation logic in oversized `core.py` files
+- `step_3_1` and `step_3_2` read like the newer `step_2_1` and `step_5_1` folders: `run.py` for orchestration, `llm.py` for model work, `deterministic.py` for non-model processing, and extra files only where they improve reviewability
 - reviewers can trace each completed step through responsibility-named files without using `core.py` as a catch-all
 
 #### Phase 4.6. Split step `1` fetch and parse
 
 Scope:
 
-- separate fetch and parse responsibilities into their step folders
-- move both the Fair Work HTML path and the PDF path into the step-1 area
-- keep the top-level pipeline entrypoint small and sequential
+- review `src/step_1_1_fetch/` and `src/step_1_2_parse_award/`
+- keep all active step-`1` files inside their step folders, `src/common/`, or `src/prompts/`
+- move any remaining visible orchestration out of `core.py` into `run.py`
+- keep fetch-specific network and source-resolution logic in `deterministic.py`
+- keep parsing and artifact-writing logic in `deterministic.py` or `llm.py` only where a model call is actually involved
+- keep the Fair Work HTML path logic in the step `1.1` area
+- keep the PDF path logic in a separate step-`1` file rather than folding it into the HTML file
+- do not reintroduce active runtime imports for step `1` pointing at `script_*` files
 
 Deliverable:
 
-- the full active pipeline is represented as step folders rather than historical script names
+- step `1` is represented as a self-contained folder pair with clear responsibility-based files
+- reviewers can trace fetch and parse separately without relying on `core.py` as the main home for step logic
+
+Function placement:
+
+- `run.py` should own the top-level fetch or parse orchestration for its step.
+- `deterministic.py` should own source-path resolution, input loading, artifact construction, and output writing.
+- `llm.py` should only exist where the step actually uses model calls.
+- `src/prompts/` should own any step `1` prompt text or formatting helpers.
+- `core.py` should only retain small shared step-local types or constants if they are genuinely needed by more than one file.
 
 #### Phase 4.7. Split step `4.1` format ruleset
 
@@ -900,27 +953,17 @@ Each step should have:
 - one main prompt module
 - one obvious builder entrypoint
 - no duplicate prompt APIs for the same active task
+- No files should have prompts embedded in the code
+
+All prompts shoudl be in the /prompts/ files
 
 Status:
 
 - not started
 
-### Phase 6. Delete legacy wrappers and fallback-heavy path logic
 
-Once the new structure works, remove:
 
-- old script aliases that no longer matter
-- legacy overtime-only path branches
-- multi-path fallback chains that only exist for old artifacts
-- duplicate helper names kept for compatibility
-
-This is the step where complexity should drop sharply.
-
-Status:
-
-- not started
-
-### Phase 7. Update tests and Streamlit to the new structure
+### Phase 6. Update tests and Streamlit to the new structure
 
 Tests should prove:
 
@@ -946,6 +989,22 @@ Status:
 
 - not started
 
+### Phase 7. Delete legacy wrappers and fallback-heavy path logic
+
+Once the new structure works, remove:
+
+- old script aliases that no longer matter
+- legacy overtime-only path branches
+- multi-path fallback chains that only exist for old artifacts
+- duplicate helper names kept for compatibility
+
+This is the step where complexity should drop sharply.
+
+Status:
+
+- not started
+
+
 ### Phase 8. Update docs and remove dead content
 
 After the code is stable:
@@ -953,6 +1012,7 @@ After the code is stable:
 - update `README.md`
 - update technical and methodology notes
 - update output inventories
+- Archieve old files which are no longer used in the current process
 - remove or archive old documentation that describes the retired architecture
 
 At that point, the repository should describe only one active workflow.

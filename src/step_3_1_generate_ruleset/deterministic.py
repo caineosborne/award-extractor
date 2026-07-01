@@ -24,7 +24,6 @@ from .core import (
     comparison_output_path,
     expert_markdown_output_path,
     interpretation_output_path_for_source,
-    load_prepared_clause_classifications,
     overtime_clause_classification_path_for_source,
     select_overtime_creation_clauses,
 )
@@ -86,6 +85,35 @@ def resolve_generation_inputs(
         clause_classifications=clause_classifications,
         overtime_creation_clauses=overtime_creation_clauses,
         ruleset_key=ruleset_key,
+    )
+
+
+def load_prepared_clause_classifications(
+    source_path: Path,
+    classification_output_path: Path,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> list[OvertimeClauseClassification]:
+    """Load part-1 output and validate it against the current step-2 source."""
+    if not classification_output_path.exists():
+        raise OvertimeInterpretationError(
+            "Overtime clause classification JSON not found: "
+            f"{classification_output_path}. Run step 3 part 1 first."
+        )
+
+    data = load_classification(source_path)
+    overtime_clauses = select_ruleset_related_clauses(
+        data,
+        OVERTIME_CREATION_RULESET,
+    )
+    if not overtime_clauses:
+        raise OvertimeInterpretationError(
+            f"No overtime source clauses found in: {source_path}"
+        )
+
+    return load_overtime_clause_classification_artifact(
+        classification_output_path,
+        overtime_clauses,
+        OVERTIME_CREATION_RULESET,
     )
 
 

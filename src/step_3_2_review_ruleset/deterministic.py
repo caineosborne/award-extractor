@@ -10,6 +10,7 @@ from typing import Any
 from src.common.active_pipeline_paths import (
     creator_response_path_for_interpretation,
     evaluator_feedback_path_for_interpretation,
+    resolve_overtime_clause_classification_path,
     revised_output_path_for_interpretation,
 )
 from src.common.overtime_rules import (
@@ -20,14 +21,20 @@ from src.common.overtime_rules import (
     make_json_serializable,
     prepend_validation_warnings,
     rule_to_dict,
+    load_rules_artifact,
+    rules_from_markdown_fallback,
     write_rules_artifact,
 )
 from src.common.output_paths import write_text_with_archive
+from src.common.overtime_rulesets import (
+    OVERTIME_CREATION_RULESET,
+    infer_overtime_ruleset_key_from_path,
+)
+from src.step_2_2_classify_overtime_clauses.core import load_classification
 
 from .core import (
     OvertimeInterpretationReviewArtifacts,
     OvertimeInterpretationReviewError,
-    load_review_source_artifacts,
 )
 
 
@@ -43,6 +50,73 @@ class Step3ReviewInputs:
     interpretation_markdown: str
     classification_data: dict[str, Any]
     overtime_clause_classification: dict[str, Any]
+
+
+def load_review_source_artifacts(
+    interpretation_path: Path | str,
+    classification_path: Path | str,
+    overtime_clause_classification_path: Path | str | None,
+) -> tuple[Path, Path, Path, str, dict[str, Any], str, dict[str, Any], dict[str, Any]]:
+    """Load and validate all source artifacts needed for the step-3.2 review."""
+    selected_interpretation_path = Path(interpretation_path)
+    selected_classification_path = Path(classification_path)
+    try:
+        inferred_ruleset_key = infer_overtime_ruleset_key_from_path(selected_interpretation_path)
+    except ValueError:
+        inferred_ruleset_key = OVERTIME_CREATION_RULESET
+    selected_overtime_clause_classification_path = resolve_overtime_clause_classification_path(
+        selected_classification_path,
+        overtime_clause_classification_path,
+        selected_interpretation_path,
+    )
+    selected_rules_json_path = json_output_path_for_markdown(selected_interpretation_path)
+
+    if selected_rules_json_path.exists():
+        original_rules_artifact = load_rules_artifact(
+            selected_rules_json_path,
+            expected_schema_version=OVERTIME_RULE_SCHEMA_VERSION,
+        )
+        interpretation_markdown = str(original_rules_artifact["rendered_markdown"])
+    else:
+        interpretation_markdown = load_text_file(
+            selected_interpretation_path,
+            "Overtime interpretation markdown",
+        )
+        original_rules_artifact = {
+            "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
+            "source_classification_file": str(selected_classification_path),
+            "source_clause_classification_file": str(
+                selected_overtime_clause_classification_path
+            ),
+            "rendered_markdown": interpretation_markdown,
+            "rules": rules_from_markdown_fallback(
+                interpretation_markdown,
+                source_path=selected_interpretation_path,
+            ),
+        }
+
+    classification_data = load_classification(selected_classification_path)
+    classified_clauses = classification_data.get("classified_clauses")
+    if not classified_clauses:
+        raise OvertimeInterpretationReviewError(
+            f"No classified clauses found in: {selected_classification_path}"
+        )
+
+    overtime_clause_classification = load_json_file(
+        selected_overtime_clause_classification_path,
+        "Step 2.2 overtime clause classification JSON",
+    )
+
+    return (
+        selected_interpretation_path,
+        selected_classification_path,
+        selected_overtime_clause_classification_path,
+        inferred_ruleset_key,
+        original_rules_artifact,
+        interpretation_markdown,
+        classification_data,
+        overtime_clause_classification,
+    )
 
 
 def load_review_inputs(

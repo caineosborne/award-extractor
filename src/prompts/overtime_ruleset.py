@@ -20,6 +20,7 @@ from src.prompts.overtime_prompt_shared import (
     SHARED_PRIMARY_CLASSIFICATION_RULES,
 )
 from src.prompts.payment_clause_classification import DEFINITIONS, TAG_DEFINITIONS
+from src.common.overtime_rules import OvertimeRule, rule_to_dict
 
 
 CLAUSE_CLASSIFICATION_SHARED_SYSTEM_PROMPT = f"""You classify Australian modern award clauses for payroll implementation.
@@ -240,6 +241,88 @@ def build_clause_classification_messages(
                 variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
             ),
         },
+    ]
+
+
+def build_interpretation_messages(
+    ruleset_key: str,
+    source_file: str,
+    working_paper_input: str,
+) -> list[dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": INTERPRETATION_VARIANT_SYSTEM_PROMPTS[ruleset_key],
+        },
+        {
+            "role": "user",
+            "content": INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
+                source_file=source_file,
+                working_paper_input=working_paper_input,
+            ),
+        },
+    ]
+
+
+def build_expert_comparison_messages(
+    *,
+    ruleset_key: str,
+    source_path: Path,
+    shortlisted_clauses: list[dict],
+    run_a_rules_json: list[dict],
+    run_b_rules_json: list[dict],
+) -> list[dict[str, str]]:
+    config = overtime_ruleset_config(ruleset_key)
+    variant_system_instructions = ""
+    variant_user_instructions = ""
+
+    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+        variant_system_instructions = (
+            "\n\nFor overtime consequence, prefer pruning over preserving mixed trigger content. "
+            "If a drafted rule mainly states what causes overtime, do not keep it as a standalone "
+            "merged rule unless the consequence itself cannot be understood without it."
+        )
+        variant_user_instructions = (
+            "\n\nAdditional merge instructions for overtime consequence:\n"
+            "- Keep only rules whose main payroll purpose is the consequence after overtime already exists.\n"
+            "- For mixed clauses, keep only the consequence-oriented part of the rule where possible.\n"
+            "- Remove standalone trigger/boundary rules that survived expert drafting by mistake.\n"
+            "- If a shortlisted clause is mixed and does not produce a clean standalone consequence rule, "
+            "do not force it into merged_rules; explain that decision in comparison_summary_markdown or merge_explanations."
+        )
+
+    system_prompt = (
+        "You are comparing two structured payroll ruleset extraction outputs for the same "
+        f"{config.display_name.lower()} ruleset. Merge them into one best structured rule set.\n\n"
+        "Preserve the business meaning of the rules. Do not drop a rule merely because "
+        "it is named differently. Treat the same rule with different wording as a merge "
+        "candidate. If one run split a rule and the other combined it, produce the clearest "
+        "merged structure.\n\n"
+        "Every input rule from run A and run B must be accounted for. Every shortlisted "
+        "source clause must still be represented somewhere in the merged output or the "
+        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
+        "Return JSON only."
+        f"{variant_system_instructions}"
+    )
+    user_prompt = (
+        f"Source classification file: {source_path}\n\n"
+        f"Shortlisted source clauses from the {config.display_name.lower()} clause classification step:\n```json\n"
+        f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run A structured rules:\n```json\n"
+        f"{json.dumps(run_a_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Run B structured rules:\n```json\n"
+        f"{json.dumps(run_b_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
+        "Return a merged ruleset with:\n"
+        "- comparison_summary_markdown\n"
+        "- accounted_run_a_rule_ids\n"
+        "- accounted_run_b_rule_ids\n"
+        "- merged_rules\n"
+        "- merge_explanations"
+        f"{variant_user_instructions}"
+    )
+    return [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
     ]
 
 
