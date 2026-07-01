@@ -33,8 +33,11 @@ from src.common.award_sources import (
 from src.common.overtime_rulesets import overtime_ruleset_config
 from src.script_3_generate_overtime_ruleset import generate_overtime_ruleset
 from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
-from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
-from src.script_4a_summarize_overtime import summarize_overtime_entitlements
+from src.step_1_2_parse_award.run import (
+    extract_pdf_award_source as extract_pdf_to_award,
+    write_pdf_step_outputs as write_pdf_outputs,
+)
+from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
 from src.script_5b_generate_overtime_pseudocode import generate_core_overtime_pseudocode
 from streamlit_review.output_data import (
     artifact_paths_for_award,
@@ -48,7 +51,8 @@ PIPELINE_RUN_DIR = PROJECT_ROOT / "data" / "processed" / "_streamlit_pipeline_ru
 
 PIPELINE_STEP_LABELS = {
     "1": "Retrieve award",
-    "2": "Classify clauses",
+    "2.1": "Classify clauses",
+    "2.2": "Classify overtime clauses",
     "3": "Generate overtime",
     "3b": "Review overtime",
     "4": "Format overtime guide",
@@ -196,7 +200,8 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
         if source_type == SOURCE_TYPE_LOCAL_PDF:
             return [
                 PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "pdf_step_1"),
-                PipelinePlannedStep("2", PIPELINE_STEP_LABELS["2"], "selected_step"),
+                PipelinePlannedStep("2.1", PIPELINE_STEP_LABELS["2.1"], "selected_step"),
+                PipelinePlannedStep("2.2", PIPELINE_STEP_LABELS["2.2"], "selected_step"),
                 PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
                 PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
                 PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),
@@ -205,7 +210,8 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
 
         return [
             PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "selected_step"),
-            PipelinePlannedStep("2", PIPELINE_STEP_LABELS["2"], "selected_step"),
+            PipelinePlannedStep("2.1", PIPELINE_STEP_LABELS["2.1"], "selected_step"),
+            PipelinePlannedStep("2.2", PIPELINE_STEP_LABELS["2.2"], "selected_step"),
             PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
             PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
             PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),

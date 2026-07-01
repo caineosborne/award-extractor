@@ -35,8 +35,11 @@ from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
 )
-from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
-from src.script_4a_summarize_overtime import summarize_overtime_entitlements
+from src.step_1_2_parse_award.run import (
+    extract_pdf_award_source as extract_pdf_to_award,
+    write_pdf_step_outputs as write_pdf_outputs,
+)
+from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
 from streamlit_review.pipeline_runs import (
     log_path_for_award,
     normalized_status_for_award,
@@ -129,7 +132,8 @@ COMPARISON_PRESETS = {
 
 PIPELINE_STEP_LABELS = {
     "1": "Retrieve award",
-    "2": "Classify clauses",
+    "2.1": "Classify clauses",
+    "2.2": "Classify overtime clauses",
     "3": "Generate overtime",
     "3b": "Review overtime",
     "4": "Format overtime guide",
@@ -1725,14 +1729,23 @@ def render_pipeline_run_controls(
 
     with step_two_column:
         if st.button(
-            PIPELINE_STEP_LABELS["2"],
-            key=f"run_step_2_{selected_award_code}",
+            PIPELINE_STEP_LABELS["2.1"],
+            key=f"run_step_2_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="2")
+            execute_pipeline_run(selected_award_code, step="2.1")
 
     with step_three_column:
+        if st.button(
+            PIPELINE_STEP_LABELS["2.2"],
+            key=f"run_step_2_2_{selected_award_code}",
+            use_container_width=True,
+            disabled=run_controls_disabled,
+        ):
+            execute_pipeline_run(selected_award_code, step="2.2")
+
+    with step_three_b_column:
         if st.button(
             PIPELINE_STEP_LABELS["3"],
             key=f"run_step_3_{selected_award_code}",
@@ -1741,7 +1754,7 @@ def render_pipeline_run_controls(
         ):
             execute_pipeline_run(selected_award_code, step="3", ruleset_key=ruleset_key)
 
-    with step_three_b_column:
+    with step_four_column:
         if st.button(
             PIPELINE_STEP_LABELS["3b"],
             key=f"run_step_3b_{selected_award_code}",
@@ -1750,7 +1763,7 @@ def render_pipeline_run_controls(
         ):
             execute_pipeline_run(selected_award_code, step="3b", ruleset_key=ruleset_key)
 
-    with step_four_column:
+    with step_five_b_column:
         if st.button(
             PIPELINE_STEP_LABELS["4"],
             key=f"run_step_4_{selected_award_code}",
@@ -1759,7 +1772,9 @@ def render_pipeline_run_controls(
         ):
             execute_pipeline_run(selected_award_code, step="4", ruleset_key=ruleset_key)
 
-    with step_five_b_column:
+    extra_column_left, extra_column_right = st.columns(2, gap="small")
+
+    with extra_column_left:
         if st.button(
             PIPELINE_STEP_LABELS["5b"],
             key=f"run_step_5b_{selected_award_code}",
@@ -1938,7 +1953,7 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
             if step is None:
                 if source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
                     run_pdf_step_1(paths, award_code, source_record)
-                    for selected_step in ("2", "3", "3b"):
+                    for selected_step in ("2.1", "2.2", "3", "3b"):
                         run_selected_step(paths, selected_step)
                 else:
                     run_default_pipeline(paths)

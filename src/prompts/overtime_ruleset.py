@@ -1,8 +1,8 @@
 """Prompt content for reusable overtime rulesets.
 
 Used by:
-- `src/script_3_part1_classify_overtime_clauses.py`
-- `src/script_3_part2_generate_overtime_interpretation.py`
+- `src/step_2_2_classify_overtime_clauses/`
+- `src/step_3_1_generate_ruleset/`
 """
 
 from __future__ import annotations

@@ -1,8 +1,8 @@
 """Prompt content for step 3B overtime ruleset review.
 
 Used by:
-- `src/script_3b_review_overtime_interpretation.py`
-- `src/script_3b_agentic_review_workflow.py`
+- `src/step_3_2_review_ruleset/`
+- `src/step_3_1_generate_ruleset/`
 """
 
 from __future__ import annotations
@@ -18,14 +18,14 @@ from src.common.overtime_rulesets import (
     infer_overtime_ruleset_key_from_path,
     overtime_ruleset_config,
 )
-from src.script_3_interpret_overtime import clause_text
-from src.script_3_part1_classify_overtime_clauses import (
+from src.step_2_2_classify_overtime_clauses.core import (
     build_clause_classification_messages,
+    clause_source_text as clause_text,
     select_overtime_creation_clauses,
     select_ruleset_related_clauses,
     validate_overtime_clause_classifications,
 )
-from src.script_3_part2_generate_overtime_interpretation import (
+from src.step_3_1_generate_ruleset.core import (
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from src.common.overtime_rules import OvertimeRule, rule_to_dict
@@ -519,6 +519,118 @@ Write a short markdown decision record. Explain which feedback you accepted, whi
 Write the complete revised ruleset working document in markdown.
 </revised_interpretation>
 """
+
+
+def build_review_evaluator_messages(
+    *,
+    interpretation_path: Path | str,
+    interpretation_markdown: str,
+    classification_path: Path | str,
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification_path: Path | str,
+    overtime_clause_classification: Mapping[str, Any],
+    original_rules_artifact: Mapping[str, Any] | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> list[dict[str, str]]:
+    """Build the evaluator prompt set for the step-3.2 review."""
+    return [
+        {"role": "system", "content": evaluation_system_prompt(ruleset_key)},
+        {
+            "role": "user",
+            "content": build_full_evaluator_review_prompt(
+                interpretation_path=interpretation_path,
+                interpretation_markdown=interpretation_markdown,
+                original_rules_artifact=original_rules_artifact,
+                classification_path=classification_path,
+                payment_classification=payment_classification,
+                overtime_clause_classification_path=overtime_clause_classification_path,
+                overtime_clause_classification=overtime_clause_classification,
+                ruleset_key=ruleset_key,
+            )
+            + "\n\n"
+            + evaluator_structured_output_instructions(),
+        },
+    ]
+
+
+def build_review_creator_messages(
+    *,
+    interpretation_path: Path | str,
+    interpretation_markdown: str,
+    classification_path: Path | str,
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification_path: Path | str,
+    overtime_clause_classification: Mapping[str, Any],
+    evaluator_feedback_markdown: str,
+    evaluator_feedback_data: Mapping[str, Any] | None = None,
+    original_rules_artifact: Mapping[str, Any] | None = None,
+    prior_creator_decision_markdown: str | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> list[dict[str, str]]:
+    """Build the creator prompt set used to revise the interpretation."""
+    relevant_clause_excerpt_markdown = build_relevant_clause_excerpt_markdown(
+        interpretation_markdown=interpretation_markdown,
+        payment_classification=payment_classification,
+        overtime_clause_classification=overtime_clause_classification,
+        evaluator_feedback_markdown=evaluator_feedback_markdown,
+        evaluator_feedback_data=evaluator_feedback_data,
+        original_rules_artifact=original_rules_artifact,
+        prior_creator_decision_markdown=prior_creator_decision_markdown,
+    )
+    creator_review_action_pack = build_creator_review_action_pack(
+        original_rules_artifact=original_rules_artifact,
+        evaluator_feedback_data=evaluator_feedback_data,
+    )
+    creator_prompt_context = build_script_3_creator_prompt_context(
+        classification_path,
+        payment_classification,
+        overtime_clause_classification,
+        ruleset_key,
+    )
+
+    return [
+        creator_prompt_context["interpretation_messages"][0],
+        {
+            "role": "user",
+            "content": build_minimal_creator_revision_prompt(
+                interpretation_path=interpretation_path,
+                interpretation_markdown=interpretation_markdown,
+                relevant_clause_excerpt_markdown=relevant_clause_excerpt_markdown,
+                evaluator_feedback_markdown=evaluator_feedback_markdown,
+                creator_review_action_pack_json=json.dumps(
+                    creator_review_action_pack,
+                    indent=2,
+                    ensure_ascii=False,
+                ),
+                ruleset_key=ruleset_key,
+                prior_creator_decision_markdown=prior_creator_decision_markdown,
+            )
+            + "\n\nOriginal step-3 rules JSON:\n```json\n"
+            + json.dumps(
+                {
+                    **(dict(original_rules_artifact) if original_rules_artifact else {}),
+                    "rules": [
+                        rule_to_dict(rule) if isinstance(rule, OvertimeRule) else rule
+                        for rule in (
+                            list((original_rules_artifact or {}).get("rules", []))
+                        )
+                    ],
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n```\n"
+            + "\n\nEvaluator structured review JSON:\n```json\n"
+            + json.dumps(
+                make_json_serializable(dict(evaluator_feedback_data or {})),
+                indent=2,
+                ensure_ascii=False,
+            )
+            + "\n```\n"
+            + "\n\n"
+            + creator_structured_output_instructions(),
+        },
+    ]
 
 
 def build_minimal_pass_fail_evaluator_prompt(

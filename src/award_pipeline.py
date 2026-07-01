@@ -18,13 +18,20 @@ from src.common.pipeline_context import (
     ActivePipelineContext,
     build_active_pipeline_context,
 )
-from src.script_1_fetch_award import fetch_and_extract_award, write_step_1_outputs
-from src.script_2_classify_payments import classify_award
-from src.script_3_interpret_overtime import generate_overtime_interpretation
+from src.step_1_1_fetch.run import fetch_award_source
+from src.step_1_2_parse_award.run import write_html_outputs_for_paths
 from src.script_3_interpret_overtime import DEFAULT_EXPERT_RUN_COUNT
-from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
-from src.script_5b_generate_overtime_pseudocode import (
+from src.step_2_1_classify_payments.run import classify_payments
+from src.step_3_1_generate_ruleset.run import (
+    generate_ruleset_from_clause_classification,
+)
+from src.step_3_2_review_ruleset.run import review_ruleset
+from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
+from src.step_5_1_generate_pseudocode.run import (
     generate_core_overtime_pseudocode,
+)
+from src.step_2_2_classify_overtime_clauses.run import (
+    run_step_2_1 as run_overtime_clause_classification_step,
 )
 
 STEP_CHOICES = ACTIVE_PIPELINE_STEP_CHOICES
@@ -73,42 +80,52 @@ def require_existing(path: Path, step_name: str, prior_step: str) -> None:
 
 def run_step_1(paths: ActivePipelinePaths) -> None:
     """Run step 1 and write the fetched award outputs."""
-    main_content, award = fetch_and_extract_award(paths.url)
-    write_step_1_outputs(
-        url=paths.url,
-        main_content=main_content,
-        award=award,
-        raw_dir=paths.raw_html_path.parent,
-        processed_dir=paths.award_json_path.parent.parent,
+    result = fetch_award_source(paths.url)
+    write_html_outputs_for_paths(
+        main_content=result.main_content,
+        award=result.award,
+        raw_html_path=paths.raw_html_path,
+        award_json_path=paths.award_json_path,
     )
 
 
-def run_step_2(paths: ActivePipelinePaths) -> None:
-    """Run step 2 payment clause classification."""
-    require_existing(paths.award_json_path, "2", "1")
-    classify_award(
+def run_step_2_1(paths: ActivePipelinePaths) -> None:
+    """Run step 2.1 payment clause classification."""
+    require_existing(paths.award_json_path, "2.1", "1")
+    classify_payments(
         award_path=paths.award_json_path,
         output_path=paths.classification_path,
     )
 
 
+def run_step_2_2(paths: ActivePipelinePaths) -> None:
+    """Run step 2.2 overtime clause classification."""
+    require_existing(paths.classification_path, "2.2", "2.1")
+    run_overtime_clause_classification_step(
+        classification_path=paths.classification_path,
+        output_path=paths.overtime_clause_classification_path,
+    )
+
+
 def run_step_3(paths: ActivePipelinePaths) -> None:
     """Run step 3 overtime interpretation generation."""
-    require_existing(paths.classification_path, "3", "2")
-    generate_overtime_interpretation(
+    require_existing(paths.classification_path, "3", "2.1")
+    require_existing(paths.overtime_clause_classification_path, "3", "2.2")
+    generate_ruleset_from_clause_classification(
         classification_path=paths.classification_path,
-        classification_output_path=paths.overtime_clause_classification_path,
         output_path=paths.interpretation_path,
+        classification_output_path=paths.overtime_clause_classification_path,
         expert_run_count=DEFAULT_EXPERT_RUN_COUNT,
+        ruleset_key="overtime_creation",
     )
 
 
 def run_step_3b(paths: ActivePipelinePaths) -> None:
     """Run step 3B one-pass review of the interpretation output."""
-    require_existing(paths.classification_path, "3b", "2")
+    require_existing(paths.classification_path, "3b", "2.1")
     require_existing(paths.overtime_clause_classification_path, "3b", "3")
     require_existing(paths.interpretation_path, "3b", "3")
-    review_overtime_interpretation(
+    review_ruleset(
         interpretation_path=paths.interpretation_path,
         classification_path=paths.classification_path,
         overtime_clause_classification_path=paths.overtime_clause_classification_path,
@@ -137,11 +154,21 @@ def run_step_5b(paths: ActivePipelinePaths) -> None:
     )
 
 
+def run_step_4(paths: ActivePipelinePaths) -> None:
+    """Run step 4 formatted overtime guide generation."""
+    require_existing(paths.revised_interpretation_path, "4", "3b")
+    summarize_overtime_entitlements(
+        interpretation_path=paths.revised_interpretation_path,
+    )
+
+
 STEP_RUNNERS = {
     "1": run_step_1,
-    "2": run_step_2,
+    "2.1": run_step_2_1,
+    "2.2": run_step_2_2,
     "3": run_step_3,
     "3b": run_step_3b,
+    "4": run_step_4,
     "5b": run_step_5b,
 }
 

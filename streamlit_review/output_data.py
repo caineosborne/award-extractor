@@ -15,7 +15,7 @@ from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
 )
-from src.script_4a_summarize_overtime import output_path_for_interpretation
+from src.step_4_1_format_ruleset.run import output_path_for_interpretation
 from src.script_5b_generate_overtime_pseudocode import output_path_for_summary
 from src.script_5b_validate_overtime_pseudocode import (
     validation_json_path_for_pseudocode,

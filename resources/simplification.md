@@ -12,7 +12,7 @@ The main outcomes are:
 - deterministic logic separated from LLM calls
 - canonical output naming that always includes the step number
 - removal of legacy paths, fallback-heavy behaviour, and duplicate helper layers
-- overtime clause classification moved into step 2 instead of being bundled into ruleset drafting
+- overtime clause classification moved into step `2.2` instead of being bundled into ruleset drafting
 
 The target reader is not just a developer. A reviewer should be able to see:
 
@@ -21,6 +21,37 @@ The target reader is not just a developer. A reviewer should be able to see:
 - what file it wrote
 - what prompt was used
 - what deterministic checks were applied
+
+## Progress status
+
+Current status of the simplification plan:
+
+- Step 1 completed
+- Step 2 completed
+- Step 3 completed
+- Step 4.1 completed
+- Step 4.2 completed
+- Step 4.5 not started
+- Step 5 not started
+- Step 6 not started
+- Step 7 not started
+- Step 8 not started
+
+What is already done:
+
+- target structure and naming decisions are defined
+- shared pipeline context has been introduced
+- shared output naming has been introduced
+- step 2.2 has been moved into its own self-contained folder
+- step 3.1 and step 3.2 are now owned by numbered folders with local prompt wrappers
+- several active scripts now use the shared naming layer
+
+What is not done yet:
+
+- reviewing `core.py` usage in completed step folders and moving functions into the clearest owner files
+- deleting the old script-era implementation files
+- removing the remaining `script_*` dependencies in later phase 4 steps
+- removal of automatic archive creation
 
 ## Core decisions
 
@@ -49,14 +80,14 @@ The repo should be organized around step numbers, not historical script names.
 Recommended direction:
 
 - `src/1_run_pipeline.py`
-- `src/1_1_fetch/`
-- `src/1_2_parse_award/`
-- `src/2_classify_payments/`
-- `src/2_1_classify_overtime_clauses/`
-- `src/3_1_generate_ruleset/`
-- `src/3_2_review_ruleset/`
-- `src/4_1_format_ruleset/`
-- `src/5_1_generate_pseudocode/`
+- `src/step_1_1_fetch/`
+- `src/step_1_2_parse_award/`
+- `src/step_2_1_classify_payments/`
+- `src/step_2_2_classify_overtime_clauses/`
+- `src/step_3_1_generate_ruleset/`
+- `src/step_3_2_review_ruleset/`
+- `src/step_4_1_format_ruleset/`
+- `src/step_5_1_generate_pseudocode/`
 - `src/common/`
 - `src/prompts/`
 
@@ -168,8 +199,8 @@ Each active step should have one obvious prompt home.
 
 Recommended prompt layout:
 
-- `src/prompts/2_payment_classification.py`
-- `src/prompts/2_1_overtime_clause_classification.py`
+- `src/prompts/2_1_payment_classification.py`
+- `src/prompts/2_2_overtime_clause_classification.py`
 - `src/prompts/3_1_overtime_ruleset_generation.py`
 - `src/prompts/3_2_ruleset_review.py`
 - `src/prompts/4_1_ruleset_formatting.py`
@@ -196,26 +227,67 @@ That rule should be universal, not optional.
 
 Recommended filename pattern:
 
-`<award_code>_<step>_<ruleset_if_any>_<artifact>.ext`
+`<step>_<ruleset_if_any>_<artifact>.ext`
+
+The award identity should live at the folder level, not be repeated in every filename.
+
+Recommended folder pattern:
+
+`data/processed/<award_code>/`
 
 Examples:
 
-- `MA000120_1_1_raw.html`
-- `MA000120_1_2_award.json`
-- `MA000120_2_payment_classification.json`
-- `MA000120_2_1_overtime_creation_clause_classification.json`
-- `MA000120_3_1_overtime_creation_ruleset.md`
-- `MA000120_3_2_overtime_creation_ruleset_review.md`
-- `MA000120_3_2_overtime_creation_ruleset_revised.md`
-- `MA000120_4_1_overtime_creation_formatted_ruleset.md`
-- `MA000120_5_1_overtime_creation_pseudocode.md`
-- `MA000120_5_1_overtime_creation_pseudocode_validation.json`
+- `1_1_raw.html`
+- `1_2_award.json`
+- `2_1_payment_classification.json`
+- `2_2_OT_creation_clause_classification.json`
+- `3_1_OT_creation_ruleset.md`
+- `3_2_OT_creation_ruleset_review.md`
+- `3_2_OT_creation_ruleset_revised.md`
+- `4_1_OT_creation_formatted_ruleset.md`
+- `5_1_OT_creation_pseudocode.md`
+- `5_1_OT_creation_pseudocode_validation.json`
 
 This gives us immediate traceability:
 
 - the step that wrote the file
-- whether it is LLM or deterministic output
+- the type of artifact
 - which ruleset it belongs to
+
+It also removes redundant filename noise when the file is already inside the award folder.
+
+### 6A. Use short but still readable artifact names
+
+File names should be shorter than the current versions, but they should still be self-explanatory to a reviewer.
+
+Recommended direction:
+
+- abbreviate `overtime` to `OT`
+- keep `creation` and `consequence` written in full
+- keep artifact descriptors explicit
+- avoid filenames that are only numbers
+
+Good examples:
+
+- `2_1_payment_classification.json`
+- `2_2_OT_creation_clause_classification.json`
+- `3_1_OT_creation_expert_a.md`
+- `3_1_OT_creation_expert_b.md`
+- `3_1_OT_creation_merged_ruleset.md`
+- `3_2_OT_creation_review.md`
+- `3_2_OT_creation_revised_ruleset.md`
+
+Avoid:
+
+- `2.1.json`
+- `3.1_a.md`
+- `final.md`
+
+The goal is:
+
+- short enough to scan quickly
+- descriptive enough to stand alone when needed
+- consistent enough that a reviewer can predict the next file name
 
 ### 7. Remove legacy behaviour instead of preserving it
 
@@ -233,6 +305,44 @@ Specifically, reduce:
 - fallback-first downstream file selection
 - duplicate helper aliases
 - wrapper scripts that exist only to preserve an old concept
+- automatic archival behaviour that creates extra timestamped copies by default
+
+### 7A. Remove automatic timestamp archives from the default workflow
+
+Automatic timestamp archive files are not part of the core audit workflow and add noise to the output folders.
+
+Recommended direction:
+
+- do not write timestamped archive copies by default
+- keep one canonical current output file for each artifact
+- only create extra copies when a user explicitly asks to preserve one
+
+The preferred operator flow is:
+
+- review the current artifact in Streamlit
+- choose an explicit `Save copy` action when a snapshot should be retained
+
+This keeps the default output set simpler and easier to review.
+
+It also makes it clearer which files are:
+
+- current working outputs
+- intentionally preserved snapshots
+
+### 7B. Streamlit should own explicit snapshot saving
+
+If operators want to keep a point-in-time version of an artifact, Streamlit should provide an explicit control for that.
+
+Recommended direction:
+
+- one `Save copy` action per reviewable output
+- user-triggered snapshot naming rather than automatic timestamp spam
+- snapshots stored in a clear, reviewable location
+
+The main principle is:
+
+- default pipeline runs should overwrite the canonical active artifact
+- saved copies should exist only because a user deliberately kept them
 
 ### 8. Align code names, output names, and docs
 
@@ -257,8 +367,8 @@ That clause classification work should move into step 2 as its own sub-step.
 
 Recommended direction:
 
-- payment clause classification remains step `2`
-- overtime clause classification becomes step `2.1`
+- payment clause classification remains step `2.1`
+- overtime clause classification becomes step `2.2`
 - ruleset drafting starts at step `3.1`
 
 Why this matters:
@@ -310,36 +420,36 @@ This is the recommended end state for the active pipeline.
 ```text
 src/
   1_run_pipeline.py
-  1_1_fetch/
+  step_1_1_fetch/
     run.py
     deterministic.py
     io.py
-  1_2_parse_award/
+  step_1_2_parse_award/
     run.py
     deterministic.py
     io.py
-  2_classify_payments/
+  step_2_1_classify_payments/
     run.py
     llm.py
     deterministic.py
     io.py
-  2_1_classify_overtime_clauses/
+  step_2_2_classify_overtime_clauses/
     run.py
     llm.py
     deterministic.py
-  3_1_generate_ruleset/
+  step_3_1_generate_ruleset/
     run.py
     llm.py
     deterministic.py
-  3_2_review_ruleset/
+  step_3_2_review_ruleset/
     run.py
     llm.py
     deterministic.py
-  4_1_format_ruleset/
+  step_4_1_format_ruleset/
     run.py
     llm.py
     deterministic.py
-  5_1_generate_pseudocode/
+  step_5_1_generate_pseudocode/
     run.py
     llm.py
     deterministic.py
@@ -351,8 +461,8 @@ src/
     openai_setup.py
     ruleset_keys.py
   prompts/
-    2_payment_classification.py
-    2_1_overtime_clause_classification.py
+    2_1_payment_classification.py
+    2_2_overtime_clause_classification.py
     3_1_overtime_ruleset_generation.py
     3_2_ruleset_review.py
     4_1_ruleset_formatting.py
@@ -363,7 +473,7 @@ src/
 
 This should be done in 8 steps.
 
-### Step 1. Freeze the target naming scheme
+### Phase 1. Freeze the target naming scheme - COMPLETED
 
 Decide the canonical step labels and artifact descriptors once.
 
@@ -378,7 +488,7 @@ Notes:
 - this should be decided before moving files
 - output naming should be treated as the source of truth for downstream logic
 
-### Step 2. Introduce one shared deterministic pipeline context
+### Phase 2. Introduce one shared deterministic pipeline context - COMPLETED
 
 Create one shared context object in `src/common/` that resolves:
 
@@ -393,7 +503,7 @@ This replaces repeated path inference across scripts.
 
 This context should treat overtime clause classification as a first-class step between payment classification and ruleset drafting.
 
-### Step 3. Move output naming into one helper module
+### Phase 3. Move output naming into one helper module - COMPLETED
 
 Create one deterministic output naming module that every step uses.
 
@@ -407,24 +517,234 @@ After this step, no active script should hand-build filenames inline.
 
 This helper should explicitly build separate output paths for:
 
-- step `2` payment classification
-- step `2.1` overtime clause classification
+- step `2.1` payment classification
+- step `2.2` overtime clause classification
 - step `3.1` ruleset draft
 - step `3.2` review and revised ruleset
 
-### Step 4. Split step files into `run`, `llm`, and `deterministic`
+Status:
+
+- completed
+
+### Phase 4. Split step files into `run`, `llm`, and `deterministic` - IN PROGRESS
 
 Refactor the current long scripts so each step has a small number of clear files.
 
+This is the step that contains moving `src/script_3_part1_classify_overtime_clauses.py`
+into the step-2 area as standalone step `2.2`.
+
+Once completed, all active runtime logic for the affected steps should run from the numbered step folders rather than from `script_*` locations.
+
+That change should include:
+
+- moving the clause-classification logic into the new step-2 structure
+- making it operator-visible as step `2.2`
+- separating it from ruleset drafting
+- updating Streamlit so it has its own button when the CLI refactor is ready
+
 Priority order:
 
-- step 2.1 overtime clause classification
-- step 3 ruleset review and generation
-- step 5 pseudocode
-- step 2 classification
-- step 1 fetch/parse
+- Phase 2.2 overtime clause classification
+- Phase 3 ruleset review and generation
+- Phase 5 pseudocode
+- Phase 2.1 classification
+- Phase 1 fetch/parse
 
 This order gives the biggest readability gain first.
+
+Implementation note:
+
+- use step-first names that still import cleanly in Python
+- preferred folder pattern is `src/step_2_2_classify_overtime_clauses/` rather than `src/2_2_classify_overtime_clauses/`
+- keep the step number visible in the folder name even if a small prefix is needed for valid imports
+- do not treat `core.py` as the default destination for moved code
+- put each moved function in the file that owns its responsibility: orchestration in `run.py`, model calls and model response handling in `llm.py`, deterministic loading/transformation/writing in `deterministic.py`, and prompt construction in `src/prompts/`
+- create narrower files such as `verification.py`, `procedural.py`, `schema.py`, or `types.py` when a step has enough code that one deterministic file becomes hard to review
+- use `core.py` only for small shared step-local types or constants that are genuinely used by multiple files in that same step folder
+
+Recommended Phase 4 subphases:
+
+#### Phase 4.1. Extract step `2.2` into its own folder and CLI path - COMPLETED
+
+Scope:
+
+- create `src/step_2_2_classify_overtime_clauses/`
+- split the current clause-classification work into `run.py`, `llm.py`, and deterministic helpers
+- make step `2.2` callable directly from the CLI pipeline
+- change active pipeline sequencing so step `3` reads the `2.2` artifact instead of silently creating it
+- keep all active step-`2.2` files inside `src/step_2_2_classify_overtime_clauses/`, `src/common/`, or `src/prompts/`
+- do not leave active runtime imports for step `2.2` pointing at `script_*` files, ensure all code is encapsualted in these folders
+
+Deliverable:
+
+- operators can run step `2.2` directly from the CLI
+- step `3` has a clean deterministic dependency on the step `2.2` output
+- all active step-`2.2` logic is owned by the step folder, `common`, or `prompts`
+
+#### Phase 4.2. Split step `3` into generation and review structure - COMPLETED
+
+Scope:
+
+- separate ruleset generation into a dedicated step folder
+- separate ruleset review into a dedicated step folder
+- make the main internal actions explicit
+- keep existing behaviour stable while moving orchestration out of the long scripts
+- keep all active step-`3.1` and step-`3.2` files inside their step folders, `src/common/`, or `src/prompts/`
+- do not leave active runtime imports for step `3.1` or step `3.2` pointing at `script_*` files
+
+Required visible functions:
+
+- `draft_expert_a(...)`
+- `draft_expert_b(...)`
+- `merge_expert_drafts(...)`
+- `run_evaluator_review(...)`
+- `run_creator_review(...)`
+- `recreate_revised_ruleset(...)`
+
+Deliverable:
+
+- step `3.1` and step `3.2` are structurally simpler and easier to review top-to-bottom
+- the active runtime for step `3.1` and step `3.2` no longer relies on `script_*` modules
+
+Status:
+
+- completed
+
+#### Phase 4.3. Split step `5` pseudocode generation
+
+Scope:
+
+- create a dedicated step folder for pseudocode generation
+- separate prompt assembly, output parsing, and deterministic validation
+- keep validation outputs explicit and reviewable
+- move active runtime logic out of `src/script_5b_generate_overtime_pseudocode.py`
+- move active validation logic out of `src/script_5b_validate_overtime_pseudocode.py`
+- keep all active step-`5.1` files inside `src/step_5_1_generate_pseudocode/`, `src/common/`, or `src/prompts/`
+- do not leave active runtime imports for step `5.1` pointing at `script_*` files
+
+Function placement:
+
+- `run.py` should own the top-level `generate_core_overtime_pseudocode(...)` flow: resolve inputs, request initial pseudocode, run validation, request repair when needed, and return/write the final result.
+- `llm.py` should own model setup, model selection, the initial pseudocode request, repair request, response text extraction, and any model-response validation that is specific to the pseudocode prompt contract.
+- `deterministic.py` should own source path selection, ruleset-key inference, loading the reviewed rules artifact, output path resolution, and source inventory construction.
+- `verification.py` should own deterministic pseudocode validation, validation report construction, validation artifact path resolution, and writing validation JSON/markdown outputs.
+- `src/prompts/5_1_pseudocode_generation.py` or the existing prompt module should own pseudocode prompt text, repair prompt text, and prompt-specific formatting helpers.
+- `core.py` should not receive copied script bodies. If needed at all, it should contain only small step-local constants or dataclasses shared across `run.py`, `llm.py`, `deterministic.py`, and `verification.py`.
+
+Deliverable:
+
+- pseudocode generation no longer depends on one long mixed-responsibility script
+- reviewers can trace the step from `run.py` into clearly separated model, deterministic, and validation files
+
+#### Phase 4.4. Split step `2.1` payment classification
+
+Scope:
+
+- move step `2.1` into its own `run`, `llm`, and deterministic files
+- keep business-rule extraction readable and explicit
+- move active runtime logic out of `src/script_2_classify_payments.py`
+- keep all active step-`2.1` files inside `src/step_2_1_classify_payments/`, `src/common/`, or `src/prompts/`
+- do not leave active runtime imports for step `2.1` pointing at `script_*` files
+
+Function placement:
+
+- `run.py` should own the top-level `classify_payments(...)` flow: resolve inputs, classify each group, build the output artifact, and write the result.
+- `deterministic.py` should own award JSON loading, top-level clause/group construction, direct reference mapping, output path resolution, deterministic tag rules, title-only/top-level handling that does not call the model, and artifact writing.
+- `llm.py` should own model setup, model selection, payment-classification request payloads, model response parsing, model response validation, and the per-group model classification call.
+- `src/prompts/2_1_payment_classification.py` or the existing prompt module should own the system prompt, user prompt builder, tag definitions, and prompt-specific formatting helpers.
+- `schema.py` or `types.py` should be added if the step needs a clear home for dataclasses, schema version constants, allowed tags, or structured response shapes shared by both deterministic and LLM code.
+- `core.py` should not be used as a dumping ground for copied script functions. If it remains, it should contain only small shared step-local definitions that do not clearly belong to deterministic, LLM, prompt, or schema files.
+
+Deliverable:
+
+- payment classification structure matches the newer downstream steps
+- the active step `2.1` runtime is readable from `run.py` without importing `src/script_2_classify_payments.py`
+
+#### Phase 4.5. Review completed step folders and reduce `core.py`
+
+Scope:
+
+- review `src/step_2_2_classify_overtime_clauses/`
+- review `src/step_3_1_generate_ruleset/`
+- review `src/step_3_2_review_ruleset/`
+- move functions out of `core.py` where a clearer owner file already exists
+- keep behaviour stable while improving the internal file layout
+- keep all active files for those steps inside their step folders, `src/common/`, or `src/prompts/`
+- do not reintroduce active runtime imports from `script_*` files
+
+Function placement:
+
+- `run.py` should keep only top-level orchestration and visible operator actions.
+- `llm.py` should own model setup, model selection, model request payloads, model response extraction, model repair loops, and model-output validation that is specific to the LLM contract.
+- `deterministic.py` should own deterministic loading, source selection, output path resolution, artifact construction, artifact writing, and non-model transformations.
+- `verification.py` should be added where deterministic validation or consistency checking is substantial enough to obscure the main deterministic flow.
+- `schema.py` or `types.py` should be added where dataclasses, schema constants, allowed values, or structured response shapes are shared across multiple files.
+- `src/prompts/` should own prompt text and prompt-specific formatting helpers.
+- `core.py` should be deleted if it becomes empty. If it remains, it should contain only small step-local constants or types that are genuinely shared by multiple files and do not clearly belong elsewhere.
+
+Deliverable:
+
+- `step_2_2`, `step_3_1`, and `step_3_2` stay script-free but no longer concentrate copied implementation logic in oversized `core.py` files
+- reviewers can trace each completed step through responsibility-named files without using `core.py` as a catch-all
+
+#### Phase 4.6. Update Streamlit in one action after the CLI refactor is stable
+
+Scope:
+
+- add a standalone step `2.1` control
+- add a standalone step `2.2` control
+- align step labels and button ordering with the CLI pipeline
+- remove UI behaviour that still assumes clause classification is bundled into ruleset drafting
+
+Operator rule during subphases 4.1 to 4.5:
+
+- treat the CLI as the primary execution path
+- defer Streamlit run-control changes until the structural CLI work and completed-folder cleanup are ready
+- for the simpler model pass, complete Step `4.1`, Step `4.2`, and Step `4.5` first, then return for full-model validation and feedback before continuing
+
+Deliverable:
+
+- one coherent Streamlit update after the refactor shape is settled
+
+#### Phase 4.7. Split step `1` fetch and parse
+
+Scope:
+
+- separate fetch and parse responsibilities into their step folders
+- move both the Fair Work HTML path and the PDF path into the step-1 area
+- keep the top-level pipeline entrypoint small and sequential
+
+Deliverable:
+
+- the full active pipeline is represented as step folders rather than historical script names
+
+Recommended execution order:
+
+1. Step 4.1
+2. Step 4.2
+3. Step 4.3
+4. Step 4.4
+5. Step 4.5
+6. Step 4.6
+7. Step 4.7
+
+Step 4 scope rule:
+
+- every active pipeline step file should move into a numbered step folder
+- keep `src/common/` as the home for truly shared deterministic helpers
+- keep `src/prompts/` as the home for shared and cross-step prompt material
+- keep temporary compatibility wrappers only until the new step folders are fully proven, but do not let the active runtime for completed Step 4 subphases depend on `script_*`
+- delete the old script-era step files in Step 6 after the refactor is verified end to end
+
+This means the active step coverage should include:
+
+- step `1`, including the PDF intake path
+- step `2.1`
+- step `2.2`
+- step `3.1`
+- step `3.2`
+- step `4.1`
+- step `5.1`
 
 For step `3.1`, the end-state code should make the three internal actions clearly visible:
 
@@ -452,7 +772,38 @@ Recommended interpretation:
 
 Smaller steps do not need this split if it would create empty or trivial files.
 
-### Step 5. Move all active prompts into dedicated prompt files
+Status:
+
+- partially completed
+
+Current implementation state:
+
+- active step folders now exist for:
+  - `step_1_1_fetch`
+  - `step_1_2_parse_award`
+  - `step_2_1_classify_payments`
+  - `step_2_2_classify_overtime_clauses`
+  - `step_3_1_generate_ruleset`
+  - `step_3_2_review_ruleset`
+  - `step_4_1_format_ruleset`
+  - `step_5_1_generate_pseudocode`
+- the active runtime and Streamlit entrypoints now route through those step folders
+- the active runtime still depends on several `script_*` files for later, not-yet-migrated steps
+- the target state for Step `4.3` onward is stricter than the current state: once those subphases are completed, their active runtime should no longer import `script_*` files
+- deleting those `script_*` files belongs to Step 6 after the logic has been moved fully into the step folders
+
+Active step numbering now follows:
+
+1. `1.1` fetch
+2. `1.2` parse
+3. `2.1` payment classification
+4. `2.2` overtime clause classification
+5. `3.1` ruleset generation
+6. `3.2` ruleset review
+7. `4.1` ruleset formatting
+8. `5.1` pseudocode generation
+
+### Phase 5. Move all active prompts into dedicated prompt files
 
 Review every active step and remove any remaining embedded prompt text or prompt-like workflow prose from scripts.
 
@@ -462,7 +813,11 @@ Each step should have:
 - one obvious builder entrypoint
 - no duplicate prompt APIs for the same active task
 
-### Step 6. Delete legacy wrappers and fallback-heavy path logic
+Status:
+
+- not started
+
+### Phase 6. Delete legacy wrappers and fallback-heavy path logic
 
 Once the new structure works, remove:
 
@@ -473,7 +828,11 @@ Once the new structure works, remove:
 
 This is the step where complexity should drop sharply.
 
-### Step 7. Update tests and Streamlit to the new structure
+Status:
+
+- not started
+
+### Phase 7. Update tests and Streamlit to the new structure
 
 Tests should prove:
 
@@ -487,12 +846,16 @@ Streamlit should stop acting as a migration layer.
 
 The Streamlit sidebar should have distinct run controls for:
 
-- step `2` payment classification
-- step `2.1` overtime clause classification
+- step `2.1` payment classification
+- step `2.2` overtime clause classification
 - step `3.1` ruleset drafting
 - step `3.2` ruleset review
 
-### Step 8. Update docs and remove dead content
+Status:
+
+- not started
+
+### Phase 8. Update docs and remove dead content
 
 After the code is stable:
 
@@ -505,13 +868,28 @@ At that point, the repository should describe only one active workflow.
 
 Completing the planning and naming decisions in this document counts as finishing Step 1 of the simplification plan.
 
+Status:
+
+- not started
+
+### Phase 4A. Simplify output retention
+
+As part of the later cleanup work, remove automatic timestamp archive creation from the default pipeline flow.
+
+Replace it with:
+
+- one canonical active file per artifact
+- explicit Streamlit-driven snapshot saving when needed
+
+This should be implemented after the structural refactors are stable, so we do not mix storage-policy changes into the earlier path and step refactors.
+
 ## Immediate priorities from the current codebase
 
 Based on the current repo, the highest-value simplification targets are:
 
 1. Replace mixed path logic in `src/award_pipeline.py`, `src/common/active_pipeline_paths.py`, and downstream steps with one canonical naming layer.
 2. Move `src/script_3_part1_classify_overtime_clauses.py` into the step-2 area and expose it as its own operator-visible step.
-3. Shrink step `3`, step `3B`, and step `5B` first because they currently carry the most mixed responsibility and compatibility naming.
+3. Shrink step `3.1`, step `3.2`, and step `5.1` first because they currently carry the most mixed responsibility and compatibility naming.
 4. Keep prompt ownership explicit and continue moving prompt text toward `src/prompts/` only.
 5. Move only truly repeated helpers into `src/common/`; do not create a generic abstraction layer.
 6. Delete legacy output support aggressively once the new canonical paths are in place.

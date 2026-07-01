@@ -1219,11 +1219,11 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
     )
 
     assert result["success"] is True
-    assert result["completed_steps"] == 6
-    assert result["total_steps"] == 6
-    assert "Starting step 1 of 6: Retrieve award" in live_log_path.read_text(encoding="utf-8")
+    assert result["completed_steps"] == 7
+    assert result["total_steps"] == 7
+    assert "Starting step 1 of 7: Retrieve award" in live_log_path.read_text(encoding="utf-8")
     assert "output from 5b" in live_log_path.read_text(encoding="utf-8")
-    assert status_updates[0]["total_steps"] == 6
+    assert status_updates[0]["total_steps"] == 7
     assert status_updates[0]["current_step"] == "1"
     assert status_updates[-1]["progress_fraction"] == 1.0
     assert calls == [
@@ -1231,7 +1231,8 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
         ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
         ("artifact_paths_for_award", "MA000002"),
         ("run_selected_step", sentinel.paths, "1"),
-        ("run_selected_step", sentinel.paths, "2"),
+        ("run_selected_step", sentinel.paths, "2.1"),
+        ("run_selected_step", sentinel.paths, "2.2"),
         ("run_selected_step", sentinel.paths, "3"),
         ("run_selected_step", sentinel.paths, "3b"),
         (
@@ -1375,7 +1376,8 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         ("build_paths", award_code, None, f"https://example.com/{award_code}.html"),
         ("artifact_paths_for_award", award_code),
         ("run_selected_step", classification_path, "1"),
-        ("run_selected_step", classification_path, "2"),
+        ("run_selected_step", classification_path, "2.1"),
+        ("run_selected_step", classification_path, "2.2"),
         (
             "generate_overtime_ruleset",
             classification_path,
