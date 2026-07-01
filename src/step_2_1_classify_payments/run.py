@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import argparse
 from collections import OrderedDict
+from pathlib import Path
 from typing import Any
 
-from src.script_2_classify_payments import DEFAULT_AWARD_PATH
+from .schema import DEFAULT_AWARD_PATH
 
 from .deterministic import (
     build_result_artifact,
@@ -41,3 +43,48 @@ def classify_payments(
     )
     write_result(inputs.destination, result)
     return result
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Classify payment-relevant clauses in a processed award JSON file."
+    )
+    parser.add_argument(
+        "award_path",
+        nargs="?",
+        default=str(DEFAULT_AWARD_PATH),
+        help=(
+            "Path to a processed full award JSON file, for example "
+            "data/processed/1_fetch_award/MA000018.json."
+        ),
+    )
+    parser.add_argument(
+        "--output-path",
+        default=None,
+        help="Optional path for the payment classification JSON output.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="OpenAI model to use. Defaults to PAYMENT_CLAUSE_CLASSIFIER_MODEL or gpt-5.4-mini.",
+    )
+    return parser.parse_args(argv)
+
+
+def main() -> None:
+    args = parse_args()
+    result = classify_payments(
+        award_path=args.award_path,
+        output_path=args.output_path,
+        model=args.model,
+    )
+    destination = Path(args.output_path) if args.output_path else None
+    if destination is None:
+        from .deterministic import output_path_for_award
+
+        destination = output_path_for_award(args.award_path)
+    print(f"Payment classification saved to {destination}")
+    print(
+        f"Classified {len(result['top_level_clauses'])} top-level clauses and "
+        f"{len(result['classified_clauses'])} descendant clauses."
+    )

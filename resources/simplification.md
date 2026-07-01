@@ -32,6 +32,11 @@ Current status of the simplification plan:
 - Step 4.1 completed
 - Step 4.2 completed
 - Step 4.5 not started
+- Step 4.6 not started
+- Step 4.7 not started
+- Step 4.8 not started
+- Step 4.9 not started
+- Step 4.10 not started
 - Step 5 not started
 - Step 6 not started
 - Step 7 not started
@@ -522,6 +527,10 @@ This helper should explicitly build separate output paths for:
 - step `3.1` ruleset draft
 - step `3.2` review and revised ruleset
 
+This phase defines the canonical folder and filename scheme.
+Phase 4.8 should apply that scheme consistently across the active step folders once the structural step-folder refactor is complete.
+Phase 7 should verify that those step-numbered outputs are now written consistently; it is not the phase that introduces the naming change.
+
 Status:
 
 - completed
@@ -610,7 +619,7 @@ Status:
 
 - completed
 
-#### Phase 4.3. Split step `5` pseudocode generation
+#### Phase 4.3. Split step `5` pseudocode generation - COMPLETED
 
 Scope:
 
@@ -636,7 +645,11 @@ Deliverable:
 - pseudocode generation no longer depends on one long mixed-responsibility script
 - reviewers can trace the step from `run.py` into clearly separated model, deterministic, and validation files
 
-#### Phase 4.4. Split step `2.1` payment classification
+Status:
+
+- completed
+
+#### Phase 4.4. Split step `2.1` payment classification COMPLETED
 
 Scope:
 
@@ -660,6 +673,10 @@ Deliverable:
 - payment classification structure matches the newer downstream steps
 - the active step `2.1` runtime is readable from `run.py` without importing `src/script_2_classify_payments.py`
 
+Status:
+
+- completed
+
 #### Phase 4.5. Review completed step folders and reduce `core.py`
 
 Scope:
@@ -682,31 +699,28 @@ Function placement:
 - `src/prompts/` should own prompt text and prompt-specific formatting helpers.
 - `core.py` should be deleted if it becomes empty. If it remains, it should contain only small step-local constants or types that are genuinely shared by multiple files and do not clearly belong elsewhere.
 
+Required visible function ownership:
+
+- In `src/step_3_1_generate_ruleset/llm.py`: `draft_expert_a(...)`, `draft_expert_b(...)`, and `merge_expert_drafts(...)`.
+- In `src/step_3_1_generate_ruleset/run.py`: the top-level orchestration that calls those visible expert functions, combines warnings, and writes the final outputs.
+- In `src/step_3_2_review_ruleset/run.py`: `run_evaluator_review(...)`, `run_creator_review(...)`, and `recreate_revised_ruleset(...)`.
+- In `src/step_3_2_review_ruleset/llm.py`: the lower-level evaluator and creator request loops that those visible review functions call.
+- In `src/step_3_2_review_ruleset/deterministic.py`: the source loading and output writing helpers that `run_evaluator_review(...)`, `run_creator_review(...)`, and `recreate_revised_ruleset(...)` depend on.
+- None of these six visible functions should live in `core.py`.
+
+Supporting function guidance:
+
+- Prompt-message builders used by `draft_expert_a(...)`, `draft_expert_b(...)`, or `merge_expert_drafts(...)` should live in `src/prompts/` or `llm.py`, not in `run.py`.
+- Prompt-message builders used by `run_evaluator_review(...)` or `run_creator_review(...)` should live in `src/prompts/` or `llm.py`, not in `core.py`.
+- Path resolution, artifact loading, artifact writing, and deterministic rule/coverage checks used by those visible functions should live in `deterministic.py` or `verification.py`.
+- Dataclasses, enums, and step-local schema constants shared across multiple files should move to `types.py` or `schema.py` when they no longer fit cleanly in one owner file.
+
 Deliverable:
 
 - `step_2_2`, `step_3_1`, and `step_3_2` stay script-free but no longer concentrate copied implementation logic in oversized `core.py` files
 - reviewers can trace each completed step through responsibility-named files without using `core.py` as a catch-all
 
-#### Phase 4.6. Update Streamlit in one action after the CLI refactor is stable
-
-Scope:
-
-- add a standalone step `2.1` control
-- add a standalone step `2.2` control
-- align step labels and button ordering with the CLI pipeline
-- remove UI behaviour that still assumes clause classification is bundled into ruleset drafting
-
-Operator rule during subphases 4.1 to 4.5:
-
-- treat the CLI as the primary execution path
-- defer Streamlit run-control changes until the structural CLI work and completed-folder cleanup are ready
-- for the simpler model pass, complete Step `4.1`, Step `4.2`, and Step `4.5` first, then return for full-model validation and feedback before continuing
-
-Deliverable:
-
-- one coherent Streamlit update after the refactor shape is settled
-
-#### Phase 4.7. Split step `1` fetch and parse
+#### Phase 4.6. Split step `1` fetch and parse
 
 Scope:
 
@@ -718,15 +732,89 @@ Deliverable:
 
 - the full active pipeline is represented as step folders rather than historical script names
 
+#### Phase 4.7. Split step `4.1` format ruleset
+
+Scope:
+
+- review `src/step_4_1_format_ruleset/`
+- keep all active step-`4.1` files inside `src/step_4_1_format_ruleset/`, `src/common/`, or `src/prompts/`
+- move any remaining visible orchestration out of `core.py` into `run.py`
+- keep deterministic path resolution, input loading, and output writing in `deterministic.py`
+- keep model-specific formatting calls and response handling in `llm.py`
+- do not reintroduce active runtime imports for step `4.1` pointing at `script_*` files
+
+Function placement:
+
+- `run.py` should own `summarize_overtime_entitlements(...)` as the top-level step `4.1` orchestration.
+- `llm.py` should own the formatted-ruleset request call, model selection, response extraction, and any prompt-contract validation.
+- `deterministic.py` should own interpretation-path resolution, output-path resolution, input loading, and writing the formatted artifact.
+- `src/prompts/` should own any step `4.1` prompt text or formatting helpers.
+- `core.py` should only retain small shared step-local types or constants if they are genuinely needed by more than one file.
+
+Deliverable:
+
+- step `4.1` is represented as a self-contained folder with clear responsibility-based files
+- reviewers can trace the formatting workflow without relying on `core.py` as the main home for step logic
+
+#### Phase 4.8. Apply canonical output folders and filenames after the structural refactor
+
+This phase happens after the Phase 4 step-folder refactor work is complete enough that the active runtime for the relevant steps already lives in numbered step folders.
+
+Scope:
+
+- update the active migrated steps to write outputs using the canonical Phase 3 naming scheme
+- make the canonical award-first folder structure the default active write path
+- remove remaining active writes that still use legacy folder names or legacy filename shapes
+- keep the behavioural content of the artifacts the same while standardising where they are written
+
+Required outcomes:
+
+- active outputs should write to `data/processed/<award_code>/`
+- active filenames should include the step number consistently
+- downstream step readers should use the canonical current artifact paths rather than legacy fallbacks wherever practical
+- Phase 7 tests should then verify this behaviour rather than introducing it
+
+This phase is about active output path adoption.
+The later cleanup of timestamp archive behaviour should still happen separately once the structural and naming refactors are stable.
+
+#### Phase 4.9. Simplify output retention
+
+As part of the later cleanup work, remove automatic timestamp archive creation from the default pipeline flow.
+
+Replace it with:
+
+- one canonical active file per artifact
+- explicit Streamlit-driven snapshot saving when needed
+
+This should be implemented after the structural refactors and canonical output-path rollout are stable, so we do not mix storage-policy changes into the earlier path and step refactors.
+
+#### Phase 4.10. Update Streamlit in one action after the CLI refactor is stable
+
+Scope:
+
+- add a standalone step `2.1` control
+- add a standalone step `2.2` control
+- align step labels and button ordering with the CLI pipeline
+- remove UI behaviour that still assumes clause classification is bundled into ruleset drafting
+
+Operator rule during subphases 4.1 to 4.9:
+
+- treat the CLI as the primary execution path
+- defer Streamlit run-control changes until the structural CLI work and completed-folder cleanup are ready
+- for the simpler model pass, complete Step `4.1`, Step `4.2`, and Step `4.5` first, then return for full-model validation and feedback before continuing
+
+Deliverable:
+
+- one coherent Streamlit update after the refactor shape is settled
+
 Recommended execution order:
 
-1. Step 4.1
-2. Step 4.2
-3. Step 4.3
-4. Step 4.4
-5. Step 4.5
-6. Step 4.6
-7. Step 4.7
+1. Phase 4.5
+2. Phase 4.6
+3. Phase 4.7
+4. Phase 4.8
+5. Phase 4.9
+6. Phase 4.10
 
 Step 4 scope rule:
 
@@ -844,6 +932,9 @@ Tests should prove:
 
 Streamlit should stop acting as a migration layer.
 
+This phase is for proving and enforcing the output naming and folder behaviour in tests and UI reads.
+It is not the phase where canonical output folders are first introduced.
+
 The Streamlit sidebar should have distinct run controls for:
 
 - step `2.1` payment classification
@@ -871,17 +962,6 @@ Completing the planning and naming decisions in this document counts as finishin
 Status:
 
 - not started
-
-### Phase 4A. Simplify output retention
-
-As part of the later cleanup work, remove automatic timestamp archive creation from the default pipeline flow.
-
-Replace it with:
-
-- one canonical active file per artifact
-- explicit Streamlit-driven snapshot saving when needed
-
-This should be implemented after the structural refactors are stable, so we do not mix storage-policy changes into the earlier path and step refactors.
 
 ## Immediate priorities from the current codebase
 

@@ -1,11 +1,14 @@
 """Prompt content for step 2 payment clause classification.
 
 Used by:
-- `src/script_2_classify_payments.py`
+- `src/step_2_1_classify_payments/llm.py`
 """
+
+from __future__ import annotations
 
 import json
 
+from src.step_2_1_classify_payments.schema import TopLevelGroup
 
 ALLOWED_TAGS = (
     "Hourly Rate",
@@ -115,3 +118,31 @@ def build_user_prompt(top_level_payload: dict) -> str:
         "Clause payload JSON:\n"
         f"{json.dumps(top_level_payload, ensure_ascii=False, indent=2)}"
     )
+
+
+def classification_payload_for_group(group: TopLevelGroup) -> dict:
+    return {
+        "top_level_clause": {
+            "reference": group.reference,
+            "title": group.title,
+            "text": group.text,
+        },
+        "direct_l2_clauses": [
+            {
+                "reference": descendant.reference,
+                "title": descendant.title,
+                "text": descendant.text,
+            }
+            for descendant in group.descendants
+        ],
+    }
+
+
+def build_messages(group: TopLevelGroup) -> list[dict[str, str]]:
+    return [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "user",
+            "content": build_user_prompt(classification_payload_for_group(group)),
+        },
+    ]

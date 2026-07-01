@@ -40,7 +40,7 @@ from src.common.llm_io import extract_response_text
 from src.prompts.overtime_ruleset import (
     build_clause_classification_messages as build_ruleset_clause_classification_messages,
 )
-from src.script_2_classify_payments import parse_response_json
+from src.step_2_1_classify_payments.llm import parse_response_json
 
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")

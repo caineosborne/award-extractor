@@ -48,7 +48,7 @@ from src.prompts.overtime_ruleset import (
     build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
-from src.script_2_classify_payments import parse_response_json
+from src.step_2_1_classify_payments.llm import parse_response_json
 from src.script_3_part1_classify_overtime_clauses import (
     DEFAULT_CLASSIFICATION_PATH,
     DEFAULT_MODEL,

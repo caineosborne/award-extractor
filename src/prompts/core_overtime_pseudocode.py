@@ -1,7 +1,7 @@
 """Prompt content for step 5B overtime pseudocode generation.
 
 Used by:
-- `src/script_5b_generate_overtime_pseudocode.py`
+- `src/step_5_1_generate_pseudocode/llm.py`
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
 )
 from src.common.rule_inventory import RuleInventory, render_inventory_for_prompt
+from src.step_5_1_generate_pseudocode.core import CoreOvertimePseudocodeError
 
 
 PSEUDOCODE_FIELDS = {
@@ -227,3 +228,60 @@ def build_repair_messages(
         {"role": "system", "content": system_prompt},
         {"role": "user", "content": user_prompt},
     ]
+
+
+def first_top_level_bullets(markdown: str, count: int = 5) -> str:
+    selected: list[str] = []
+    current: list[str] = []
+
+    for line in markdown.splitlines():
+        if line.startswith("- "):
+            if current:
+                selected.append("\n".join(current))
+                if len(selected) == count:
+                    break
+            current = [line]
+            continue
+
+        if current and (line.startswith("  ") or not line.strip()):
+            current.append(line)
+
+    if len(selected) < count and current:
+        selected.append("\n".join(current))
+
+    if len(selected) < count:
+        raise CoreOvertimePseudocodeError(
+            f"Expected at least {count} top-level bullets, found {len(selected)}."
+        )
+
+    return "\n".join(selected[:count])
+
+
+def overtime_rule_bullets(markdown: str) -> str:
+    selected: list[str] = []
+    current: list[str] = []
+
+    for line in markdown.splitlines():
+        if line.startswith("- Overtime - "):
+            if current:
+                selected.append("\n".join(current))
+            current = [line]
+            continue
+
+        if current and (line.startswith("  ") or not line.strip()):
+            current.append(line)
+            continue
+
+        if current and line.startswith("- "):
+            selected.append("\n".join(current))
+            current = []
+
+    if current:
+        selected.append("\n".join(current))
+
+    if not selected:
+        raise CoreOvertimePseudocodeError(
+            "Expected at least one top-level 'Overtime - ' entitlement bullet."
+        )
+
+    return "\n".join(selected)

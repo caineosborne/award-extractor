@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import argparse
 from typing import Any
+from pathlib import Path
 
-from src.script_5b_generate_overtime_pseudocode import (
+from .core import (
     DEFAULT_OVERTIME_SUMMARY_PATH,
     MAX_VALIDATION_REPAIR_ATTEMPTS,
+    RULESET_CHOICES,
 )
 
 from .deterministic import resolve_generation_inputs, validate_and_write_outputs
@@ -69,3 +72,60 @@ def generate_core_overtime_pseudocode(
             validation_report_markdown=validation_markdown,
             ruleset_key=inputs.effective_ruleset_key,
         )
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Generate core ordinary/overtime pseudocode from an overtime entitlement summary."
+    )
+    parser.add_argument(
+        "summary_path",
+        nargs="?",
+        default=str(DEFAULT_OVERTIME_SUMMARY_PATH),
+        help=(
+            "Award code or path to an overtime interpretation markdown file. "
+            "When an award code is provided, use the 4B file when present, otherwise 4A, then the revised overtime interpretation."
+        ),
+    )
+    parser.add_argument(
+        "--output-path",
+        default=None,
+        help="Optional path for the markdown core overtime pseudocode output.",
+    )
+    parser.add_argument(
+        "--model",
+        default=None,
+        help="OpenAI model to use. Defaults to CORE_OVERTIME_PSEUDOCODE_MODEL or gpt-5.4-mini.",
+    )
+    parser.add_argument(
+        "--ruleset-key",
+        choices=RULESET_CHOICES,
+        default=None,
+        help="Optional ruleset key when resolving an award code input.",
+    )
+    return parser.parse_args(argv)
+
+
+def main() -> None:
+    args = parse_args()
+    inputs = resolve_generation_inputs(
+        summary_path=args.summary_path,
+        output_path=args.output_path,
+        ruleset_key=args.ruleset_key,
+    )
+    generate_core_overtime_pseudocode(
+        summary_path=args.summary_path,
+        output_path=args.output_path,
+        model=args.model,
+        ruleset_key=args.ruleset_key,
+    )
+    destination = (
+        Path(args.output_path) if args.output_path else inputs.destination
+    )
+    print(f"Core overtime pseudocode saved to {destination}")
+    from .verification import validation_markdown_path_for_pseudocode
+
+    print(
+        "Validation report saved to "
+        f"{validation_markdown_path_for_pseudocode(destination)}"
+    )

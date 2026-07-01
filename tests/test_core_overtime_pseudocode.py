@@ -3,21 +3,25 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.script_5b_generate_overtime_pseudocode import (
-    DEFAULT_MODEL,
+from src.prompts.core_overtime_pseudocode import (
     PSEUDOCODE_FIELDS,
     build_messages,
     build_repair_messages,
-    default_overtime_interpretation_path,
     first_top_level_bullets,
-    generate_core_overtime_pseudocode,
+    overtime_rule_bullets,
+)
+from src.step_5_1_generate_pseudocode.core import DEFAULT_MODEL
+from src.step_5_1_generate_pseudocode.deterministic import (
+    default_overtime_interpretation_path,
     load_overtime_interpretation,
     output_path_for_summary,
-    overtime_rule_bullets,
     select_overtime_interpretation_path,
 )
+from src.step_5_1_generate_pseudocode.run import (
+    generate_core_overtime_pseudocode,
+)
 from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
-from src.script_5b_validate_overtime_pseudocode import (
+from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
 )
@@ -240,7 +244,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             from unittest.mock import patch
 
             with patch(
-                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
                 project_root,
             ):
                 selected_path = select_overtime_interpretation_path("MA000003")
@@ -260,7 +264,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             from unittest.mock import patch
 
             with patch(
-                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
                 project_root,
             ):
                 selected_path = select_overtime_interpretation_path(
@@ -407,7 +411,7 @@ None
             from unittest.mock import patch
 
             with patch(
-                "src.script_5b_generate_overtime_pseudocode.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
                 project_root,
             ):
                 self.assertEqual(

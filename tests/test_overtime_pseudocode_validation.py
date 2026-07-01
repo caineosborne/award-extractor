@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.common.rule_inventory import parse_rule_inventory_from_markdown
-from src.script_5b_validate_overtime_pseudocode import (
+from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
     validate_overtime_pseudocode_against_inventory,
