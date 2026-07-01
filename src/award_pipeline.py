@@ -1,59 +1,40 @@
 from __future__ import annotations
 
 import argparse
-import re
-from dataclasses import dataclass
 from pathlib import Path
 
 from src.common.active_pipeline_paths import (
-    PROJECT_ROOT,
     default_award_url_for_code,
-    interpretation_output_path_for_classification,
     preferred_5b_source_path_for_interpretation,
     normalize_award_code,
-    overtime_clause_classification_output_path_for_classification,
-    revised_output_path_for_interpretation,
+)
+from src.common.output_naming import (
+    ACTIVE_PIPELINE_STEP_CHOICES,
+    DEFAULT_ACTIVE_PIPELINE_STEPS,
+    normalize_output_suffix,
+    output_stem_for_award,
+)
+from src.common.pipeline_context import (
+    ActivePipelineContext,
+    build_active_pipeline_context,
 )
 from src.script_1_fetch_award import fetch_and_extract_award, write_step_1_outputs
-from src.script_2_classify_payments import classify_award, output_path_for_award
+from src.script_2_classify_payments import classify_award
 from src.script_3_interpret_overtime import generate_overtime_interpretation
 from src.script_3_interpret_overtime import DEFAULT_EXPERT_RUN_COUNT
 from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
 from src.script_5b_generate_overtime_pseudocode import (
     generate_core_overtime_pseudocode,
-    output_path_for_summary,
-)
-from src.script_5b_validate_overtime_pseudocode import (
-    validation_json_path_for_pseudocode,
-    validation_markdown_path_for_pseudocode,
 )
 
-
-STEP_CHOICES = ("1", "2", "3", "3b", "5b")
-DEFAULT_PIPELINE_STEPS = ("1", "2", "3", "3b")
+STEP_CHOICES = ACTIVE_PIPELINE_STEP_CHOICES
+DEFAULT_PIPELINE_STEPS = DEFAULT_ACTIVE_PIPELINE_STEPS
 
 
 class AwardPipelineError(RuntimeError):
     """Raised when the wrapper cannot resolve the requested pipeline state."""
 
-
-@dataclass(frozen=True)
-class ActivePipelinePaths:
-    award_code: str
-    suffix: str | None
-    output_stem: str
-    url: str
-    raw_html_path: Path
-    award_json_path: Path
-    classification_path: Path
-    overtime_clause_classification_path: Path
-    interpretation_path: Path
-    evaluator_feedback_path: Path
-    creator_response_path: Path
-    revised_interpretation_path: Path
-    core_overtime_pseudocode_path: Path
-    core_overtime_validation_json_path: Path
-    core_overtime_validation_markdown_path: Path
+ActivePipelinePaths = ActivePipelineContext
 
 
 def argparse_award_code(value: str) -> str:
@@ -66,67 +47,18 @@ def argparse_award_code(value: str) -> str:
 
 def normalize_suffix(value: str | None) -> str | None:
     """Normalize an optional filename suffix used for pipeline outputs."""
-    if value is None:
-        return None
-
-    suffix = re.sub(r"[^A-Za-z0-9_.-]+", "_", value.strip())
-    suffix = suffix.strip("._-")
-    if not suffix:
-        raise argparse.ArgumentTypeError("suffix must contain at least one letter or digit")
-    return suffix
-
-
-def output_stem_for_award(award_code: str, suffix: str | None) -> str:
-    """Build the shared filename stem for all active pipeline artifacts."""
-    if suffix:
-        return f"{award_code}_{suffix}"
-    return award_code
+    try:
+        return normalize_output_suffix(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(str(exc)) from exc
 
 
 def build_paths(award_code: str, suffix: str | None, url: str) -> ActivePipelinePaths:
     """Build all active-step artifact paths for one pipeline run."""
-    output_stem = output_stem_for_award(award_code, suffix)
-    processed_root = PROJECT_ROOT / "data" / "processed"
-    award_dir = processed_root / output_stem
-    raw_html_path = award_dir / "raw" / f"{output_stem}.html"
-    award_json_path = award_dir / f"{output_stem}.json"
-
-    classification_path = output_path_for_award(award_json_path)
-    overtime_clause_classification_path = overtime_clause_classification_output_path_for_classification(
-        classification_path
-    )
-    interpretation_path = interpretation_output_path_for_classification(classification_path)
-    evaluator_feedback_path = interpretation_path.parent / "feedback" / (
-        f"{interpretation_path.stem}_evaluator_feedback.md"
-    )
-    creator_response_path = interpretation_path.parent / "feedback" / (
-        f"{interpretation_path.stem}_creator_response.md"
-    )
-    revised_interpretation_path = revised_output_path_for_interpretation(interpretation_path)
-    core_overtime_pseudocode_path = output_path_for_summary(revised_interpretation_path)
-    core_overtime_validation_json_path = validation_json_path_for_pseudocode(
-        core_overtime_pseudocode_path
-    )
-    core_overtime_validation_markdown_path = validation_markdown_path_for_pseudocode(
-        core_overtime_pseudocode_path
-    )
-
-    return ActivePipelinePaths(
+    return build_active_pipeline_context(
         award_code=award_code,
         suffix=suffix,
-        output_stem=output_stem,
         url=url,
-        raw_html_path=raw_html_path,
-        award_json_path=award_json_path,
-        classification_path=classification_path,
-        overtime_clause_classification_path=overtime_clause_classification_path,
-        interpretation_path=interpretation_path,
-        evaluator_feedback_path=evaluator_feedback_path,
-        creator_response_path=creator_response_path,
-        revised_interpretation_path=revised_interpretation_path,
-        core_overtime_pseudocode_path=core_overtime_pseudocode_path,
-        core_overtime_validation_json_path=core_overtime_validation_json_path,
-        core_overtime_validation_markdown_path=core_overtime_validation_markdown_path,
     )
 
 

@@ -3,23 +3,23 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
+from src.common.output_naming import (
+    DEFAULT_AWARD_URL_TEMPLATE,
+    PROJECT_ROOT,
+    creator_response_path_for_interpretation as naming_creator_response_path_for_interpretation,
+    evaluator_feedback_path_for_interpretation as naming_evaluator_feedback_path_for_interpretation,
+    feedback_dir_for_interpretation as naming_feedback_dir_for_interpretation,
+    interpretation_path_for_classification,
+    overtime_clause_classification_path_for_classification,
+    revised_interpretation_path_for_interpretation,
+)
 from src.common.output_paths import (
-    OVERTIME_INTERPRETATION_FEEDBACK_DIR,
-    OVERTIME_INTERPRETATIONS_DIR,
-    PAYMENT_CLAUSE_IDENTIFIER_DIR,
     award_output_dir,
-    path_in_category,
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
-    explicit_clause_classification_output_path,
     explicit_ruleset_output_path,
-    infer_overtime_ruleset_key_from_path,
 )
-
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
 
 
 def looks_like_path(value: str) -> bool:
@@ -50,15 +50,8 @@ def default_classification_path_for_award(award_code: str) -> Path:
 
 def interpretation_output_path_for_classification(classification_path: Path | str) -> Path:
     """Derive the default step-3 interpretation path from a step-2 classification path."""
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-
-    return path_in_category(
-        path,
-        OVERTIME_INTERPRETATIONS_DIR,
-        f"{stem}_overtime_interpretation.md",
+    return interpretation_path_for_classification(
+        classification_path,
     )
 
 
@@ -74,15 +67,8 @@ def overtime_clause_classification_output_path_for_classification(
     classification_path: Path | str,
 ) -> Path:
     """Derive the default step-3 clause classification path from step-2 output."""
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-
-    return path_in_category(
-        path,
-        OVERTIME_INTERPRETATIONS_DIR,
-        f"{stem}_overtime_clause_classification.json",
+    return overtime_clause_classification_path_for_classification(
+        classification_path,
     )
 
 
@@ -167,25 +153,22 @@ def resolve_overtime_clause_classification_path(
 
 def feedback_dir_for_interpretation(interpretation_path: Path | str) -> Path:
     """Return the feedback directory used for interpretation review artifacts."""
-    return Path(interpretation_path).parent / OVERTIME_INTERPRETATION_FEEDBACK_DIR
+    return naming_feedback_dir_for_interpretation(interpretation_path)
 
 
 def evaluator_feedback_path_for_interpretation(interpretation_path: Path | str) -> Path:
     """Return the default evaluator feedback path for an interpretation file."""
-    path = Path(interpretation_path)
-    return feedback_dir_for_interpretation(path) / f"{path.stem}_evaluator_feedback.md"
+    return naming_evaluator_feedback_path_for_interpretation(interpretation_path)
 
 
 def creator_response_path_for_interpretation(interpretation_path: Path | str) -> Path:
     """Return the default creator decision record path for an interpretation file."""
-    path = Path(interpretation_path)
-    return feedback_dir_for_interpretation(path) / f"{path.stem}_creator_response.md"
+    return naming_creator_response_path_for_interpretation(interpretation_path)
 
 
 def revised_output_path_for_interpretation(interpretation_path: Path | str) -> Path:
     """Return the default revised interpretation path for an interpretation file."""
-    path = Path(interpretation_path)
-    return path.with_name(f"{path.stem}_revised{path.suffix}")
+    return revised_interpretation_path_for_interpretation(interpretation_path)
 
 
 def manual_4b_output_path_for_interpretation(interpretation_path: Path | str) -> Path:
