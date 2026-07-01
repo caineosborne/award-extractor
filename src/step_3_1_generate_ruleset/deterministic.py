@@ -24,8 +24,11 @@ from .core import (
     comparison_output_path,
     expert_markdown_output_path,
     interpretation_output_path_for_source,
+    load_classification,
+    load_overtime_clause_classification_artifact,
     overtime_clause_classification_path_for_source,
     select_overtime_creation_clauses,
+    select_ruleset_related_clauses,
 )
 
 
@@ -103,7 +106,7 @@ def load_prepared_clause_classifications(
     data = load_classification(source_path)
     overtime_clauses = select_ruleset_related_clauses(
         data,
-        OVERTIME_CREATION_RULESET,
+        ruleset_key,
     )
     if not overtime_clauses:
         raise OvertimeInterpretationError(
@@ -113,7 +116,7 @@ def load_prepared_clause_classifications(
     return load_overtime_clause_classification_artifact(
         classification_output_path,
         overtime_clauses,
-        OVERTIME_CREATION_RULESET,
+        ruleset_key,
     )
 
 

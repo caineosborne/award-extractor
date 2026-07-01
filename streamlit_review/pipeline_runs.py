@@ -31,14 +31,16 @@ from src.common.award_sources import (
     source_record_for_award,
 )
 from src.common.overtime_rulesets import overtime_ruleset_config
-from src.script_3_generate_overtime_ruleset import generate_overtime_ruleset
-from src.script_3b_review_overtime_interpretation import review_overtime_interpretation
+from src.step_3_1_generate_ruleset.run import (
+    generate_ruleset_from_clause_classification as generate_overtime_ruleset,
+)
+from src.step_3_2_review_ruleset.run import review_ruleset as review_overtime_interpretation
 from src.step_1_2_parse_award.run import (
     extract_pdf_award_source as extract_pdf_to_award,
     write_pdf_step_outputs as write_pdf_outputs,
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
-from src.script_5b_generate_overtime_pseudocode import generate_core_overtime_pseudocode
+from src.step_5_1_generate_pseudocode.run import generate_core_overtime_pseudocode
 from streamlit_review.output_data import (
     artifact_paths_for_award,
     load_json_file,
@@ -53,10 +55,10 @@ PIPELINE_STEP_LABELS = {
     "1": "Retrieve award",
     "2.1": "Classify clauses",
     "2.2": "Classify overtime clauses",
-    "3": "Generate overtime",
-    "3b": "Review overtime",
-    "4": "Format overtime guide",
-    "5b": "Generate pseudocode",
+    "3.1": "Generate overtime ruleset",
+    "3.2": "Review overtime ruleset",
+    "4.1": "Format overtime guide",
+    "5.1": "Generate pseudocode",
 }
 
 
@@ -94,13 +96,13 @@ def pipeline_run_label(step: str | None, ruleset_key: str | None = None) -> str:
         ruleset_name = overtime_ruleset_config(ruleset_key).display_name.lower()
         if step is None:
             return f"{ruleset_name} pipeline run"
-        if step == "3":
+        if step == "3.1":
             return f"Generate {ruleset_name} ruleset"
-        if step == "3b":
+        if step == "3.2":
             return f"Review {ruleset_name} ruleset"
-        if step == "4":
+        if step == "4.1":
             return f"Format {ruleset_name} ruleset"
-        if step == "5b":
+        if step == "5.1":
             return f"Generate {ruleset_name} pseudocode"
     if step is None:
         return "Active pipeline run"
@@ -202,34 +204,34 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
                 PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "pdf_step_1"),
                 PipelinePlannedStep("2.1", PIPELINE_STEP_LABELS["2.1"], "selected_step"),
                 PipelinePlannedStep("2.2", PIPELINE_STEP_LABELS["2.2"], "selected_step"),
-                PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
-                PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
-                PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),
-                PipelinePlannedStep("5b", PIPELINE_STEP_LABELS["5b"], "selected_step"),
+                PipelinePlannedStep("3.1", PIPELINE_STEP_LABELS["3.1"], "selected_step"),
+                PipelinePlannedStep("3.2", PIPELINE_STEP_LABELS["3.2"], "selected_step"),
+                PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step"),
+                PipelinePlannedStep("5.1", PIPELINE_STEP_LABELS["5.1"], "selected_step"),
             ]
 
         return [
             PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "selected_step"),
             PipelinePlannedStep("2.1", PIPELINE_STEP_LABELS["2.1"], "selected_step"),
             PipelinePlannedStep("2.2", PIPELINE_STEP_LABELS["2.2"], "selected_step"),
-            PipelinePlannedStep("3", PIPELINE_STEP_LABELS["3"], "selected_step"),
-            PipelinePlannedStep("3b", PIPELINE_STEP_LABELS["3b"], "selected_step"),
-            PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step"),
-            PipelinePlannedStep("5b", PIPELINE_STEP_LABELS["5b"], "selected_step"),
+            PipelinePlannedStep("3.1", PIPELINE_STEP_LABELS["3.1"], "selected_step"),
+            PipelinePlannedStep("3.2", PIPELINE_STEP_LABELS["3.2"], "selected_step"),
+            PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step"),
+            PipelinePlannedStep("5.1", PIPELINE_STEP_LABELS["5.1"], "selected_step"),
         ]
 
     if step == "1" and source_type == SOURCE_TYPE_LOCAL_PDF:
         return [PipelinePlannedStep("1", PIPELINE_STEP_LABELS["1"], "pdf_step_1")]
 
-    if step == "4":
-        return [PipelinePlannedStep("4", PIPELINE_STEP_LABELS["4"], "formatter_step")]
+    if step == "4.1":
+        return [PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step")]
 
     return [PipelinePlannedStep(step, PIPELINE_STEP_LABELS[step], "selected_step")]
 
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
     """Load the step 5B validation summary when available."""
-    if step != "5b":
+    if step != "5.1":
         return None
 
     validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)
@@ -336,12 +338,12 @@ def run_pipeline_for_award(
                             f"{artifact_paths.overtime_entitlements}"
                         )
                 else:
-                    if planned_step.step_id == "3" and ruleset_key is not None:
+                    if planned_step.step_id == "3.1" and ruleset_key is not None:
                         generate_overtime_ruleset(
                             classification_path=paths.classification_path,
                             ruleset_key=ruleset_key,
                         )
-                    elif planned_step.step_id == "3b" and ruleset_key is not None:
+                    elif planned_step.step_id == "3.2" and ruleset_key is not None:
                         interpretation_path = ruleset_output_path_for_classification(
                             paths.classification_path,
                             ruleset_key,
@@ -364,7 +366,7 @@ def run_pipeline_for_award(
                             ),
                             ruleset_key=ruleset_key,
                         )
-                    elif planned_step.step_id == "5b" and ruleset_key is not None:
+                    elif planned_step.step_id == "5.1" and ruleset_key is not None:
                         ruleset_artifacts = ruleset_artifact_paths_for_award(
                             award_code,
                             ruleset_key,

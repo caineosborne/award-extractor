@@ -8,23 +8,24 @@ from src.award_pipeline import (
     main,
     output_stem_for_award,
     parse_args,
-    run_step_5b,
+    run_step_3_1,
+    run_step_5_1,
     run_selected_step,
     run_step_2_1,
 )
 from src.common.active_pipeline_paths import PROJECT_ROOT
 
 
-def test_parse_args_defaults_to_active_pipeline_through_3b():
+def test_parse_args_defaults_to_active_pipeline_through_3_2():
     args = parse_args(["MA000018"])
 
     assert args.award_code == "MA000018"
     assert args.step is None
     assert args.suffix is None
-    assert DEFAULT_PIPELINE_STEPS == ("1", "2.1", "2.2", "3", "3b")
+    assert DEFAULT_PIPELINE_STEPS == ("1", "2.1", "2.2", "3.1", "3.2")
 
 
-def test_build_paths_covers_step_5b_artifacts():
+def test_build_paths_covers_step_5_1_artifacts():
     paths = build_paths(
         award_code="MA000018",
         suffix="draft",
@@ -68,7 +69,7 @@ def test_run_selected_step_rejects_unknown_step():
         raise AssertionError("Expected AwardPipelineError for unsupported step")
 
 
-def test_main_runs_default_pipeline_through_step_3b():
+def test_main_runs_default_pipeline_through_step_3_2():
     with patch("src.award_pipeline.run_default_pipeline") as run_default_pipeline:
         main(["MA000018"])
 
@@ -141,6 +142,32 @@ def test_run_step_2_1_uses_step_1_output_and_writes_step_2_1_artifact():
     )
 
 
+def test_run_step_3_1_uses_step_2_outputs_and_writes_step_3_1_artifact():
+    paths = build_paths(
+        award_code="MA000018",
+        suffix=None,
+        url="https://awards.fairwork.gov.au/MA000018.html",
+    )
+
+    with patch("src.award_pipeline.require_existing") as require_existing_mock:
+        with patch(
+            "src.award_pipeline.generate_ruleset_from_clause_classification"
+        ) as generate_ruleset_mock:
+            run_step_3_1(paths)
+
+    assert require_existing_mock.call_args_list == [
+        ((paths.classification_path, "3.1", "2.1"),),
+        ((paths.overtime_clause_classification_path, "3.1", "2.2"),),
+    ]
+    generate_ruleset_mock.assert_called_once_with(
+        classification_path=paths.classification_path,
+        output_path=paths.interpretation_path,
+        classification_output_path=paths.overtime_clause_classification_path,
+        expert_run_count=2,
+        ruleset_key="overtime_creation",
+    )
+
+
 def test_run_step_1_uses_step_1_folder_runners():
     paths = build_paths(
         award_code="MA000018",
@@ -168,7 +195,7 @@ def test_run_step_1_uses_step_1_folder_runners():
     )
 
 
-def test_run_step_5b_uses_award_code_for_source_selection():
+def test_run_step_5_1_uses_award_code_for_source_selection():
     paths = build_paths(
         award_code="MA000018",
         suffix=None,
@@ -179,12 +206,12 @@ def test_run_step_5b_uses_award_code_for_source_selection():
         with patch(
             "src.award_pipeline.generate_core_overtime_pseudocode"
         ) as generate_core_overtime_pseudocode_mock:
-            run_step_5b(paths)
+            run_step_5_1(paths)
 
     require_existing_mock.assert_called_once_with(
         paths.revised_interpretation_path,
-        "5b",
-        "3b",
+        "5.1",
+        "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
         summary_path=paths.revised_interpretation_path,
@@ -192,7 +219,7 @@ def test_run_step_5b_uses_award_code_for_source_selection():
     )
 
 
-def test_run_step_5b_prefers_manual_4b_when_present(tmp_path):
+def test_run_step_5_1_prefers_manual_4b_when_present(tmp_path):
     revised_path = tmp_path / "MA000018_overtime_interpretation_revised.md"
     revised_path.write_text("# Revised", encoding="utf-8")
     manual_4b_path = tmp_path / "MA000018_overtime_interpretation_4b.md"
@@ -214,12 +241,12 @@ def test_run_step_5b_prefers_manual_4b_when_present(tmp_path):
         with patch(
             "src.award_pipeline.generate_core_overtime_pseudocode"
         ) as generate_core_overtime_pseudocode_mock:
-            run_step_5b(paths)
+            run_step_5_1(paths)
 
     require_existing_mock.assert_called_once_with(
         revised_path,
-        "5b",
-        "3b",
+        "5.1",
+        "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
         summary_path=manual_4b_path,

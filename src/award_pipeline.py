@@ -20,8 +20,8 @@ from src.common.pipeline_context import (
 )
 from src.step_1_1_fetch.run import fetch_award_source
 from src.step_1_2_parse_award.run import write_html_outputs_for_paths
-from src.script_3_interpret_overtime import DEFAULT_EXPERT_RUN_COUNT
 from src.step_2_1_classify_payments.run import classify_payments
+from src.step_3_1_generate_ruleset.core import DEFAULT_EXPERT_RUN_COUNT
 from src.step_3_1_generate_ruleset.run import (
     generate_ruleset_from_clause_classification,
 )
@@ -107,10 +107,10 @@ def run_step_2_2(paths: ActivePipelinePaths) -> None:
     )
 
 
-def run_step_3(paths: ActivePipelinePaths) -> None:
-    """Run step 3 overtime interpretation generation."""
-    require_existing(paths.classification_path, "3", "2.1")
-    require_existing(paths.overtime_clause_classification_path, "3", "2.2")
+def run_step_3_1(paths: ActivePipelinePaths) -> None:
+    """Run step 3.1 ruleset generation."""
+    require_existing(paths.classification_path, "3.1", "2.1")
+    require_existing(paths.overtime_clause_classification_path, "3.1", "2.2")
     generate_ruleset_from_clause_classification(
         classification_path=paths.classification_path,
         output_path=paths.interpretation_path,
@@ -120,11 +120,11 @@ def run_step_3(paths: ActivePipelinePaths) -> None:
     )
 
 
-def run_step_3b(paths: ActivePipelinePaths) -> None:
-    """Run step 3B one-pass review of the interpretation output."""
-    require_existing(paths.classification_path, "3b", "2.1")
-    require_existing(paths.overtime_clause_classification_path, "3b", "3")
-    require_existing(paths.interpretation_path, "3b", "3")
+def run_step_3_2(paths: ActivePipelinePaths) -> None:
+    """Run step 3.2 one-pass review of the interpretation output."""
+    require_existing(paths.classification_path, "3.2", "2.1")
+    require_existing(paths.overtime_clause_classification_path, "3.2", "3.1")
+    require_existing(paths.interpretation_path, "3.2", "3.1")
     review_ruleset(
         interpretation_path=paths.interpretation_path,
         classification_path=paths.classification_path,
@@ -135,9 +135,9 @@ def run_step_3b(paths: ActivePipelinePaths) -> None:
     )
 
 
-def run_step_5b(paths: ActivePipelinePaths) -> None:
-    """Run step 5B core overtime pseudocode generation."""
-    require_existing(paths.revised_interpretation_path, "5b", "3b")
+def run_step_5_1(paths: ActivePipelinePaths) -> None:
+    """Run step 5.1 core overtime pseudocode generation."""
+    require_existing(paths.revised_interpretation_path, "5.1", "3.2")
     source_path = preferred_5b_source_path_for_interpretation(paths.revised_interpretation_path)
     generate_core_overtime_pseudocode(
         summary_path=source_path,
@@ -145,18 +145,18 @@ def run_step_5b(paths: ActivePipelinePaths) -> None:
     )
     print(f"Core overtime pseudocode saved to {paths.core_overtime_pseudocode_path}")
     print(
-        "5B validation JSON saved to "
+        "Step 5.1 validation JSON saved to "
         f"{paths.core_overtime_validation_json_path}"
     )
     print(
-        "5B validation markdown saved to "
+        "Step 5.1 validation markdown saved to "
         f"{paths.core_overtime_validation_markdown_path}"
     )
 
 
-def run_step_4(paths: ActivePipelinePaths) -> None:
-    """Run step 4 formatted overtime guide generation."""
-    require_existing(paths.revised_interpretation_path, "4", "3b")
+def run_step_4_1(paths: ActivePipelinePaths) -> None:
+    """Run step 4.1 formatted ruleset generation."""
+    require_existing(paths.revised_interpretation_path, "4.1", "3.2")
     summarize_overtime_entitlements(
         interpretation_path=paths.revised_interpretation_path,
     )
@@ -166,15 +166,15 @@ STEP_RUNNERS = {
     "1": run_step_1,
     "2.1": run_step_2_1,
     "2.2": run_step_2_2,
-    "3": run_step_3,
-    "3b": run_step_3b,
-    "4": run_step_4,
-    "5b": run_step_5b,
+    "3.1": run_step_3_1,
+    "3.2": run_step_3_2,
+    "4.1": run_step_4_1,
+    "5.1": run_step_5_1,
 }
 
 
 def run_default_pipeline(paths: ActivePipelinePaths) -> None:
-    """Run the active pipeline end to end through step 3B."""
+    """Run the active pipeline end to end through step 3.2."""
     for step in DEFAULT_PIPELINE_STEPS:
         STEP_RUNNERS[step](paths)
 
@@ -192,7 +192,7 @@ def run_selected_step(paths: ActivePipelinePaths, step: str) -> None:
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the active pipeline wrapper."""
     parser = argparse.ArgumentParser(
-        description="Run the active award extraction pipeline through step 3B."
+        description="Run the active award extraction pipeline through step 3.2."
     )
     parser.add_argument(
         "award_code",
@@ -203,7 +203,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "step",
         nargs="?",
         choices=STEP_CHOICES,
-        help="Optional step to run. If omitted, the pipeline runs through 3B.",
+        help="Optional step to run. If omitted, the pipeline runs through 3.2.",
     )
     parser.add_argument(
         "--suffix",

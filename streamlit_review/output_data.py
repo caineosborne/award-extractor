@@ -16,8 +16,8 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
 )
 from src.step_4_1_format_ruleset.run import output_path_for_interpretation
-from src.script_5b_generate_overtime_pseudocode import output_path_for_summary
-from src.script_5b_validate_overtime_pseudocode import (
+from src.step_5_1_generate_pseudocode.deterministic import output_path_for_summary
+from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
 )

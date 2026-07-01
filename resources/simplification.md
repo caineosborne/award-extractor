@@ -999,6 +999,8 @@ Once the new structure works, remove:
 - multi-path fallback chains that only exist for old artifacts
 - duplicate helper names kept for compatibility
 
+perform an additional scan to ensure all legacy code are removed, and doing another scan of the complexity to identy any areas to simplify. 
+
 This is the step where complexity should drop sharply.
 
 Status:

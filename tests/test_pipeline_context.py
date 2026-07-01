@@ -1,6 +1,5 @@
 from src.common.output_naming import (
     DEFAULT_ACTIVE_PIPELINE_STEPS,
-    FUTURE_PIPELINE_STEP_IDS,
     default_award_url_for_code,
     normalize_output_suffix,
 )
@@ -42,5 +41,4 @@ def test_normalize_output_suffix_matches_pipeline_expectations():
 
 
 def test_step_constants_cover_current_and_future_pipeline_shapes():
-    assert DEFAULT_ACTIVE_PIPELINE_STEPS == ("1", "2.1", "2.2", "3", "3b")
-    assert FUTURE_PIPELINE_STEP_IDS == ("1.1", "1.2", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
+    assert DEFAULT_ACTIVE_PIPELINE_STEPS == ("1", "2.1", "2.2", "3.1", "3.2")

@@ -24,6 +24,8 @@ data/raw/
 data/parsed/
 data/processed/
 data/
+src/archive/
+
 
 # Testing
 .pytest_cache/

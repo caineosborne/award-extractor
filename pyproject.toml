@@ -22,16 +22,6 @@ dependencies = [
 
 [project.scripts]
 award-pipeline = "src.award_pipeline:main"
-script-1-fetch-award = "src.script_1_fetch_award:main"
-script-1-pdf-to-award-json = "src.script_1_pdf_to_award_json:main"
-script-1b-generate-fetch-supporting-artifacts = "src.script_1b_generate_fetch_supporting_artifacts:main"
-script-2-classify-payments = "src.script_2_classify_payments:main"
-script-3-interpret-overtime = "src.script_3_interpret_overtime:main"
-script-3-generate-overtime-ruleset = "src.script_3_generate_overtime_ruleset:main"
-script-3b-review-overtime-interpretation = "src.script_3b_review_overtime_interpretation:main"
-script-3b-agentic-review-overtime-interpretation = "src.script_3b_agentic_review_overtime_interpretation:main"
-script-4a-summarize-overtime = "src.script_4a_summarize_overtime:main"
-script-5b-generate-overtime-pseudocode = "src.script_5b_generate_overtime_pseudocode:main"
 
 [build-system]
 requires = ["setuptools>=82.0.1"]

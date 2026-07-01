@@ -134,10 +134,10 @@ PIPELINE_STEP_LABELS = {
     "1": "Retrieve award",
     "2.1": "Classify clauses",
     "2.2": "Classify overtime clauses",
-    "3": "Generate overtime",
-    "3b": "Review overtime",
-    "4": "Format overtime guide",
-    "5b": "Generate pseudocode",
+    "3.1": "Generate overtime ruleset",
+    "3.2": "Review overtime ruleset",
+    "4.1": "Format overtime guide",
+    "5.1": "Generate pseudocode",
 }
 
 
@@ -1747,41 +1747,41 @@ def render_pipeline_run_controls(
 
     with step_three_b_column:
         if st.button(
-            PIPELINE_STEP_LABELS["3"],
-            key=f"run_step_3_{selected_award_code}",
+            PIPELINE_STEP_LABELS["3.1"],
+            key=f"run_step_3_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3", ruleset_key=ruleset_key)
+            execute_pipeline_run(selected_award_code, step="3.1", ruleset_key=ruleset_key)
 
     with step_four_column:
         if st.button(
-            PIPELINE_STEP_LABELS["3b"],
-            key=f"run_step_3b_{selected_award_code}",
+            PIPELINE_STEP_LABELS["3.2"],
+            key=f"run_step_3_2_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3b", ruleset_key=ruleset_key)
+            execute_pipeline_run(selected_award_code, step="3.2", ruleset_key=ruleset_key)
 
     with step_five_b_column:
         if st.button(
-            PIPELINE_STEP_LABELS["4"],
-            key=f"run_step_4_{selected_award_code}",
+            PIPELINE_STEP_LABELS["4.1"],
+            key=f"run_step_4_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="4", ruleset_key=ruleset_key)
+            execute_pipeline_run(selected_award_code, step="4.1", ruleset_key=ruleset_key)
 
     extra_column_left, extra_column_right = st.columns(2, gap="small")
 
     with extra_column_left:
         if st.button(
-            PIPELINE_STEP_LABELS["5b"],
-            key=f"run_step_5b_{selected_award_code}",
+            PIPELINE_STEP_LABELS["5.1"],
+            key=f"run_step_5_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="5b", ruleset_key=ruleset_key)
+            execute_pipeline_run(selected_award_code, step="5.1", ruleset_key=ruleset_key)
 
     render_pipeline_run_status(selected_award_code, current_status)
 
@@ -1915,7 +1915,7 @@ def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
     """Load the 5B validation summary when a 5B run just completed."""
-    if step != "5b":
+    if step != "5.1":
         return None
 
     validation_json_path = getattr(paths, "core_overtime_validation_json_path", None)
@@ -1953,13 +1953,13 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
             if step is None:
                 if source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
                     run_pdf_step_1(paths, award_code, source_record)
-                    for selected_step in ("2.1", "2.2", "3", "3b"):
+                    for selected_step in ("2.1", "2.2", "3.1", "3.2"):
                         run_selected_step(paths, selected_step)
                 else:
                     run_default_pipeline(paths)
             elif step == "1" and source_record["source_type"] == SOURCE_TYPE_LOCAL_PDF:
                 run_pdf_step_1(paths, award_code, source_record)
-            elif step == "4":
+            elif step == "4.1":
                 summarize_overtime_entitlements(
                     interpretation_path=artifact_paths.revised_overtime_interpretation,
                     output_path=artifact_paths.overtime_entitlements,

@@ -424,16 +424,32 @@ def request_creator_revision(
                 last_validation_error or "Creator response did not include output text."
             )
 
-        reviewed_rules_artifact = apply_review_decisions(
-            original_rules=original_rules,
-            evaluator_feedback=evaluator_feedback_data,
-            creator_decision_data={},
-        )
         creator_response_markdown = fallback_creator_response_markdown(
             validation_error=last_validation_error or "Creator response could not be validated.",
             creator_output_text=creator_output_text,
         )
         revised_interpretation_markdown = original_rendered_markdown
+        reviewed_rules_artifact = {
+            "rules": list(original_rules),
+            "review_decisions": [
+                {
+                    "rule_id": rule.rule_id,
+                    "evaluator_recommendation": "keep",
+                    "creator_decision": "keep",
+                    "final_decision": "kept",
+                    "reason": "Preserved original rules after creator validation failure.",
+                }
+                for rule in original_rules
+            ],
+        }
+        creator_response_data = {
+            "decision_record_markdown": creator_response_markdown,
+            "rule_updates": [],
+            "new_rule_reviews": [],
+            "rendered_markdown": revised_interpretation_markdown,
+            "validation_error": last_validation_error,
+            "raw_creator_response": creator_output_text,
+        }
 
     return (
         creator_response_data,
@@ -454,4 +470,3 @@ def build_review_creator_messages(*args, **kwargs):
     from src.prompts.overtime_interpretation_review import build_review_creator_messages
 
     return build_review_creator_messages(*args, **kwargs)
-

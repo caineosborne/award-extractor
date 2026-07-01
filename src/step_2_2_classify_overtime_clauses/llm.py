@@ -15,6 +15,7 @@ from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET
 from .core import (
     DEFAULT_MODEL,
     OvertimeClauseClassification,
+    OvertimeInterpretationError,
     build_clause_classification_artifact,
     classify_overtime_clauses,
     load_environment,
@@ -48,11 +49,16 @@ def load_or_generate_clause_classifications(
 ) -> list[OvertimeClauseClassification]:
     """Reuse a valid step-2.2 artifact or regenerate it with the model."""
     if output_path.exists():
-        return load_overtime_clause_classification_artifact(
-            output_path,
-            overtime_clauses,
-            OVERTIME_CREATION_RULESET,
-        )
+        try:
+            return load_overtime_clause_classification_artifact(
+                output_path,
+                overtime_clauses,
+                OVERTIME_CREATION_RULESET,
+            )
+        except OvertimeInterpretationError:
+            # Step 2.1 may have been rerun, making the existing step 2.2 artifact
+            # inconsistent with the current shortlisted clause set. Regenerate it.
+            pass
 
     active_client = client or load_openai_client()
     classifications = classify_overtime_clauses(

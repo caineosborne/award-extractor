@@ -28,7 +28,11 @@ from src.step_2_2_classify_overtime_clauses.core import (
 from src.step_3_1_generate_ruleset.core import (
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
-from src.common.overtime_rules import OvertimeRule, rule_to_dict
+from src.common.overtime_rules import (
+    OvertimeRule,
+    make_json_serializable,
+    rule_to_dict,
+)
 
 
 CLAUSE_REFERENCE_PATTERN = re.compile(r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b", re.IGNORECASE)

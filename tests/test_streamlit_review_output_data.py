@@ -831,26 +831,26 @@ def test_delete_processed_files_matching_prefix_deletes_award_first_directory_co
 
 def test_pipeline_run_label_formats_full_and_step_runs():
     assert pipeline_run_label(None) == "Active pipeline run"
-    assert pipeline_run_label("3b") == "Review overtime"
-    assert pipeline_run_label("4") == "Format overtime guide"
+    assert pipeline_run_label("3.2") == "Review overtime ruleset"
+    assert pipeline_run_label("4.1") == "Format overtime guide"
 
 
 def test_background_pipeline_run_label_includes_ruleset_when_provided():
     assert background_pipeline_run_label(None) == "Active pipeline run"
     assert (
-        background_pipeline_run_label("3", OVERTIME_CONSEQUENCE_RULESET)
+        background_pipeline_run_label("3.1", OVERTIME_CONSEQUENCE_RULESET)
         == "Generate overtime consequence ruleset"
     )
     assert (
-        background_pipeline_run_label("3b", OVERTIME_CONSEQUENCE_RULESET)
+        background_pipeline_run_label("3.2", OVERTIME_CONSEQUENCE_RULESET)
         == "Review overtime consequence ruleset"
     )
     assert (
-        background_pipeline_run_label("4", OVERTIME_CONSEQUENCE_RULESET)
+        background_pipeline_run_label("4.1", OVERTIME_CONSEQUENCE_RULESET)
         == "Format overtime consequence ruleset"
     )
     assert (
-        background_pipeline_run_label("5b", OVERTIME_CONSEQUENCE_RULESET)
+        background_pipeline_run_label("5.1", OVERTIME_CONSEQUENCE_RULESET)
         == "Generate overtime consequence pseudocode"
     )
     assert (
@@ -863,9 +863,9 @@ def test_background_pipeline_run_label_includes_ruleset_when_provided():
     ("trigger_key", "expected_step"),
     [
         ("run_full_MA000120", None),
-        ("run_step_3b_MA000120", "3b"),
-        ("run_step_4_MA000120", "4"),
-        ("run_step_5b_MA000120", "5b"),
+        ("run_step_3_2_MA000120", "3.2"),
+        ("run_step_4_1_MA000120", "4.1"),
+        ("run_step_5_1_MA000120", "5.1"),
     ],
 )
 def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
@@ -1006,14 +1006,14 @@ def test_run_pipeline_for_award_calls_selected_step(monkeypatch):
     monkeypatch.setattr("streamlit_review.app.build_paths", fake_build_paths)
     monkeypatch.setattr("streamlit_review.app.run_selected_step", fake_run_selected_step)
 
-    result = run_pipeline_for_award("MA000002", "3")
+    result = run_pipeline_for_award("MA000002", "3.1")
 
     assert result["success"] is True
     assert "step output" in result["log"]
     assert calls == [
         ("source_record_for_award", "MA000002"),
         ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
-        ("run_selected_step", sentinel.paths, "3"),
+        ("run_selected_step", sentinel.paths, "3.1"),
     ]
 
 
@@ -1057,7 +1057,7 @@ def test_run_pipeline_for_award_calls_step_4_formatter(monkeypatch):
         fake_summarize_overtime_entitlements,
     )
 
-    result = run_pipeline_for_award("MA000002", "4")
+    result = run_pipeline_for_award("MA000002", "4.1")
 
     assert result["success"] is True
     assert "step 4 output" in result["log"]
@@ -1233,14 +1233,14 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
         ("run_selected_step", sentinel.paths, "1"),
         ("run_selected_step", sentinel.paths, "2.1"),
         ("run_selected_step", sentinel.paths, "2.2"),
-        ("run_selected_step", sentinel.paths, "3"),
-        ("run_selected_step", sentinel.paths, "3b"),
+        ("run_selected_step", sentinel.paths, "3.1"),
+        ("run_selected_step", sentinel.paths, "3.2"),
         (
             "summarize_overtime_entitlements",
             sentinel.revised_path,
             sentinel.entitlements_path,
         ),
-        ("run_selected_step", sentinel.paths, "5b"),
+        ("run_selected_step", sentinel.paths, "5.1"),
     ]
 
 

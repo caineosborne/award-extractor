@@ -608,6 +608,109 @@ def creator_structured_output_instructions() -> str:
     return "Return JSON only."
 
 
+def review_rule_schema() -> dict[str, Any]:
+    """Define the strict JSON schema for one evaluator rule review."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rule_id": {"type": "string"},
+            "recommendation": {
+                "type": "string",
+                "enum": list(ALLOWED_REVIEW_RECOMMENDATIONS),
+            },
+            "rationale": {"type": "string"},
+        },
+        "required": ["rule_id", "recommendation", "rationale"],
+    }
+
+
+def overtime_rule_json_schema() -> dict[str, Any]:
+    """Define the strict JSON schema for one overtime rule object."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rule_id": {"type": "string"},
+            "section_heading": {"type": "string"},
+            "employee_scope": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "clause_references": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "rule_markdown": {"type": "string"},
+            "rule_plain_text": {"type": "string"},
+            "source_clause_numbers": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+            "source_classifications": {
+                "type": "array",
+                "items": {"type": "string"},
+            },
+        },
+        "required": [
+            "rule_id",
+            "section_heading",
+            "employee_scope",
+            "clause_references",
+            "rule_markdown",
+            "rule_plain_text",
+            "source_clause_numbers",
+            "source_classifications",
+        ],
+    }
+
+
+def creator_rule_update_schema() -> dict[str, Any]:
+    """Define the strict JSON schema for one creator update to an original rule."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rule_id": {"type": "string"},
+            "decision": {
+                "type": "string",
+                "enum": ["keep", "modify", "remove"],
+            },
+            "reason": {"type": "string"},
+            "updated_rule": {
+                "anyOf": [
+                    overtime_rule_json_schema(),
+                    {"type": "null"},
+                ]
+            },
+        },
+        "required": ["rule_id", "decision", "reason", "updated_rule"],
+    }
+
+
+def creator_new_rule_review_schema() -> dict[str, Any]:
+    """Define the strict JSON schema for one creator decision on a new evaluator rule."""
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "rule_id": {"type": "string"},
+            "decision": {
+                "type": "string",
+                "enum": ["accept", "modify", "reject"],
+            },
+            "reason": {"type": "string"},
+            "updated_rule": {
+                "anyOf": [
+                    overtime_rule_json_schema(),
+                    {"type": "null"},
+                ]
+            },
+        },
+        "required": ["rule_id", "decision", "reason", "updated_rule"],
+    }
+
+
 def evaluator_feedback_json_schema() -> dict[str, Any]:
     """Define the strict JSON schema for evaluator feedback."""
     return {
@@ -615,8 +718,14 @@ def evaluator_feedback_json_schema() -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "summary_markdown": {"type": "string"},
-            "rule_reviews": {"type": "array", "items": {"type": "object"}},
-            "new_rules": {"type": "array", "items": {"type": "object"}},
+            "rule_reviews": {
+                "type": "array",
+                "items": review_rule_schema(),
+            },
+            "new_rules": {
+                "type": "array",
+                "items": overtime_rule_json_schema(),
+            },
         },
         "required": ["summary_markdown", "rule_reviews", "new_rules"],
     }
@@ -629,8 +738,18 @@ def creator_review_json_schema() -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "decision_record_markdown": {"type": "string"},
-            "review_decisions": {"type": "array", "items": {"type": "object"}},
+            "rule_updates": {
+                "type": "array",
+                "items": creator_rule_update_schema(),
+            },
+            "new_rule_reviews": {
+                "type": "array",
+                "items": creator_new_rule_review_schema(),
+            },
         },
-        "required": ["decision_record_markdown", "review_decisions"],
+        "required": [
+            "decision_record_markdown",
+            "rule_updates",
+            "new_rule_reviews",
+        ],
     }
-
