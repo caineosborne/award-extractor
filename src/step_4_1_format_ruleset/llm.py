@@ -8,13 +8,24 @@ from typing import Any
 
 from openai import OpenAI
 
+from src.common.llm_io import extract_response_text as extract_llm_response_text
 from src.prompts.overtime_guide_formatting import build_messages
-from src.script_4a_summarize_overtime import (
-    DEFAULT_MODEL,
-    OvertimeEntitlementSummaryError,
-    extract_response_text,
-    load_environment,
-)
+from .deterministic import OvertimeEntitlementSummaryError
+
+
+DEFAULT_MODEL = "gpt-5.4-mini"
+
+
+def load_environment() -> None:
+    """Load the OpenAI environment required by the formatter."""
+    from dotenv import load_dotenv
+
+    project_root = Path(__file__).resolve().parents[2]
+    load_dotenv(project_root / ".env")
+    if not os.getenv("OPENAI_API_KEY"):
+        raise OvertimeEntitlementSummaryError(
+            "OPENAI_API_KEY is not set. Add it to the root .env file or export it."
+        )
 
 
 def load_openai_client() -> OpenAI:
@@ -26,6 +37,11 @@ def load_openai_client() -> OpenAI:
 def selected_model(model: str | None) -> str:
     """Resolve the configured step 4.1 model."""
     return model or os.getenv("OVERTIME_ENTITLEMENT_SUMMARY_MODEL", DEFAULT_MODEL)
+
+
+def extract_response_text(response: Any) -> str:
+    """Extract plain text from the OpenAI response object."""
+    return extract_llm_response_text(response)
 
 
 def request_formatted_ruleset(
@@ -53,3 +69,4 @@ def request_formatted_ruleset(
     if not output_text:
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
     return output_text
+

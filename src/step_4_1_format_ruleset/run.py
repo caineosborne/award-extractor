@@ -4,15 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.script_4a_summarize_overtime import DEFAULT_TEMPLATE_PATH
-
-from .deterministic import (
-    default_interpretation_path_for_award,
-    output_path_for_interpretation,
-    resolve_formatting_inputs,
-    resolve_interpretation_path,
-    write_formatted_output,
-)
+from .deterministic import DEFAULT_TEMPLATE_PATH, resolve_formatting_inputs, write_formatted_output
 from .llm import load_openai_client, request_formatted_ruleset, selected_model
 
 

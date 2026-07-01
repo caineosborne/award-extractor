@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
-from src.common.output_paths import FETCH_AWARD_SUPPORTING_DIR, write_text_with_archive
-from src.script_1_fetch_award import write_step_1_outputs
-from src.script_1_pdf_to_award_json import extract_pdf_to_award, write_pdf_outputs
-from src.script_1b_generate_fetch_supporting_artifacts import write_supporting_outputs
+from .deterministic import (
+    extract_pdf_award_source as _extract_pdf_award_source,
+    output_stem,
+    write_html_outputs_for_paths as _write_html_outputs_for_paths,
+    write_pdf_outputs as _write_pdf_outputs,
+)
 
 
 def write_html_step_outputs(
@@ -20,12 +21,14 @@ def write_html_step_outputs(
     processed_dir: Path,
 ) -> None:
     """Write the maintained HTML-based step 1 outputs."""
-    write_step_1_outputs(
-        url=url,
+    output_stem_value = output_stem(url)
+    raw_html_path = raw_dir / f"{output_stem_value}.html"
+    award_json_path = processed_dir / output_stem_value / f"{output_stem_value}.json"
+    _write_html_outputs_for_paths(
         main_content=main_content,
         award=award,
-        raw_dir=raw_dir,
-        processed_dir=processed_dir,
+        raw_html_path=raw_html_path,
+        award_json_path=award_json_path,
     )
 
 
@@ -37,24 +40,17 @@ def write_html_outputs_for_paths(
     award_json_path: Path,
 ) -> None:
     """Write HTML-based step 1 outputs using explicit pipeline paths."""
-    raw_html_path.parent.mkdir(parents=True, exist_ok=True)
-    raw_html_path.write_text(str(main_content), encoding="utf-8")
-    write_text_with_archive(
-        award_json_path,
-        json.dumps(award, indent=2, ensure_ascii=False),
-    )
-    supporting_output_dir = award_json_path.parent / FETCH_AWARD_SUPPORTING_DIR
-    write_supporting_outputs(
+    _write_html_outputs_for_paths(
+        main_content=main_content,
+        award=award,
+        raw_html_path=raw_html_path,
         award_json_path=award_json_path,
-        output_dir=supporting_output_dir,
     )
-    print(f"Raw HTML saved to {raw_html_path}")
-    print(f"Processed JSON saved to {award_json_path}")
 
 
 def extract_pdf_award_source(pdf_path: Path):
     """Extract the maintained PDF-based step 1 source artifacts."""
-    return extract_pdf_to_award(pdf_path)
+    return _extract_pdf_award_source(pdf_path)
 
 
 def write_pdf_step_outputs(
@@ -69,7 +65,7 @@ def write_pdf_step_outputs(
     processed_dir: Path,
 ) -> None:
     """Write the maintained PDF-based step 1 outputs."""
-    write_pdf_outputs(
+    _write_pdf_outputs(
         pdf_path=pdf_path,
         markdown_text=markdown_text,
         award=award,

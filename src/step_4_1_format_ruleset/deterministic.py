@@ -11,17 +11,16 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     infer_overtime_ruleset_key_from_path,
 )
-from src.script_4a_summarize_overtime import (
-    DEFAULT_AWARD_CODE,
-    DEFAULT_TEMPLATE_PATH,
-    OvertimeEntitlementSummaryError,
-    load_text_file,
-    looks_like_path,
-    strip_validation_notes_preamble,
-    strip_wrapping_markdown_fence,
-)
+from src.common.pipeline_io import load_text_file as load_required_text_file
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_AWARD_CODE = "MA000018"
+DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Template.md"
+
+
+class OvertimeEntitlementSummaryError(RuntimeError):
+    """Raised when the overtime formatter cannot complete its work."""
 
 
 @dataclass(frozen=True)
@@ -34,6 +33,53 @@ class Step4FormattingInputs:
     ruleset_key: str
     interpretation_markdown: str
     template_markdown: str
+
+
+def load_text_file(path: Path | str, description: str) -> str:
+    """Load one required text file for step 4.1."""
+    return load_required_text_file(
+        path,
+        description,
+        error_type=OvertimeEntitlementSummaryError,
+    )
+
+
+def strip_wrapping_markdown_fence(text: str) -> str:
+    """Remove a surrounding markdown code fence from one response."""
+    stripped_text = text.strip()
+    lines = stripped_text.splitlines()
+
+    if len(lines) < 2:
+        return stripped_text
+
+    opening_line = lines[0].strip().lower()
+    closing_line = lines[-1].strip()
+    is_markdown_fence = opening_line in ("```markdown", "```md", "```")
+
+    if is_markdown_fence and closing_line == "```":
+        return "\n".join(lines[1:-1]).strip()
+
+    return stripped_text
+
+
+def strip_validation_notes_preamble(text: str) -> str:
+    """Remove the saved validation-notes block before formatting the interpretation."""
+    stripped_text = text.strip()
+    if not stripped_text.startswith("# Validation notes"):
+        return stripped_text
+
+    lines = stripped_text.splitlines()
+    for index, line in enumerate(lines):
+        if line.startswith("## "):
+            return "\n".join(lines[index:]).strip()
+
+    return stripped_text
+
+
+def looks_like_path(value: str) -> bool:
+    """Return whether one value looks like a filesystem path."""
+    path = Path(value)
+    return path.suffix != "" or "/" in value or "\\" in value
 
 
 def default_interpretation_path_for_award(
@@ -142,3 +188,4 @@ def write_formatted_output(destination: Path, output_text: str) -> str:
     cleaned_output = strip_wrapping_markdown_fence(output_text)
     write_text_with_archive(destination, cleaned_output)
     return cleaned_output
+

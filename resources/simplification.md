@@ -31,9 +31,9 @@ Current status of the simplification plan:
 - Step 3 completed
 - Step 4.1 completed
 - Step 4.2 completed
-- Step 4.5 not started
-- Step 4.6 not started
-- Step 4.7 not started
+- Step 4.5 Completed
+- Step 4.6 Completed
+- Step 4.7 Completed
 - Step 4.8 not started
 - Step 4.9 not started
 - Step 4.10 not started
@@ -759,7 +759,8 @@ Deliverable:
 - `step_3_1` and `step_3_2` read like the newer `step_2_1` and `step_5_1` folders: `run.py` for orchestration, `llm.py` for model work, `deterministic.py` for non-model processing, and extra files only where they improve reviewability
 - reviewers can trace each completed step through responsibility-named files without using `core.py` as a catch-all
 
-#### Phase 4.6. Split step `1` fetch and parse
+#### Phase 4.6. Split step `1` fetch and parse - COMPLETED
+
 
 Scope:
 
@@ -785,7 +786,7 @@ Function placement:
 - `src/prompts/` should own any step `1` prompt text or formatting helpers.
 - `core.py` should only retain small shared step-local types or constants if they are genuinely needed by more than one file.
 
-#### Phase 4.7. Split step `4.1` format ruleset
+#### Phase 4.7. Split step `4.1` format ruleset - COMPLETED
 
 Scope:
 

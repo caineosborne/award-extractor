@@ -3,10 +3,11 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.script_4a_summarize_overtime import (
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
+from src.prompts.overtime_guide_formatting import build_messages
+from src.step_4_1_format_ruleset import (
     DEFAULT_MODEL,
     DEFAULT_TEMPLATE_PATH,
-    build_messages,
     load_text_file,
     output_path_for_interpretation,
     resolve_interpretation_path,
@@ -14,7 +15,6 @@ from src.script_4a_summarize_overtime import (
     strip_wrapping_markdown_fence,
     summarize_overtime_entitlements,
 )
-from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 
 
 class FakeResponses:
@@ -65,7 +65,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
             from unittest.mock import patch
 
-            with patch("src.script_4a_summarize_overtime.PROJECT_ROOT", project_root):
+            with patch("src.step_4_1_format_ruleset.deterministic.PROJECT_ROOT", project_root):
                 result = resolve_interpretation_path(
                     "MA000999",
                     OVERTIME_CONSEQUENCE_RULESET,
