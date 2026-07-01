@@ -18,6 +18,9 @@ from openai import OpenAI
 
 from src.common.active_pipeline_paths import looks_like_path
 from src.common.llm_io import extract_response_text
+from src.common.output_naming import (
+    core_overtime_pseudocode_path_for_interpretation,
+)
 from src.common.output_paths import award_output_dir, write_text_with_archive
 from src.common.overtime_rules import (
     OVERTIME_RULE_SCHEMA_VERSION,
@@ -352,7 +355,8 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
         stem = stem.removesuffix("_overtime_interpretation_revised")
     elif stem.endswith("_overtime_interpretation"):
         stem = stem.removesuffix("_overtime_interpretation")
-    return award_output_dir(path) / f"{stem}_core_overtime_pseudocode.md"
+    interpreted_path = award_output_dir(path) / f"{stem}_overtime_interpretation_revised.md"
+    return core_overtime_pseudocode_path_for_interpretation(interpreted_path)
 
 
 def request_pseudocode_output(

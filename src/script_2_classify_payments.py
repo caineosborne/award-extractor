@@ -19,9 +19,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
+from src.common.output_naming import classification_path_for_award_json
 from src.common.output_paths import (
-    PAYMENT_CLAUSE_IDENTIFIER_DIR,
-    path_in_category,
     timestamped_archive_path,
     write_text_with_archive,
 )
@@ -150,12 +149,7 @@ def load_award(award_path: Path | str = DEFAULT_AWARD_PATH) -> OrderedDict[str, 
 
 def output_path_for_award(award_path: Path | str) -> Path:
     """Build the default output path for a classified award file."""
-    path = Path(award_path)
-    return path_in_category(
-        path,
-        PAYMENT_CLAUSE_IDENTIFIER_DIR,
-        f"{path.stem}_payment_classification.json",
-    )
+    return classification_path_for_award_json(award_path)
 
 
 def timestamped_output_path(

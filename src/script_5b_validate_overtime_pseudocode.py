@@ -15,6 +15,10 @@ import re
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from src.common.output_naming import (
+    validation_json_path_for_pseudocode as naming_validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode as naming_validation_markdown_path_for_pseudocode,
+)
 from src.common.rule_inventory import RuleInventory, RuleRecord, extract_clause_references
 from src.common.output_paths import write_text_with_archive
 
@@ -104,13 +108,11 @@ class ValidationReport:
 
 
 def validation_json_path_for_pseudocode(pseudocode_path: Path | str) -> Path:
-    path = Path(pseudocode_path)
-    return path.with_name(f"{path.stem}_validation.json")
+    return naming_validation_json_path_for_pseudocode(pseudocode_path)
 
 
 def validation_markdown_path_for_pseudocode(pseudocode_path: Path | str) -> Path:
-    path = Path(pseudocode_path)
-    return path.with_name(f"{path.stem}_validation.md")
+    return naming_validation_markdown_path_for_pseudocode(pseudocode_path)
 
 
 def split_markdown_sections(markdown_text: str) -> dict[str, list[str]]:

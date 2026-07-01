@@ -125,6 +125,18 @@ For example, if a step has:
 
 those should be implemented as three separate functions, even if they remain within one step folder.
 
+For later refactoring steps, deterministic work can also be split into two clearer categories:
+
+- `procedural.py` for deterministic artifact creation and transformation
+- `verification.py` for deterministic checks, validation, and review logic
+
+This split is most useful where a step has enough complexity that reviewers benefit from seeing:
+
+- what the step did
+- how the step was checked
+
+This is a Step 4 structural refinement, not a requirement for the earlier infrastructure work.
+
 ### 4. Move repeated helpers into `common/`
 
 `common/` should keep only shared helpers that are truly cross-step and easy to explain.
@@ -425,6 +437,20 @@ For step `3.2`, the end-state code should make the three internal actions clearl
 - `run_evaluator_review`
 - `run_creator_review`
 - `recreate_revised_ruleset`
+
+As part of Step 4, steps that have substantial deterministic logic should prefer:
+
+- `procedural.py`
+- `verification.py`
+
+instead of one combined `deterministic.py`.
+
+Recommended interpretation:
+
+- `procedural.py` handles deterministic file creation, path-driven transformations, and structured non-LLM processing
+- `verification.py` handles deterministic validation, consistency checks, and output verification
+
+Smaller steps do not need this split if it would create empty or trivial files.
 
 ### Step 5. Move all active prompts into dedicated prompt files
 
