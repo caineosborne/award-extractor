@@ -14,17 +14,17 @@ def test_build_active_pipeline_context_covers_current_artifacts():
     )
 
     assert context.output_stem == "MA000018_draft"
-    assert context.raw_html_path.name == "MA000018_draft.html"
-    assert context.award_json_path.name == "MA000018_draft.json"
-    assert context.classification_path.name == "MA000018_draft_payment_classification.json"
+    assert context.raw_html_path.name == "1_1_raw.html"
+    assert context.award_json_path.name == "1_2_award.json"
+    assert context.classification_path.name == "2_1_payment_classification.json"
     assert (
         context.overtime_clause_classification_path.name
-        == "MA000018_draft_overtime_clause_classification.json"
+        == "2_2_OT_creation_clause_classification.json"
     )
-    assert context.interpretation_path.name == "MA000018_draft_overtime_interpretation.md"
+    assert context.interpretation_path.name == "3_1_OT_creation_ruleset.md"
     assert (
         context.core_overtime_pseudocode_path.name
-        == "MA000018_draft_core_overtime_pseudocode.md"
+        == "5_1_OT_creation_pseudocode.md"
     )
 
 
@@ -41,4 +41,12 @@ def test_normalize_output_suffix_matches_pipeline_expectations():
 
 
 def test_step_constants_cover_current_and_future_pipeline_shapes():
-    assert DEFAULT_ACTIVE_PIPELINE_STEPS == ("1", "2.1", "2.2", "3.1", "3.2")
+    assert DEFAULT_ACTIVE_PIPELINE_STEPS == (
+        "1",
+        "2.1",
+        "2.2",
+        "3.1",
+        "3.2",
+        "4.1",
+        "5.1",
+    )

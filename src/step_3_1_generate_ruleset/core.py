@@ -30,6 +30,8 @@ from src.common.overtime_rules import (
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+    explicit_ruleset_output_path,
     overtime_ruleset_config,
 )
 from src.common.output_paths import write_text_with_archive
@@ -249,6 +251,8 @@ def interpretation_output_path_for_source(
     """Return the default markdown interpretation path for step 3.1."""
     if ruleset_key == OVERTIME_CREATION_RULESET:
         return interpretation_output_path_for_classification(classification_path)
+    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+        return explicit_ruleset_output_path(classification_path, ruleset_key)
     raise ValueError(f"Unsupported overtime ruleset: {ruleset_key}")
 
 

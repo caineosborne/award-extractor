@@ -196,14 +196,11 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             )
 
             written_output = output_path.read_text(encoding="utf-8")
-            archive_files = list((temp_path / "archive").glob("award_overtime_entitlements_*.md"))
-
         self.assertEqual(
             result,
             "# Overtime Triggers\n\n## All Employees (Full-Time, Part-Time, Casual, Day Workers And Shift Workers)\n- After 38 hours per week. [20.1]",
         )
         self.assertEqual(written_output, result)
-        self.assertEqual(len(archive_files), 1)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn("award_overtime_interpretation_revised.md", fake_client.responses.calls[0]["input"][1]["content"])
         self.assertNotIn("Clause 19.2 was not represented.", fake_client.responses.calls[0]["input"][1]["content"])

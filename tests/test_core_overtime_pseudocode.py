@@ -95,6 +95,20 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             ),
         )
 
+    def test_output_path_for_summary_uses_canonical_step_numbered_names(self):
+        self.assertEqual(
+            output_path_for_summary(
+                Path("data/processed/MA000018/4_1_OT_creation_formatted_ruleset.md")
+            ),
+            Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
+        )
+        self.assertEqual(
+            output_path_for_summary(
+                Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md")
+            ),
+            Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
+        )
+
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
         markdown = """# Overtime entitlements
 
@@ -311,14 +325,10 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             )
 
             written = output_path.read_text(encoding="utf-8")
-            archive_files = list(
-                (Path(temp_dir) / "archive").glob("award_core_overtime_pseudocode_*.md")
-            )
             validation_json_exists = validation_json_path_for_pseudocode(output_path).exists()
             validation_markdown_exists = validation_markdown_path_for_pseudocode(output_path).exists()
 
         self.assertEqual(result, written)
-        self.assertEqual(len(archive_files), 2)
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn(
             "Meal break note",

@@ -67,24 +67,24 @@ def test_build_paths_covers_step_5_1_artifacts():
     )
 
     assert paths.output_stem == output_stem_for_award("MA000018", "draft")
-    assert paths.classification_path.name == "MA000018_draft_payment_classification.json"
+    assert paths.classification_path.name == "2_1_payment_classification.json"
     assert paths.overtime_clause_classification_path.name == (
-        "MA000018_draft_overtime_clause_classification.json"
+        "2_2_OT_creation_clause_classification.json"
     )
     assert paths.evaluator_feedback_path.name == (
-        "MA000018_draft_overtime_interpretation_evaluator_feedback.md"
+        "3_2_OT_creation_review.md"
     )
     assert paths.creator_response_path.name == (
-        "MA000018_draft_overtime_interpretation_creator_response.md"
+        "3_2_OT_creation_creator_response.md"
     )
     assert paths.core_overtime_pseudocode_path.name == (
-        "MA000018_draft_core_overtime_pseudocode.md"
+        "5_1_OT_creation_pseudocode.md"
     )
     assert paths.core_overtime_validation_json_path.name == (
-        "MA000018_draft_core_overtime_pseudocode_validation.json"
+        "5_1_OT_creation_pseudocode_validation.json"
     )
     assert paths.core_overtime_validation_markdown_path.name == (
-        "MA000018_draft_core_overtime_pseudocode_validation.md"
+        "5_1_OT_creation_pseudocode_validation.md"
     )
 
 
@@ -110,7 +110,7 @@ def test_main_runs_default_pipeline_through_step_5_1():
     run_default_pipeline.assert_called_once()
     passed_paths, passed_ruleset_keys = run_default_pipeline.call_args.args
     assert passed_paths.interpretation_path == PROJECT_ROOT / Path(
-        "data/processed/MA000018/MA000018_overtime_interpretation.md"
+        "data/processed/MA000018/3_1_OT_creation_ruleset.md"
     )
     assert passed_ruleset_keys == [
         OVERTIME_CREATION_RULESET,
@@ -127,7 +127,7 @@ def test_main_runs_selected_active_step():
     assert passed_step == "2.2"
     assert passed_ruleset_keys == [OVERTIME_CONSEQUENCE_RULESET]
     assert passed_paths.revised_interpretation_path == PROJECT_ROOT / Path(
-        "data/processed/MA000018/MA000018_overtime_interpretation_revised.md"
+        "data/processed/MA000018/3_2_OT_creation_revised_ruleset.md"
     )
 
 
@@ -204,6 +204,34 @@ def test_run_step_3_1_uses_step_2_outputs_and_writes_step_3_1_artifact():
         classification_output_path=paths.overtime_clause_classification_path,
         expert_run_count=2,
         ruleset_key="overtime_creation",
+    )
+
+
+def test_run_step_3_1_supports_consequence_ruleset_artifact_paths():
+    paths = build_paths(
+        award_code="MA000018",
+        suffix=None,
+        url="https://awards.fairwork.gov.au/MA000018.html",
+    )
+
+    with patch("src.award_pipeline.require_existing") as require_existing_mock:
+        with patch(
+            "src.award_pipeline.run_step_3_1_generate_ruleset"
+        ) as generate_ruleset_mock:
+            run_step_3_1(paths, OVERTIME_CONSEQUENCE_RULESET)
+
+    assert require_existing_mock.call_args_list == [
+        ((paths.classification_path, "3.1", "2.1"),),
+        ((paths.overtime_clause_classification_path, "3.1", "2.2"),),
+    ]
+    generate_ruleset_mock.assert_called_once_with(
+        classification_path=paths.classification_path,
+        output_path=paths.revised_interpretation_path.with_name(
+            "3_1_OT_consequence_ruleset.md"
+        ),
+        classification_output_path=paths.overtime_clause_classification_path,
+        expert_run_count=2,
+        ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )
 
 
@@ -399,7 +427,7 @@ def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
         classification_path=paths.classification_path,
         output_path=PROJECT_ROOT
         / Path(
-            "data/processed/MA000018/MA000018_overtime_consequence_ruleset.md"
+            "data/processed/MA000018/3_1_OT_consequence_ruleset.md"
         ),
         classification_output_path=paths.overtime_clause_classification_path,
         expert_run_count=2,
@@ -421,21 +449,12 @@ def test_run_step_5_1_with_explicit_ruleset_uses_ruleset_specific_outputs():
             run_step_5_1(paths, OVERTIME_CONSEQUENCE_RULESET)
 
     require_existing_mock.assert_called_once_with(
-        PROJECT_ROOT
-        / Path(
-            "data/processed/MA000018/MA000018_overtime_consequence_ruleset_revised.md"
-        ),
+        PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
         "5.1",
         "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
-        summary_path=PROJECT_ROOT
-        / Path(
-            "data/processed/MA000018/MA000018_overtime_consequence_ruleset_revised.md"
-        ),
-        output_path=PROJECT_ROOT
-        / Path(
-            "data/processed/MA000018/MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
-        ),
+        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
+        output_path=PROJECT_ROOT / Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )

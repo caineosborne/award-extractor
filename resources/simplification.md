@@ -34,9 +34,9 @@ Current status of the simplification plan:
 - Step 4.5 Completed
 - Step 4.6 Completed
 - Step 4.7 Completed
-- Step 4.8 not started
-- Step 4.9 not started
-- Step 4.10 not started
+- Step 4.8 Completed
+- Step 4.9 Completed
+- Step 4.10 Completed
 - Step 5 not started
 - Step 6 not started
 - Step 7 not started
@@ -50,13 +50,16 @@ What is already done:
 - step 2.2 has been moved into its own self-contained folder
 - step 3.1 and step 3.2 are now owned by numbered folders with local prompt wrappers
 - several active scripts now use the shared naming layer
+- the active CLI now writes canonical step-numbered outputs under award-first folders
+- the active CLI now emits step-level status updates from the step `run.py` entrypoints
+- automatic timestamp archive creation has been removed from the default active pipeline flow
+- Streamlit review now reads and writes the canonical active artifacts only
 
 What is not done yet:
 
 - reviewing `core.py` usage in completed step folders and moving functions into the clearest owner files
 - deleting the old script-era implementation files
 - removing the remaining `script_*` dependencies in later phase 4 steps
-- removal of automatic archive creation
 
 ## Core decisions
 
@@ -812,7 +815,29 @@ Deliverable:
 
 #### Phase 4.8. Apply canonical output folders and filenames after the structural refactor
 
-This phase happens after the Phase 4 step-folder refactor work is complete enough that the active runtime for the relevant steps already lives in numbered step folders.
+Status: COMPLETED
+
+Phase 4.8.1 - COMPLETED
+
+Ensure all references to the previous *script* files are removed - paricularly in award_pipeline.py
+
+Everythign shoudl refer to its updated terminology (1_1,1_2 etc) - steps 1_1 and 1_2 can be cominbed into step 1. 
+
+All scripts (1 to 5.1) should be included when it is run without a suffix. 
+
+Ensure every step in teh award pipeline heads to the start point (run) in each folder, so any changes can occur within the folder without impacting the end to end run. 
+
+4.8.2 - 
+
+Introduce the ability to choose which subset to run  - this should be 1 for overtime creation, 2 for overtime consequence, but it should be stored as a list so it can be edited when a 3rd co hort comes along. 
+
+If no switch is added it should run all suites. .
+
+For now do not adjust streamlit - this will be at a later stage. 
+
+
+Phase 4.8.3 - COMPLETED
+
 
 Scope:
 
@@ -821,35 +846,80 @@ Scope:
 - remove remaining active writes that still use legacy folder names or legacy filename shapes
 - keep the behavioural content of the artifacts the same while standardising where they are written
 
-Required outcomes:
+Implemented outcomes:
 
-- active outputs should write to `data/processed/<award_code>/`
-- active filenames should include the step number consistently
-- downstream step readers should use the canonical current artifact paths rather than legacy fallbacks wherever practical
-- Phase 7 tests should then verify this behaviour rather than introducing it
+- active outputs now write to `data/processed/<award_code>/` when no suffix is used
+- active outputs now write to `data/processed/<award_code>_<suffix>/` when `--suffix` is used
+- active filenames now use the canonical step-numbered naming scheme for the active CLI flow
+- downstream active-step readers now resolve the canonical current artifact paths first, with limited legacy fallback where needed for existing files
 
 This phase is about active output path adoption.
 The later cleanup of timestamp archive behaviour should still happen separately once the structural and naming refactors are stable.
 
+For now dont adjust streamlit. 
+
+Phase 4.8.4 - COMPLETED
+
+When running via pipline limited status updates are provided
+
+WE should be status update for each step - ideally this hsould occur in the run functions to ensure it is compatable with streamlit as well
+
+Implemented outcomes:
+
+- step `1.1` through step `5.1` now emit their own progress messages from the step `run.py` entrypoints
+- the pipeline log now shows which source file each step is reading, when model work starts, when deterministic validation runs, and which output files were written
+- these messages are available to both the CLI and the existing Streamlit background-run logging without adding Streamlit-specific logic
+
+For now dont adjust streamlit
+
+caineosborne@caines-MacBook-Air award-extractor %  uv run python src/award_pipeline.py MA000120 --suffix 0207
+Section index JSON saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/supporting/MA000120_0207_sections.json
+Heading CSV saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/supporting/MA000120_0207.csv
+Raw HTML saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/raw/MA000120_0207.html
+Processed JSON saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/MA000120_0207.json
+Core overtime pseudocode saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/MA000120_0207_core_overtime_pseudocode.md
+Step 5.1 validation JSON saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/MA000120_0207_core_overtime_pseudocode_validation.json
+Step 5.1 validation markdown saved to /Users/caineosborne/Projects2026/award-extractor/data/processed/MA000120_0207/MA000120_0207_core_overtime_pseudocode_validation.md
+caineosborne@caines-MacBook-Air award-extractor % 
+
+
 #### Phase 4.9. Simplify output retention
+
+Status: COMPLETED
 
 As part of the later cleanup work, remove automatic timestamp archive creation from the default pipeline flow.
 
 Replace it with:
 
 - one canonical active file per artifact
-- explicit Streamlit-driven snapshot saving when needed
+- explicit Streamlit-driven or CLI suffix driven snapshot saving when needed
 
 This should be implemented after the structural refactors and canonical output-path rollout are stable, so we do not mix storage-policy changes into the earlier path and step refactors.
 
+Please remove all existing archive files. 
+
+Implemented outcomes:
+
+- default active writes now keep one canonical current file per artifact
+- timestamped archive copies are no longer written during normal CLI or pipeline execution
+- existing `archive/` directories under `data/processed/` have been removed from the workspace
+- the archive helper functions still exist only for explicit snapshot-style flows that may be reintroduced deliberately later
+
 #### Phase 4.10. Update Streamlit in one action after the CLI refactor is stable
+
+Status: COMPLETED
 
 Scope:
 
+- make Streamlit canonical-only for active outputs
 - add a standalone step `2.1` control
 - add a standalone step `2.2` control
 - align step labels and button ordering with the CLI pipeline
 - remove UI behaviour that still assumes clause classification is bundled into ruleset drafting
+
+Can we make the subset (overtime creation v overtime consequcne) a drop down with tick boxes to allow the user to determine which combination shoudl be run 
+
+This will allow us more flexibility when we add in a third points. 
 
 Operator rule during subphases 4.1 to 4.9:
 
@@ -860,6 +930,78 @@ Operator rule during subphases 4.1 to 4.9:
 Deliverable:
 
 - one coherent Streamlit update after the refactor shape is settled
+
+Implemented outcomes:
+
+- Streamlit output discovery now uses canonical `2_1_payment_classification.json` files inside award-first folders
+- `artifact_paths_for_award(...)` and `ruleset_artifact_paths_for_award(...)` now resolve only the canonical step-numbered active artifacts
+- Streamlit path helpers no longer use legacy filename inference or fallback ordering for active outputs
+- manual `4B` and step `5.1` source selection now follow canonical precedence: existing manual file, then `4.1`, then `3.2`, then `3.1`
+- sidebar run controls and labels remain in CLI step order with standalone `2.1` and `2.2` controls
+- manual editor saves now write only the current canonical file and do not create archive copies
+- Streamlit tests now assert canonical filenames and canonical source selection behaviour
+
+Specific Streamlit changes required:
+
+- update [streamlit_review/output_data.py] so `discover_award_codes(...)` discovers output sets only from canonical `2_1_payment_classification.json` files inside award folders
+- make `artifact_paths_for_award(...)` canonical-only and return the active creation artifacts:
+  - `2_1_payment_classification.json`
+  - `2_2_OT_creation_clause_classification.json`
+  - `3_1_OT_creation_ruleset.md/.json`
+  - `3_1_OT_creation_ruleset_expert_a.md/.json`
+  - `3_1_OT_creation_ruleset_expert_b.md/.json`
+  - `3_1_OT_creation_ruleset_comparison.json`
+  - `feedback/3_2_OT_creation_review.md/.json`
+  - `feedback/3_2_OT_creation_creator_response.md/.json`
+  - `3_2_OT_creation_revised_ruleset.md/.json`
+  - `4_1_OT_creation_formatted_ruleset.md`
+  - `5_1_OT_creation_pseudocode.md`
+  - `5_1_OT_creation_pseudocode_validation.json/.md`
+- make `ruleset_artifact_paths_for_award(...)` canonical-only for both creation and consequence:
+  - `3_1_OT_<ruleset>_ruleset.md/.json`
+  - `3_1_OT_<ruleset>_ruleset_expert_a.md/.json`
+  - `3_1_OT_<ruleset>_ruleset_expert_b.md/.json`
+  - `3_1_OT_<ruleset>_ruleset_comparison.json`
+  - `feedback/3_2_OT_<ruleset>_review.md/.json`
+  - `feedback/3_2_OT_<ruleset>_creator_response.md/.json`
+  - `3_2_OT_<ruleset>_revised_ruleset.md/.json`
+  - `4_1_OT_<ruleset>_formatted_ruleset.md`
+  - `5_1_OT_<ruleset>_pseudocode.md`
+  - `5_1_OT_<ruleset>_pseudocode_validation.json/.md`
+- keep manual `4B` as an operator-visible file inside the canonical award folder, but do not use legacy filename migration logic to find it
+- replace `write_text_file_with_archive(...)` with a canonical current-file write helper and stop writing archive copies from the manual editor
+- update [streamlit_review/app.py] sidebar run controls so the buttons appear in CLI order:
+  - step `1`
+  - step `2.1`
+  - step `2.2`
+  - step `3.1`
+  - step `3.2`
+  - step `4.1`
+  - step `5.1`
+- update the button labels in [streamlit_review/app.py] and [streamlit_review/pipeline_runs.py] so they match the CLI language exactly:
+  - `Retrieve award`
+  - `Classify clauses`
+  - `Classify overtime clauses`
+  - `Generate overtime ruleset`
+  - `Review overtime ruleset`
+  - `Format overtime guide`
+  - `Generate pseudocode`
+- remove UI assumptions that step `2.2` is part of step `3.1`; step `2.2` should be runnable, logged, and reviewable on its own
+- update the review screen labels in [streamlit_review/app.py] so the combined ruleset / review / formatted guide screens match the new step names rather than the old script-era terminology
+- update [streamlit_review/output_data.py] source-selection helpers so canonical precedence is:
+  - manual `4B`: existing manual file, then `4.1`, then `3.2`, then `3.1`
+  - step `5.1`: existing manual file, then `4.1`, then `3.2`, then `3.1`
+- update [streamlit_review/pipeline_runs.py] so step `4.1` and step `5.1` source resolution follows the same canonical path order as the CLI helpers
+- update [streamlit_review/run_pipeline_background.py] status messages only if needed to keep the displayed step names identical to the CLI
+- after the UI path update is complete, remove any remaining Streamlit-only migration behaviour that rewrites old filenames into current ones on the fly
+- update Streamlit tests so they assert canonical filenames and no longer expect legacy fallback behaviour
+
+Acceptance checks for 4.10:
+
+- a fresh CLI run with canonical outputs is fully visible in Streamlit without any manual file renaming
+- the Streamlit sidebar can run step `2.1` and step `2.2` independently
+- creation and consequence rulesets both load the correct `3.1`, `3.2`, `4.1`, and `5.1` artifacts
+- manual edits save only the current file unless the operator explicitly chooses a snapshot action
 
 Recommended execution order:
 
@@ -945,6 +1087,8 @@ Active step numbering now follows:
 7. `4.1` ruleset formatting
 8. `5.1` pseudocode generation
 
+
+
 ### Phase 5. Move all active prompts into dedicated prompt files
 
 Review every active step and remove any remaining embedded prompt text or prompt-like workflow prose from scripts.
@@ -1000,6 +1144,8 @@ Once the new structure works, remove:
 - duplicate helper names kept for compatibility
 
 perform an additional scan to ensure all legacy code are removed, and doing another scan of the complexity to identy any areas to simplify. 
+
+The refactor has simply moved functions over - there is additional opporunity to simplify. 
 
 This is the step where complexity should drop sharply.
 

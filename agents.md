@@ -173,3 +173,75 @@ Every dependency increases:
 - maintenance burden
 - security risk
 - audit complexity
+
+## Domain Terminology
+
+Use consistent domain terminology throughout the project.
+
+If my wording is ambiguous or technically inaccurate:
+
+1. Explain the ambiguity briefly.
+2. Recommend the preferred project terminology.
+3. Use that terminology consistently.
+4. Suggest additions to `resources/domain-glossary.md` when recurring concepts are identified.
+
+Do not rename established domain concepts purely for readability.
+
+## Simplicity
+
+Organise code around the business workflow.
+
+Prefer step-based folders and files that make the pipeline easy to follow from start to finish.
+
+More files are acceptable when they clarify the workflow or separate real domain responsibilities.
+
+Avoid abstractions whose main purpose is software-engineering elegance rather than reviewability.
+
+Think like a domain expert building an auditable workflow, not a software engineer demonstrating design patterns.
+
+## Challenge Complexity
+
+If you believe a simpler implementation exists:
+
+- Explain why.
+- Suggest the simpler approach.
+- Do not preserve complexity purely for engineering elegance.
+
+Optimise for maintainability over extensibility.
+
+## Code Reviews
+
+During reviews:
+
+- Look for unnecessary abstraction.
+- Look for duplicated logic.
+- Look for dead code.
+- Look for opportunities to simplify.
+- Verify behaviour before suggesting stylistic improvements.
+
+## Domain First
+
+The award and payroll domain is more important than generic software engineering conventions.
+
+If the domain suggests a different structure than a typical software pattern, prefer the domain.
+
+Use terminology consistently with the project's domain glossary.
+
+## Design Decisions
+
+When proposing a significant design change:
+
+- Explain the trade-offs.
+- Explain why the new approach is better.
+- Mention any disadvantages.
+
+## Terminology
+
+Do not rename domain concepts for readability.
+
+If a better term exists:
+
+- explain why,
+- recommend it,
+- then use it consistently.
+
