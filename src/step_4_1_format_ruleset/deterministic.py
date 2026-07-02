@@ -7,6 +7,7 @@ from pathlib import Path
 
 from src.common.output_naming import formatted_ruleset_path_for_ruleset
 from src.common.output_paths import award_output_dir, write_text_output
+from src.common.overtime_rules import VALIDATION_SECTION_TITLES
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
@@ -71,7 +72,7 @@ def strip_validation_notes_preamble(text: str) -> str:
 
     lines = stripped_text.splitlines()
     for index, line in enumerate(lines):
-        if line.startswith("## "):
+        if line.startswith("## ") and line[3:].strip() not in VALIDATION_SECTION_TITLES.values():
             return "\n".join(lines[index:]).strip()
 
     return stripped_text

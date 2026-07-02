@@ -35,6 +35,13 @@ from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
 )
+from src.common.overtime_rules import (
+    HIGH_IMPACT_VALIDATION_SECTION,
+    HIDDEN_DIAGNOSTIC_VALIDATION_SECTION,
+    REVIEW_NOTES_VALIDATION_SECTION,
+    VALIDATION_SECTION_TITLES,
+    categorize_validation_warnings,
+)
 from src.step_1_2_parse_award.run import (
     extract_pdf_award_source as extract_pdf_to_award,
     write_pdf_step_outputs as write_pdf_outputs,
@@ -82,6 +89,10 @@ SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
 SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
+CLAUSE_REFERENCE_PATTERN = re.compile(
+    r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
+    re.IGNORECASE,
+)
 
 RULESET_OPTIONS = {
     "Overtime creation": OVERTIME_CREATION_RULESET,
@@ -600,6 +611,7 @@ def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
         json_path,
         source_markdown_path=ruleset_artifacts.combined_markdown,
         panel_key=panel_key,
+        enable_clause_hover=True,
     )
 
 
@@ -655,8 +667,9 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str, ruleset
 
     if isinstance(validation_warnings, list) and validation_warnings:
         with st.expander("Validation notes", expanded=True):
-            for warning in validation_warnings:
-                st.write(f"- {format_validation_warning_for_display(str(warning))}")
+            render_validation_warning_sections(
+                [str(warning) for warning in validation_warnings]
+            )
 
     if isinstance(expert_outputs, list) and expert_outputs:
         with st.expander("Expert run artifacts", expanded=False):
@@ -731,8 +744,9 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
                     for row in concern_rows:
                         render_review_decision_card(row, expanded=True)
                 if isinstance(validation_warnings, list):
-                    for warning in validation_warnings:
-                        st.warning(str(warning))
+                    render_validation_warning_sections(
+                        [str(warning) for warning in validation_warnings]
+                    )
             else:
                 st.info("No rejected or unimplemented evaluator recommendations were found.")
 
@@ -1338,11 +1352,195 @@ def strip_prepended_validation_block(rendered_markdown: str) -> str:
     if not rendered_markdown.startswith(validation_header):
         return rendered_markdown
 
-    heading_match = re.search(r"^##\s", rendered_markdown, flags=re.MULTILINE)
-    if heading_match is None:
-        return rendered_markdown
+    lines = rendered_markdown.splitlines()
+    for index, line in enumerate(lines):
+        if not line.startswith("## "):
+            continue
+        if line[3:].strip() in VALIDATION_SECTION_TITLES.values():
+            continue
+        return "\n".join(lines[index:]).lstrip()
 
-    return rendered_markdown[heading_match.start() :].lstrip()
+    return rendered_markdown
+
+
+def candidate_clause_keys(clause_reference: str) -> list[str]:
+    """Return progressively broader clause keys for review-screen matching."""
+    candidates = [clause_reference]
+    simplified = re.sub(
+        r"(?:\([a-z0-9]+\))+$",
+        "",
+        clause_reference,
+        flags=re.IGNORECASE,
+    )
+    if simplified not in candidates:
+        candidates.append(simplified)
+
+    dotted_parts = simplified.split(".")
+    while len(dotted_parts) > 1:
+        dotted_parts = dotted_parts[:-1]
+        candidate = ".".join(dotted_parts)
+        if candidate not in candidates:
+            candidates.append(candidate)
+
+    return candidates
+
+
+def load_clause_hover_index(source_clause_classification_file: str | None) -> dict[str, dict[str, str]]:
+    """Load the step-2.2 clause-classification artifact into a clause lookup."""
+    if not source_clause_classification_file:
+        return {}
+
+    path = Path(source_clause_classification_file)
+    if not path.exists():
+        return {}
+
+    try:
+        data = load_json_file(path)
+    except Exception:
+        return {}
+
+    raw_clauses = data.get("clauses", [])
+    if not isinstance(raw_clauses, list):
+        return {}
+
+    clause_index: dict[str, dict[str, str]] = {}
+    for raw_clause in raw_clauses:
+        if not isinstance(raw_clause, dict):
+            continue
+
+        clause_number = str(raw_clause.get("clause_number") or "").strip()
+        if not clause_number:
+            continue
+
+        clause_index[clause_number] = {
+            "clause_number": clause_number,
+            "classification": str(raw_clause.get("classification") or "").strip(),
+            "explanation": str(raw_clause.get("explanation") or "").strip(),
+            "clause_text": str(raw_clause.get("clause_text") or "").strip(),
+        }
+
+    return clause_index
+
+
+def clause_hover_text(
+    clause_reference: str,
+    clause_index: dict[str, dict[str, str]],
+) -> str | None:
+    """Return hover text for one clause reference when available."""
+    for candidate in candidate_clause_keys(clause_reference):
+        clause_record = clause_index.get(candidate)
+        if clause_record is None:
+            continue
+
+        parts = [f"Clause {clause_record['clause_number']}"]
+        classification = clause_record.get("classification", "")
+        if classification:
+            parts.append(f"Classification: {classification}")
+        explanation = clause_record.get("explanation", "")
+        if explanation:
+            parts.append(f"Explanation: {explanation}")
+        clause_text = clause_record.get("clause_text", "")
+        if clause_text:
+            parts.append(clause_text)
+
+        return "\n\n".join(parts).strip()
+
+    return None
+
+
+def html_title_attribute(text: str) -> str:
+    """Escape text for use in an HTML title attribute."""
+    return escape(text, quote=True).replace("\n", "&#10;")
+
+
+def clause_references_in_text(text: str) -> list[str]:
+    """Extract clause references from one review string in first-seen order."""
+    references: list[str] = []
+
+    for match in CLAUSE_REFERENCE_PATTERN.finditer(text):
+        clause_reference = match.group(0)
+        if clause_reference not in references:
+            references.append(clause_reference)
+
+    return references
+
+
+def render_text_with_clause_hover(
+    text: str,
+    clause_index: dict[str, dict[str, str]],
+    *,
+    bullet_prefix: str | None = None,
+) -> None:
+    """Render one review line with hoverable clause references."""
+    rendered_parts: list[str] = []
+    last_index = 0
+
+    for match in CLAUSE_REFERENCE_PATTERN.finditer(text):
+        clause_reference = match.group(0)
+        rendered_parts.append(escape(text[last_index:match.start()]))
+        hover_text = clause_hover_text(clause_reference, clause_index)
+        if hover_text:
+            rendered_parts.append(
+                f'<span title="{html_title_attribute(hover_text)}"><code>{escape(clause_reference)}</code></span>'
+            )
+        else:
+            rendered_parts.append(f"<code>{escape(clause_reference)}</code>")
+        last_index = match.end()
+
+    rendered_parts.append(escape(text[last_index:]))
+    rendered_html = "".join(rendered_parts)
+
+    if bullet_prefix:
+        rendered_html = f"{escape(bullet_prefix)} {rendered_html}"
+
+    st.markdown(rendered_html, unsafe_allow_html=True)
+
+
+def render_clause_reference_badges(
+    clause_references: list[str],
+    clause_index: dict[str, dict[str, str]],
+) -> None:
+    """Render hoverable clause-reference badges for one structured rule."""
+    badge_html: list[str] = []
+
+    for clause_reference in clause_references:
+        hover_text = clause_hover_text(clause_reference, clause_index)
+        base_style = (
+            "display:inline-block;margin:0 0.35rem 0.35rem 0;padding:0.15rem 0.45rem;"
+            "border:1px solid rgba(49, 51, 63, 0.2);border-radius:999px;"
+        )
+        if hover_text:
+            badge_html.append(
+                f'<span title="{html_title_attribute(hover_text)}" style="{base_style}"><code>'
+                f"{escape(clause_reference)}</code></span>"
+            )
+        else:
+            badge_html.append(
+                f'<span style="{base_style}"><code>{escape(clause_reference)}</code></span>'
+            )
+
+    if badge_html:
+        st.markdown("".join(badge_html), unsafe_allow_html=True)
+
+
+def render_clause_source_details(
+    clause_references: list[str],
+    clause_index: dict[str, dict[str, str]],
+    *,
+    label_prefix: str,
+) -> None:
+    """Render explicit source-clause detail expanders for one warning or rule."""
+    unique_references: list[str] = []
+    for clause_reference in clause_references:
+        if clause_reference not in unique_references:
+            unique_references.append(clause_reference)
+
+    for clause_reference in unique_references:
+        hover_text = clause_hover_text(clause_reference, clause_index)
+        if not hover_text:
+            continue
+        with st.expander(f"{label_prefix} {clause_reference}", expanded=False):
+            st.text(hover_text)
 
 
 def format_validation_warning_for_display(warning: str) -> str:
@@ -1392,7 +1590,114 @@ def format_validation_warning_for_display(warning: str) -> str:
             "and it is still not represented in the combined ruleset after expert comparison."
         )
 
+    removed_rule_match = re.fullmatch(
+        r"The review removed original rule '([^']+)' from the revised ruleset\. Original clause references: (.+)\.",
+        warning,
+    )
+    if removed_rule_match:
+        rule_id = removed_rule_match.group(1)
+        clause_references = removed_rule_match.group(2)
+        return (
+            f"The review removed original rule `{rule_id}` from the revised ruleset. "
+            f"It previously relied on clause references {clause_references}. Check whether "
+            "that removal was intentional and whether any payroll coverage was lost."
+        )
+
+    rejected_new_rule_match = re.fullmatch(
+        r"The review rejected evaluator-proposed new rule '([^']+)'\.",
+        warning,
+    )
+    if rejected_new_rule_match:
+        rule_id = rejected_new_rule_match.group(1)
+        return (
+            f"The review rejected evaluator-proposed new rule `{rule_id}`. Check whether "
+            "the evaluator had identified missing coverage that should still be added manually."
+        )
+
     return warning
+
+
+def render_validation_warning_sections(validation_warnings: list[str]) -> None:
+    """Render validation warnings in reviewer-friendly sections."""
+    categorized_warnings = categorize_validation_warnings(validation_warnings)
+
+    high_impact_warnings = categorized_warnings[HIGH_IMPACT_VALIDATION_SECTION]
+    if high_impact_warnings:
+        st.markdown(f"##### {VALIDATION_SECTION_TITLES[HIGH_IMPACT_VALIDATION_SECTION]}")
+        for warning in high_impact_warnings:
+            st.write(f"- {format_validation_warning_for_display(str(warning))}")
+
+    review_note_warnings = categorized_warnings[REVIEW_NOTES_VALIDATION_SECTION]
+    if review_note_warnings:
+        with st.expander(
+            VALIDATION_SECTION_TITLES[REVIEW_NOTES_VALIDATION_SECTION],
+            expanded=False,
+        ):
+            for warning in review_note_warnings:
+                st.write(f"- {format_validation_warning_for_display(str(warning))}")
+
+    hidden_diagnostic_warnings = categorized_warnings[
+        HIDDEN_DIAGNOSTIC_VALIDATION_SECTION
+    ]
+    if hidden_diagnostic_warnings:
+        with st.expander(
+            VALIDATION_SECTION_TITLES[HIDDEN_DIAGNOSTIC_VALIDATION_SECTION],
+            expanded=False,
+        ):
+            for warning in hidden_diagnostic_warnings:
+                st.write(f"- {format_validation_warning_for_display(str(warning))}")
+
+
+def render_validation_warning_sections_with_hover(
+    validation_warnings: list[str],
+    clause_index: dict[str, dict[str, str]],
+) -> None:
+    """Render validation warnings with source-clause detail for the combined step-3.1 screen."""
+    categorized_warnings = categorize_validation_warnings(validation_warnings)
+
+    high_impact_warnings = categorized_warnings[HIGH_IMPACT_VALIDATION_SECTION]
+    if high_impact_warnings:
+        st.markdown(f"##### {VALIDATION_SECTION_TITLES[HIGH_IMPACT_VALIDATION_SECTION]}")
+        for warning in high_impact_warnings:
+            display_warning = format_validation_warning_for_display(str(warning))
+            st.write(f"- {display_warning}")
+            render_clause_source_details(
+                clause_references_in_text(display_warning),
+                clause_index,
+                label_prefix="Source clause",
+            )
+
+    review_note_warnings = categorized_warnings[REVIEW_NOTES_VALIDATION_SECTION]
+    if review_note_warnings:
+        with st.expander(
+            VALIDATION_SECTION_TITLES[REVIEW_NOTES_VALIDATION_SECTION],
+            expanded=False,
+        ):
+            for warning in review_note_warnings:
+                display_warning = format_validation_warning_for_display(str(warning))
+                st.write(f"- {display_warning}")
+                render_clause_source_details(
+                    clause_references_in_text(display_warning),
+                    clause_index,
+                    label_prefix="Source clause",
+                )
+
+    hidden_diagnostic_warnings = categorized_warnings[
+        HIDDEN_DIAGNOSTIC_VALIDATION_SECTION
+    ]
+    if hidden_diagnostic_warnings:
+        with st.expander(
+            VALIDATION_SECTION_TITLES[HIDDEN_DIAGNOSTIC_VALIDATION_SECTION],
+            expanded=False,
+        ):
+            for warning in hidden_diagnostic_warnings:
+                display_warning = format_validation_warning_for_display(str(warning))
+                st.write(f"- {display_warning}")
+                render_clause_source_details(
+                    clause_references_in_text(display_warning),
+                    clause_index,
+                    label_prefix="Source clause",
+                )
 
 
 def render_overtime_rules_json(
@@ -1400,6 +1705,7 @@ def render_overtime_rules_json(
     *,
     source_markdown_path: Path | None = None,
     panel_key: str,
+    enable_clause_hover: bool = False,
 ) -> None:
     render_file_details(
         json_path,
@@ -1416,6 +1722,9 @@ def render_overtime_rules_json(
         str(rules_data.get("rendered_markdown", "")).strip()
     )
     rules = rules_data.get("rules", [])
+    clause_index = load_clause_hover_index(
+        str(rules_data.get("source_clause_classification_file") or "")
+    ) if enable_clause_hover else {}
 
     if rendered_markdown:
         st.markdown("#### Markdown view")
@@ -1423,8 +1732,15 @@ def render_overtime_rules_json(
 
     if isinstance(validation_warnings, list) and validation_warnings:
         with st.expander("Validation notes", expanded=True):
-            for warning in validation_warnings:
-                st.write(f"- {format_validation_warning_for_display(str(warning))}")
+            if enable_clause_hover:
+                render_validation_warning_sections_with_hover(
+                    [str(warning) for warning in validation_warnings],
+                    clause_index,
+                )
+            else:
+                render_validation_warning_sections(
+                    [str(warning) for warning in validation_warnings]
+                )
 
     if not isinstance(rules, list) or not rules:
         st.warning("No structured overtime rules were found in this JSON artifact.")
@@ -1442,7 +1758,12 @@ def render_overtime_rules_json(
 
             rule_id = str(rule.get("rule_id", ""))
             section_heading = str(rule.get("section_heading", ""))
-            clause_references = ", ".join(rule.get("clause_references", []))
+            raw_clause_references = rule.get("clause_references", [])
+            clause_references = [
+                str(reference).strip()
+                for reference in raw_clause_references
+                if str(reference).strip()
+            ] if isinstance(raw_clause_references, list) else []
             employee_scope = ", ".join(rule.get("employee_scope", []))
             employee_cohort = str(rule.get("employee_cohort", "")).strip()
             work_arrangement = str(rule.get("work_arrangement", "")).strip()
@@ -1459,7 +1780,16 @@ def render_overtime_rules_json(
             if other_scope_notes:
                 st.write(f"**Other scope notes:** {other_scope_notes}")
             if clause_references:
-                st.write(f"**Clause references:** {clause_references}")
+                st.write("**Clause references:**")
+                if enable_clause_hover:
+                    render_clause_reference_badges(clause_references, clause_index)
+                    render_clause_source_details(
+                        clause_references,
+                        clause_index,
+                        label_prefix="Source clause",
+                    )
+                else:
+                    st.write(", ".join(clause_references))
             st.markdown(rule.get("rule_markdown", ""))
             plain_text = str(rule.get("rule_plain_text", "")).strip()
             if plain_text:

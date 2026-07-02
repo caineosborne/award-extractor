@@ -23,6 +23,7 @@ from src.common.overtime_rules import (
     rule_to_dict,
     load_rules_artifact,
     rules_from_markdown_fallback,
+    review_decision_change_warnings,
     write_rules_artifact,
 )
 from src.common.output_paths import write_text_output
@@ -192,6 +193,12 @@ def write_review_outputs(
         original_rules=inputs.original_rules_artifact["rules"],
         revised_rules=reviewed_rules_artifact["rules"],
         context_label="The earlier draft",
+    )
+    revised_validation_warnings.extend(
+        review_decision_change_warnings(
+            original_rules=inputs.original_rules_artifact["rules"],
+            review_decisions=reviewed_rules_artifact["review_decisions"],
+        )
     )
     revised_interpretation_markdown = prepend_validation_warnings(
         revised_interpretation_markdown,

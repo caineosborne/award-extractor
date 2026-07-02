@@ -22,6 +22,8 @@ from streamlit_review.app import (
     PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
     award_code_for_artifact_paths,
     available_award_code_index,
+    candidate_clause_keys,
+    clause_hover_text,
     build_review_decision_rows,
     combine_pipeline_logs,
     json_expander_widget_key,
@@ -72,10 +74,13 @@ from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
 )
+from src.common.overtime_rules import OvertimeRule
+from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
 from src.common.active_pipeline_paths import (
     ruleset_clause_classification_output_path_for_classification,
     ruleset_output_path_for_classification,
 )
+from src.step_3_1_generate_ruleset.run import generate_ruleset_from_clause_classification
 from src.common.award_sources import (
     SOURCE_TYPE_LOCAL_PDF,
     can_run_pipeline_for_award,
@@ -191,6 +196,221 @@ def test_phase_1_prompt_builders_live_under_prompts_folder():
         prompt_source = inspect.getsourcefile(prompt_builder)
         assert prompt_source is not None
         assert "/src/prompts/" in prompt_source
+
+
+def test_step_3_1_prompt_distinguishes_clauses_from_operational_rules():
+    messages = build_ruleset_interpretation_messages(
+        OVERTIME_CREATION_RULESET,
+        "classification.json",
+        [
+            OvertimeClauseClassification(
+                clause_number="21.3",
+                classification="Ordinary Hours Boundary",
+                classifications=["Ordinary Hours Boundary"],
+                clause_text=(
+                    "21.3: Ordinary hours may be worked between 6.00 am and 6.30 pm. "
+                    "Where broken shifts are worked the spread of hours can be no greater "
+                    "than 12 hours per day."
+                ),
+                explanation="Contains ordinary-hours span and broken-shift spread limits.",
+                employee_cohort="all",
+                work_arrangement="all",
+                other_scope_notes="",
+            )
+        ],
+    )
+
+    user_prompt = messages[1]["content"]
+
+    assert "A clause and a ruleset item are not the same thing." in user_prompt
+    assert "A single clause may contain multiple distinct operational overtime rules." in user_prompt
+    assert "A single operational overtime rule may rely on multiple clauses" in user_prompt
+    assert "Treat each returned rule as one operational overtime rule in the ruleset." in user_prompt
+
+
+def test_step_3_1_merge_prompt_is_reconciliation_led():
+    clause = OvertimeClauseClassification(
+        clause_number="22.2",
+        classification="Ordinary Hours Boundary",
+        classifications=("Ordinary Hours Boundary",),
+        clause_text=(
+            "22.2(a): The ordinary hours of work for a day worker will be worked between "
+            "6.00 am and 6.00 pm Monday to Friday. 22.2(b): A shiftworker is an employee "
+            "who is regularly rostered to work ordinary hours outside clause 22.2(a)."
+        ),
+        explanation="Contains a day-worker span and linked shiftworker definition.",
+        employee_cohort="all",
+        work_arrangement="all",
+        other_scope_notes="",
+    )
+    run_a_rule = OvertimeRule(
+        rule_id="day-worker-span",
+        section_heading="General ordinary hours boundary",
+        employee_scope=("full-time", "part-time", "casual"),
+        employee_cohort="all",
+        work_arrangement="day-worker",
+        other_scope_notes="",
+        clause_references=("22.2(a)",),
+        rule_markdown="- Day-worker ordinary hours are between 6.00 am and 6.00 pm Monday to Friday. [22.2(a)]",
+        rule_plain_text="Day-worker ordinary hours are between 6.00 am and 6.00 pm Monday to Friday.",
+        source_clause_numbers=("22.2(a)",),
+        source_classifications=("Ordinary Hours Boundary",),
+    )
+    run_b_rule = OvertimeRule(
+        rule_id="shiftworker-definition",
+        section_heading="Shiftworkers",
+        employee_scope=("full-time", "part-time", "casual"),
+        employee_cohort="all",
+        work_arrangement="shiftworker",
+        other_scope_notes="",
+        clause_references=("22.2(b)",),
+        rule_markdown="- A shiftworker is regularly rostered to work ordinary hours outside the day-worker span. [22.2(b)]",
+        rule_plain_text="A shiftworker is regularly rostered to work ordinary hours outside the day-worker span.",
+        source_clause_numbers=("22.2(b)",),
+        source_classifications=("Ordinary Hours Boundary",),
+    )
+
+    messages = build_ruleset_expert_comparison_messages(
+        ruleset_key=OVERTIME_CREATION_RULESET,
+        source_path=Path("classification.json"),
+        overtime_creation_clauses=[clause],
+        run_a_rules=[run_a_rule],
+        run_b_rules=[run_b_rule],
+    )
+
+    system_prompt = messages[0]["content"]
+    user_prompt = messages[1]["content"]
+
+    assert "Your role is to reconcile Expert A and Expert B, not to perform a fresh extraction." in system_prompt
+    assert "Err on the side of inclusion where clause coverage is uncertain." in system_prompt
+    assert "prefer preserving distinct operational rules over collapsing them" in system_prompt
+    assert "If neither expert fully captures a shortlisted clause, prefer a conservative merged rule grounded in the clause text rather than omitting the clause." in system_prompt
+    assert "Use merge_explanations to explain every dropped expert rule" in user_prompt
+    assert "If one expert captured a shortlisted clause and the other did not, say which expert supplied the surviving coverage." in user_prompt
+
+
+def test_step_3_1_final_warnings_use_merged_comparison_only(monkeypatch, tmp_path):
+    captured_validation_warnings = {}
+    source_path = tmp_path / "classification.json"
+    clause_classification_path = tmp_path / "2_2.json"
+    destination = tmp_path / "3_1.md"
+    json_destination = tmp_path / "3_1.json"
+    clause = OvertimeClauseClassification(
+        clause_number="22.2",
+        classification="Ordinary Hours Boundary",
+        classifications=("Ordinary Hours Boundary",),
+        clause_text="22.2 clause text",
+        explanation="22.2 explanation",
+        employee_cohort="all",
+        work_arrangement="all",
+        other_scope_notes="",
+    )
+    expert_rule = OvertimeRule(
+        rule_id="expert-rule",
+        section_heading="General ordinary hours boundary",
+        employee_scope=("full-time", "part-time", "casual"),
+        employee_cohort="all",
+        work_arrangement="all",
+        other_scope_notes="",
+        clause_references=("22.2",),
+        rule_markdown="- Expert rule. [22.2]",
+        rule_plain_text="Expert rule.",
+        source_clause_numbers=("22.2",),
+        source_classifications=("Ordinary Hours Boundary",),
+    )
+
+    def fake_resolve_generation_inputs(**_kwargs):
+        return SimpleNamespace(
+            source_path=source_path,
+            clause_classification_path=clause_classification_path,
+            destination=destination,
+            json_destination=json_destination,
+            overtime_creation_clauses=[clause],
+            ruleset_key=OVERTIME_CREATION_RULESET,
+        )
+
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.resolve_generation_inputs",
+        fake_resolve_generation_inputs,
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.selected_models",
+        lambda **_kwargs: ("draft-model", "merge-model"),
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.load_openai_client",
+        lambda: sentinel.client,
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.draft_expert_a",
+        lambda **_kwargs: ([expert_rule], ["expert a warning"]),
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.draft_expert_b",
+        lambda **_kwargs: ([expert_rule], ["expert b warning"]),
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.write_expert_draft",
+        lambda **_kwargs: {"label": "expert", "json_path": "a.json", "markdown_path": "a.md"},
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.merge_expert_drafts",
+        lambda **_kwargs: (
+            [expert_rule],
+            {"comparison_summary_markdown": "", "merge_explanations": []},
+            ["merged warning"],
+        ),
+    )
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.write_merged_comparison",
+        lambda **_kwargs: None,
+    )
+
+    def fake_write_merged_ruleset(**kwargs):
+        captured_validation_warnings["value"] = kwargs["validation_warnings"]
+        return "rendered markdown"
+
+    monkeypatch.setattr(
+        "src.step_3_1_generate_ruleset.run.write_merged_ruleset",
+        fake_write_merged_ruleset,
+    )
+
+    result = generate_ruleset_from_clause_classification(
+        classification_path=source_path,
+        ruleset_key=OVERTIME_CREATION_RULESET,
+        expert_run_count=2,
+        client=sentinel.client,
+    )
+
+    assert result == "rendered markdown"
+    assert captured_validation_warnings["value"] == ["merged warning"]
+
+
+def test_candidate_clause_keys_include_parent_variants():
+    assert candidate_clause_keys("22.2(a)") == ["22.2(a)", "22.2", "22"]
+    assert candidate_clause_keys("23.1(b)(ii)") == [
+        "23.1(b)(ii)",
+        "23.1",
+        "23",
+    ]
+
+
+def test_clause_hover_text_falls_back_to_parent_clause():
+    clause_index = {
+        "22.2": {
+            "clause_number": "22.2",
+            "classification": "Ordinary Hours Boundary",
+            "explanation": "Contains day-worker span and shiftworker linkage.",
+            "clause_text": "22.2(a) day worker span. 22.2(b) shiftworker definition.",
+        }
+    }
+
+    hover_text = clause_hover_text("22.2(a)", clause_index)
+
+    assert hover_text is not None
+    assert "Clause 22.2" in hover_text
+    assert "Ordinary Hours Boundary" in hover_text
+    assert "22.2(a) day worker span." in hover_text
 
 
 def test_l1_payment_records_preserve_json_key_order():

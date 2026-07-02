@@ -88,7 +88,10 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
     def test_strip_validation_notes_preamble_keeps_only_rule_sections(self):
         source_text = (
             "# Validation notes\n\n"
+            "## Action required\n\n"
             "- Clause 19.2 was not represented.\n\n"
+            "## Review notes\n\n"
+            "- A merged rule was retained conservatively.\n\n"
             "## All employees\n\n"
             "- After 38 hours per week. [20.1]\n"
         )
@@ -173,7 +176,10 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
     def test_summarize_overtime_entitlements_writes_formatted_markdown(self):
         interpretation = (
             "# Validation notes\n\n"
+            "## Action required\n\n"
             "- Clause 19.2 was not represented.\n\n"
+            "## Review notes\n\n"
+            "- A merged rule was retained conservatively.\n\n"
             "## All employees\n\n"
             "- Overtime applies after 38 hours per week. [20.1]\n"
         )

@@ -12,6 +12,10 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
+from src.prompts.step_3_1_shared import (
+    STEP_3_1_GENERIC_RULESET_LANGUAGE,
+    STEP_3_1_OVERTIME_TOPIC_LANGUAGE,
+)
 from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
 
 
@@ -29,15 +33,8 @@ Use clause references wherever possible.
 
 INTERPRETATION_VARIANT_SYSTEM_PROMPTS = {
     OVERTIME_CREATION_RULESET: INTERPRETATION_SYSTEM_PROMPT,
-    OVERTIME_CONSEQUENCE_RULESET: """You are an expert payroll award interpretation assistant.
-
-Analyse the provided award clauses carefully and conservatively.
-
-Do not invent rules.
-
-Do not infer beyond the provided clauses unless clearly marked as an assumption.
-
-Use clause references wherever possible.
+    OVERTIME_CONSEQUENCE_RULESET: INTERPRETATION_SYSTEM_PROMPT
+    + """
 
 For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
 
@@ -78,8 +75,9 @@ For each rule return:
 - source_classifications
 
 Important:
+- Treat each returned rule as one operational overtime rule in the ruleset.
 - Every distinct overtime circumstance must be a separate rule object.
-- Do not silently merge rules that require different payroll tests.
+- Do not silently merge rules that require different operational handling.
 - Preserve ordinary-hours-boundary rules where work outside the boundary may become overtime.
 - source_classifications must contain only `Ordinary Hours Boundary` and/or `Overtime Trigger`.
 - Use the upstream scope tags as the starting point for scope. Do not narrow or broaden scope unless the cited clause text clearly requires it.
@@ -87,7 +85,7 @@ Important:
 - Do not rely on a clause reference as a substitute for the rule content. If a clause says 11.5 ordinary hours is the daily maximum, say that 11.5-hour limit in the rule.
 - Include all conditions, thresholds, limits, and requirements needed to implement the rule. Spell out the operational rule, then include clause references as evidence.
 - Keep clause references in the markdown bullet, preferably at the end in square brackets such as `[15.1(c)(ii), 15.2(b)]`.
-- Each bullet must contain only one payroll test, threshold, boundary, span, roster condition, break condition, or other circumstance that can cause hours to become overtime.
+- Each bullet must contain only one operational overtime rule, threshold, boundary, span, roster condition, break condition, exception, or other circumstance that can cause hours to become overtime.
 - Consider both explicit and implicit triggers. An implicit trigger includes an ordinary-hours boundary where work outside that boundary may become overtime.
 - If the clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, treat it as a general rule.
 - Do not place a general rule under `Full time`, `Part-time employees`, or `Casual employees` unless the clause genuinely limits that rule to the narrower cohort.
@@ -96,11 +94,7 @@ Important:
 - In a work-arrangement section, still state the employee type affected when the rule is not identical for all employees.
 - Do not repeat a general rule under narrower headings unless the segment-specific version is materially different.
 - Do not include overtime rates, overtime calculations, penalty rates, allowances, or clauses that do not affect whether hours become overtime.
-- Avoid duplicate rules. If two bullets have the same threshold, condition, and clause source, combine them. Keep separate bullets where the payroll test is materially different.
-
-Clauses:
-
-{working_paper_input}
+- Avoid duplicate rules. If two bullets have the same threshold, condition, and clause source, combine them. Keep separate bullets where the operational overtime rule is materially different.
 """.strip(),
     OVERTIME_CONSEQUENCE_RULESET: """Source classification file: {source_file}
 
@@ -126,8 +120,9 @@ For each rule return:
 - source_classifications
 
 Important:
+- Treat each returned rule as one operational overtime rule in the ruleset.
 - Every distinct overtime consequence must be a separate rule object.
-- Split rules where different pay outcomes, minimum payments, multipliers, TOIL choices, or rest consequences require different payroll handling.
+- Split rules where different pay outcomes, minimum payments, multipliers, TOIL choices, or rest consequences require different operational handling.
 - source_classifications must contain `Overtime Consequence` and may also include boundary or trigger labels when the source clause contains both.
 - Do not restate what causes overtime unless it is necessary to understand the consequence.
 - If a clause is mixed, extract only the consequence component that answers what payment, rate, minimum, allowance, TOIL outcome, or rest entitlement applies after overtime already exists.
@@ -137,12 +132,23 @@ Important:
 - Do not include penalty rates or allowances unless the clause expressly says they form part of the overtime consequence.
 - Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort. If the clauses state different overtime multiplier outcomes for full-time, part-time, or casual employees, include those cohort-specific rules explicitly.
 - Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
-
-Clauses:
-
-{working_paper_input}
 """.strip(),
 }
+
+
+def _build_step_3_1_user_prompt(
+    *,
+    source_file: str,
+    variant_prompt: str,
+    working_paper_input: str,
+) -> str:
+    return (
+        f"{variant_prompt}\n\n"
+        f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
+        f"{STEP_3_1_OVERTIME_TOPIC_LANGUAGE}\n\n"
+        "Clauses:\n\n"
+        f"{working_paper_input}"
+    )
 
 
 def format_working_paper_input(
@@ -191,8 +197,12 @@ def build_interpretation_messages(
         },
         {
             "role": "user",
-            "content": INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
+            "content": _build_step_3_1_user_prompt(
                 source_file=source_file,
+                variant_prompt=INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
+                    source_file=source_file,
+                    working_paper_input="{working_paper_input}",
+                ),
                 working_paper_input=format_working_paper_input(overtime_creation_clauses),
             ),
         },
@@ -246,13 +256,26 @@ def build_expert_comparison_messages(
     system_prompt = (
         "You are comparing two structured payroll ruleset extraction outputs for the same "
         f"{config.display_name.lower()} ruleset. Merge them into one best structured rule set.\n\n"
+        "Your role is to reconcile Expert A and Expert B, not to perform a fresh extraction.\n\n"
         "Preserve the business meaning of the rules. Do not drop a rule merely because "
         "it is named differently. Treat the same rule with different wording as a merge "
-        "candidate. If one run split a rule and the other combined it, produce the clearest "
-        "merged structure.\n\n"
-        "Every input rule from run A and run B must be accounted for. Every shortlisted "
-        "source clause must still be represented somewhere in the merged output or the "
-        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
+        "candidate. If one run split a rule and the other combined it, prefer preserving "
+        "distinct operational rules over collapsing them.\n\n"
+        "Err on the side of inclusion where clause coverage is uncertain. If either expert "
+        "contains a plausible rule supported by the shortlisted clauses, keep it unless it "
+        "is clearly wrong, duplicated, or fully subsumed by a clearer merged rule. Do not "
+        "drop a rule merely because the other expert omitted it.\n\n"
+        "Do not create new substantive rule content unless necessary to combine equivalent "
+        "rules already present in the expert drafts. A shortlisted clause may produce zero, "
+        "one, or multiple merged rules. A merged rule may rely on one or multiple shortlisted "
+        "clauses. If one clause contains multiple operational overtime rules, ensure each "
+        "operational rule is separately represented.\n\n"
+        "Every input rule from run A and run B must be accounted for. Assess coverage clause "
+        "by clause before deciding the merged output. Every shortlisted source clause must "
+        "still be represented somewhere in the merged output or the comparison summary must "
+        "say why the clause does not produce a standalone rule. If neither expert fully "
+        "captures a shortlisted clause, prefer a conservative merged rule grounded in the "
+        "clause text rather than omitting the clause.\n\n"
         "Return JSON only."
         f"{variant_system_instructions}"
     )
@@ -269,7 +292,11 @@ def build_expert_comparison_messages(
         "- accounted_run_a_rule_ids\n"
         "- accounted_run_b_rule_ids\n"
         "- merged_rules\n"
-        "- merge_explanations"
+        "- merge_explanations\n\n"
+        "Merge requirements:\n"
+        "- Use merge_explanations to explain every dropped expert rule, every collapse of two or more rules into one merged rule, and every shortlisted clause that is not represented directly as a standalone merged rule.\n"
+        "- If one expert captured a shortlisted clause and the other did not, say which expert supplied the surviving coverage.\n"
+        "- If both experts missed part of a shortlisted clause, state how the merged rule conservatively preserves that clause coverage.\n"
         f"{variant_user_instructions}"
     )
     return [

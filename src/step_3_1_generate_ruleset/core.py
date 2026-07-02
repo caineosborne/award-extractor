@@ -173,19 +173,6 @@ def combined_work_arrangement(
     return next(iter(arrangements))
 
 
-def combined_other_scope_notes(
-    classifications: Sequence[OvertimeClauseClassification],
-) -> str:
-    notes: list[str] = []
-
-    for classification in classifications:
-        note = classification.other_scope_notes.strip()
-        if note and note not in notes:
-            notes.append(note)
-
-    return "; ".join(notes)
-
-
 def scope_validation_warnings_for_rule(
     rule: OvertimeRule,
     source_classifications: Sequence[OvertimeClauseClassification],
@@ -193,6 +180,9 @@ def scope_validation_warnings_for_rule(
     warnings: list[str] = []
 
     if not source_classifications:
+        return warnings
+
+    if len(source_classifications) != 1:
         return warnings
 
     expected_employee_cohort = combined_employee_cohort(source_classifications)
@@ -216,17 +206,6 @@ def scope_validation_warnings_for_rule(
             f"Rule '{rule.rule_id}' draws on clause {clause_numbers}, which is classified "
             f"as applying to {work_arrangement_display(expected_work_arrangement)}, but the "
             f"rule is written as applying to {work_arrangement_display(rule.work_arrangement)}."
-        )
-
-    expected_other_scope_notes = combined_other_scope_notes(source_classifications)
-    if expected_other_scope_notes and rule.other_scope_notes.strip() != expected_other_scope_notes:
-        clause_numbers = ", ".join(
-            classification.clause_number for classification in source_classifications
-        )
-        warnings.append(
-            f"Rule '{rule.rule_id}' draws on clause {clause_numbers}, which is classified "
-            f"with the scope note '{expected_other_scope_notes}', but the rule now records "
-            f"'{rule.other_scope_notes.strip() or 'no additional scope note'}'."
         )
 
     return warnings

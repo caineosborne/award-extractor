@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,6 +32,19 @@ ALLOWED_WORK_ARRANGEMENTS = (
     "shiftworker",
     "all",
 )
+HIGH_IMPACT_VALIDATION_SECTION = "action_required"
+REVIEW_NOTES_VALIDATION_SECTION = "review_notes"
+HIDDEN_DIAGNOSTIC_VALIDATION_SECTION = "hidden_diagnostic_details"
+VALIDATION_SECTION_ORDER = (
+    HIGH_IMPACT_VALIDATION_SECTION,
+    REVIEW_NOTES_VALIDATION_SECTION,
+    HIDDEN_DIAGNOSTIC_VALIDATION_SECTION,
+)
+VALIDATION_SECTION_TITLES = {
+    HIGH_IMPACT_VALIDATION_SECTION: "Action required",
+    REVIEW_NOTES_VALIDATION_SECTION: "Review notes",
+    HIDDEN_DIAGNOSTIC_VALIDATION_SECTION: "Hidden diagnostic details",
+}
 
 
 @dataclass(frozen=True)
@@ -269,14 +283,119 @@ def prepend_validation_warnings(
         "# Validation notes",
         "",
         "The following step-3 validation issues were detected. The interpretation was",
-        "written anyway so the review can continue, but these points require checking.",
+        "written anyway so the review can continue. High-impact items are shown first,",
+        "with lower-signal notes separated for reviewer convenience.",
         "",
     ]
-    for warning in validation_warnings:
-        warning_lines.append(f"- {warning}")
 
-    warning_lines.extend(["", rendered_markdown.lstrip()])
+    categorized_warnings = categorize_validation_warnings(validation_warnings)
+    for section_name in VALIDATION_SECTION_ORDER:
+        section_warnings = categorized_warnings[section_name]
+        if not section_warnings:
+            continue
+
+        warning_lines.append(f"## {VALIDATION_SECTION_TITLES[section_name]}")
+        warning_lines.append("")
+        for warning in section_warnings:
+            warning_lines.append(f"- {warning}")
+        warning_lines.append("")
+
+    warning_lines.append(rendered_markdown.lstrip())
     return "\n".join(warning_lines).rstrip() + "\n"
+
+
+def categorize_validation_warnings(
+    validation_warnings: Sequence[str],
+) -> dict[str, list[str]]:
+    """Group validation warnings by reviewer impact."""
+    categorized_warnings = {
+        HIGH_IMPACT_VALIDATION_SECTION: [],
+        REVIEW_NOTES_VALIDATION_SECTION: [],
+        HIDDEN_DIAGNOSTIC_VALIDATION_SECTION: [],
+    }
+
+    for warning in validation_warnings:
+        section_name = validation_section_for_warning(str(warning))
+        categorized_warnings[section_name].append(str(warning))
+
+    return categorized_warnings
+
+
+def validation_section_for_warning(warning: str) -> str:
+    """Classify a validation warning by business-review impact."""
+    if warning.startswith("Clause ") and "was identified as relevant to overtime" in warning:
+        return HIGH_IMPACT_VALIDATION_SECTION
+
+    if warning.startswith("The comparison output did not account for every run "):
+        return HIGH_IMPACT_VALIDATION_SECTION
+
+    if warning.startswith("The earlier draft clause "):
+        return HIGH_IMPACT_VALIDATION_SECTION
+
+    if warning.startswith("Rule '") and "draws on clause " in warning:
+        return scope_misalignment_section_for_warning(warning)
+
+    if warning.startswith("The review removed original rule "):
+        return REVIEW_NOTES_VALIDATION_SECTION
+
+    if warning.startswith("The review rejected evaluator-proposed new rule "):
+        return REVIEW_NOTES_VALIDATION_SECTION
+
+    return HIDDEN_DIAGNOSTIC_VALIDATION_SECTION
+
+
+def scope_misalignment_section_for_warning(warning: str) -> str:
+    """Classify one scope-misalignment warning as high impact or informational."""
+    employee_scope_match = re.fullmatch(
+        r"Rule '.*' draws on clause ([^,]+), which is classified as applying to (.+), but the rule is written as applying to (.+)\.",
+        warning,
+    )
+    if employee_scope_match is not None:
+        expected_scope = employee_scope_match.group(2)
+        actual_scope = employee_scope_match.group(3)
+        if scope_is_broader(actual_scope, expected_scope):
+            return HIGH_IMPACT_VALIDATION_SECTION
+        return REVIEW_NOTES_VALIDATION_SECTION
+
+    work_arrangement_match = re.fullmatch(
+        r"Rule '.*' draws on clause ([^,]+), which is classified as applying to (.+), but the rule is written as applying to (.+)\.",
+        warning,
+    )
+    if work_arrangement_match is not None:
+        expected_scope = work_arrangement_match.group(2)
+        actual_scope = work_arrangement_match.group(3)
+        if scope_is_broader(actual_scope, expected_scope):
+            return HIGH_IMPACT_VALIDATION_SECTION
+        return REVIEW_NOTES_VALIDATION_SECTION
+
+    return HIDDEN_DIAGNOSTIC_VALIDATION_SECTION
+
+
+def scope_is_broader(actual_scope: str, expected_scope: str) -> bool:
+    """Return whether the rendered rule scope is broader than the clause scope."""
+    expected_rank = scope_specificity_rank(expected_scope)
+    actual_rank = scope_specificity_rank(actual_scope)
+
+    if expected_rank is None or actual_rank is None:
+        return True
+
+    return actual_rank > expected_rank
+
+
+def scope_specificity_rank(scope_text: str) -> int | None:
+    """Assign a relative breadth rank to display-form scope labels."""
+    normalized_scope = scope_text.strip().lower()
+    scope_ranks = {
+        "full-time employees": 1,
+        "part-time employees": 1,
+        "casual employees": 1,
+        "day workers": 1,
+        "shiftworkers": 1,
+        "permanent employees": 2,
+        "all work arrangements": 3,
+        "all employees": 3,
+    }
+    return scope_ranks.get(normalized_scope)
 
 
 def clause_coverage_warnings(
@@ -303,6 +422,45 @@ def clause_coverage_warnings(
         "referenced after review."
         for clause_number in dropped_clause_numbers
     ]
+
+
+def review_decision_change_warnings(
+    *,
+    original_rules: Sequence[OvertimeRule],
+    review_decisions: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    """Summarize meaningful rule removals or rejections made during the review loop."""
+    original_rule_map = {rule.rule_id: rule for rule in original_rules}
+    warnings: list[str] = []
+
+    for decision in review_decisions:
+        rule_id = str(decision.get("rule_id") or "").strip()
+        evaluator_recommendation = str(
+            decision.get("evaluator_recommendation") or ""
+        ).strip()
+        final_decision = str(decision.get("final_decision") or "").strip().lower()
+
+        if not rule_id:
+            continue
+
+        if final_decision == "removed" and rule_id in original_rule_map:
+            original_rule = original_rule_map[rule_id]
+            clause_references = ", ".join(original_rule.source_clause_numbers)
+            warnings.append(
+                f"The review removed original rule '{rule_id}' from the revised ruleset. "
+                f"Original clause references: {clause_references}."
+            )
+            continue
+
+        if (
+            evaluator_recommendation == "add"
+            and final_decision == "rejected"
+        ):
+            warnings.append(
+                f"The review rejected evaluator-proposed new rule '{rule_id}'."
+            )
+
+    return warnings
 
 
 def build_rule_inventory_from_rules(
@@ -393,6 +551,9 @@ def build_step_3_rules_artifact(
         "source_clause_classification_file": str(source_clause_classification_file),
         "rendered_markdown": rendered_markdown,
         "validation_warnings": list(validation_warnings),
+        "categorized_validation_warnings": categorize_validation_warnings(
+            validation_warnings
+        ),
         "rules": [rule_to_dict(rule) for rule in rules],
     }
 

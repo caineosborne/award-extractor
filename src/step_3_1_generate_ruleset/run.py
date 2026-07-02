@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import DEFAULT_EXPERT_RUN_COUNT, EXPERT_RUN_LABELS, OvertimeInterpretationError, deduplicate_preserving_order
+from .core import DEFAULT_EXPERT_RUN_COUNT, EXPERT_RUN_LABELS, OvertimeInterpretationError
 from .deterministic import (
     resolve_generation_inputs,
     write_expert_draft,
@@ -144,13 +144,7 @@ def generate_ruleset_from_clause_classification(
                 ruleset_key=inputs.ruleset_key,
             )
         )
-        validation_warnings = deduplicate_preserving_order(
-            [
-                *expert_validation_warnings[0],
-                *expert_validation_warnings[1],
-                *comparison_validation_warnings,
-            ]
-        )
+        validation_warnings = comparison_validation_warnings
         write_merged_comparison(
             markdown_destination=inputs.destination,
             source_path=inputs.source_path,
