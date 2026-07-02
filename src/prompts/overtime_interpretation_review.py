@@ -1,4 +1,4 @@
-"""Prompt content for step 3B overtime ruleset review.
+"""Prompt content for step 3.2 overtime ruleset review.
 
 Used by:
 - `src/step_3_2_review_ruleset/`
@@ -38,7 +38,7 @@ from src.common.overtime_rules import (
 CLAUSE_REFERENCE_PATTERN = re.compile(r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b", re.IGNORECASE)
 
 
-def build_script_3_creator_prompt_context(
+def build_step_3_2_creator_prompt_context(
     classification_path: Path | str,
     payment_classification: Mapping[str, Any],
     overtime_clause_classification: Mapping[str, Any],
@@ -150,16 +150,16 @@ def build_relevant_clause_excerpt_markdown(
     sections = ["# Relevant clause excerpts"]
 
     for clause_number in referenced_clause_numbers:
-        script_2_clause = classified_clauses.get(clause_number)
-        script_3_clause = overtime_clause_by_number.get(clause_number)
+        step_2_1_clause = classified_clauses.get(clause_number)
+        step_2_2_clause = overtime_clause_by_number.get(clause_number)
 
-        if not isinstance(script_2_clause, Mapping) and not isinstance(script_3_clause, Mapping):
+        if not isinstance(step_2_1_clause, Mapping) and not isinstance(step_2_2_clause, Mapping):
             continue
 
         sections.extend(["", f"## Clause {clause_number}"])
 
-        if isinstance(script_2_clause, Mapping):
-            raw_tags = script_2_clause.get("tags", [])
+        if isinstance(step_2_1_clause, Mapping):
+            raw_tags = step_2_1_clause.get("tags", [])
             if isinstance(raw_tags, list):
                 tags_text = ", ".join(str(tag) for tag in raw_tags)
             else:
@@ -168,14 +168,14 @@ def build_relevant_clause_excerpt_markdown(
             sections.extend(
                 [
                     "",
-                    "Script 2 payment classification:",
+                    "Step 2.1 payment classification:",
                     f"- Tags: {tags_text}",
-                    f"- Source text: {clause_text(script_2_clause)}",
+                    f"- Source text: {clause_text(step_2_1_clause)}",
                 ]
             )
 
-        if isinstance(script_3_clause, Mapping):
-            raw_classifications = script_3_clause.get("classifications", [])
+        if isinstance(step_2_2_clause, Mapping):
+            raw_classifications = step_2_2_clause.get("classifications", [])
             if isinstance(raw_classifications, list):
                 classifications_text = ", ".join(
                     str(classification) for classification in raw_classifications
@@ -186,11 +186,11 @@ def build_relevant_clause_excerpt_markdown(
             sections.extend(
                 [
                     "",
-                    "Script 3 clause classification:",
-                    f"- Primary classification: {script_3_clause.get('classification', '')}",
+                    "Step 2.2 overtime clause classification:",
+                    f"- Primary classification: {step_2_2_clause.get('classification', '')}",
                     f"- All classifications: {classifications_text}",
-                    f"- Explanation: {script_3_clause.get('explanation', '')}",
-                    f"- Clause text: {script_3_clause.get('clause_text', '')}",
+                    f"- Explanation: {step_2_2_clause.get('explanation', '')}",
+                    f"- Clause text: {step_2_2_clause.get('clause_text', '')}",
                 ]
             )
 
@@ -380,8 +380,8 @@ def build_full_evaluator_review_prompt(
         indent=2,
         ensure_ascii=False,
     )
-    script_3_creator_prompt_context_json = json.dumps(
-        build_script_3_creator_prompt_context(
+    step_3_2_creator_prompt_context_json = json.dumps(
+        build_step_3_2_creator_prompt_context(
             classification_path,
             payment_classification,
             overtime_clause_classification,
@@ -395,11 +395,11 @@ def build_full_evaluator_review_prompt(
 
 Do not rewrite the ruleset. Provide supervisor-style questions and concise issue notes only.
 
-Review against the full payment clause identifier JSON from Script 2. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
+Review against the full step 2.1 payment classification JSON. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
 
-Check both Script 3 steps:
-1. The intermediate clause classification JSON: did it classify clauses in a way that supports the selected ruleset and avoid dragging in materially out-of-scope content?
-2. The final ruleset markdown: does it include only rules supported by the cited clauses and relevant to the selected ruleset?
+Check both downstream rule-building steps:
+1. The step 2.2 overtime clause classification JSON: did it classify clauses in a way that supports the selected ruleset and avoid dragging in materially out-of-scope content?
+2. The step 3.1 ruleset markdown: does it include only rules supported by the cited clauses and relevant to the selected ruleset?
 
 Key review question:
 {config.review_question}
@@ -415,29 +415,29 @@ Ruleset source: {interpretation_path}
 {interpretation_markdown}
 ```
 
-Canonical Script 3 rule JSON:
+Canonical step 3.1 rule JSON:
 
 ```json
 {original_rules_json}
 ```
 
-Full payment classification source from Script 2: {classification_path}
+Full payment classification source from step 2.1: {classification_path}
 
 ```json
 {payment_classification_json}
 ```
 
-Script 3 intermediate overtime clause classification source: {overtime_clause_classification_path}
+Step 2.2 overtime clause classification source: {overtime_clause_classification_path}
 
 ```json
 {overtime_clause_classification_json}
 ```
 
-Script 3 creator prompt context reconstructed from the current Step 3 code.
+Step 3.2 creator prompt context reconstructed from the current step-folder code.
 This is included so the evaluator reviews against the same data and instructions that the creator received for this ruleset.
 
 ```json
-{script_3_creator_prompt_context_json}
+{step_3_2_creator_prompt_context_json}
 ```
 """
 
@@ -585,7 +585,7 @@ def build_review_creator_messages(
         original_rules_artifact=original_rules_artifact,
         evaluator_feedback_data=evaluator_feedback_data,
     )
-    creator_prompt_context = build_script_3_creator_prompt_context(
+    creator_prompt_context = build_step_3_2_creator_prompt_context(
         classification_path,
         payment_classification,
         overtime_clause_classification,
@@ -733,11 +733,11 @@ def build_agentic_creator_instructions(
     max_feedback_cycles: int,
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
-    """Return the standing instructions for the agentic step-3B creator."""
+    """Return the standing instructions for the agentic step-3.2 creator."""
     config = overtime_ruleset_config(ruleset_key)
     return f"""You are the creator responsible for finalising an Australian modern award {config.display_name.lower()}.
 
-You are reviewing an existing Script 3 first draft. Keep the final ruleset simple and include only rules that answer this question:
+You are reviewing an existing step 3.1 first draft. Keep the final ruleset simple and include only rules that answer this question:
 {config.review_question}
 
 You have a tool named request_evaluator_feedback. Use it to ask the evaluator for review feedback on your current draft. You may use it up to {max_feedback_cycles} times. The first evaluator call is a substantive review. Later evaluator calls are lightweight pass/fail gates that return JSON only.
@@ -779,8 +779,8 @@ Keep the review simple and focused on this question:
 {config.review_question}
 
 Focus on:
-- clauses in the full payment classification JSON that may answer the key question but were missed by the Script 3 clause classification;
-- clauses in the Script 3 classification that do not actually answer the key question for this ruleset;
+- clauses in the full payment classification JSON that may answer the key question but were missed by the step 2.2 clause classification;
+- clauses in the step 2.2 classification that do not actually answer the key question for this ruleset;
 - final ruleset bullets that are unsupported, missing, too broad, or materially out of scope for this ruleset;
 - valid rules in the current draft that appear to have been removed, weakened, or omitted without support;
 - employee group, threshold, roster condition, span, spread, or clause-reference errors.

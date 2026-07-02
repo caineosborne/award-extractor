@@ -15,7 +15,7 @@ from src.common.overtime_rules import (
     rule_to_dict,
     write_rules_artifact,
 )
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_output
 from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET, overtime_ruleset_config
 
 from .core import (
@@ -209,7 +209,7 @@ def write_merged_comparison(
         "validation_warnings": validation_warnings,
         "merged_rules": [rule_to_dict(rule) for rule in rules],
     }
-    write_text_with_archive(
+    write_text_output(
         comparison_artifact_path,
         json.dumps(
             make_json_serializable(comparison_artifact),

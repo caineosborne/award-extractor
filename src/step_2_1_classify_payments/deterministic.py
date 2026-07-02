@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_output
 from src.step_2_1_classify_payments.schema import (
     CONTENT_KEY,
     DEFAULT_AWARD_PATH,
@@ -493,7 +493,7 @@ def build_result_artifact(
 def write_result(destination: Path, result: OrderedDict[str, Any]) -> None:
     """Write the current step 2.1 classification artifact."""
     output_json = json.dumps(result, indent=2, ensure_ascii=False)
-    write_text_with_archive(destination, output_json)
+    write_text_output(destination, output_json)
 
 
 def resolve_classification_inputs(

@@ -25,7 +25,7 @@ from src.common.overtime_rules import (
     rules_from_markdown_fallback,
     write_rules_artifact,
 )
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_output
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     infer_overtime_ruleset_key_from_path,
@@ -198,8 +198,8 @@ def write_review_outputs(
         revised_validation_warnings,
     )
 
-    write_text_with_archive(feedback_path, evaluator_feedback_markdown)
-    write_text_with_archive(
+    write_text_output(feedback_path, evaluator_feedback_markdown)
+    write_text_output(
         feedback_json_path,
         json.dumps(
             make_json_serializable(evaluator_feedback_data),
@@ -207,8 +207,8 @@ def write_review_outputs(
             ensure_ascii=False,
         ),
     )
-    write_text_with_archive(creator_response_path, creator_response_markdown)
-    write_text_with_archive(
+    write_text_output(creator_response_path, creator_response_markdown)
+    write_text_output(
         creator_response_json_path,
         json.dumps(
             make_json_serializable(creator_response_data),

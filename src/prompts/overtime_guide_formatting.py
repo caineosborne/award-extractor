@@ -1,7 +1,7 @@
-"""Prompt content for step 4A overtime guide formatting.
+"""Prompt content for step 4.1 overtime guide formatting.
 
 Used by:
-- `src/script_4a_summarize_overtime.py`
+- `src/step_4_1_format_ruleset/`
 """
 
 from __future__ import annotations

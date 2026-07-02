@@ -55,14 +55,42 @@ def entitlement_path_for_award(
     processed_root = PROJECT_ROOT / "data" / "processed"
     award_dir = award_output_dir(processed_root / f"{award_code}_overtime_entitlements.md")
     if ruleset_key == OVERTIME_CREATION_RULESET:
-        return award_dir / f"{award_code}_overtime_creation_ruleset_overtime_entitlements.md"
+        return award_dir / "4_1_OT_creation_formatted_ruleset.md"
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
-        return award_dir / f"{award_code}_overtime_consequence_ruleset_overtime_entitlements.md"
-    return award_dir / f"{award_code}_overtime_entitlements.md"
+        return award_dir / "4_1_OT_consequence_formatted_ruleset.md"
+    return award_dir / "4_1_OT_creation_formatted_ruleset.md"
 
 
 def fallback_source_paths_for_path(path: Path) -> list[Path]:
     stem = path.stem
+
+    if stem == "3_2_OT_creation_revised_ruleset":
+        return [
+            path.parent / "4_1_OT_creation_formatted_ruleset.md",
+            path,
+            path.parent / "3_1_OT_creation_ruleset.md",
+        ]
+
+    if stem == "3_2_OT_consequence_revised_ruleset":
+        return [
+            path.parent / "4_1_OT_consequence_formatted_ruleset.md",
+            path,
+            path.parent / "3_1_OT_consequence_ruleset.md",
+        ]
+
+    if stem == "4_1_OT_creation_formatted_ruleset":
+        return [
+            path,
+            path.parent / "3_2_OT_creation_revised_ruleset.md",
+            path.parent / "3_1_OT_creation_ruleset.md",
+        ]
+
+    if stem == "4_1_OT_consequence_formatted_ruleset":
+        return [
+            path,
+            path.parent / "3_2_OT_consequence_revised_ruleset.md",
+            path.parent / "3_1_OT_consequence_ruleset.md",
+        ]
 
     if stem.endswith("_overtime_interpretation_4b"):
         base_stem = stem.removesuffix("_overtime_interpretation_4b")
@@ -158,18 +186,32 @@ def default_overtime_interpretation_path(
         entitlement_path = entitlement_path_for_award(award_code, ruleset_key)
         if entitlement_path.exists():
             return entitlement_path
-        revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
         if revised_path.exists():
             return revised_path
-        return award_dir / f"{award_code}_overtime_creation_ruleset.md"
+        legacy_entitlement_path = award_dir / f"{award_code}_overtime_creation_ruleset_overtime_entitlements.md"
+        if legacy_entitlement_path.exists():
+            return legacy_entitlement_path
+        legacy_revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        if legacy_revised_path.exists():
+            return legacy_revised_path
+        return award_dir / "3_1_OT_creation_ruleset.md"
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         entitlement_path = entitlement_path_for_award(award_code, ruleset_key)
         if entitlement_path.exists():
             return entitlement_path
-        revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        revised_path = award_dir / "3_2_OT_consequence_revised_ruleset.md"
         if revised_path.exists():
             return revised_path
-        return award_dir / f"{award_code}_overtime_consequence_ruleset.md"
+        legacy_entitlement_path = (
+            award_dir / f"{award_code}_overtime_consequence_ruleset_overtime_entitlements.md"
+        )
+        if legacy_entitlement_path.exists():
+            return legacy_entitlement_path
+        legacy_revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        if legacy_revised_path.exists():
+            return legacy_revised_path
+        return award_dir / "3_1_OT_consequence_ruleset.md"
     manual_4b_path = award_dir / f"{award_code}_overtime_interpretation_4b.md"
     if manual_4b_path.exists():
         return manual_4b_path
@@ -177,12 +219,18 @@ def default_overtime_interpretation_path(
     entitlement_path = entitlement_path_for_award(award_code)
     if entitlement_path.exists():
         return entitlement_path
+    legacy_entitlement_path = award_dir / f"{award_code}_overtime_entitlements.md"
+    if legacy_entitlement_path.exists():
+        return legacy_entitlement_path
 
-    revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
+    revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
     if revised_path.exists():
         return revised_path
+    legacy_revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
+    if legacy_revised_path.exists():
+        return legacy_revised_path
 
-    return award_dir / f"{award_code}_overtime_interpretation.md"
+    return award_dir / "3_1_OT_creation_ruleset.md"
 
 
 def source_stage_for_path(path: Path) -> str:
@@ -190,6 +238,18 @@ def source_stage_for_path(path: Path) -> str:
 
     if stem.endswith("_overtime_interpretation_4b"):
         return "4b"
+    if stem == "4_1_OT_creation_formatted_ruleset":
+        return "4.1"
+    if stem == "4_1_OT_consequence_formatted_ruleset":
+        return "4.1"
+    if stem == "3_2_OT_creation_revised_ruleset":
+        return "3.2"
+    if stem == "3_2_OT_consequence_revised_ruleset":
+        return "3.2"
+    if stem == "3_1_OT_creation_ruleset":
+        return "3.1"
+    if stem == "3_1_OT_consequence_ruleset":
+        return "3.1"
     if stem.endswith("_overtime_creation_ruleset_overtime_entitlements"):
         return "4a"
     if stem.endswith("_overtime_consequence_ruleset_overtime_entitlements"):
@@ -243,6 +303,14 @@ def load_overtime_rules(source_path: Path | str) -> dict[str, Any]:
 def output_path_for_summary(summary_path: Path | str) -> Path:
     path = Path(summary_path)
     stem = path.stem
+    if stem == "4_1_OT_creation_formatted_ruleset":
+        return path.with_name("5_1_OT_creation_pseudocode.md")
+    if stem == "4_1_OT_consequence_formatted_ruleset":
+        return path.with_name("5_1_OT_consequence_pseudocode.md")
+    if stem == "3_2_OT_creation_revised_ruleset":
+        return path.with_name("5_1_OT_creation_pseudocode.md")
+    if stem == "3_2_OT_consequence_revised_ruleset":
+        return path.with_name("5_1_OT_consequence_pseudocode.md")
     if stem.endswith("_overtime_creation_ruleset_overtime_entitlements"):
         stem = stem.removesuffix("_overtime_creation_ruleset_overtime_entitlements")
         return path.with_name(f"{stem}_overtime_creation_ruleset_core_overtime_pseudocode.md")
@@ -314,9 +382,9 @@ def validate_and_write_outputs(
     source_inventory,
 ) -> tuple[Any, str]:
     """Write pseudocode and validation artifacts, then return the validation state."""
-    from src.common.output_paths import write_text_with_archive
+    from src.common.output_paths import write_text_output
 
-    write_text_with_archive(destination, output_text)
+    write_text_output(destination, output_text)
     validation_report = validate_overtime_pseudocode_against_inventory(
         source_inventory,
         output_text,

@@ -11,7 +11,7 @@ from src.common.output_naming import (
     validation_json_path_for_pseudocode as naming_validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode as naming_validation_markdown_path_for_pseudocode,
 )
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_output
 from src.common.rule_inventory import RuleInventory, RuleRecord, extract_clause_references
 
 
@@ -482,11 +482,11 @@ def write_validation_artifacts(
     json_output_path = Path(json_path)
     markdown_output_path = Path(markdown_path)
 
-    write_text_with_archive(
+    write_text_output(
         json_output_path,
         json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
     )
-    write_text_with_archive(
+    write_text_output(
         markdown_output_path,
         render_validation_report_markdown(report),
     )

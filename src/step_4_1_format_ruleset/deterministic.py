@@ -5,7 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.common.output_paths import award_output_dir, write_text_with_archive
+from src.common.output_naming import formatted_ruleset_path_for_ruleset
+from src.common.output_paths import award_output_dir, write_text_output
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
@@ -90,18 +91,29 @@ def default_interpretation_path_for_award(
     processed_root = PROJECT_ROOT / "data" / "processed"
     award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
     if ruleset_key == OVERTIME_CREATION_RULESET:
-        explicit_revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        explicit_revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
         if explicit_revised_path.exists():
             return explicit_revised_path
+        legacy_revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
+        if legacy_revised_path.exists():
+            return legacy_revised_path
+        return award_dir / "3_1_OT_creation_ruleset.md"
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
-        explicit_revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        explicit_revised_path = award_dir / "3_2_OT_consequence_revised_ruleset.md"
         if explicit_revised_path.exists():
             return explicit_revised_path
-    revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
+        legacy_revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
+        if legacy_revised_path.exists():
+            return legacy_revised_path
+        return award_dir / "3_1_OT_consequence_ruleset.md"
+    revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
     if revised_path.exists():
         return revised_path
+    legacy_revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
+    if legacy_revised_path.exists():
+        return legacy_revised_path
 
-    return award_dir / f"{award_code}_overtime_interpretation.md"
+    return award_dir / "3_1_OT_creation_ruleset.md"
 
 
 def resolve_interpretation_path(
@@ -120,6 +132,12 @@ def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
     """Build the canonical formatted output path for one interpretation."""
     path = Path(interpretation_path)
     stem = path.stem
+
+    if stem == "3_2_OT_creation_revised_ruleset":
+        return formatted_ruleset_path_for_ruleset(path, OVERTIME_CREATION_RULESET)
+
+    if stem == "3_2_OT_consequence_revised_ruleset":
+        return formatted_ruleset_path_for_ruleset(path, OVERTIME_CONSEQUENCE_RULESET)
 
     if stem.endswith("_overtime_creation_ruleset_revised"):
         stem = stem.removesuffix("_overtime_creation_ruleset_revised")
@@ -186,6 +204,5 @@ def resolve_formatting_inputs(
 def write_formatted_output(destination: Path, output_text: str) -> str:
     """Clean and write the formatted ruleset output."""
     cleaned_output = strip_wrapping_markdown_fence(output_text)
-    write_text_with_archive(destination, cleaned_output)
+    write_text_output(destination, cleaned_output)
     return cleaned_output
-

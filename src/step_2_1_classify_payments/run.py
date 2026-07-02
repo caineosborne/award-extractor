@@ -24,12 +24,14 @@ def classify_payments(
     client: Any | None = None,
 ) -> OrderedDict[str, Any]:
     """Run step 2.1 and write the payment classification artifact."""
+    print(f"Step 2.1: Loading parsed award JSON from {award_path}")
     inputs = resolve_classification_inputs(
         award_path=award_path,
         output_path=output_path,
     )
     active_model = selected_model(model)
     active_client = client or load_openai_client()
+    print(f"Step 2.1: Classifying payment-related clauses with model {active_model}")
     top_level_clauses, classified_clauses = classify_groups(
         groups=inputs.groups,
         client=active_client,
@@ -42,6 +44,12 @@ def classify_payments(
         classified_clauses=classified_clauses,
     )
     write_result(inputs.destination, result)
+    print(f"Step 2.1: Wrote payment classification JSON to {inputs.destination}")
+    print(
+        "Step 2.1: Classified "
+        f"{len(top_level_clauses)} top-level clauses and "
+        f"{len(classified_clauses)} descendant clauses"
+    )
     return result
 
 
@@ -84,7 +92,3 @@ def main() -> None:
 
         destination = output_path_for_award(args.award_path)
     print(f"Payment classification saved to {destination}")
-    print(
-        f"Classified {len(result['top_level_clauses'])} top-level clauses and "
-        f"{len(result['classified_clauses'])} descendant clauses."
-    )

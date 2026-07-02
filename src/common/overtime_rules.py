@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from src.common.output_paths import path_in_category, write_text_with_archive
+from src.common.output_paths import path_in_category, write_text_output
 from src.common.rule_inventory import (
     RuleInventory,
     RuleRecord,
@@ -437,8 +437,8 @@ def write_rules_artifact(
     artifact: Mapping[str, Any],
 ) -> None:
     json_text = json.dumps(artifact, indent=2, ensure_ascii=False)
-    write_text_with_archive(json_path, json_text)
-    write_text_with_archive(markdown_path, str(artifact["rendered_markdown"]))
+    write_text_output(json_path, json_text)
+    write_text_output(markdown_path, str(artifact["rendered_markdown"]))
 
 
 def validate_review_feedback_artifact(

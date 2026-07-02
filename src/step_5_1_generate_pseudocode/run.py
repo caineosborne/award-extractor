@@ -19,6 +19,10 @@ from .llm import (
     request_repaired_pseudocode,
     selected_model,
 )
+from .verification import (
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+)
 
 
 def generate_core_overtime_pseudocode(
@@ -29,6 +33,7 @@ def generate_core_overtime_pseudocode(
     ruleset_key: str | None = None,
 ) -> str:
     """Run step 5.1 and write the pseudocode plus validation artifacts."""
+    print(f"Step 5.1: Loading source ruleset from {summary_path}")
     inputs = resolve_generation_inputs(
         summary_path=summary_path,
         output_path=output_path,
@@ -36,6 +41,7 @@ def generate_core_overtime_pseudocode(
     )
     active_client = client or load_openai_client()
     active_model = selected_model(model)
+    print(f"Step 5.1: Generating pseudocode with model {active_model}")
 
     output_text = request_initial_pseudocode(
         client=active_client,
@@ -49,6 +55,7 @@ def generate_core_overtime_pseudocode(
     repair_attempts = 0
 
     while True:
+        print("Step 5.1: Running deterministic pseudocode validation")
         validation_report, validation_markdown = validate_and_write_outputs(
             destination=inputs.destination,
             output_text=output_text,
@@ -59,9 +66,22 @@ def generate_core_overtime_pseudocode(
             and repair_attempts < MAX_VALIDATION_REPAIR_ATTEMPTS
         )
         if not needs_repair:
+            print(f"Step 5.1: Wrote pseudocode markdown to {inputs.destination}")
+            print(
+                "Step 5.1: Wrote validation JSON to "
+                f"{validation_json_path_for_pseudocode(inputs.destination)}"
+            )
+            print(
+                "Step 5.1: Wrote validation markdown to "
+                f"{validation_markdown_path_for_pseudocode(inputs.destination)}"
+            )
             return output_text
 
         repair_attempts += 1
+        print(
+            "Step 5.1: Validation found missing coverage. "
+            f"Requesting repair attempt {repair_attempts}."
+        )
         output_text = request_repaired_pseudocode(
             client=active_client,
             model=active_model,
@@ -123,9 +143,4 @@ def main() -> None:
         Path(args.output_path) if args.output_path else inputs.destination
     )
     print(f"Core overtime pseudocode saved to {destination}")
-    from .verification import validation_markdown_path_for_pseudocode
-
-    print(
-        "Validation report saved to "
-        f"{validation_markdown_path_for_pseudocode(destination)}"
-    )
+    print(f"Validation report saved to {validation_markdown_path_for_pseudocode(destination)}")

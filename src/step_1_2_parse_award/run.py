@@ -40,12 +40,18 @@ def write_html_outputs_for_paths(
     award_json_path: Path,
 ) -> None:
     """Write HTML-based step 1 outputs using explicit pipeline paths."""
+    print(
+        "Step 1.2: Writing parsed award outputs to "
+        f"{award_json_path.parent}"
+    )
     _write_html_outputs_for_paths(
         main_content=main_content,
         award=award,
         raw_html_path=raw_html_path,
         award_json_path=award_json_path,
     )
+    print(f"Step 1.2: Wrote raw HTML to {raw_html_path}")
+    print(f"Step 1.2: Wrote parsed award JSON to {award_json_path}")
 
 
 def extract_pdf_award_source(pdf_path: Path):

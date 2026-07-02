@@ -1,8 +1,4 @@
-"""Prompt helpers for the agentic step 3B review flow.
-
-Used by:
-- `src/script_3b_agentic_review_workflow.py`
-"""
+"""Prompt helpers for the agentic step 3.2 review flow."""
 
 from __future__ import annotations
 
@@ -31,7 +27,7 @@ def build_agentic_source_context_prompt(
     interpretation_markdown: str,
     interpretation_user_prompt: str,
 ) -> str:
-    return f"""Original Script 3 interpretation source: {interpretation_path}
+    return f"""Original step 3.1 interpretation source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
@@ -46,7 +42,7 @@ Relevant source clauses for the first pass:
 
 
 def build_agentic_creator_input(source_context: str) -> str:
-    return f"""Review and revise the existing Script 3 first draft.
+    return f"""Review and revise the existing step 3.1 first draft.
 
 Use the evaluator feedback tool before finalising unless the draft clearly needs no evaluator input.
 

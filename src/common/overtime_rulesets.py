@@ -3,7 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from src.common.output_paths import path_in_category
+from src.common.output_naming import (
+    clause_classification_path_for_ruleset,
+    ruleset_markdown_path_for_ruleset,
+)
 
 
 OVERTIME_CREATION_RULESET = "overtime_creation"
@@ -42,8 +45,8 @@ OVERTIME_RULESET_CONFIGS = {
             "Ordinary Hours Boundary",
             "Overtime Trigger",
         ),
-        clause_classification_filename_stem="overtime_creation_clause_classification",
-        ruleset_filename_stem="overtime_creation_ruleset",
+        clause_classification_filename_stem="2_2_OT_creation_clause_classification",
+        ruleset_filename_stem="3_1_OT_creation_ruleset",
         comparison_schema_name="overtime_creation_rule_comparison",
         interpretation_schema_name="overtime_creation_rules",
         clause_classification_schema_name="overtime_creation_clause_classification",
@@ -62,8 +65,8 @@ OVERTIME_RULESET_CONFIGS = {
             "Not Relevant",
         ),
         generation_classifications=("Overtime Consequence",),
-        clause_classification_filename_stem="overtime_consequence_clause_classification",
-        ruleset_filename_stem="overtime_consequence_ruleset",
+        clause_classification_filename_stem="2_2_OT_consequence_clause_classification",
+        ruleset_filename_stem="3_1_OT_consequence_ruleset",
         comparison_schema_name="overtime_consequence_rule_comparison",
         interpretation_schema_name="overtime_consequence_rules",
         clause_classification_schema_name="overtime_consequence_clause_classification",
@@ -83,6 +86,28 @@ def overtime_ruleset_config(ruleset_key: str) -> OvertimeRulesetConfig:
 def infer_overtime_ruleset_key_from_path(path: Path | str) -> str:
     """Infer the overtime ruleset key from a standard artifact filename."""
     stem = Path(path).stem
+
+    if stem.startswith("2_2_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem.startswith("3_1_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem.startswith("3_2_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem.startswith("4_1_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem.startswith("5_1_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+
+    if stem.startswith("2_2_OT_consequence_"):
+        return OVERTIME_CONSEQUENCE_RULESET
+    if stem.startswith("3_1_OT_consequence_"):
+        return OVERTIME_CONSEQUENCE_RULESET
+    if stem.startswith("3_2_OT_consequence_"):
+        return OVERTIME_CONSEQUENCE_RULESET
+    if stem.startswith("4_1_OT_consequence_"):
+        return OVERTIME_CONSEQUENCE_RULESET
+    if stem.startswith("5_1_OT_consequence_"):
+        return OVERTIME_CONSEQUENCE_RULESET
 
     if stem.endswith("_overtime_creation_clause_classification"):
         return OVERTIME_CREATION_RULESET
@@ -112,31 +137,11 @@ def explicit_clause_classification_output_path(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-
-    config = overtime_ruleset_config(ruleset_key)
-    return path_in_category(
-        path,
-        "3_overtime_interpretations",
-        f"{stem}_{config.clause_classification_filename_stem}.json",
-    )
+    return clause_classification_path_for_ruleset(classification_path, ruleset_key)
 
 
 def explicit_ruleset_output_path(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
-    path = Path(classification_path)
-    stem = path.stem
-    if stem.endswith("_payment_classification"):
-        stem = stem.removesuffix("_payment_classification")
-
-    config = overtime_ruleset_config(ruleset_key)
-    return path_in_category(
-        path,
-        "3_overtime_interpretations",
-        f"{stem}_{config.ruleset_filename_stem}.md",
-    )
+    return ruleset_markdown_path_for_ruleset(classification_path, ruleset_key)

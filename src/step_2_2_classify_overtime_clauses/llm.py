@@ -9,7 +9,7 @@ from typing import Any
 
 from openai import OpenAI
 
-from src.common.output_paths import write_text_with_archive
+from src.common.output_paths import write_text_output
 from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET
 
 from .core import (
@@ -72,7 +72,7 @@ def load_or_generate_clause_classifications(
         classifications,
         OVERTIME_CREATION_RULESET,
     )
-    write_text_with_archive(
+    write_text_output(
         output_path,
         json.dumps(artifact, indent=2, ensure_ascii=False),
     )

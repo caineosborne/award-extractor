@@ -248,7 +248,7 @@ def request_evaluator_feedback(
     for attempt_number in range(MAX_EVALUATOR_REPAIR_ATTEMPTS + 1):
         log_model_call_budget(
             status_callback,
-            call_label="script_3b_evaluator_review",
+            call_label="step_3_2_evaluator_review",
             model=evaluator_model,
             payload=current_evaluator_messages,
             max_output_tokens=evaluator_max_output_tokens,
@@ -335,7 +335,7 @@ def request_creator_revision(
 
     log_model_call_budget(
         status_callback,
-        call_label="script_3b_creator_revision",
+        call_label="step_3_2_creator_revision",
         model=creator_model,
         payload=creator_messages,
         max_output_tokens=creator_max_output_tokens,

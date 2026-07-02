@@ -1,5 +1,5 @@
 """Step 2.2 overtime clause classification."""
 
-from .run import run_step_2_1
+from .run import run_step_2_1, run_step_2_2
 
-__all__ = ["run_step_2_1"]
+__all__ = ["run_step_2_1", "run_step_2_2"]

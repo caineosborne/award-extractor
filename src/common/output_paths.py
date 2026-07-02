@@ -169,3 +169,10 @@ def write_text_with_archive(
     archive_path.write_text(text, encoding="utf-8")
 
     return archive_path
+
+
+def write_text_output(output_path: Path | str, text: str) -> None:
+    """Write one canonical current output file without creating an archive copy."""
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")

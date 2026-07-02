@@ -6,6 +6,7 @@ from pathlib import Path
 from src.common.output_naming import (
     DEFAULT_AWARD_URL_TEMPLATE,
     PROJECT_ROOT,
+    award_dir_for_output_stem,
     creator_response_path_for_interpretation as naming_creator_response_path_for_interpretation,
     evaluator_feedback_path_for_interpretation as naming_evaluator_feedback_path_for_interpretation,
     feedback_dir_for_interpretation as naming_feedback_dir_for_interpretation,
@@ -43,9 +44,8 @@ def default_award_url_for_code(award_code: str) -> str:
 
 def default_classification_path_for_award(award_code: str) -> Path:
     """Return the default step-2 classification artifact path for an award code."""
-    processed_root = PROJECT_ROOT / "data" / "processed"
-    award_dir = award_output_dir(processed_root / f"{award_code}_payment_classification.json")
-    return award_dir / f"{award_code}_payment_classification.json"
+    award_dir = award_dir_for_output_stem(award_code)
+    return award_dir / "2_1_payment_classification.json"
 
 
 def interpretation_output_path_for_classification(classification_path: Path | str) -> Path:
@@ -85,7 +85,12 @@ def ruleset_clause_classification_output_path_for_classification(
 
 def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
     """Extract an award code from a standard step-3 interpretation filename."""
-    stem = Path(interpretation_path).stem
+    path = Path(interpretation_path)
+    award_dir = award_output_dir(path)
+    if award_dir.name:
+        return award_dir.name
+
+    stem = path.stem
     if stem.endswith("_overtime_interpretation"):
         return stem.removesuffix("_overtime_interpretation")
     if stem.endswith("_overtime_interpretation_revised"):
@@ -107,9 +112,8 @@ def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
 
 def default_interpretation_path_for_award(award_code: str) -> Path:
     """Return the default step-3 interpretation artifact path for an award code."""
-    processed_root = PROJECT_ROOT / "data" / "processed"
-    award_dir = award_output_dir(processed_root / f"{award_code}_overtime_interpretation.md")
-    return award_dir / f"{award_code}_overtime_interpretation.md"
+    award_dir = award_dir_for_output_stem(award_code)
+    return award_dir / "3_1_OT_creation_ruleset.md"
 
 
 def resolve_interpretation_path(award_or_interpretation_path: Path | str) -> Path:

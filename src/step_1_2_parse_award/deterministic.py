@@ -15,8 +15,7 @@ import pymupdf4llm
 from src.common.award_sources import register_local_pdf_source
 from src.common.output_paths import (
     FETCH_AWARD_SUPPORTING_DIR,
-    timestamped_archive_path,
-    write_text_with_archive,
+    write_text_output,
 )
 from src.step_1_1_fetch.deterministic import CONTENT_KEY, node, output_stem, unique_key
 
@@ -744,7 +743,7 @@ def write_supporting_outputs(
     section_index_path = section_index_output_path(award_path, selected_output_dir)
     heading_csv_path = heading_csv_output_path(award_path, selected_output_dir)
 
-    write_text_with_archive(
+    write_text_output(
         section_index_path,
         json.dumps(build_section_index(award), indent=2, ensure_ascii=False),
     )
@@ -753,10 +752,6 @@ def write_supporting_outputs(
         writer = csv.DictWriter(csv_file, fieldnames=["PartHeading", "L1", "L2", "L3"])
         writer.writeheader()
         writer.writerows(iter_heading_rows(award))
-
-    archive_csv_path = timestamped_archive_path(heading_csv_path)
-    archive_csv_path.parent.mkdir(parents=True, exist_ok=True)
-    archive_csv_path.write_text(heading_csv_path.read_text(encoding="utf-8"), encoding="utf-8")
 
     print(f"Section index JSON saved to {section_index_path}")
     print(f"Heading CSV saved to {heading_csv_path}")
@@ -875,15 +870,15 @@ def write_pdf_outputs(
     raw_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     raw_markdown_path.write_text(markdown_text, encoding="utf-8")
 
-    write_text_with_archive(
+    write_text_output(
         award_json_path,
         json.dumps(award, indent=2, ensure_ascii=False),
     )
-    write_text_with_archive(
+    write_text_output(
         diagnostics_output_path(output_stem_value, supporting_dir),
         json.dumps(diagnostics, indent=2, ensure_ascii=False),
     )
-    write_text_with_archive(
+    write_text_output(
         excluded_sections_output_path(output_stem_value, supporting_dir),
         json.dumps(
             {
@@ -928,7 +923,7 @@ def write_html_outputs_for_paths(
     """Write HTML-based step 1 outputs using explicit pipeline paths."""
     raw_html_path.parent.mkdir(parents=True, exist_ok=True)
     raw_html_path.write_text(str(main_content), encoding="utf-8")
-    write_text_with_archive(
+    write_text_output(
         award_json_path,
         json.dumps(award, indent=2, ensure_ascii=False),
     )

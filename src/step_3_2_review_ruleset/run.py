@@ -19,6 +19,10 @@ from .llm import (
 )
 
 
+def _print_status(message: str) -> None:
+    print(f"Step 3.2: {message}")
+
+
 def run_evaluator_review(
     *,
     inputs,
@@ -131,6 +135,7 @@ def review_ruleset(
     ruleset_key: str | None = None,
 ) -> OvertimeInterpretationReviewArtifacts:
     """Run step 3.2 and return the written artifact paths."""
+    active_status_callback = status_callback or _print_status
     inputs = load_review_inputs(
         interpretation_path=interpretation_path,
         classification_path=classification_path,
@@ -149,21 +154,19 @@ def review_ruleset(
     active_evaluator_client = evaluator_client or load_client()
     active_creator_client = creator_client or load_client()
 
-    if status_callback:
-        status_callback("Loading interpretation and step 2/3 classification sources")
-        status_callback(f"Awaiting evaluator model: {selected_evaluator_model}")
+    active_status_callback("Loading interpretation and step 2/3 classification sources")
+    active_status_callback(f"Awaiting evaluator model: {selected_evaluator_model}")
 
     evaluator_feedback_data, evaluator_feedback_markdown = run_evaluator_review(
         inputs=inputs,
         evaluator_client=active_evaluator_client,
         evaluator_model=selected_evaluator_model,
         evaluator_max_output_tokens=selected_evaluator_max_output_tokens,
-        status_callback=status_callback,
+        status_callback=active_status_callback,
     )
 
-    if status_callback:
-        status_callback("Evaluator processed feedback")
-        status_callback(f"Awaiting creator update model: {selected_creator_model}")
+    active_status_callback("Evaluator processed feedback")
+    active_status_callback(f"Awaiting creator update model: {selected_creator_model}")
 
     (
         creator_response_data,
@@ -178,18 +181,17 @@ def review_ruleset(
         creator_client=active_creator_client,
         creator_model=selected_creator_model,
         creator_max_output_tokens=selected_creator_max_output_tokens,
-        status_callback=status_callback,
+        status_callback=active_status_callback,
         inter_call_delay_seconds=inter_call_delay_seconds,
     )
 
-    if status_callback:
-        if last_validation_error and reviewed_rules_artifact is not None:
-            status_callback(
-                "Writing feedback and revised interpretation. "
-                "Any creator validation failure has been recorded for manual review."
-            )
-        else:
-            status_callback("Writing feedback, creator response, and revised interpretation")
+    if last_validation_error and reviewed_rules_artifact is not None:
+        active_status_callback(
+            "Writing feedback and revised interpretation. "
+            "Any creator validation failure has been recorded for manual review."
+        )
+    else:
+        active_status_callback("Writing feedback, creator response, and revised interpretation")
 
     artifacts = recreate_revised_ruleset(
         inputs=inputs,
@@ -204,7 +206,11 @@ def review_ruleset(
         revised_output_path=revised_output_path,
     )
 
-    if status_callback:
-        status_callback("Review update complete")
+    active_status_callback(f"Wrote evaluator review to {artifacts.evaluator_feedback_path}")
+    active_status_callback(f"Wrote creator response to {artifacts.creator_response_path}")
+    active_status_callback(
+        f"Wrote revised ruleset to {artifacts.revised_interpretation_path}"
+    )
+    active_status_callback("Review update complete")
 
     return artifacts

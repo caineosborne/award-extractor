@@ -36,6 +36,10 @@ def generate_ruleset_from_clause_classification(
     if expert_run_count < 1:
         raise OvertimeInterpretationError("expert_run_count must be at least 1.")
 
+    print(
+        "Step 3.1: Loading step 2 inputs from "
+        f"{classification_path}"
+    )
     inputs = resolve_generation_inputs(
         classification_path=classification_path,
         classification_output_path=classification_output_path,
@@ -47,6 +51,10 @@ def generate_ruleset_from_clause_classification(
         comparison_model=comparison_model,
     )
     active_client = client or load_openai_client()
+    print(
+        "Step 3.1: Drafting ruleset with "
+        f"{expert_run_count} expert run(s) using model {selected_model}"
+    )
 
     effective_expert_run_count = min(expert_run_count, len(EXPERT_RUN_LABELS))
     expert_rulesets: list[list[Any]] = []
@@ -121,6 +129,10 @@ def generate_ruleset_from_clause_classification(
         validation_warnings = expert_validation_warnings[0]
         comparison_metadata: dict[str, Any] = {}
     else:
+        print(
+            "Step 3.1: Merging expert drafts with comparison model "
+            f"{selected_comparison_model}"
+        )
         merged_rules, comparison_metadata, comparison_validation_warnings = (
             merge_expert_drafts(
                 client=active_client,
@@ -149,7 +161,7 @@ def generate_ruleset_from_clause_classification(
             rules=merged_rules,
         )
 
-    return write_merged_ruleset(
+    rendered_markdown = write_merged_ruleset(
         json_destination=inputs.json_destination,
         markdown_destination=inputs.destination,
         source_path=inputs.source_path,
@@ -159,3 +171,6 @@ def generate_ruleset_from_clause_classification(
         expert_output_paths=expert_output_paths,
         comparison_metadata=comparison_metadata,
     )
+    print(f"Step 3.1: Wrote ruleset markdown to {inputs.destination}")
+    print(f"Step 3.1: Wrote ruleset JSON to {inputs.json_destination}")
+    return rendered_markdown
