@@ -57,9 +57,9 @@ DEFAULT_INTERPRETATION_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018" /
 EVALUATOR_MODEL = "gpt-5-mini"
 DEFAULT_CREATOR_MODEL = "gpt-5-mini"
 DEFAULT_EVALUATOR_MAX_OUTPUT_TOKENS = 8000
-DEFAULT_CREATOR_MAX_OUTPUT_TOKENS = 4000
-DEFAULT_INTER_CALL_DELAY_SECONDS = 30.0
-MAX_CREATOR_REPAIR_ATTEMPTS = 1
+DEFAULT_CREATOR_MAX_OUTPUT_TOKENS = 8000
+DEFAULT_INTER_CALL_DELAY_SECONDS = 15.0
+MAX_CREATOR_REPAIR_ATTEMPTS = 2
 MAX_EVALUATOR_REPAIR_ATTEMPTS = 2
 REVIEW_RULESET_CHOICES = (
     OVERTIME_CREATION_RULESET,
@@ -482,6 +482,7 @@ def request_creator_revision(
                 **creator_response_data,
                 "rendered_markdown": revised_interpretation_markdown,
             }
+            last_validation_error = ""
             return (
                 creator_response_data,
                 reviewed_rules_artifact,

@@ -710,11 +710,11 @@ def award_code_for_artifact_paths(artifact_paths: Any) -> str:
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
+    original_data = load_optional_json_file(ruleset_artifacts.combined_json) or {}
     evaluator_data = load_json_or_show_error(ruleset_artifacts.evaluator_feedback_json)
     creator_data = load_json_or_show_error(ruleset_artifacts.creator_response_json)
     revised_data = load_json_or_show_error(ruleset_artifacts.revised_json)
@@ -725,11 +725,53 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
     decision_rows = build_review_decision_rows(
         evaluator_feedback_data=evaluator_data,
         creator_response_data=creator_data,
+        original_rules_data=original_data,
         revised_rules_data=revised_data,
     )
-    concern_rows = review_decision_concerns(decision_rows)
-    decision_summary = summarize_review_decision_rows(decision_rows)
+    ordered_decision_rows = order_review_decision_rows_for_display(decision_rows)
+    concern_rows = review_decision_concerns(ordered_decision_rows)
+    decision_summary = summarize_review_decision_rows(ordered_decision_rows)
     validation_warnings = revised_data.get("validation_warnings", [])
+    clause_index = load_clause_hover_index(
+        str(revised_data.get("source_clause_classification_file") or "")
+    )
+    creator_validation_error = str(creator_data.get("validation_error", "")).strip()
+    creator_raw_response = str(creator_data.get("raw_creator_response", "")).strip()
+
+    st.markdown("#### Generated artifacts")
+    evaluator_column, creator_column, revised_column = st.columns(3, gap="small")
+
+    with evaluator_column:
+        render_file_details(
+            ruleset_artifacts.evaluator_feedback_json,
+            source_path=ruleset_artifacts.evaluator_feedback,
+            file_label="Evaluator review JSON",
+            source_label="Evaluator review markdown",
+        )
+
+    with creator_column:
+        render_file_details(
+            ruleset_artifacts.creator_response_json,
+            source_path=ruleset_artifacts.creator_response,
+            file_label="Creator response JSON",
+            source_label="Creator response markdown",
+        )
+
+    with revised_column:
+        render_file_details(
+            ruleset_artifacts.revised_json,
+            source_path=ruleset_artifacts.revised_markdown,
+            file_label="Revised ruleset JSON",
+            source_label="Revised ruleset markdown",
+        )
+
+    if creator_validation_error:
+        creator_failure_explanation = explain_creator_validation_failure(
+            creator_validation_error,
+            creator_raw_response,
+        )
+        st.warning(creator_failure_explanation)
+        st.write(f"Validation issue: {creator_validation_error}")
 
     review_column, outcome_column = st.columns([1.2, 1.0], gap="medium")
 
@@ -742,17 +784,33 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
                 st.markdown("##### Concern items")
                 if concern_rows:
                     for row in concern_rows:
-                        render_review_decision_card(row, expanded=True)
+                        render_review_decision_card(
+                            row,
+                            expanded=True,
+                            clause_index=clause_index,
+                        )
                 if isinstance(validation_warnings, list):
-                    render_validation_warning_sections(
-                        [str(warning) for warning in validation_warnings]
+                    render_validation_warning_sections_with_hover(
+                        [str(warning) for warning in validation_warnings],
+                        clause_index,
                     )
             else:
                 st.info("No rejected or unimplemented evaluator recommendations were found.")
 
             st.markdown("##### Rule-by-rule decisions")
-            for row in decision_rows:
-                render_review_decision_card(row, expanded=False)
+            for row in ordered_decision_rows:
+                render_review_decision_card(
+                    row,
+                    expanded=False,
+                    clause_index=clause_index,
+                )
+
+        with st.container():
+            with st.expander("Raw evaluator commentary", expanded=False):
+                render_evaluator_feedback_panel(ruleset_artifacts.evaluator_feedback)
+
+            with st.expander("Raw creator commentary", expanded=False):
+                render_creator_commentary_panel(ruleset_artifacts.creator_response)
 
     with outcome_column:
         with st.container(border=True):
@@ -760,14 +818,9 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
             render_overtime_rules_json(
                 ruleset_artifacts.revised_json,
                 source_markdown_path=ruleset_artifacts.revised_markdown,
-                panel_key="review_feedback_outcome",
+                panel_key=f"{panel_key}_review_feedback_outcome",
+                enable_clause_hover=True,
             )
-
-    with st.expander("Raw evaluator commentary", expanded=False):
-        render_evaluator_feedback_panel(ruleset_artifacts.evaluator_feedback)
-
-    with st.expander("Raw creator commentary", expanded=False):
-        render_creator_commentary_panel(ruleset_artifacts.creator_response)
 
 
 def summarize_review_decision_rows(decision_rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -778,15 +831,33 @@ def summarize_review_decision_rows(decision_rows: list[dict[str, Any]]) -> dict[
         "kept": 0,
         "rejected": 0,
         "not_implemented": 0,
+        "unchanged_existing": 0,
+        "modified_existing": 0,
+        "rejected_new": 0,
     }
 
     for row in decision_rows:
         final_decision = str(row.get("final_decision", "")).strip().lower()
+        is_new_rule = bool(row.get("is_new_rule"))
+        final_rule_changed = bool(row.get("final_rule_changed_from_combined"))
         if final_decision in summary:
             summary[final_decision] += 1
 
         if bool(row.get("is_concern")):
             summary["not_implemented"] += 1
+
+        if is_new_rule:
+            if final_decision == "rejected":
+                summary["rejected_new"] += 1
+            continue
+
+        if final_decision == "removed":
+            continue
+
+        if final_rule_changed or final_decision == "modified":
+            summary["modified_existing"] += 1
+        else:
+            summary["unchanged_existing"] += 1
 
     return summary
 
@@ -795,12 +866,14 @@ def build_review_decision_rows(
     *,
     evaluator_feedback_data: dict[str, Any],
     creator_response_data: dict[str, Any],
+    original_rules_data: dict[str, Any] | None = None,
     revised_rules_data: dict[str, Any],
 ) -> list[dict[str, Any]]:
     evaluator_reviews = evaluator_feedback_data.get("rule_reviews", [])
     evaluator_new_rules = evaluator_feedback_data.get("new_rules", [])
     creator_rule_updates = creator_response_data.get("rule_updates", [])
     creator_new_rule_reviews = creator_response_data.get("new_rule_reviews", [])
+    original_rules = (original_rules_data or {}).get("rules", [])
     review_decisions = revised_rules_data.get("review_decisions", [])
     final_rules = revised_rules_data.get("rules", [])
 
@@ -823,6 +896,11 @@ def build_review_decision_rows(
         str(review.get("rule_id", "")).strip(): review
         for review in creator_new_rule_reviews
         if isinstance(review, dict)
+    }
+    original_rule_map = {
+        str(rule.get("rule_id", "")).strip(): rule
+        for rule in original_rules
+        if isinstance(rule, dict)
     }
     final_rule_map = {
         str(rule.get("rule_id", "")).strip(): rule
@@ -847,6 +925,7 @@ def build_review_decision_rows(
         evaluator_new_rule = evaluator_new_rule_map.get(rule_id)
         creator_rule_update = creator_rule_update_map.get(rule_id)
         creator_new_rule_review = creator_new_rule_review_map.get(rule_id)
+        original_rule = original_rule_map.get(rule_id)
         final_rule = final_rule_map.get(rule_id)
 
         evaluator_rationale = ""
@@ -868,6 +947,18 @@ def build_review_decision_rows(
                     updated_rule.get("rule_markdown", "")
                 ).strip()
 
+        original_rule_markdown = ""
+        original_clause_references: list[str] = []
+        if isinstance(original_rule, dict):
+            original_rule_markdown = str(original_rule.get("rule_markdown", "")).strip()
+            raw_original_clause_references = original_rule.get("clause_references", [])
+            if isinstance(raw_original_clause_references, list):
+                original_clause_references = [
+                    str(reference).strip()
+                    for reference in raw_original_clause_references
+                    if str(reference).strip()
+                ]
+
         final_rule_markdown = ""
         clause_references: list[str] = []
         if isinstance(final_rule, dict):
@@ -879,6 +970,12 @@ def build_review_decision_rows(
                     for reference in raw_clause_references
                     if str(reference).strip()
                 ]
+
+        final_rule_changed_from_combined = (
+            bool(original_rule_markdown)
+            and bool(final_rule_markdown)
+            and original_rule_markdown != final_rule_markdown
+        )
 
         is_concern = recommendation_not_implemented(
             evaluator_recommendation=evaluator_recommendation,
@@ -892,12 +989,16 @@ def build_review_decision_rows(
                 "evaluator_recommendation": evaluator_recommendation,
                 "creator_decision": creator_decision,
                 "final_decision": final_decision,
+                "is_new_rule": evaluator_recommendation.strip().lower() == "add",
                 "evaluator_rationale": evaluator_rationale,
                 "creator_reason": creator_reason,
                 "proposed_rule_markdown": proposed_rule_markdown,
                 "creator_updated_rule_markdown": creator_updated_rule_markdown,
+                "original_rule_markdown": original_rule_markdown,
+                "original_clause_references": original_clause_references,
                 "final_rule_markdown": final_rule_markdown,
                 "clause_references": clause_references,
+                "final_rule_changed_from_combined": final_rule_changed_from_combined,
                 "is_concern": is_concern,
             }
         )
@@ -930,18 +1031,53 @@ def review_decision_concerns(
     return [row for row in decision_rows if bool(row.get("is_concern"))]
 
 
+def order_review_decision_rows_for_display(
+    decision_rows: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Show new-rule decisions before original-rule decisions in Screen 8."""
+    return sorted(
+        decision_rows,
+        key=lambda row: (
+            0 if bool(row.get("is_new_rule")) else 1,
+            0 if str(row.get("final_decision", "")).strip().lower() in {"accepted", "modified"} else 1,
+            str(row.get("rule_id", "")),
+        ),
+    )
+
+
 def render_review_decision_summary(summary: dict[str, int]) -> None:
-    st.markdown(
-        " | ".join(
-            [
-                f"**Total decisions:** {summary['total']}",
-                f"**Accepted additions:** {summary['accepted']}",
-                f"**Modified:** {summary['modified']}",
-                f"**Kept:** {summary['kept']}",
-                f"**Rejected:** {summary['rejected']}",
-                f"**Not implemented:** {summary['not_implemented']}",
-            ]
+    st.markdown("**Decision summary**")
+    summary_columns = st.columns(6, gap="small")
+    summary_columns[0].metric("Total", summary["total"])
+    summary_columns[1].metric("Accept New", summary["accepted"])
+    summary_columns[2].metric("Modify Existing", summary["modified_existing"])
+    summary_columns[3].metric("Unchanged", summary["unchanged_existing"])
+    summary_columns[4].metric("Modify Rejected", summary["not_implemented"])
+    summary_columns[5].metric("New Rejected", summary["rejected_new"])
+
+
+def explain_creator_validation_failure(
+    validation_error: str,
+    raw_creator_response: str,
+) -> str:
+    """Explain creator failures in reviewer-friendly wording."""
+    stripped_response = raw_creator_response.rstrip()
+    likely_truncated = bool(stripped_response) and not stripped_response.endswith("}")
+
+    if likely_truncated:
+        return (
+            "The creator response could not be applied automatically in this run and "
+            "looks likely to have been truncated before the JSON finished. "
+            "The revised ruleset preserved the Screen 7 combined ruleset, so "
+            "`keep/kept` rows below reflect fallback preservation rather than a successful "
+            "review rewrite."
         )
+
+    return (
+        "The creator response could not be applied automatically in this run. "
+        "The revised ruleset preserved the Screen 7 combined ruleset, so "
+        "`keep/kept` rows below reflect fallback preservation rather than a successful "
+        "review rewrite."
     )
 
 
@@ -949,6 +1085,7 @@ def render_review_decision_card(
     decision_row: dict[str, Any],
     *,
     expanded: bool,
+    clause_index: dict[str, dict[str, str]] | None = None,
 ) -> None:
     rule_id = str(decision_row.get("rule_id", "")).strip()
     evaluator_recommendation = str(
@@ -968,8 +1105,19 @@ def render_review_decision_card(
         if bool(decision_row.get("is_concern")):
             st.warning("Evaluator recommendation was not implemented in the final ruleset.")
 
+        active_clause_index = clause_index or {}
+
         if clause_text:
-            st.write(f"Clause references: {clause_text}")
+            st.write("Clause references:")
+            if active_clause_index:
+                render_clause_reference_badges(clause_references, active_clause_index)
+                render_clause_source_details(
+                    clause_references,
+                    active_clause_index,
+                    label_prefix="Source clause",
+                )
+            else:
+                st.write(clause_text)
 
         st.write(
             " | ".join(
@@ -1005,10 +1153,24 @@ def render_review_decision_card(
             st.markdown("**Creator revised rule text**")
             st.markdown(creator_updated_rule_markdown)
 
+        original_rule_markdown = str(
+            decision_row.get("original_rule_markdown", "")
+        ).strip()
         final_rule_markdown = str(decision_row.get("final_rule_markdown", "")).strip()
-        if final_rule_markdown:
-            st.markdown("**Final rule in revised ruleset**")
-            st.markdown(final_rule_markdown)
+        if original_rule_markdown or final_rule_markdown:
+            compare_label = "Quick compare: Screen 7 combined rule vs Screen 8 revised rule"
+            with st.expander(compare_label, expanded=expanded and bool(decision_row.get("is_concern"))):
+                if original_rule_markdown:
+                    st.markdown("**Screen 7 combined rule**")
+                    st.markdown(original_rule_markdown)
+                else:
+                    st.info("No matching Screen 7 combined rule was found for this row.")
+
+                if final_rule_markdown:
+                    st.markdown("**Screen 8 revised rule**")
+                    st.markdown(final_rule_markdown)
+                else:
+                    st.info("No matching Screen 8 revised rule was found for this row.")
 
 
 def render_evaluator_feedback_panel(markdown_path: Path) -> None:

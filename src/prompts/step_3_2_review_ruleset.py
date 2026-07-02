@@ -16,8 +16,8 @@ from typing import Any
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     infer_overtime_ruleset_key_from_path,
-    overtime_ruleset_config,
 )
+from src.prompts.step_3_2_prompt_config import step_3_2_prompt_subset_config
 from src.prompts.step_2_2_classify_overtime_clauses import (
     build_clause_classification_messages,
 )
@@ -356,7 +356,7 @@ def build_full_evaluator_review_prompt(
     ruleset_key: str,
 ) -> str:
     """Build the full evaluator prompt covering both step-3 artifacts."""
-    config = overtime_ruleset_config(ruleset_key)
+    config = step_3_2_prompt_subset_config(ruleset_key)
     payment_classification_json = json.dumps(
         payment_classification,
         indent=2,
@@ -393,23 +393,32 @@ def build_full_evaluator_review_prompt(
         ensure_ascii=False,
     )
 
+    subset_scope_notes = ""
+    if config.subset_scope_notes:
+        subset_scope_notes = "\n".join(
+            f"- {scope_note}" for scope_note in config.subset_scope_notes
+        )
+
     return f"""Review this {config.display_name.lower()} working document.
 
-Do not rewrite the ruleset. Provide supervisor-style questions and concise issue notes only.
+Do not rewrite the ruleset. Provide concise reviewer findings only.
 
-Review against the full step 2.1 payment classification JSON. Do not limit the review to clauses already tagged Ordinary Hours & Overtime.
-
-Check both downstream rule-building steps:
-1. The step 2.2 overtime clause classification JSON: did it classify clauses in a way that supports the selected ruleset and avoid dragging in materially out-of-scope content?
-2. The step 3.1 ruleset markdown: does it include only rules supported by the cited clauses and relevant to the selected ruleset?
+Review the draft against the full step 2.1 payment classification JSON, the step 2.2 subset classification JSON, and the canonical step 3.1 rule JSON.
+Do not limit the review to clauses already tagged as obvious overtime clauses if the wider payment classification suggests relevant support was missed.
 
 Key review question:
 {config.review_question}
 
-Also review presentation. The final document should be easy for a payroll reviewer to check and for a payroll implementation team to convert into configuration rules. Identify duplicate points, unclear employee scope, missing thresholds, unclear grouping, missing clause references, or bullets that combine materially different tests.
+Subset-specific scope notes:
+{subset_scope_notes or "- No extra subset-specific scope note was defined."}
 
-Check whether the ruleset silently dropped any supported rule for this ruleset from the current draft.
-If a rule appears valid and unaffected by the feedback, call out any apparent removal or weakening of that rule.
+Check:
+- whether step 2.2 selected the right clauses for this subset and avoided materially out-of-scope clauses;
+- whether the step 3.1 ruleset includes only rules supported by the cited clauses and relevant to this subset;
+- whether any supported rule appears to have been removed, weakened, or left unclear without justification;
+- whether the ruleset is easy for a payroll reviewer to check and easy for an implementation team to convert into payroll logic.
+
+Flag duplicate points, unclear employee scope, unclear work-arrangement scope, missing thresholds, missing clause references, and bullets that combine materially different payroll tests.
 
 Ruleset source: {interpretation_path}
 
@@ -435,8 +444,7 @@ Step 2.2 overtime clause classification source: {overtime_clause_classification_
 {overtime_clause_classification_json}
 ```
 
-Step 3.2 creator prompt context reconstructed from the current step-folder code.
-This is included so the evaluator reviews against the same data and instructions that the creator received for this ruleset.
+Reconstructed step 3.2 creator context:
 
 ```json
 {step_3_2_creator_prompt_context_json}
@@ -454,7 +462,7 @@ def build_minimal_creator_revision_prompt(
     prior_creator_decision_markdown: str | None = None,
 ) -> str:
     """Build the one-pass creator prompt used to revise the interpretation draft."""
-    config = overtime_ruleset_config(ruleset_key)
+    config = step_3_2_prompt_subset_config(ruleset_key)
     prior_creator_decision_section = ""
     if prior_creator_decision_markdown and prior_creator_decision_markdown.strip():
         prior_creator_decision_section = f"""
@@ -465,34 +473,43 @@ Prior creator decision record:
 ```
 """
 
-    return f"""Review the supervisor feedback and decide whether the ruleset needs updating.
+    subset_scope_notes = ""
+    if config.subset_scope_notes:
+        subset_scope_notes = "\n".join(
+            f"- {scope_note}" for scope_note in config.subset_scope_notes
+        )
+
+    return f"""Review the evaluator feedback and update the ruleset only where needed.
 
 This is a one-pass update. Do not ask for another review cycle.
 
-Use the evaluator review action pack JSON as the authoritative source for what the evaluator actually recommended.
-Use the evaluator summary markdown only as explanation of that JSON.
+Use the evaluator review action pack JSON as the authoritative source for evaluator decisions.
+Use the evaluator summary markdown as explanation only.
 Do not infer any extra add, remove, merge, or split action from evaluator prose unless it is reflected in the structured action pack.
 
 Keep the revised ruleset simple. Include only rules that answer this question:
 {config.review_question}
 
+Subset-specific scope notes:
+{subset_scope_notes or "- No extra subset-specific scope note was defined."}
+
 Apply accepted feedback about both:
-- accuracy: whether the rule is supported by the cited clause text; and
+- accuracy: whether the rule is supported by the cited clause text;
 - presentation: whether the rule is clearly scoped, non-duplicative, traceable, and easy to implement.
 
-Preserve existing supported rules unless the accepted feedback requires changing or removing them.
-Do not remove a rule unless you explicitly state why it is unsupported, duplicative, or out of scope.
-If a rule is unaffected by the accepted feedback, keep it in the revised ruleset.
-
+Preserve supported rules unless accepted feedback requires a change.
 Make the smallest changes necessary to address accepted feedback.
-Do not rewrite or simplify unrelated parts of the ruleset.
+Do not rewrite unrelated rules.
 
-If you remain substantively uncertain whether a rule should stay in or be removed from this ruleset, record that uncertainty explicitly in the creator response rather than silently finalising the point.
+For original rules:
+- use `keep` when the final rule remains substantively the same;
+- use `modify` when any substantive field changes, including rule text, clause references, scope, heading, threshold, or arrangement logic;
+- use `remove` only when the evaluator explicitly recommended removal and you explain why the rule is unsupported, duplicative, or out of scope.
 
-Where accepted feedback concerns a named work arrangement, such as sleepovers, broken shifts, recall, on-call work, remote work, travel, or another specific arrangement, use a dedicated arrangement section if that is clearer than spreading the rules across employee-type sections. In that arrangement section, still state the employee type affected in each bullet where the rule is not identical for all employees.
-Keep one overtime circumstance per bullet. Split combined bullets where they contain separate thresholds, spans, roster conditions, or other distinct payroll tests.
+If a rule is unaffected by accepted feedback, keep it.
+If accepted feedback concerns a specific work arrangement, use a dedicated arrangement section when that is clearer than forcing the point into an employee-type section.
+Keep one payroll circumstance per bullet where practical.
 Keep clause references in the revised markdown bullets, preferably at the end in square brackets.
-If a clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, place that rule under `All employees` or a general work-arrangement section, not under a narrower employee-type heading.
 
 Original ruleset source: {interpretation_path}
 
@@ -518,7 +535,9 @@ Explanatory evaluator summary markdown:
 Return exactly two tagged sections:
 
 <creator_response>
-Write a short markdown decision record. Explain which feedback you accepted, which feedback you rejected, and why.
+Write a short markdown decision record in concise reviewer language.
+Keep it brief.
+Prefer one short bullet for accepted feedback and one short bullet for rejected feedback.
 
 </creator_response>
 <revised_interpretation>
@@ -770,6 +789,7 @@ def creator_structured_output_instructions() -> str:
         "- decision: keep, modify, or remove\n"
         "- reason\n"
         "- updated_rule when decision is modify, otherwise updated_rule must be null\n\n"
+        "Keep `reason` short and specific. One sentence is usually enough.\n"
         "Do not omit any original rule. Do not remove a rule unless the evaluator explicitly recommended remove.\n\n"
         "You must also provide one new_rule_reviews item for every evaluator-proposed new rule.\n"
         "Each new_rule_reviews item must contain:\n"
@@ -777,6 +797,7 @@ def creator_structured_output_instructions() -> str:
         "- decision: accept, modify, or reject\n"
         "- reason\n"
         "- updated_rule when decision is modify, otherwise updated_rule must be null\n\n"
+        "Keep `decision_record_markdown` brief.\n"
         "The evaluator structured review JSON is the authoritative source for evaluator-proposed new rule_ids.\n"
         "The evaluator structured review JSON is also the authoritative source for add, remove, keep, and modify decisions on original rules.\n"
         "Only include new_rule_reviews for rule_ids that appear in the evaluator structured review JSON new_rules array.\n"
@@ -791,7 +812,7 @@ def build_agentic_creator_instructions(
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
     """Return the standing instructions for the agentic step-3.2 creator."""
-    config = overtime_ruleset_config(ruleset_key)
+    config = step_3_2_prompt_subset_config(ruleset_key)
     return f"""You are the creator responsible for finalising an Australian modern award {config.display_name.lower()}.
 
 You are reviewing an existing step 3.1 first draft. Keep the final ruleset simple and include only rules that answer this question:
@@ -825,7 +846,7 @@ def evaluation_system_prompt(
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
     """Return the system prompt for the one-pass interpretation evaluator."""
-    config = overtime_ruleset_config(ruleset_key)
+    config = step_3_2_prompt_subset_config(ruleset_key)
     return f"""You are a supervisor reviewing an Australian modern award {config.display_name.lower()}.
 
 Your job is to provide useful feedback to the creator. Do not rewrite the document.

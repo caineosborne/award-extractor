@@ -346,6 +346,7 @@ def request_creator_revision(
                 **creator_response_data,
                 "rendered_markdown": revised_interpretation_markdown,
             }
+            last_validation_error = ""
             return (
                 creator_response_data,
                 reviewed_rules_artifact,
