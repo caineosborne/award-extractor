@@ -68,21 +68,21 @@ from streamlit_review.output_data import (
     source_path_for_core_overtime_pseudocode,
     source_path_for_ruleset_core_overtime_pseudocode,
     source_path_for_ruleset_manual_4b_editor,
-    write_text_file_with_archive,
+    write_text_file,
 )
 
 
 SCREEN_L1_PAYMENT = "1. Payment clauses"
 SCREEN_L2_PAYMENT = "2. Payment clause categories"
 SCREEN_OVERTIME_CLASSIFICATION = "3. Ruleset clause classification"
-SCREEN_EXPERT_A_OVERTIME = "4. Expert A ruleset draft"
-SCREEN_EXPERT_B_OVERTIME = "5. Expert B ruleset draft"
+SCREEN_EXPERT_A_OVERTIME = "4. Step 3.1 Expert A ruleset draft"
+SCREEN_EXPERT_B_OVERTIME = "5. Step 3.1 Expert B ruleset draft"
 SCREEN_EXPERT_COMPARISON = "6. Comparison of expert outputs"
-SCREEN_ORIGINAL_OVERTIME = "7. Combined ruleset"
-SCREEN_REVIEW_FEEDBACK = "8. Reviewer feedback and commentary"
-SCREEN_FORMATTED_4A = "9. Final formatted ruleset"
-SCREEN_MANUAL_4B_EDITOR = "10. Manually edited ruleset"
-SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Pseudocode"
+SCREEN_ORIGINAL_OVERTIME = "7. Step 3.1 Combined ruleset"
+SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
+SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
+SCREEN_MANUAL_4B_EDITOR = "10. Manual 4B ruleset editor"
+SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
 
 RULESET_OPTIONS = {
     "Overtime creation": OVERTIME_CREATION_RULESET,
@@ -167,7 +167,7 @@ def main() -> None:
     artifact_paths = artifact_paths_for_award(validated_award_code)
     selected_ruleset = st.session_state.get("step3_ruleset", OVERTIME_CREATION_RULESET)
 
-    st.caption(f"Reviewing generated outputs for `{validated_award_code}`.")
+    st.caption(f"Reviewing canonical pipeline outputs for `{validated_award_code}`.")
 
     screen_one = st.session_state["screen_one"]
     screen_two = st.session_state["screen_two"]
@@ -257,25 +257,25 @@ def render_sidebar(award_codes: list[str]) -> str:
 
         st.caption("Single screen shortcuts")
 
-        if st.button("Combined ruleset", use_container_width=True):
+        if st.button("Step 3.1 combined ruleset", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_ORIGINAL_OVERTIME
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Final formatted ruleset", use_container_width=True):
+        if st.button("Step 4.1 formatted overtime guide", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_FORMATTED_4A
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Manually edited ruleset", use_container_width=True):
+        if st.button("Manual 4B ruleset editor", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_MANUAL_4B_EDITOR
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Pseudocode", use_container_width=True):
+        if st.button("Step 5.1 pseudocode", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_CORE_OVERTIME_PSEUDOCODE
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
@@ -536,7 +536,7 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str, ruleset_key: s
 
 def render_overtime_classification_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     render_file_details(ruleset_artifacts.clause_classification)
@@ -594,7 +594,7 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     json_path = ruleset_artifacts.combined_json
@@ -607,7 +607,7 @@ def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
 def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     json_path = ruleset_artifacts.expert_a_markdown.with_suffix(".json")
@@ -620,7 +620,7 @@ def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
 def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     json_path = ruleset_artifacts.expert_b_markdown.with_suffix(".json")
@@ -632,7 +632,7 @@ def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
 
 def render_expert_comparison_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     ruleset_artifacts = ruleset_artifact_paths_for_award(
-        artifact_paths.payment_classification.stem.removesuffix("_payment_classification"),
+        award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
     render_file_details(ruleset_artifacts.comparison_json)
@@ -694,8 +694,7 @@ def render_expert_comparison_screen(artifact_paths: Any, panel_key: str, ruleset
 
 def award_code_for_artifact_paths(artifact_paths: Any) -> str:
     """Derive the selected award code from the active artifact bundle."""
-    payment_stem = artifact_paths.payment_classification.stem
-    return payment_stem.removesuffix("_payment_classification")
+    return artifact_paths.payment_classification.parent.name
 
 
 def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
@@ -1210,15 +1209,11 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_
             st.error("The edited overtime markdown is empty. Nothing was saved.")
             return
 
-        archive_path = write_text_file_with_archive(
-            save_path,
-            edited_markdown,
-        )
+        write_text_file(save_path, edited_markdown)
         st.success(
             "Saved updated version to "
             f"`{format_path_for_display(save_path)}`."
         )
-        st.caption(f"Archive copy: `{format_path_for_display(archive_path)}`")
 
 
 def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
@@ -1697,7 +1692,7 @@ def render_pipeline_run_controls(
 ) -> None:
     st.header("Pipeline runs")
     st.caption(
-        "Runs the review workflow for the selected award code through the formatted ruleset and pseudocode steps."
+        "Runs the canonical CLI pipeline for the selected output set in step order."
     )
     current_status = normalized_status_for_award(selected_award_code)
     run_is_active = bool(

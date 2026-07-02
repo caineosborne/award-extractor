@@ -17,6 +17,7 @@ from src.prompts.overtime_ruleset import (
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from streamlit_review.app import (
+    PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
     award_code_for_artifact_paths,
     available_award_code_index,
     build_review_decision_rows,
@@ -35,6 +36,7 @@ from streamlit_review.app import (
     validate_award_code_input,
 )
 from streamlit_review.pipeline_runs import (
+    PIPELINE_STEP_LABELS as BACKGROUND_PIPELINE_STEP_LABELS,
     pipeline_run_label as background_pipeline_run_label,
     run_pipeline_for_award as background_run_pipeline_for_award,
 )
@@ -61,6 +63,7 @@ from streamlit_review.output_data import (
     source_path_for_manual_4b_editor,
     source_path_for_ruleset_core_overtime_pseudocode,
     source_path_for_ruleset_manual_4b_editor,
+    write_text_file,
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
@@ -79,9 +82,21 @@ from src.common.award_sources import (
 
 
 def test_discover_award_codes_from_payment_classification_files(tmp_path):
-    (tmp_path / "MA000018_payment_classification.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "MA000002_payment_classification.json").write_text("{}", encoding="utf-8")
-    (tmp_path / "ignore.json").write_text("{}", encoding="utf-8")
+    (tmp_path / "MA000018").mkdir()
+    (tmp_path / "MA000018" / "2_1_payment_classification.json").write_text(
+        "{}",
+        encoding="utf-8",
+    )
+    (tmp_path / "MA000002").mkdir()
+    (tmp_path / "MA000002" / "2_1_payment_classification.json").write_text(
+        "{}",
+        encoding="utf-8",
+    )
+    (tmp_path / "legacy").mkdir()
+    (tmp_path / "legacy" / "MA000120_payment_classification.json").write_text(
+        "{}",
+        encoding="utf-8",
+    )
 
     assert discover_award_codes(tmp_path) == ["MA000002", "MA000018"]
 
@@ -89,53 +104,38 @@ def test_discover_award_codes_from_payment_classification_files(tmp_path):
 def test_artifact_paths_for_award():
     paths = artifact_paths_for_award("MA000018")
 
-    assert paths.payment_classification.name == "MA000018_payment_classification.json"
-    assert (
-        paths.overtime_clause_classification.name
-        == "MA000018_overtime_clause_classification.json"
-    )
-    assert paths.original_overtime_interpretation.name == "MA000018_overtime_interpretation.md"
+    assert paths.payment_classification.name == "2_1_payment_classification.json"
+    assert paths.overtime_clause_classification.name == "2_2_OT_creation_clause_classification.json"
+    assert paths.original_overtime_interpretation.name == "3_1_OT_creation_ruleset.md"
     assert (
         paths.original_overtime_interpretation_expert_a.name
-        == "MA000018_overtime_interpretation_expert_a.md"
+        == "3_1_OT_creation_ruleset_expert_a.md"
     )
     assert (
         paths.original_overtime_interpretation_expert_b.name
-        == "MA000018_overtime_interpretation_expert_b.md"
+        == "3_1_OT_creation_ruleset_expert_b.md"
     )
     assert (
         paths.original_overtime_interpretation_comparison.name
-        == "MA000018_overtime_interpretation_comparison.json"
+        == "3_1_OT_creation_ruleset_comparison.json"
     )
     assert (
         paths.agentic_review_conversation.name
-        == "MA000018_overtime_interpretation_agentic_review_conversation.md"
+        == "3_2_OT_creation_agentic_review_conversation.md"
     )
-    assert (
-        paths.evaluator_feedback.name
-        == "MA000018_overtime_interpretation_evaluator_feedback.md"
-    )
-    assert (
-        paths.creator_response.name
-        == "MA000018_overtime_interpretation_creator_response.md"
-    )
-    assert (
-        paths.revised_overtime_interpretation.name
-        == "MA000018_overtime_interpretation_revised.md"
-    )
-    assert paths.overtime_entitlements.name == "MA000018_overtime_entitlements.md"
+    assert paths.evaluator_feedback.name == "3_2_OT_creation_review.md"
+    assert paths.creator_response.name == "3_2_OT_creation_creator_response.md"
+    assert paths.revised_overtime_interpretation.name == "3_2_OT_creation_revised_ruleset.md"
+    assert paths.overtime_entitlements.name == "4_1_OT_creation_formatted_ruleset.md"
     assert (
         paths.manual_4b_overtime_interpretation.name
-        == "MA000018_overtime_interpretation_4b.md"
+        == "3_2_OT_creation_revised_ruleset_4b.md"
     )
-    assert paths.core_overtime_pseudocode.name == "MA000018_core_overtime_pseudocode.md"
-    assert (
-        paths.core_overtime_validation_json.name
-        == "MA000018_core_overtime_pseudocode_validation.json"
-    )
+    assert paths.core_overtime_pseudocode.name == "5_1_OT_creation_pseudocode.md"
+    assert paths.core_overtime_validation_json.name == "5_1_OT_creation_pseudocode_validation.json"
     assert (
         paths.core_overtime_validation_markdown.name
-        == "MA000018_core_overtime_pseudocode_validation.md"
+        == "5_1_OT_creation_pseudocode_validation.md"
     )
 
 
@@ -148,94 +148,35 @@ def test_award_code_for_artifact_paths_uses_payment_classification_stem():
 def test_ruleset_artifact_paths_for_award():
     paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
 
-    assert (
-        paths.clause_classification.name
-        == "MA000018_overtime_clause_classification.json"
-    )
-    assert paths.expert_a_markdown.name == "MA000018_overtime_consequence_ruleset_expert_a.md"
-    assert paths.expert_b_markdown.name == "MA000018_overtime_consequence_ruleset_expert_b.md"
-    assert paths.comparison_json.name == "MA000018_overtime_consequence_ruleset_comparison.json"
-    assert paths.combined_markdown.name == "MA000018_overtime_consequence_ruleset.md"
-    assert paths.combined_json.name == "MA000018_overtime_consequence_ruleset.json"
-    assert (
-        paths.formatted_markdown.name
-        == "MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
-    )
-    assert paths.manual_4b_markdown.name == "MA000018_overtime_consequence_ruleset_4b.md"
-    assert (
-        paths.pseudocode_markdown.name
-        == "MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
-    )
+    assert paths.clause_classification.name == "2_2_OT_consequence_clause_classification.json"
+    assert paths.expert_a_markdown.name == "3_1_OT_consequence_ruleset_expert_a.md"
+    assert paths.expert_b_markdown.name == "3_1_OT_consequence_ruleset_expert_b.md"
+    assert paths.comparison_json.name == "3_1_OT_consequence_ruleset_comparison.json"
+    assert paths.combined_markdown.name == "3_1_OT_consequence_ruleset.md"
+    assert paths.combined_json.name == "3_1_OT_consequence_ruleset.json"
+    assert paths.evaluator_feedback.name == "3_2_OT_consequence_review.md"
+    assert paths.creator_response.name == "3_2_OT_consequence_creator_response.md"
+    assert paths.revised_markdown.name == "3_2_OT_consequence_revised_ruleset.md"
+    assert paths.formatted_markdown.name == "4_1_OT_consequence_formatted_ruleset.md"
+    assert paths.manual_4b_markdown.name == "3_2_OT_consequence_revised_ruleset_4b.md"
+    assert paths.pseudocode_markdown.name == "5_1_OT_consequence_pseudocode.md"
 
 
-def test_creation_ruleset_artifact_paths_fall_back_to_legacy_files_when_explicit_files_are_missing(
-    tmp_path,
-    monkeypatch,
-):
-    processed_root = tmp_path / "processed"
-    award_dir = processed_root / "MA000120"
-    award_dir.mkdir(parents=True)
-
-    legacy_files = [
-        "MA000120_overtime_clause_classification.json",
-        "MA000120_overtime_interpretation_expert_a.md",
-        "MA000120_overtime_interpretation_expert_b.md",
-        "MA000120_overtime_interpretation_comparison.json",
-        "MA000120_overtime_interpretation.md",
-    ]
-    for filename in legacy_files:
-        (award_dir / filename).write_text("", encoding="utf-8")
-
-    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
-
+def test_creation_ruleset_artifact_paths_for_award_are_canonical():
     paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
 
-    assert paths.clause_classification.name == "MA000120_overtime_clause_classification.json"
-    assert paths.expert_a_markdown.name == "MA000120_overtime_interpretation_expert_a.md"
-    assert paths.expert_b_markdown.name == "MA000120_overtime_interpretation_expert_b.md"
-    assert paths.comparison_json.name == "MA000120_overtime_interpretation_comparison.json"
-    assert paths.combined_markdown.name == "MA000120_overtime_interpretation.md"
-    assert paths.combined_json.name == "MA000120_overtime_interpretation.json"
-    assert paths.manual_4b_markdown.name == "MA000120_overtime_interpretation_4b.md"
-
-
-def test_creation_ruleset_artifact_paths_prefer_explicit_files_when_they_exist(
-    tmp_path,
-    monkeypatch,
-):
-    processed_root = tmp_path / "processed"
-    award_dir = processed_root / "MA000120"
-    award_dir.mkdir(parents=True)
-
-    explicit_files = [
-        "MA000120_overtime_clause_classification.json",
-        "MA000120_overtime_creation_ruleset_expert_a.md",
-        "MA000120_overtime_creation_ruleset_expert_b.md",
-        "MA000120_overtime_creation_ruleset_comparison.json",
-        "MA000120_overtime_creation_ruleset.md",
-    ]
-    for filename in explicit_files:
-        (award_dir / filename).write_text("", encoding="utf-8")
-
-    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
-
-    paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
-
-    assert paths.clause_classification.name == "MA000120_overtime_clause_classification.json"
-    assert paths.expert_a_markdown.name == "MA000120_overtime_creation_ruleset_expert_a.md"
-    assert paths.expert_b_markdown.name == "MA000120_overtime_creation_ruleset_expert_b.md"
-    assert paths.comparison_json.name == "MA000120_overtime_creation_ruleset_comparison.json"
-    assert paths.combined_markdown.name == "MA000120_overtime_creation_ruleset.md"
-    assert paths.combined_json.name == "MA000120_overtime_creation_ruleset.json"
-    assert (
-        paths.formatted_markdown.name
-        == "MA000120_overtime_creation_ruleset_overtime_entitlements.md"
-    )
-    assert paths.manual_4b_markdown.name == "MA000120_overtime_creation_ruleset_4b.md"
-    assert (
-        paths.pseudocode_markdown.name
-        == "MA000120_overtime_creation_ruleset_core_overtime_pseudocode.md"
-    )
+    assert paths.clause_classification.name == "2_2_OT_creation_clause_classification.json"
+    assert paths.expert_a_markdown.name == "3_1_OT_creation_ruleset_expert_a.md"
+    assert paths.expert_b_markdown.name == "3_1_OT_creation_ruleset_expert_b.md"
+    assert paths.comparison_json.name == "3_1_OT_creation_ruleset_comparison.json"
+    assert paths.combined_markdown.name == "3_1_OT_creation_ruleset.md"
+    assert paths.combined_json.name == "3_1_OT_creation_ruleset.json"
+    assert paths.evaluator_feedback.name == "3_2_OT_creation_review.md"
+    assert paths.creator_response.name == "3_2_OT_creation_creator_response.md"
+    assert paths.revised_markdown.name == "3_2_OT_creation_revised_ruleset.md"
+    assert paths.formatted_markdown.name == "4_1_OT_creation_formatted_ruleset.md"
+    assert paths.manual_4b_markdown.name == "3_2_OT_creation_revised_ruleset_4b.md"
+    assert paths.pseudocode_markdown.name == "5_1_OT_creation_pseudocode.md"
 
 
 def test_phase_1_prompt_builders_live_under_prompts_folder():
@@ -329,44 +270,42 @@ def test_overtime_clause_text_widget_key_changes_with_selected_clause():
 
 
 def test_manual_4b_editor_widget_key_uses_output_path_stem():
-    output_path = Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_4b.md")
+    output_path = Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset_4b.md")
 
     assert (
         manual_4b_editor_widget_key("screen_one", output_path)
-        == "screen_one_manual_4b_editor_MA000018_overtime_interpretation_4b"
+        == "screen_one_manual_4b_editor_3_2_OT_creation_revised_ruleset_4b"
     )
 
 
 def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_path):
-    original_path = tmp_path / "award_overtime_interpretation.md"
-    revised_path = tmp_path / "award_overtime_interpretation_revised.md"
-    overtime_entitlements_path = tmp_path / "award_overtime_entitlements.md"
-    manual_4b_path = tmp_path / "award_overtime_interpretation_4b.md"
+    original_path = tmp_path / "3_1_OT_creation_ruleset.md"
+    revised_path = tmp_path / "3_2_OT_creation_revised_ruleset.md"
+    overtime_entitlements_path = tmp_path / "4_1_OT_creation_formatted_ruleset.md"
+    manual_4b_path = tmp_path / "3_2_OT_creation_revised_ruleset_4b.md"
 
     artifact_paths = ArtifactPaths(
-        payment_classification=tmp_path / "award_payment_classification.json",
-        overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
+        payment_classification=tmp_path / "2_1_payment_classification.json",
+        overtime_clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
         original_overtime_interpretation=original_path,
-        original_overtime_interpretation_expert_a=tmp_path
-        / "award_overtime_interpretation_expert_a.md",
-        original_overtime_interpretation_expert_b=tmp_path
-        / "award_overtime_interpretation_expert_b.md",
-        original_overtime_interpretation_comparison=tmp_path
-        / "award_overtime_interpretation_comparison.json",
-        agentic_review_conversation=tmp_path
-        / "award_overtime_interpretation_agentic_review_conversation.md",
-        evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
-        creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
+        original_overtime_interpretation_expert_a=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
+        original_overtime_interpretation_expert_b=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
+        original_overtime_interpretation_comparison=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
+        agentic_review_conversation=tmp_path / "feedback" / "3_2_OT_creation_agentic_review_conversation.md",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_OT_creation_review.md",
+        creator_response=tmp_path / "feedback" / "3_2_OT_creation_creator_response.md",
         revised_overtime_interpretation=revised_path,
         overtime_entitlements=overtime_entitlements_path,
         manual_4b_overtime_interpretation=manual_4b_path,
-        core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
-        core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
-        core_overtime_validation_markdown=tmp_path
-        / "award_core_overtime_pseudocode_validation.md",
+        core_overtime_pseudocode=tmp_path / "5_1_OT_creation_pseudocode.md",
+        core_overtime_validation_json=tmp_path / "5_1_OT_creation_pseudocode_validation.json",
+        core_overtime_validation_markdown=tmp_path / "5_1_OT_creation_pseudocode_validation.md",
     )
 
     assert source_path_for_manual_4b_editor(artifact_paths) == original_path
+
+    revised_path.write_text("# Revised 3.2", encoding="utf-8")
+    assert source_path_for_manual_4b_editor(artifact_paths) == revised_path
 
     overtime_entitlements_path.write_text("# 4A", encoding="utf-8")
     assert source_path_for_manual_4b_editor(artifact_paths) == overtime_entitlements_path
@@ -376,32 +315,27 @@ def test_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_
 
 
 def test_core_overtime_pseudocode_prefers_existing_4b_then_4a_then_revised_source(tmp_path):
-    original_path = tmp_path / "award_overtime_interpretation.md"
-    revised_path = tmp_path / "award_overtime_interpretation_revised.md"
-    overtime_entitlements_path = tmp_path / "award_overtime_entitlements.md"
-    manual_4b_path = tmp_path / "award_overtime_interpretation_4b.md"
+    original_path = tmp_path / "3_1_OT_creation_ruleset.md"
+    revised_path = tmp_path / "3_2_OT_creation_revised_ruleset.md"
+    overtime_entitlements_path = tmp_path / "4_1_OT_creation_formatted_ruleset.md"
+    manual_4b_path = tmp_path / "3_2_OT_creation_revised_ruleset_4b.md"
 
     artifact_paths = ArtifactPaths(
-        payment_classification=tmp_path / "award_payment_classification.json",
-        overtime_clause_classification=tmp_path / "award_overtime_clause_classification.json",
+        payment_classification=tmp_path / "2_1_payment_classification.json",
+        overtime_clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
         original_overtime_interpretation=original_path,
-        original_overtime_interpretation_expert_a=tmp_path
-        / "award_overtime_interpretation_expert_a.md",
-        original_overtime_interpretation_expert_b=tmp_path
-        / "award_overtime_interpretation_expert_b.md",
-        original_overtime_interpretation_comparison=tmp_path
-        / "award_overtime_interpretation_comparison.json",
-        agentic_review_conversation=tmp_path
-        / "award_overtime_interpretation_agentic_review_conversation.md",
-        evaluator_feedback=tmp_path / "award_overtime_interpretation_evaluator_feedback.md",
-        creator_response=tmp_path / "award_overtime_interpretation_creator_response.md",
+        original_overtime_interpretation_expert_a=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
+        original_overtime_interpretation_expert_b=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
+        original_overtime_interpretation_comparison=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
+        agentic_review_conversation=tmp_path / "feedback" / "3_2_OT_creation_agentic_review_conversation.md",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_OT_creation_review.md",
+        creator_response=tmp_path / "feedback" / "3_2_OT_creation_creator_response.md",
         revised_overtime_interpretation=revised_path,
         overtime_entitlements=overtime_entitlements_path,
         manual_4b_overtime_interpretation=manual_4b_path,
-        core_overtime_pseudocode=tmp_path / "award_core_overtime_pseudocode.md",
-        core_overtime_validation_json=tmp_path / "award_core_overtime_pseudocode_validation.json",
-        core_overtime_validation_markdown=tmp_path
-        / "award_core_overtime_pseudocode_validation.md",
+        core_overtime_pseudocode=tmp_path / "5_1_OT_creation_pseudocode.md",
+        core_overtime_validation_json=tmp_path / "5_1_OT_creation_pseudocode_validation.json",
+        core_overtime_validation_markdown=tmp_path / "5_1_OT_creation_pseudocode_validation.md",
     )
 
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == original_path
@@ -409,7 +343,7 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_4a_then_revised_sourc
     overtime_entitlements_path.write_text("# 4A", encoding="utf-8")
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == overtime_entitlements_path
 
-    revised_path.write_text("# Revised 3B", encoding="utf-8")
+    revised_path.write_text("# Revised 3.2", encoding="utf-8")
     assert source_path_for_core_overtime_pseudocode(artifact_paths) == overtime_entitlements_path
 
     manual_4b_path.write_text("# Saved 4B", encoding="utf-8")
@@ -417,33 +351,30 @@ def test_core_overtime_pseudocode_prefers_existing_4b_then_4a_then_revised_sourc
 
 
 def test_ruleset_manual_4b_editor_prefers_existing_saved_update_then_revised_source(tmp_path):
-    combined_path = tmp_path / "award_overtime_creation_ruleset.md"
-    revised_path = tmp_path / "award_overtime_creation_ruleset_revised.md"
-    formatted_path = tmp_path / "award_overtime_creation_ruleset_overtime_entitlements.md"
-    manual_4b_path = tmp_path / "award_overtime_creation_ruleset_4b.md"
+    combined_path = tmp_path / "3_1_OT_creation_ruleset.md"
+    revised_path = tmp_path / "3_2_OT_creation_revised_ruleset.md"
+    formatted_path = tmp_path / "4_1_OT_creation_formatted_ruleset.md"
+    manual_4b_path = tmp_path / "3_2_OT_creation_revised_ruleset_4b.md"
 
     ruleset_artifact_paths = RulesetArtifactPaths(
         ruleset_key=OVERTIME_CREATION_RULESET,
-        clause_classification=tmp_path / "award_overtime_clause_classification.json",
-        expert_a_markdown=tmp_path / "award_overtime_creation_ruleset_expert_a.md",
-        expert_b_markdown=tmp_path / "award_overtime_creation_ruleset_expert_b.md",
-        comparison_json=tmp_path / "award_overtime_creation_ruleset_comparison.json",
+        clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        expert_a_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
+        comparison_json=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
         combined_markdown=combined_path,
-        combined_json=tmp_path / "award_overtime_creation_ruleset.json",
-        evaluator_feedback=tmp_path / "award_overtime_creation_ruleset_evaluator_feedback.md",
-        evaluator_feedback_json=tmp_path
-        / "award_overtime_creation_ruleset_evaluator_feedback.json",
-        creator_response=tmp_path / "award_overtime_creation_ruleset_creator_response.md",
-        creator_response_json=tmp_path / "award_overtime_creation_ruleset_creator_response.json",
+        combined_json=tmp_path / "3_1_OT_creation_ruleset.json",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_OT_creation_review.md",
+        evaluator_feedback_json=tmp_path / "feedback" / "3_2_OT_creation_review.json",
+        creator_response=tmp_path / "feedback" / "3_2_OT_creation_creator_response.md",
+        creator_response_json=tmp_path / "feedback" / "3_2_OT_creation_creator_response.json",
         revised_markdown=revised_path,
-        revised_json=tmp_path / "award_overtime_creation_ruleset_revised.json",
+        revised_json=tmp_path / "3_2_OT_creation_revised_ruleset.json",
         formatted_markdown=formatted_path,
         manual_4b_markdown=manual_4b_path,
-        pseudocode_markdown=tmp_path / "award_overtime_creation_ruleset_core_overtime_pseudocode.md",
-        pseudocode_validation_json=tmp_path
-        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.json",
-        pseudocode_validation_markdown=tmp_path
-        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.md",
+        pseudocode_markdown=tmp_path / "5_1_OT_creation_pseudocode.md",
+        pseudocode_validation_json=tmp_path / "5_1_OT_creation_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path / "5_1_OT_creation_pseudocode_validation.md",
     )
 
     assert source_path_for_ruleset_manual_4b_editor(ruleset_artifact_paths) == combined_path
@@ -461,43 +392,36 @@ def test_ruleset_manual_4b_editor_prefers_existing_saved_update_then_revised_sou
 def test_ruleset_core_overtime_pseudocode_prefers_ruleset_4b_then_4a_then_revised_source(
     tmp_path,
 ):
-    combined_path = tmp_path / "award_overtime_creation_ruleset.md"
-    revised_path = tmp_path / "award_overtime_creation_ruleset_revised.md"
-    revised_json_path = tmp_path / "award_overtime_creation_ruleset_revised.json"
-    formatted_path = tmp_path / "award_overtime_creation_ruleset_overtime_entitlements.md"
-    manual_4b_path = tmp_path / "award_overtime_creation_ruleset_4b.md"
+    combined_path = tmp_path / "3_1_OT_creation_ruleset.md"
+    revised_path = tmp_path / "3_2_OT_creation_revised_ruleset.md"
+    formatted_path = tmp_path / "4_1_OT_creation_formatted_ruleset.md"
+    manual_4b_path = tmp_path / "3_2_OT_creation_revised_ruleset_4b.md"
 
     ruleset_artifact_paths = RulesetArtifactPaths(
         ruleset_key=OVERTIME_CREATION_RULESET,
-        clause_classification=tmp_path / "award_overtime_clause_classification.json",
-        expert_a_markdown=tmp_path / "award_overtime_creation_ruleset_expert_a.md",
-        expert_b_markdown=tmp_path / "award_overtime_creation_ruleset_expert_b.md",
-        comparison_json=tmp_path / "award_overtime_creation_ruleset_comparison.json",
+        clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        expert_a_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
+        comparison_json=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
         combined_markdown=combined_path,
-        combined_json=tmp_path / "award_overtime_creation_ruleset.json",
-        evaluator_feedback=tmp_path / "award_overtime_creation_ruleset_evaluator_feedback.md",
-        evaluator_feedback_json=tmp_path
-        / "award_overtime_creation_ruleset_evaluator_feedback.json",
-        creator_response=tmp_path / "award_overtime_creation_ruleset_creator_response.md",
-        creator_response_json=tmp_path / "award_overtime_creation_ruleset_creator_response.json",
+        combined_json=tmp_path / "3_1_OT_creation_ruleset.json",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_OT_creation_review.md",
+        evaluator_feedback_json=tmp_path / "feedback" / "3_2_OT_creation_review.json",
+        creator_response=tmp_path / "feedback" / "3_2_OT_creation_creator_response.md",
+        creator_response_json=tmp_path / "feedback" / "3_2_OT_creation_creator_response.json",
         revised_markdown=revised_path,
-        revised_json=revised_json_path,
+        revised_json=tmp_path / "3_2_OT_creation_revised_ruleset.json",
         formatted_markdown=formatted_path,
         manual_4b_markdown=manual_4b_path,
-        pseudocode_markdown=tmp_path / "award_overtime_creation_ruleset_core_overtime_pseudocode.md",
-        pseudocode_validation_json=tmp_path
-        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.json",
-        pseudocode_validation_markdown=tmp_path
-        / "award_overtime_creation_ruleset_core_overtime_pseudocode_validation.md",
+        pseudocode_markdown=tmp_path / "5_1_OT_creation_pseudocode.md",
+        pseudocode_validation_json=tmp_path / "5_1_OT_creation_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path / "5_1_OT_creation_pseudocode_validation.md",
     )
 
     assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == combined_path
 
-    revised_json_path.write_text("{}", encoding="utf-8")
-    assert (
-        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
-        == revised_json_path
-    )
+    revised_path.write_text("# Revised 3.2", encoding="utf-8")
+    assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == revised_path
 
     formatted_path.write_text("# 4A", encoding="utf-8")
     assert (
@@ -520,6 +444,15 @@ def test_missing_text_file_returns_status_without_exception(tmp_path):
     assert file_content.path == missing_path
     assert file_content.exists is False
     assert file_content.text == ""
+
+
+def test_write_text_file_updates_current_file_without_creating_archive(tmp_path):
+    target_path = tmp_path / "MA000018" / "3_2_OT_creation_revised_ruleset_4b.md"
+
+    write_text_file(target_path, "# Updated")
+
+    assert target_path.read_text(encoding="utf-8") == "# Updated"
+    assert (target_path.parent / "archive").exists() is False
 
 
 class _FakeExpander:
@@ -768,11 +701,11 @@ def test_processed_files_matching_prefix_includes_award_first_directory_contents
     feedback_dir = award_dir / "feedback"
     feedback_dir.mkdir(parents=True)
 
-    main_file = award_dir / "MA000018_payment_classification.json"
+    main_file = award_dir / "2_1_payment_classification.json"
     main_file.write_text("{}", encoding="utf-8")
-    feedback_file = feedback_dir / "MA000018_overtime_interpretation_creator_response.md"
+    feedback_file = feedback_dir / "3_2_OT_creation_creator_response.md"
     feedback_file.write_text("# feedback", encoding="utf-8")
-    archived_file = award_dir / "archive" / "MA000018_payment_classification_20260623_101112.json"
+    archived_file = award_dir / "archive" / "2_1_payment_classification_20260623_101112.json"
     archived_file.parent.mkdir(parents=True)
     archived_file.write_text("{}", encoding="utf-8")
 
@@ -812,11 +745,11 @@ def test_delete_processed_files_matching_prefix_deletes_award_first_directory_co
     feedback_dir = award_dir / "feedback"
     feedback_dir.mkdir(parents=True)
 
-    main_file = award_dir / "MA000018_payment_classification.json"
+    main_file = award_dir / "2_1_payment_classification.json"
     main_file.write_text("{}", encoding="utf-8")
-    feedback_file = feedback_dir / "MA000018_overtime_interpretation_creator_response.md"
+    feedback_file = feedback_dir / "3_2_OT_creation_creator_response.md"
     feedback_file.write_text("# feedback", encoding="utf-8")
-    archive_file = award_dir / "archive" / "MA000018_payment_classification_20260623_101112.json"
+    archive_file = award_dir / "archive" / "2_1_payment_classification_20260623_101112.json"
     archive_file.parent.mkdir(parents=True)
     archive_file.write_text("{}", encoding="utf-8")
 
@@ -833,6 +766,10 @@ def test_pipeline_run_label_formats_full_and_step_runs():
     assert pipeline_run_label(None) == "Active pipeline run"
     assert pipeline_run_label("3.2") == "Review overtime ruleset"
     assert pipeline_run_label("4.1") == "Format overtime guide"
+
+
+def test_streamlit_and_background_pipeline_step_labels_stay_identical():
+    assert APP_PIPELINE_STEP_LABELS == BACKGROUND_PIPELINE_STEP_LABELS
 
 
 def test_background_pipeline_run_label_includes_ruleset_when_provided():
@@ -1222,7 +1159,7 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
     assert result["completed_steps"] == 7
     assert result["total_steps"] == 7
     assert "Starting step 1 of 7: Retrieve award" in live_log_path.read_text(encoding="utf-8")
-    assert "output from 5b" in live_log_path.read_text(encoding="utf-8")
+    assert "output from 5.1" in live_log_path.read_text(encoding="utf-8")
     assert status_updates[0]["total_steps"] == 7
     assert status_updates[0]["current_step"] == "1"
     assert status_updates[-1]["progress_fraction"] == 1.0
@@ -1250,9 +1187,7 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
 ):
     calls: list[tuple[str, object]] = []
     award_code = "MA000120"
-    classification_path = (
-        tmp_path / award_code / f"{award_code}_payment_classification.json"
-    )
+    classification_path = tmp_path / award_code / "2_1_payment_classification.json"
     classification_path.parent.mkdir(parents=True, exist_ok=True)
     classification_path.write_text("{}", encoding="utf-8")
 
@@ -1261,17 +1196,11 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         OVERTIME_CONSEQUENCE_RULESET,
     )
     combined_json = combined_markdown.with_suffix(".json")
-    revised_markdown = combined_markdown.with_name(
-        f"{combined_markdown.stem}_revised.md"
-    )
+    revised_markdown = combined_markdown.with_name("3_2_OT_consequence_revised_ruleset.md")
     revised_json = revised_markdown.with_suffix(".json")
-    formatted_markdown = combined_markdown.with_name(
-        f"{combined_markdown.stem}_overtime_entitlements.md"
-    )
-    manual_4b_markdown = combined_markdown.with_name(f"{combined_markdown.stem}_4b.md")
-    pseudocode_markdown = combined_markdown.with_name(
-        f"{combined_markdown.stem}_core_overtime_pseudocode.md"
-    )
+    formatted_markdown = combined_markdown.with_name("4_1_OT_consequence_formatted_ruleset.md")
+    manual_4b_markdown = combined_markdown.with_name("3_2_OT_consequence_revised_ruleset_4b.md")
+    pseudocode_markdown = combined_markdown.with_name("5_1_OT_consequence_pseudocode.md")
     combined_markdown.parent.mkdir(parents=True, exist_ok=True)
     combined_markdown.write_text("# Combined", encoding="utf-8")
     combined_json.write_text("{}", encoding="utf-8")

@@ -7,16 +7,13 @@ from typing import Any
 
 from src.common.output_paths import (
     ARCHIVE_DIR,
-    award_output_dir,
-    output_set_name_for_path,
-    write_text_with_archive,
+    write_text_output,
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
 )
-from src.step_4_1_format_ruleset.run import output_path_for_interpretation
-from src.step_5_1_generate_pseudocode.deterministic import output_path_for_summary
+from src.common.output_naming import ruleset_short_label
 from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -79,56 +76,86 @@ class FileContent:
     text: str
 
 
+def award_dir_for_output_set(output_set_name: str) -> Path:
+    return PROCESSED_ROOT / output_set_name
+
+
+def canonical_ruleset_paths(
+    output_set_name: str,
+    ruleset_key: str,
+) -> RulesetArtifactPaths:
+    award_dir = award_dir_for_output_set(output_set_name)
+    feedback_dir = award_dir / "feedback"
+    short_label = ruleset_short_label(ruleset_key)
+    combined_markdown = award_dir / f"3_1_{short_label}_ruleset.md"
+    revised_markdown = award_dir / f"3_2_{short_label}_revised_ruleset.md"
+    formatted_markdown = award_dir / f"4_1_{short_label}_formatted_ruleset.md"
+    manual_4b_markdown = revised_markdown.with_name(f"{revised_markdown.stem}_4b.md")
+    pseudocode_markdown = award_dir / f"5_1_{short_label}_pseudocode.md"
+
+    return RulesetArtifactPaths(
+        ruleset_key=ruleset_key,
+        clause_classification=award_dir / f"2_2_{short_label}_clause_classification.json",
+        expert_a_markdown=award_dir / f"3_1_{short_label}_ruleset_expert_a.md",
+        expert_b_markdown=award_dir / f"3_1_{short_label}_ruleset_expert_b.md",
+        comparison_json=award_dir / f"3_1_{short_label}_ruleset_comparison.json",
+        combined_markdown=combined_markdown,
+        combined_json=combined_markdown.with_suffix(".json"),
+        evaluator_feedback=feedback_dir / f"3_2_{short_label}_review.md",
+        evaluator_feedback_json=feedback_dir / f"3_2_{short_label}_review.json",
+        creator_response=feedback_dir / f"3_2_{short_label}_creator_response.md",
+        creator_response_json=feedback_dir / f"3_2_{short_label}_creator_response.json",
+        revised_markdown=revised_markdown,
+        revised_json=revised_markdown.with_suffix(".json"),
+        formatted_markdown=formatted_markdown,
+        manual_4b_markdown=manual_4b_markdown,
+        pseudocode_markdown=pseudocode_markdown,
+        pseudocode_validation_json=validation_json_path_for_pseudocode(pseudocode_markdown),
+        pseudocode_validation_markdown=validation_markdown_path_for_pseudocode(
+            pseudocode_markdown
+        ),
+    )
+
+
 def discover_award_codes(processed_root: Path = PROCESSED_ROOT) -> list[str]:
     if not processed_root.exists():
         return []
 
     award_codes: list[str] = []
 
-    for path in processed_root.rglob("*_payment_classification.json"):
+    for path in processed_root.rglob("2_1_payment_classification.json"):
         if ARCHIVE_DIR in path.parts:
             continue
-        award_codes.append(output_set_name_for_path(path))
+        award_codes.append(path.parent.name)
 
     return sorted(set(award_codes))
 
 
 def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
-    award_dir = award_output_dir(PROCESSED_ROOT / f"{award_code}_payment_classification.json")
+    award_dir = award_dir_for_output_set(award_code)
     feedback_dir = award_dir / "feedback"
+    creation_ruleset_paths = canonical_ruleset_paths(award_code, OVERTIME_CREATION_RULESET)
 
     return ArtifactPaths(
-        payment_classification=award_dir / f"{award_code}_payment_classification.json",
-        overtime_clause_classification=award_dir / f"{award_code}_overtime_clause_classification.json",
-        original_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation.md",
-        original_overtime_interpretation_expert_a=award_dir
-        / f"{award_code}_overtime_interpretation_expert_a.md",
-        original_overtime_interpretation_expert_b=award_dir
-        / f"{award_code}_overtime_interpretation_expert_b.md",
-        original_overtime_interpretation_comparison=award_dir
-        / f"{award_code}_overtime_interpretation_comparison.json",
-        original_overtime_rules_json=award_dir / f"{award_code}_overtime_interpretation.json",
-        agentic_review_conversation=feedback_dir
-        / f"{award_code}_overtime_interpretation_agentic_review_conversation.md",
-        evaluator_feedback=feedback_dir / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
-        evaluator_feedback_json=feedback_dir
-        / f"{award_code}_overtime_interpretation_evaluator_feedback.json",
-        creator_response=feedback_dir / f"{award_code}_overtime_interpretation_creator_response.md",
-        creator_response_json=feedback_dir
-        / f"{award_code}_overtime_interpretation_creator_response.json",
-        revised_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation_revised.md",
-        revised_overtime_rules_json=award_dir / f"{award_code}_overtime_interpretation_revised.json",
-        overtime_entitlements=output_path_for_interpretation(
-            award_dir / f"{award_code}_overtime_interpretation_revised.md"
-        ),
-        manual_4b_overtime_interpretation=award_dir / f"{award_code}_overtime_interpretation_4b.md",
-        core_overtime_pseudocode=award_dir / f"{award_code}_core_overtime_pseudocode.md",
-        core_overtime_validation_json=validation_json_path_for_pseudocode(
-            award_dir / f"{award_code}_core_overtime_pseudocode.md"
-        ),
-        core_overtime_validation_markdown=validation_markdown_path_for_pseudocode(
-            award_dir / f"{award_code}_core_overtime_pseudocode.md"
-        ),
+        payment_classification=award_dir / "2_1_payment_classification.json",
+        overtime_clause_classification=creation_ruleset_paths.clause_classification,
+        original_overtime_interpretation=creation_ruleset_paths.combined_markdown,
+        original_overtime_interpretation_expert_a=creation_ruleset_paths.expert_a_markdown,
+        original_overtime_interpretation_expert_b=creation_ruleset_paths.expert_b_markdown,
+        original_overtime_interpretation_comparison=creation_ruleset_paths.comparison_json,
+        original_overtime_rules_json=creation_ruleset_paths.combined_json,
+        agentic_review_conversation=feedback_dir / "3_2_OT_creation_agentic_review_conversation.md",
+        evaluator_feedback=creation_ruleset_paths.evaluator_feedback,
+        evaluator_feedback_json=creation_ruleset_paths.evaluator_feedback_json,
+        creator_response=creation_ruleset_paths.creator_response,
+        creator_response_json=creation_ruleset_paths.creator_response_json,
+        revised_overtime_interpretation=creation_ruleset_paths.revised_markdown,
+        revised_overtime_rules_json=creation_ruleset_paths.revised_json,
+        overtime_entitlements=creation_ruleset_paths.formatted_markdown,
+        manual_4b_overtime_interpretation=creation_ruleset_paths.manual_4b_markdown,
+        core_overtime_pseudocode=creation_ruleset_paths.pseudocode_markdown,
+        core_overtime_validation_json=creation_ruleset_paths.pseudocode_validation_json,
+        core_overtime_validation_markdown=creation_ruleset_paths.pseudocode_validation_markdown,
     )
 
 
@@ -136,100 +163,10 @@ def ruleset_artifact_paths_for_award(
     award_code: str,
     ruleset_key: str,
 ) -> RulesetArtifactPaths:
-    award_dir = award_output_dir(PROCESSED_ROOT / f"{award_code}_payment_classification.json")
-    feedback_dir = award_dir / "feedback"
-
-    if ruleset_key == OVERTIME_CREATION_RULESET:
-        explicit_base_stem = f"{award_code}_overtime_creation_ruleset"
-        explicit_clause_stem = f"{award_code}_overtime_clause_classification"
-        explicit_combined_markdown = award_dir / f"{explicit_base_stem}.md"
-
-        if explicit_combined_markdown.exists():
-            return RulesetArtifactPaths(
-                ruleset_key=ruleset_key,
-                clause_classification=award_dir / f"{explicit_clause_stem}.json",
-                expert_a_markdown=award_dir / f"{explicit_base_stem}_expert_a.md",
-                expert_b_markdown=award_dir / f"{explicit_base_stem}_expert_b.md",
-                comparison_json=award_dir / f"{explicit_base_stem}_comparison.json",
-                combined_markdown=explicit_combined_markdown,
-                combined_json=explicit_combined_markdown.with_suffix(".json"),
-                evaluator_feedback=feedback_dir
-                / f"{explicit_base_stem}_evaluator_feedback.md",
-                evaluator_feedback_json=feedback_dir
-                / f"{explicit_base_stem}_evaluator_feedback.json",
-                creator_response=feedback_dir
-                / f"{explicit_base_stem}_creator_response.md",
-                creator_response_json=feedback_dir
-                / f"{explicit_base_stem}_creator_response.json",
-                revised_markdown=award_dir / f"{explicit_base_stem}_revised.md",
-                revised_json=award_dir / f"{explicit_base_stem}_revised.json",
-                formatted_markdown=award_dir
-                / f"{explicit_base_stem}_overtime_entitlements.md",
-                manual_4b_markdown=award_dir / f"{explicit_base_stem}_4b.md",
-                pseudocode_markdown=award_dir
-                / f"{explicit_base_stem}_core_overtime_pseudocode.md",
-                pseudocode_validation_json=award_dir
-                / f"{explicit_base_stem}_core_overtime_pseudocode_validation.json",
-                pseudocode_validation_markdown=award_dir
-                / f"{explicit_base_stem}_core_overtime_pseudocode_validation.md",
-            )
-
-        legacy_combined_markdown = award_dir / f"{award_code}_overtime_interpretation.md"
-        return RulesetArtifactPaths(
-            ruleset_key=ruleset_key,
-            clause_classification=award_dir / f"{award_code}_overtime_clause_classification.json",
-            expert_a_markdown=award_dir / f"{award_code}_overtime_interpretation_expert_a.md",
-            expert_b_markdown=award_dir / f"{award_code}_overtime_interpretation_expert_b.md",
-            comparison_json=award_dir / f"{award_code}_overtime_interpretation_comparison.json",
-            combined_markdown=legacy_combined_markdown,
-            combined_json=legacy_combined_markdown.with_suffix(".json"),
-            evaluator_feedback=feedback_dir
-            / f"{award_code}_overtime_interpretation_evaluator_feedback.md",
-            evaluator_feedback_json=feedback_dir
-            / f"{award_code}_overtime_interpretation_evaluator_feedback.json",
-            creator_response=feedback_dir
-            / f"{award_code}_overtime_interpretation_creator_response.md",
-            creator_response_json=feedback_dir
-            / f"{award_code}_overtime_interpretation_creator_response.json",
-            revised_markdown=award_dir / f"{award_code}_overtime_interpretation_revised.md",
-            revised_json=award_dir / f"{award_code}_overtime_interpretation_revised.json",
-            formatted_markdown=award_dir / f"{award_code}_overtime_entitlements.md",
-            manual_4b_markdown=award_dir / f"{award_code}_overtime_interpretation_4b.md",
-            pseudocode_markdown=award_dir / f"{award_code}_core_overtime_pseudocode.md",
-            pseudocode_validation_json=award_dir
-            / f"{award_code}_core_overtime_pseudocode_validation.json",
-            pseudocode_validation_markdown=award_dir
-            / f"{award_code}_core_overtime_pseudocode_validation.md",
-        )
-    elif ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
-        base_stem = f"{award_code}_overtime_consequence_ruleset"
-        clause_stem = f"{award_code}_overtime_clause_classification"
-    else:
+    if ruleset_key not in {OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET}:
         raise ValueError(f"Unsupported ruleset key: {ruleset_key}")
 
-    combined_markdown = award_dir / f"{base_stem}.md"
-    return RulesetArtifactPaths(
-        ruleset_key=ruleset_key,
-        clause_classification=award_dir / f"{clause_stem}.json",
-        expert_a_markdown=award_dir / f"{base_stem}_expert_a.md",
-        expert_b_markdown=award_dir / f"{base_stem}_expert_b.md",
-        comparison_json=award_dir / f"{base_stem}_comparison.json",
-        combined_markdown=combined_markdown,
-        combined_json=combined_markdown.with_suffix(".json"),
-        evaluator_feedback=feedback_dir / f"{base_stem}_evaluator_feedback.md",
-        evaluator_feedback_json=feedback_dir / f"{base_stem}_evaluator_feedback.json",
-        creator_response=feedback_dir / f"{base_stem}_creator_response.md",
-        creator_response_json=feedback_dir / f"{base_stem}_creator_response.json",
-        revised_markdown=award_dir / f"{base_stem}_revised.md",
-        revised_json=award_dir / f"{base_stem}_revised.json",
-        formatted_markdown=award_dir / f"{base_stem}_overtime_entitlements.md",
-        manual_4b_markdown=award_dir / f"{base_stem}_4b.md",
-        pseudocode_markdown=award_dir / f"{base_stem}_core_overtime_pseudocode.md",
-        pseudocode_validation_json=award_dir
-        / f"{base_stem}_core_overtime_pseudocode_validation.json",
-        pseudocode_validation_markdown=award_dir
-        / f"{base_stem}_core_overtime_pseudocode_validation.md",
-    )
+    return canonical_ruleset_paths(award_code, ruleset_key)
 
 
 def load_json_file(path: Path) -> dict[str, Any]:
@@ -244,8 +181,8 @@ def read_text_file(path: Path) -> FileContent:
     return FileContent(path=path, exists=True, text=path.read_text(encoding="utf-8"))
 
 
-def write_text_file_with_archive(path: Path, text: str) -> Path:
-    return write_text_with_archive(path, text)
+def write_text_file(path: Path, text: str) -> None:
+    write_text_output(path, text)
 
 
 def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
@@ -283,23 +220,9 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
     if artifact_paths.overtime_entitlements.exists():
         return artifact_paths.overtime_entitlements
 
-    revised_rules_json = getattr(
-        artifact_paths,
-        "revised_overtime_rules_json",
-        artifact_paths.revised_overtime_interpretation.with_suffix(".json"),
-    )
-    if revised_rules_json.exists():
-        return revised_rules_json
     if artifact_paths.revised_overtime_interpretation.exists():
         return artifact_paths.revised_overtime_interpretation
 
-    original_rules_json = getattr(
-        artifact_paths,
-        "original_overtime_rules_json",
-        artifact_paths.original_overtime_interpretation.with_suffix(".json"),
-    )
-    if original_rules_json.exists():
-        return original_rules_json
     return artifact_paths.original_overtime_interpretation
 
 
@@ -312,14 +235,8 @@ def source_path_for_ruleset_core_overtime_pseudocode(
     if ruleset_artifact_paths.formatted_markdown.exists():
         return ruleset_artifact_paths.formatted_markdown
 
-    if ruleset_artifact_paths.revised_json.exists():
-        return ruleset_artifact_paths.revised_json
-
     if ruleset_artifact_paths.revised_markdown.exists():
         return ruleset_artifact_paths.revised_markdown
-
-    if ruleset_artifact_paths.combined_json.exists():
-        return ruleset_artifact_paths.combined_json
 
     return ruleset_artifact_paths.combined_markdown
 
