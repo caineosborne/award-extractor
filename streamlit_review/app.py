@@ -65,9 +65,8 @@ from streamlit_review.output_data import (
     processed_files_matching_prefix,
     read_text_file,
     ruleset_artifact_paths_for_award,
-    source_path_for_core_overtime_pseudocode,
     source_path_for_ruleset_core_overtime_pseudocode,
-    source_path_for_ruleset_manual_4b_editor,
+    source_path_for_ruleset_manual_ruleset_editor,
     write_text_file,
 )
 
@@ -81,7 +80,7 @@ SCREEN_EXPERT_COMPARISON = "6. Comparison of expert outputs"
 SCREEN_ORIGINAL_OVERTIME = "7. Step 3.1 Combined ruleset"
 SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
-SCREEN_MANUAL_4B_EDITOR = "10. Manual 4B ruleset editor"
+SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
 
 RULESET_OPTIONS = {
@@ -99,7 +98,7 @@ SCREEN_OPTIONS = [
     SCREEN_ORIGINAL_OVERTIME,
     SCREEN_REVIEW_FEEDBACK,
     SCREEN_FORMATTED_4A,
-    SCREEN_MANUAL_4B_EDITOR,
+    SCREEN_HUMAN_REVIEW,
     SCREEN_CORE_OVERTIME_PSEUDOCODE,
 ]
 
@@ -257,25 +256,25 @@ def render_sidebar(award_codes: list[str]) -> str:
 
         st.caption("Single screen shortcuts")
 
-        if st.button("Step 3.1 combined ruleset", use_container_width=True):
+        if st.button("3.1 combined ruleset", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_ORIGINAL_OVERTIME
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Step 4.1 formatted overtime guide", use_container_width=True):
+        if st.button("4.1 formatted overtime guide", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_FORMATTED_4A
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Manual 4B ruleset editor", use_container_width=True):
-            st.session_state["screen_one"] = SCREEN_MANUAL_4B_EDITOR
+        if st.button("3.2 manual ruleset editor", use_container_width=True):
+            st.session_state["screen_one"] = SCREEN_HUMAN_REVIEW
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("Step 5.1 pseudocode", use_container_width=True):
+        if st.button("5.1 pseudocode", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_CORE_OVERTIME_PSEUDOCODE
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
@@ -462,7 +461,7 @@ def render_screen(
         SCREEN_EXPERT_COMPARISON: render_expert_comparison_screen,
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
         SCREEN_FORMATTED_4A: render_formatted_4a_screen,
-        SCREEN_MANUAL_4B_EDITOR: render_manual_4b_editor_screen,
+        SCREEN_HUMAN_REVIEW: render_manual_ruleset_editor_screen,
         SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
     }
 
@@ -703,10 +702,6 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
-    if artifact_paths.agentic_review_conversation.exists():
-        with st.expander("Agentic review conversation", expanded=False):
-            render_markdown_file(artifact_paths.agentic_review_conversation)
-
     evaluator_data = load_json_or_show_error(ruleset_artifacts.evaluator_feedback_json)
     creator_data = load_json_or_show_error(ruleset_artifacts.creator_response_json)
     revised_data = load_json_or_show_error(ruleset_artifacts.revised_json)
@@ -1173,13 +1168,13 @@ def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key:
     )
 
 
-def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
+def render_manual_ruleset_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
     ruleset_artifacts = ruleset_artifact_paths_for_award(
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
-    save_path = ruleset_artifacts.manual_4b_markdown
-    source_path = source_path_for_ruleset_manual_4b_editor(ruleset_artifacts)
+    save_path = ruleset_artifacts.manual_ruleset_markdown
+    source_path = source_path_for_ruleset_manual_ruleset_editor(ruleset_artifacts)
     source_content = read_text_file(source_path)
 
     render_file_details(
@@ -1193,12 +1188,12 @@ def render_manual_4b_editor_screen(artifact_paths: Any, panel_key: str, ruleset_
         render_missing_file(source_path)
         return
 
-    editor_key = manual_4b_editor_widget_key(
+    editor_key = manual_ruleset_editor_widget_key(
         panel_key,
         save_path,
     )
     edited_markdown = st.text_area(
-        "4B overtime markdown",
+        "Manual ruleset markdown",
         value=source_content.text,
         height=610,
         label_visibility="collapsed",
@@ -1230,8 +1225,8 @@ def render_core_overtime_pseudocode_screen(artifact_paths: Any, panel_key: str, 
     render_ruleset_validation_summary(ruleset_artifacts)
 
 
-def manual_4b_editor_widget_key(panel_key: str, output_path: Path) -> str:
-    return f"{panel_key}_manual_4b_editor_{output_path.stem}"
+def manual_ruleset_editor_widget_key(panel_key: str, output_path: Path) -> str:
+    return f"{panel_key}_manual_ruleset_editor_{output_path.stem}"
 
 
 def render_key_navigation(
@@ -1623,14 +1618,14 @@ def refresh_panel(
     artifact_paths: Any,
     ruleset_key: str,
 ) -> None:
-    if screen_name == SCREEN_MANUAL_4B_EDITOR:
+    if screen_name == SCREEN_HUMAN_REVIEW:
         ruleset_artifacts = ruleset_artifact_paths_for_award(
             award_code_for_artifact_paths(artifact_paths),
             ruleset_key,
         )
-        editor_key = manual_4b_editor_widget_key(
+        editor_key = manual_ruleset_editor_widget_key(
             panel_key,
-            ruleset_artifacts.manual_4b_markdown,
+            ruleset_artifacts.manual_ruleset_markdown,
         )
         st.session_state.pop(editor_key, None)
 
@@ -1717,7 +1712,7 @@ def render_pipeline_run_controls(
 
     with step_one_column:
         if st.button(
-            PIPELINE_STEP_LABELS["1"],
+            f"1. {PIPELINE_STEP_LABELS['1']}",
             key=f"run_step_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1726,7 +1721,7 @@ def render_pipeline_run_controls(
 
     with step_two_column:
         if st.button(
-            PIPELINE_STEP_LABELS["2.1"],
+            f"2.1. {PIPELINE_STEP_LABELS['2.1']}",
             key=f"run_step_2_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1735,7 +1730,7 @@ def render_pipeline_run_controls(
 
     with step_three_column:
         if st.button(
-            PIPELINE_STEP_LABELS["2.2"],
+            f"2.2. {PIPELINE_STEP_LABELS['2.2']}",
             key=f"run_step_2_2_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1744,7 +1739,7 @@ def render_pipeline_run_controls(
 
     with step_three_b_column:
         if st.button(
-            PIPELINE_STEP_LABELS["3.1"],
+            f"3.1. {PIPELINE_STEP_LABELS['3.1']}",
             key=f"run_step_3_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1753,7 +1748,7 @@ def render_pipeline_run_controls(
 
     with step_four_column:
         if st.button(
-            PIPELINE_STEP_LABELS["3.2"],
+            f"3.2. {PIPELINE_STEP_LABELS['3.2']}",
             key=f"run_step_3_2_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1762,7 +1757,7 @@ def render_pipeline_run_controls(
 
     with step_five_b_column:
         if st.button(
-            PIPELINE_STEP_LABELS["4.1"],
+            f"4.1. {PIPELINE_STEP_LABELS['4.1']}",
             key=f"run_step_4_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1773,7 +1768,7 @@ def render_pipeline_run_controls(
 
     with extra_column_left:
         if st.button(
-            PIPELINE_STEP_LABELS["5.1"],
+            f"5.1. {PIPELINE_STEP_LABELS['5.1']}",
             key=f"run_step_5_1_{selected_award_code}",
             use_container_width=True,
             disabled=run_controls_disabled,
@@ -1911,7 +1906,7 @@ def combine_pipeline_logs(stdout_text: str, stderr_text: str) -> str:
 
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
-    """Load the 5B validation summary when a 5B run just completed."""
+    """Load the step 5.1 validation summary when a step 5.1 run just completed."""
     if step != "5.1":
         return None
 
@@ -2057,7 +2052,7 @@ def bool_label(value: Any) -> str:
 def render_validation_summary(artifact_paths: Any) -> None:
     validation_data = load_optional_json_file(artifact_paths.core_overtime_validation_json)
     if validation_data is None:
-        st.info("No 5B validation report was found for this output yet.")
+        st.info("No step 5.1 validation report was found for this output yet.")
         return
 
     overall_status = str(validation_data.get("overall_status", "unknown"))
@@ -2066,11 +2061,11 @@ def render_validation_summary(artifact_paths: Any) -> None:
     unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
 
     if overall_status == "passed":
-        st.success("5B validation passed.")
+        st.success("Step 5.1 validation passed.")
     elif overall_status == "unresolved":
-        st.warning("5B validation completed with unresolved coverage checks.")
+        st.warning("Step 5.1 validation completed with unresolved coverage checks.")
     else:
-        st.warning("5B validation found coverage issues.")
+        st.warning("Step 5.1 validation found coverage issues.")
 
     metric_one, metric_two, metric_three = st.columns(3)
     metric_one.metric("Passed rules", passed_count)
@@ -2079,7 +2074,7 @@ def render_validation_summary(artifact_paths: Any) -> None:
 
     validation_report = read_text_file(artifact_paths.core_overtime_validation_markdown)
     if validation_report.exists:
-        with st.expander("5B validation report", expanded=False):
+        with st.expander("Step 5.1 validation report", expanded=False):
             st.markdown(validation_report.text)
 
 
@@ -2088,7 +2083,7 @@ def render_ruleset_validation_summary(ruleset_artifacts: Any) -> None:
         ruleset_artifacts.pseudocode_validation_json
     )
     if validation_data is None:
-        st.info("No 5B validation report was found for this output yet.")
+        st.info("No step 5.1 validation report was found for this output yet.")
         return
 
     overall_status = str(validation_data.get("overall_status", "unknown"))
@@ -2097,11 +2092,11 @@ def render_ruleset_validation_summary(ruleset_artifacts: Any) -> None:
     unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
 
     if overall_status == "passed":
-        st.success("5B validation passed.")
+        st.success("Step 5.1 validation passed.")
     elif overall_status == "unresolved":
-        st.warning("5B validation completed with unresolved coverage checks.")
+        st.warning("Step 5.1 validation completed with unresolved coverage checks.")
     else:
-        st.warning("5B validation found coverage issues.")
+        st.warning("Step 5.1 validation found coverage issues.")
 
     metric_one, metric_two, metric_three = st.columns(3)
     metric_one.metric("Passed rules", passed_count)
@@ -2110,7 +2105,7 @@ def render_ruleset_validation_summary(ruleset_artifacts: Any) -> None:
 
     validation_report = read_text_file(ruleset_artifacts.pseudocode_validation_markdown)
     if validation_report.exists:
-        with st.expander("5B validation report", expanded=False):
+        with st.expander("Step 5.1 validation report", expanded=False):
             st.markdown(validation_report.text)
 
 

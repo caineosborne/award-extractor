@@ -104,7 +104,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(DEFAULT_OVERTIME_SUMMARY_PATH),
         help=(
             "Award code or path to an overtime interpretation markdown file. "
-            "When an award code is provided, use the 4B file when present, otherwise 4A, then the revised overtime interpretation."
+            "When an award code is provided, use the manual ruleset file when present, "
+            "otherwise the step 4.1 formatted ruleset, then the step 3.2 revised ruleset."
         ),
     )
     parser.add_argument(

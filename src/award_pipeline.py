@@ -5,10 +5,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.common.active_pipeline_paths import (
-    creator_response_path_for_interpretation,
     default_award_url_for_code,
     evaluator_feedback_path_for_interpretation,
-    preferred_5b_source_path_for_interpretation,
+    creator_response_path_for_interpretation,
+    preferred_step_5_source_path_for_interpretation,
     revised_output_path_for_interpretation,
     ruleset_clause_classification_output_path_for_classification,
     ruleset_output_path_for_classification,
@@ -159,19 +159,20 @@ def build_ruleset_step_paths(
     )
 
 
-def ruleset_manual_4b_path(revised_interpretation_path: Path) -> Path:
-    """Return the ruleset-specific manual 4B path for one revised ruleset file."""
-    stem = revised_interpretation_path.stem
-    if stem.endswith("_revised"):
-        stem = stem.removesuffix("_revised")
-    return revised_interpretation_path.with_name(f"{stem}_4b.md")
+def ruleset_manual_ruleset_path(revised_interpretation_path: Path) -> Path:
+    """Return the ruleset-specific manually edited ruleset path for one revised ruleset file."""
+    return revised_interpretation_path.with_name(
+        f"{revised_interpretation_path.stem}_manual.md"
+    )
 
 
 def preferred_ruleset_step_5_source_path(ruleset_paths: RulesetStepPaths) -> Path:
     """Return the preferred step 5.1 source for one explicit ruleset."""
-    manual_4b_path = ruleset_manual_4b_path(ruleset_paths.revised_interpretation_path)
-    if manual_4b_path.exists():
-        return manual_4b_path
+    manual_ruleset_path = ruleset_manual_ruleset_path(
+        ruleset_paths.revised_interpretation_path
+    )
+    if manual_ruleset_path.exists():
+        return manual_ruleset_path
 
     if ruleset_paths.formatted_ruleset_path.exists():
         return ruleset_paths.formatted_ruleset_path
@@ -314,7 +315,7 @@ def run_step_5_1(
         core_overtime_validation_markdown_path = (
             paths.core_overtime_validation_markdown_path
         )
-        source_path = preferred_5b_source_path_for_interpretation(
+        source_path = preferred_step_5_source_path_for_interpretation(
             revised_interpretation_path
         )
     else:

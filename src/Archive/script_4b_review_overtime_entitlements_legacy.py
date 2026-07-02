@@ -547,7 +547,7 @@ def review_overtime_entitlements(
     write_text_with_archive(final_path, final_answer_markdown)
 
     if status_callback:
-        status_callback("4B entitlement review complete")
+        status_callback("Human review entitlement review complete")
 
     return OvertimeEntitlementReviewArtifacts(
         initial_answer_path=initial_path,

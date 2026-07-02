@@ -35,19 +35,3 @@ def run_step_2_2(
         f"{len(classifications)} overtime-related clauses for review"
     )
     return classifications
-
-
-def run_step_2_1(
-    *,
-    classification_path: Path | str,
-    output_path: Path | str | None = None,
-    model: str | None = None,
-    client: Any | None = None,
-) -> list[OvertimeClauseClassification]:
-    """Backward-compatible alias for the step 2.2 runner."""
-    return run_step_2_2(
-        classification_path=classification_path,
-        output_path=output_path,
-        model=model,
-        client=client,
-    )

@@ -1,4 +1,4 @@
-"""Prompt content for step 5B overtime pseudocode generation.
+"""Prompt content for step 5.1 overtime pseudocode generation.
 
 Used by:
 - `src/step_5_1_generate_pseudocode/llm.py`

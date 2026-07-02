@@ -18,10 +18,11 @@ The active path is:
 
 1. Fetch and structure the award.
 2. Classify payment-relevant clauses.
-3. Generate an overtime interpretation.
-4. Review and revise that interpretation.
+3. Classify overtime clauses, draft rulesets, and review the revised interpretation.
+4. Format the reviewed ruleset for reviewer-facing output.
+5. Generate implementation-oriented pseudocode.
 
-In code, those are steps `1`, `2`, `3`, and `3B`.
+In code, those are steps `1`, `2.1`, `2.2`, `3.1`, `3.2`, `4.1`, and `5.1`.
 
 ## Design principles
 
@@ -41,8 +42,9 @@ The governing design choices are:
 
 ## Step 1. Fetch and structure the award
 
-File:
-- `src/script_1_fetch_award.py`
+Files:
+- `src/step_1_1_fetch/run.py`
+- `src/step_1_2_parse_award/run.py`
 
 This step is deterministic.
 
@@ -68,11 +70,11 @@ The main award JSON is the only step-1 artifact required by the active downstrea
 
 No model is used here. Every later step depends on this extraction being structurally correct.
 
-## Step 2. Payment clause classification
+## Step 2.1. Payment clause classification
 
 Files:
-- `src/script_2_classify_payments.py`
-- `src/prompts/payment_clause_classification.py`
+- `src/step_2_1_classify_payments/run.py`
+- `src/prompts/step_2_1_classify_payments.py`
 
 Purpose:
 - identify which top-level clauses are relevant to payment or definitional logic;
@@ -101,7 +103,7 @@ These deterministic repair rules are named in code and written back into the cla
 - which deterministic rule name caused it; and
 - that the change was code-driven rather than model-driven.
 
-In step `2`, the intended source of each saved field is:
+In step `2.1`, the intended source of each saved field is:
 - `top_level_clauses[*]`: model-generated, then Python-validated.
 - `classified_clauses[*].tags`: model-generated, then Python-validated, and may be deterministically repaired.
 - `classified_clauses[*].reason`: model-generated, but deterministic repair text may be appended where a tag was added by code.
@@ -120,7 +122,7 @@ All other step-2 tags remain model-generated and Python-validated only:
 - `Definition`
 - `Other Payment`
 
-### Validation in Step 2
+### Validation in Step 2.1
 
 There are two layers of control:
 
@@ -136,268 +138,92 @@ After that validation, deterministic repair rules may still add `Ordinary Hours 
 
 If validation fails, the step fails.
 
-### Why Step 2 exists
+### Why Step 2.1 exists
 
 This step narrows the award to the subset that is likely to matter for payment logic. It does not yet attempt to explain overtime.
 
-## Step 3. Overtime interpretation generation
+## Step 2.2. Overtime clause classification
 
-File:
-- `src/script_3_interpret_overtime.py`
-- `src/script_3_part1_classify_overtime_clauses.py`
-- `src/script_3_part2_generate_overtime_interpretation.py`
+Files:
+- `src/step_2_2_classify_overtime_clauses/run.py`
+- `src/prompts/step_2_2_classify_overtime_clauses.py`
 
-This step has several sub-stages.
+This step is deterministic apart from the model call.
 
-Implementation note:
-- `src/script_3_interpret_overtime.py` remains the stable public entrypoint.
-- It now delegates to two clearer internal scripts:
-  - part 1 prepares `*_overtime_clause_classification.json`;
-  - part 2 reads that artifact and produces the expert outputs, comparison, and combined ruleset.
-
-### Step 3.1. Filter overtime-related clauses
-
-This is deterministic.
-
-From the step-2 classification artifact, the code selects clauses tagged:
-- `Ordinary Hours & Overtime`
-
-This creates the source pool for overtime-specific work.
-
-### Step 3.2. Overtime clause classification
-
-The model now receives only the shortlisted clauses from step `3.1`.
-
-Its job is to classify each clause into one or more of:
-- `Ordinary Hours Boundary`
-- `Overtime Trigger`
-- `Overtime Consequence`
-- `Related Rule`
-- `Not Relevant`
+It filters the step-2.1 classification output down to the clauses tagged `Ordinary Hours & Overtime`, then classifies those clauses into overtime-specific roles.
 
 The output is a structured clause-role classification artifact.
 
-Each shortlisted clause now also carries explicit scope tags:
-- `employee_cohort`
-- `work_arrangement`
-- `other_scope_notes`
-
-The scope-tagging design is intentionally two-layered:
-- the prompt tells the model to use `day-worker` or `shiftworker` only where the clause expressly supports that label; and
+The scope-tagging design is intentionally conservative:
+- the prompt tells the model to use `day-worker` or `shiftworker` only where the clause expressly supports that label;
 - deterministic post-validation code normalises unsupported work-arrangement inferences back to `all`.
-
-This means the system does not rely on prompt wording alone for non-negotiable scope limits. For example, wording such as `Monday to Friday` or an ordinary-hours span during business hours is not treated as enough, by itself, to justify `day-worker`.
 
 This classification separates:
 - clauses that create overtime;
 - clauses that describe consequences after overtime already exists;
 - related clauses that give context but do not create overtime themselves.
 
-In step `3.2`, the intended source of each saved field is:
-- `classification`: model-generated and Python-validated.
-- `classifications`: model-generated and Python-validated.
-- `explanation`: model-generated and Python-validated.
-- `employee_cohort`: model-generated and Python-validated.
-- `other_scope_notes`: model-generated and Python-validated.
-- `work_arrangement`: model-generated, Python-validated, and may be deterministically normalised.
+The step is validated so the downstream rule drafting step receives a narrow and reviewable source set.
 
-At present, the only step-3.2 scope field that may be deterministically changed after the model response is:
-- `work_arrangement`
+## Step 3.1. Overtime ruleset generation
 
-That deterministic normalisation currently considers only these saved values:
-- keep `day-worker` only where the clause text expressly supports day-worker language;
-- keep `shiftworker` only where the clause text expressly supports shiftworker or shiftwork language;
-- otherwise save `all`.
+Files:
+- `src/step_3_1_generate_ruleset/run.py`
+- `src/prompts/step_3_1_generate_ruleset.py`
 
-### Validation in Step 3.2
+This step generates the drafted overtime ruleset from the shortlisted step-2.2 clauses.
 
-The code checks:
-- every returned clause number was actually sent;
-- there are no duplicates;
-- every input clause was classified;
-- the classifications are from the allowed set;
-- the explanation field is present.
-- the scope-tag fields are present and within the allowed values.
+The active pipeline uses two expert runs and a deterministic comparison/merge pass so that omissions and interpretive differences are visible in reviewable artifacts.
 
-For `work_arrangement`, the deterministic check is intentionally conservative:
-- `shiftworker` is retained only where the clause text expressly supports shiftworker language;
-- `day-worker` is retained only where the clause text expressly supports day-worker language;
-- otherwise the saved value is normalised to `all`.
+The outputs are:
+- expert A draft;
+- expert B draft;
+- comparison summary;
+- canonical combined ruleset.
 
-If those checks fail, the step fails.
+## Step 3.2. Review and revise the drafted ruleset
 
-### Step 3.3. Filter to overtime-creation clauses
+Files:
+- `src/step_3_2_review_ruleset/run.py`
+- `src/prompts/step_3_2_review_ruleset.py`
 
-This is deterministic.
+This step reviews the drafted ruleset using structured evaluator and creator outputs.
 
-The code keeps only clauses whose classifications contain:
-- `Ordinary Hours Boundary`
-- or `Overtime Trigger`
+The goal is not to silently replace the earlier ruleset. The goal is to make the changes explicit, keep the rule-by-rule record visible, and rebuild the revised artifact from structured decisions.
 
-Those are treated as the creation-oriented clauses for rule generation.
-
-### Step 3.4. Dual expert generation
-
-The active pipeline uses two independent expert runs rather than one generation pass.
-
-Each expert receives:
-- the shortlisted step-`3.3` clauses;
-- the same interpretation prompt.
-
-Each expert returns a structured rule set. Each rule records items such as:
-- `rule_id`
-- `section_heading`
-- `employee_scope`
-- `employee_cohort`
-- `work_arrangement`
-- `other_scope_notes`
-- `clause_references`
-- `rule_markdown`
-- `rule_plain_text`
-- `source_clause_numbers`
-- `source_classifications`
-
-The purpose of the second run is not to average the answer. It is to expose omissions, over-grouping, or interpretive differences that might be hidden if only one run were stored.
-
-### Expert comparison and merge
-
-After the two expert runs, a comparison model receives:
-- the shortlisted source clauses;
-- expert A rules;
-- expert B rules.
-
-It returns:
-- a comparison summary;
-- coverage of the expert A rule IDs;
-- coverage of the expert B rule IDs;
-- a merged structured rule set;
-- merge explanations linking merged rules back to expert A and expert B.
-
-The merged result becomes the canonical step-3 interpretation artifact.
-
-### Validation in Step 3.4
-
-Validation here has three layers:
-
-1. each expert run must produce a structurally valid rule list;
-2. the comparison output must produce a structurally valid merged rule list;
-3. deterministic checks confirm that:
-- all expert A rule IDs were accounted for;
-- all expert B rule IDs were accounted for;
-- shortlisted source clauses are still represented in the merged rules.
-
-The deterministic validation layer also compares the clause-level scope tags from step `3.2` against the rule-level scope returned by expert A, expert B, and the merged rules. These are warning-only checks. They are intended to surface issues such as:
-- a clause classified as applying to all employees being rewritten as full-time only;
-- a shiftworker clause losing its work-arrangement scope;
-- additional scope notes being narrowed or broadened in a way that is not obviously supported by the clause text.
-
-Some issues are non-fatal by design. When the artifact is still usable, warnings are written into the JSON and prepended to the markdown instead of stopping the run.
-
-### What Step 3 produces
-
-Conceptually, step `3` produces:
-- an overtime clause-classification artifact;
-- two expert interpretation variants;
-- a comparison artifact explaining the merge;
-- one canonical overtime interpretation in JSON and markdown.
-
-## Step 3B. Supervisor review and revision
-
-File:
-- `src/script_3b_review_overtime_interpretation.py`
-
-Step `3B` reviews the step-3 interpretation rather than re-extracting from scratch.
-
-It uses:
-- the step-2 payment classification JSON;
-- the step-3 overtime clause-classification JSON;
-- the step-3 interpretation JSON and markdown.
-
-### Evaluator role
-
-The evaluator acts as a supervisor. It identifies:
-- clause-classification issues;
-- interpretation issues;
-- presentation issues;
-- traceability issues.
-
-Its machine contract is a structured review record with:
-- `summary_markdown`
-- `rule_reviews`
-- `new_rules`
-
-A human-readable markdown feedback artifact is also written.
-
-### Creator role
-
-The creator receives:
-- the original interpretation;
-- the evaluator feedback;
-- the original step-3 rules JSON;
-- the evaluator structured review JSON.
-
-Its job is to return explicit rule-level decisions. This is important because the revision step is meant to show what changed and why, not silently replace the earlier interpretation.
-
-Under the current design:
-- the evaluator may propose additional tracked rules;
-- the creator must explicitly accept, modify, or reject those proposed additions;
-- the creator prompt now includes an authoritative structured review action pack derived from the evaluator JSON and the original rules JSON;
-- evaluator markdown remains in the prompt as explanation and audit context, but it is no longer intended to be the authoritative source for add, remove, merge, or split actions;
-- code applies only the changes that pass deterministic safety checks.
-
-### Validation in Step 3B
-
-The code validates that:
-- every original `rule_id` was explicitly addressed;
-- rules are not silently dropped;
-- removals are supported by the review record;
-- additions are not silently introduced;
-- additions are only applied where the tracked evaluator and creator records agree;
-- the revised ruleset is rebuilt from structured creator decisions rather than from free-text creator prose;
-- clause-coverage reductions can be surfaced as warnings.
-
-If structured creator output cannot be applied safely, the earlier interpretation is preserved and the workflow records the issue for manual review.
-
-When this happens, the creator-response markdown now prioritises the decision record and validation error in readable markdown, while still preserving the raw structured response as supporting detail.
-
-### What Step 3B produces
-
-The main active endpoint of the project is the reviewed interpretation set:
+The outputs are:
 - evaluator feedback markdown and JSON;
 - creator response markdown and JSON;
 - revised overtime interpretation markdown and JSON.
 
-In the review UI, both the human-readable markdown and the structured JSON remain visible. This is intentional:
-- markdown is easier for reviewer reading;
-- JSON is the operational contract for deterministic validation and rule-by-rule traceability.
+## Step 4.1. Formatted overtime guide
 
-## Step 4A. Formatted overtime guide
-
-File:
-- `src/script_4a_summarize_overtime.py`
+Files:
+- `src/step_4_1_format_ruleset/run.py`
+- `src/prompts/step_4_1_format_ruleset.py`
 
 This step is retained and maintained, but it is not part of the current default manager-review pipeline.
 
 Purpose:
-- turn the interpretation artifact into a cleaner human-readable overtime guide;
-- prefer the revised `3B` interpretation when an award code is used;
-- use `resources/Template.md` as a formatting and heading reference.
-- omit unsupported template headings entirely rather than emitting placeholder text.
+- turn the revised interpretation artifact into a cleaner human-readable overtime guide;
+- prefer the revised step `3.2` interpretation when an award code is used;
+- use `resources/Template.md` as a formatting and heading reference;
+- omit unsupported template headings entirely rather than emitting placeholder text;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
 
-## Step 5B. Core overtime pseudocode
+## Step 5.1. Core overtime pseudocode
 
 Files:
-- `src/script_5b_generate_overtime_pseudocode.py`
-- `src/script_5b_validate_overtime_pseudocode.py`
+- `src/step_5_1_generate_pseudocode/run.py`
+- `src/step_5_1_generate_pseudocode/verification.py`
 
 This step is also retained and maintained outside the default manager-review path.
 
 Purpose:
 - generate implementation-oriented ordinary/overtime pseudocode from the latest available interpretation source;
-- prefer manual `4B`, then `4A`, then revised `3B`, then original `3`;
+- prefer the step `4.9` human-review ruleset file, then `4.1`, then revised `3.2`, then the earlier reviewed interpretation;
 - validate the generated pseudocode deterministically against a rule inventory built from the source interpretation.
 
 This step mixes free-text generation with hard deterministic post-generation checks.
@@ -415,7 +241,6 @@ Those details now live in:
 ## Streamlit review application
 
 Files:
-- `review_outputs.py`
 - `streamlit_review/app.py`
 - `streamlit_review/output_data.py`
 
@@ -431,22 +256,21 @@ Its role is:
 - discover existing award output sets;
 - run the active pipeline or selected steps for an award code;
 - compare intermediate and final artifacts side by side;
-- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, final formatted ruleset, manual edited ruleset, and pseudocode;
-- support a manual `4B` editing workflow by saving edited markdown with archive copies.
+- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, final formatted ruleset, manual edited ruleset, and pseudocode.
 
-This matters because the project does not treat the pipeline as purely batch output. Review, comparison, and manual refinement are part of the current operating method.
+The parked agentic review conversation is no longer part of the active Streamlit surface.
 
 ## End-to-end interpretation
 
 The easiest way to understand the system is:
 
 1. Step `1` creates a deterministic source record.
-2. Step `2` narrows the award to payment-relevant material.
-3. Step `3.2` classifies overtime-related clauses by role.
-4. Step `3.3` narrows again to overtime-creation clauses.
-5. Step `3.4` generates two independent structured interpretations.
-6. A comparison pass merges those into one canonical interpretation.
-7. Step `3B` critiques and revises that interpretation with explicit rule-level decisions.
+2. Step `2.1` narrows the award to payment-relevant material.
+3. Step `2.2` classifies overtime-related clauses by role.
+4. Step `3.1` drafts the overtime ruleset.
+5. Step `3.2` critiques and revises that draft with explicit rule-level decisions.
+6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
+7. Step `5.1` generates implementation-oriented pseudocode from the reviewed artifact.
 
 So the method is not "one model reads the award and answers."
 
@@ -454,7 +278,7 @@ It is:
 - deterministic source extraction;
 - structured narrowing;
 - structured role classification;
-- dual expert generation;
-- comparison and merge;
+- dual expert drafting;
+- deterministic comparison and merge;
 - supervised revision;
 - optional later formatting and implementation-oriented generation.

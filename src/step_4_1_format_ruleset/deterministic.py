@@ -94,24 +94,15 @@ def default_interpretation_path_for_award(
         explicit_revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
         if explicit_revised_path.exists():
             return explicit_revised_path
-        legacy_revised_path = award_dir / f"{award_code}_overtime_creation_ruleset_revised.md"
-        if legacy_revised_path.exists():
-            return legacy_revised_path
         return award_dir / "3_1_OT_creation_ruleset.md"
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         explicit_revised_path = award_dir / "3_2_OT_consequence_revised_ruleset.md"
         if explicit_revised_path.exists():
             return explicit_revised_path
-        legacy_revised_path = award_dir / f"{award_code}_overtime_consequence_ruleset_revised.md"
-        if legacy_revised_path.exists():
-            return legacy_revised_path
         return award_dir / "3_1_OT_consequence_ruleset.md"
     revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
     if revised_path.exists():
         return revised_path
-    legacy_revised_path = award_dir / f"{award_code}_overtime_interpretation_revised.md"
-    if legacy_revised_path.exists():
-        return legacy_revised_path
 
     return award_dir / "3_1_OT_creation_ruleset.md"
 
@@ -138,23 +129,11 @@ def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
 
     if stem == "3_2_OT_consequence_revised_ruleset":
         return formatted_ruleset_path_for_ruleset(path, OVERTIME_CONSEQUENCE_RULESET)
-
-    if stem.endswith("_overtime_creation_ruleset_revised"):
-        stem = stem.removesuffix("_overtime_creation_ruleset_revised")
-        return path.with_name(f"{stem}_overtime_creation_ruleset_overtime_entitlements.md")
-
-    if stem.endswith("_overtime_consequence_ruleset_revised"):
-        stem = stem.removesuffix("_overtime_consequence_ruleset_revised")
-        return path.with_name(
-            f"{stem}_overtime_consequence_ruleset_overtime_entitlements.md"
-        )
-
-    if stem.endswith("_overtime_interpretation_revised"):
-        stem = stem.removesuffix("_overtime_interpretation_revised")
-    elif stem.endswith("_overtime_interpretation"):
-        stem = stem.removesuffix("_overtime_interpretation")
-
-    return award_output_dir(path) / f"{stem}_overtime_entitlements.md"
+    raise OvertimeEntitlementSummaryError(
+        "Step 4.1 expects a canonical revised ruleset path such as "
+        "`3_2_OT_creation_revised_ruleset.md` or "
+        "`3_2_OT_consequence_revised_ruleset.md`."
+    )
 
 
 def resolve_formatting_inputs(

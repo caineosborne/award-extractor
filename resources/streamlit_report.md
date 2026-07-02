@@ -12,7 +12,7 @@ Scope:
 - Launch: PASS
 - End-to-End Pipeline: PASS with warnings
 - Screen Validation: PASS with test-harness validation
-- Manual Review Step 4B: PASS for existing flow, not exhaustively exercised during this pass
+- Step 4.9 human review: PASS for existing flow, not exhaustively exercised during this pass
 - Cohort Coverage: PASS for the supported MA000120 consequence and creation outputs available in the app
 - Navigation: PASS for the controls exercised in the Streamlit test harness
 

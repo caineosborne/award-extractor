@@ -17,7 +17,7 @@ DEFAULT_OVERTIME_SUMMARY_PATH = (
     / "data"
     / "processed"
     / "MA000018"
-    / "MA000018_overtime_interpretation_revised.md"
+    / "3_2_OT_creation_revised_ruleset.md"
 )
 DEFAULT_MODEL = "gpt-5.4-mini"
 MAX_VALIDATION_REPAIR_ATTEMPTS = 1

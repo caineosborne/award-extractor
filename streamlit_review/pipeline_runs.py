@@ -230,7 +230,7 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
 
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
-    """Load the step 5B validation summary when available."""
+    """Load the step 5.1 validation summary when available."""
     if step != "5.1":
         return None
 

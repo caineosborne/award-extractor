@@ -2,7 +2,7 @@
 
 This document records the current known gaps that still deserve follow-up in the active pipeline.
 
-It has been reviewed against the current codebase after the recent Step `3B` contract, validation, Streamlit review-surface, and documentation updates.
+It has been reviewed against the current codebase after the step `3.2` review contract, validation, Streamlit review-surface cleanup, and documentation updates.
 
 ## Resolved items
 
@@ -14,13 +14,13 @@ Status:
 - Resolved as warning-based validation
 
 Current state:
-- `src/script_3_part2_generate_overtime_interpretation.py` now records warning-level completeness issues when shortlisted overtime-creation clauses from step `3.2` are not represented in:
+- `src/step_3_1_generate_ruleset/run.py` now records warning-level completeness issues when shortlisted overtime-creation clauses from step `2.2` are not represented in:
   - the expert rulesets; and
   - the merged comparison ruleset.
 - The same warning path is carried into the saved step-3 artifacts and prepended to the markdown working paper.
 
 What changed:
-- step `3.4` still does not hard-fail on every omission;
+- the merged comparison step still does not hard-fail on every omission;
 - but it no longer leaves the omission silent.
 
 Why it is no longer listed as an active gap:
@@ -55,13 +55,13 @@ Why it is no longer listed as active:
 - the earlier gap was absence of explicit upstream scope tagging;
 - that tagging and downstream comparison now exist.
 
-### Step 3B creator over-inferred evaluator-proposed new rules from evaluator prose
+### Step 3.2 creator over-inferred evaluator-proposed new rules from evaluator prose
 
 Status:
 - Resolved as prompt-contract hardening
 
 Current state:
-- the direct step `3B` creator flow now treats evaluator structured JSON as the authoritative operational contract;
+- the direct step `3.2` creator flow now treats evaluator structured JSON as the authoritative operational contract;
 - the creator prompt includes a structured review action pack built from:
   - the original step-3 rules JSON; and
   - the evaluator structured review JSON;
@@ -73,9 +73,9 @@ What changed:
 
 Why it is no longer listed as active:
 - the earlier issue was that evaluator prose had too much practical authority in the creator prompt;
-- the current direct `3B` path now gives the structured review JSON priority.
+- the current direct step `3.2` path now gives the structured review JSON priority.
 
-### Streamlit review screen no longer exposed structured 3B review detail during normal successful runs
+### Streamlit review screen no longer exposed structured review detail during normal successful runs
 
 Status:
 - Resolved
@@ -93,7 +93,7 @@ What changed:
 
 Why it is no longer listed as active:
 - the earlier issue was a UI rendering regression rather than a data-generation problem;
-- the structured `3B` artifacts are again exposed for review in Streamlit.
+- the structured step `3.2` artifacts are again exposed for review in Streamlit.
 
 ## Active issues
 
@@ -126,13 +126,14 @@ Suggested follow-up:
   - or both;
 - decide separately how the review screens should behave when both are selected, because running both and viewing both are different UI decisions.
 
-### Step 3B evaluator occasionally returns empty or truncated structured output in live runs
+### Step 3.2 evaluator occasionally returns empty or truncated structured output in live runs
 
 Status:
 - Open
 
 Area:
-- `src/script_3b_review_overtime_interpretation.py`
+- `src/step_3_2_review_ruleset/llm.py`
+- `src/step_3_2_review_ruleset/run.py`
 - `src/common/llm_io.py`
 
 Current behaviour:
@@ -149,7 +150,7 @@ Remaining issue:
   - malformed/truncated JSON that exhausts the repair loop.
 
 Why this still matters:
-- step `3B` is intended to be the main audited review path;
+- step `3.2` is intended to be the main audited review path;
 - unstable evaluator transport undermines repeatability even when the deterministic layer handles failures safely.
 
 Suggested follow-up:
@@ -161,14 +162,8 @@ Suggested follow-up:
 
 The active priority should be:
 
-1. finish stabilising live step `3B` evaluator output;
+1. finish stabilising live step `3.2` evaluator output;
 2. rerun representative awards such as `MA000120` to confirm the reviewed interpretation path passes cleanly without manual-review fallback;
-3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in `3B` outputs or move to later presentation layers;
-4. keep the Streamlit review screen aligned with the structured artifact contracts as `3B` evolves.
+3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in step `3.2` outputs or move to later presentation layers;
+4. keep the Streamlit review screen aligned with the structured artifact contracts as step `3.2` evolves.
 
-
-___________
-
-Added
-
-Running the shortcut buttons shoudl load both screens - not just the consequences/creation

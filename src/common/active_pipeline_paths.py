@@ -90,20 +90,6 @@ def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
     if award_dir.name:
         return award_dir.name
 
-    stem = path.stem
-    if stem.endswith("_overtime_interpretation"):
-        return stem.removesuffix("_overtime_interpretation")
-    if stem.endswith("_overtime_interpretation_revised"):
-        return stem.removesuffix("_overtime_interpretation_revised")
-    if stem.endswith("_overtime_creation_ruleset"):
-        return stem.removesuffix("_overtime_creation_ruleset")
-    if stem.endswith("_overtime_creation_ruleset_revised"):
-        return stem.removesuffix("_overtime_creation_ruleset_revised")
-    if stem.endswith("_overtime_consequence_ruleset"):
-        return stem.removesuffix("_overtime_consequence_ruleset")
-    if stem.endswith("_overtime_consequence_ruleset_revised"):
-        return stem.removesuffix("_overtime_consequence_ruleset_revised")
-
     raise ValueError(
         "Could not derive award code from interpretation path. "
         "Pass --classification-path explicitly."
@@ -175,17 +161,16 @@ def revised_output_path_for_interpretation(interpretation_path: Path | str) -> P
     return revised_interpretation_path_for_interpretation(interpretation_path)
 
 
-def manual_4b_output_path_for_interpretation(interpretation_path: Path | str) -> Path:
-    """Return the default manual 4B markdown path for an interpretation file."""
+def manual_ruleset_path_for_interpretation(interpretation_path: Path | str) -> Path:
+    """Return the default manually edited ruleset path for an interpretation file."""
     path = Path(interpretation_path)
-    award_code = award_code_from_interpretation_path(path)
-    return path.with_name(f"{award_code}_overtime_interpretation_4b.md")
+    return path.with_name(f"{path.stem}_manual.md")
 
 
-def preferred_5b_source_path_for_interpretation(interpretation_path: Path | str) -> Path:
-    """Return the preferred 5B source path, using manual 4B when present."""
+def preferred_step_5_source_path_for_interpretation(interpretation_path: Path | str) -> Path:
+    """Return the preferred step 5.1 source path, using a manual ruleset when present."""
     revised_path = Path(interpretation_path)
-    manual_4b_path = manual_4b_output_path_for_interpretation(revised_path)
-    if manual_4b_path.exists():
-        return manual_4b_path
+    manual_ruleset_path = manual_ruleset_path_for_interpretation(revised_path)
+    if manual_ruleset_path.exists():
+        return manual_ruleset_path
     return revised_path

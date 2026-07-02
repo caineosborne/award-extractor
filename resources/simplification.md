@@ -39,8 +39,8 @@ Current status of the simplification plan:
 - Step 4.10 Completed
 - Step 5 not started
 - Step 6 not started
-- Step 7 not started
-- Step 8 not started
+- Step 7 in progress
+- Step 8 completed
 
 What is already done:
 
@@ -54,6 +54,7 @@ What is already done:
 - the active CLI now emits step-level status updates from the step `run.py` entrypoints
 - automatic timestamp archive creation has been removed from the default active pipeline flow
 - Streamlit review now reads and writes the canonical active artifacts only
+- documentation now reflects the numbered-step active pipeline and the removed agentic Streamlit path
 
 What is not done yet:
 
@@ -308,7 +309,9 @@ The simplification direction should be:
 
 - keep only the active workflow
 - delete legacy artifacts and legacy naming support
-- keep compatibility shims only if they are tiny and temporary
+- do not preserve legacy paths in the active runtime
+- do not keep a parallel legacy view of the workflow in code or Streamlit
+- keep compatibility shims only if they are tiny, temporary, and on a clear path to deletion
 
 Specifically, reduce:
 
@@ -936,7 +939,7 @@ Implemented outcomes:
 - Streamlit output discovery now uses canonical `2_1_payment_classification.json` files inside award-first folders
 - `artifact_paths_for_award(...)` and `ruleset_artifact_paths_for_award(...)` now resolve only the canonical step-numbered active artifacts
 - Streamlit path helpers no longer use legacy filename inference or fallback ordering for active outputs
-- manual `4B` and step `5.1` source selection now follow canonical precedence: existing manual file, then `4.1`, then `3.2`, then `3.1`
+- the step `4.9` human-review file and step `5.1` source selection now follow canonical precedence: existing manual file, then `4.1`, then `3.2`, then `3.1`
 - sidebar run controls and labels remain in CLI step order with standalone `2.1` and `2.2` controls
 - manual editor saves now write only the current canonical file and do not create archive copies
 - Streamlit tests now assert canonical filenames and canonical source selection behaviour
@@ -968,7 +971,7 @@ Specific Streamlit changes required:
   - `4_1_OT_<ruleset>_formatted_ruleset.md`
   - `5_1_OT_<ruleset>_pseudocode.md`
   - `5_1_OT_<ruleset>_pseudocode_validation.json/.md`
-- keep manual `4B` as an operator-visible file inside the canonical award folder, but do not use legacy filename migration logic to find it
+- keep the step `4.9` human-review file as an operator-visible file inside the canonical award folder, but do not use legacy filename migration logic to find it
 - replace `write_text_file_with_archive(...)` with a canonical current-file write helper and stop writing archive copies from the manual editor
 - update [streamlit_review/app.py] sidebar run controls so the buttons appear in CLI order:
   - step `1`
@@ -989,7 +992,7 @@ Specific Streamlit changes required:
 - remove UI assumptions that step `2.2` is part of step `3.1`; step `2.2` should be runnable, logged, and reviewable on its own
 - update the review screen labels in [streamlit_review/app.py] so the combined ruleset / review / formatted guide screens match the new step names rather than the old script-era terminology
 - update [streamlit_review/output_data.py] source-selection helpers so canonical precedence is:
-  - manual `4B`: existing manual file, then `4.1`, then `3.2`, then `3.1`
+  - step `4.9` human-review file: existing manual file, then `4.1`, then `3.2`, then `3.1`
   - step `5.1`: existing manual file, then `4.1`, then `3.2`, then `3.1`
 - update [streamlit_review/pipeline_runs.py] so step `4.1` and step `5.1` source resolution follows the same canonical path order as the CLI helpers
 - update [streamlit_review/run_pipeline_background.py] status messages only if needed to keep the displayed step names identical to the CLI
@@ -1106,7 +1109,7 @@ Ensure all scrips have terminology (step number and naming) that aligns to the m
 
 Status:
 
-- not started
+- in progress
 
 
 
@@ -1165,6 +1168,12 @@ Recommended direction for the current codebase:
 
 This phase should now include the explicit removal of the parked agentic review path from the active Streamlit surface.
 
+Working principle:
+
+- the repository should present one active implementation view only;
+- the numbered-step workflow is that active view;
+- legacy path support, legacy naming support, and script-era compatibility branches should be removed rather than preserved.
+
 For the current version, treat the active operator workflow as:
 
 - step `1`
@@ -1180,6 +1189,10 @@ Do not expose the older agentic review workflow in Streamlit during this phase.
 Recommended implementation steps:
 
 #### Phase 7.1. Remove parked agentic review references from the active Streamlit path
+
+Status:
+
+- completed
 
 Scope:
 
@@ -1197,12 +1210,26 @@ Specific changes:
 - remove Streamlit tests that still treat the agentic conversation file as part of the active canonical review surface;
 - keep the parked WIP files such as `src/WIP - script_3b_agentic_review_workflow.py` out of the active Streamlit path for now.
 
+Decision:
+
+- for the current version, favour deletion of active references over backward-compatible preservation;
+- if a parked WIP file is not part of the active numbered-step runtime, it should not shape the active UI, active path helpers, or active tests.
+
+Implemented outcome:
+
+- the active Streamlit review path no longer exposes the parked agentic review conversation artifact;
+- the active Streamlit artifact model no longer treats that parked conversation file as part of the active review contract.
+
 Why this belongs in Phase 7:
 
 - this is no longer a structure-adoption task;
 - it is a cleanup task that removes a leftover compatibility-era concept from the active operator UI.
 
 #### Phase 7.2. Remove remaining active legacy wrappers and compatibility aliases
+
+Status:
+
+- completed
 
 Scope:
 
@@ -1222,7 +1249,17 @@ Specific targets:
 - remove active imports or test fixtures that still depend on old prompt-module names or script-era labels;
 - remove wrapper functions whose only purpose is backward naming compatibility where no active caller still needs them.
 
+Implemented outcome:
+
+- removed the unused backward-compatible alias from the step `2.2` runner so the folder now exposes one active step entrypoint only;
+- removed active Streamlit test dependence on the parked `WIP_agentic_review` prompt module;
+- removed an unused creation-only import from the active Streamlit app so the current UI import surface matches the active ruleset-specific path flow more closely.
+
 #### Phase 7.3. Simplify remaining fallback-heavy deterministic logic
+
+Status:
+
+- completed
 
 Scope:
 
@@ -1234,6 +1271,14 @@ Specific targets:
 - remove old overtime-only path inference where the numbered canonical outputs already determine the file;
 - simplify downstream source-selection logic once the active operator flow is fully canonical;
 - review legacy-oriented helpers such as markdown-to-rules fallbacks and retain them only if they still serve an active deterministic validation purpose.
+
+Implemented outcome:
+
+- removed legacy filename-shape fallback branches from the active step `4.1` interpretation source resolver;
+- removed legacy filename-shape fallback branches from the active step `5.1` source resolver and output-path builder;
+- updated the shared human-review helper to use the canonical numbered-step naming shape;
+- updated active tests so step `4.1` and step `5.1` now assert the canonical numbered artifacts directly;
+- retained markdown-to-rules fallback parsing where it still protects active model-output validation and recovery.
 
 #### Phase 7.4. Perform one final active-workflow simplification scan
 
@@ -1270,16 +1315,19 @@ After the code is stable:
 - update `README.md`
 - update technical and methodology notes
 - update output inventories
-- Archieve old files which are no longer used in the current process
+- archive old files which are no longer used in the current process
 - remove or archive old documentation that describes the retired architecture
 
 At that point, the repository should describe only one active workflow.
 
-Completing the planning and naming decisions in this document counts as finishing Step 1 of the simplification plan.
-
 Status:
 
-- not started
+- completed
+
+Notes:
+
+- the active documentation now reflects the numbered-step workflow;
+- historical plan notes remain only where they are clearly marked as historical.
 
 ## Immediate priorities from the current codebase
 

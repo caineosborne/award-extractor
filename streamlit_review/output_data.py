@@ -35,12 +35,11 @@ class ArtifactPaths:
     original_overtime_interpretation_expert_a: Path
     original_overtime_interpretation_expert_b: Path
     original_overtime_interpretation_comparison: Path
-    agentic_review_conversation: Path
     evaluator_feedback: Path
     creator_response: Path
     revised_overtime_interpretation: Path
     overtime_entitlements: Path
-    manual_4b_overtime_interpretation: Path
+    manual_ruleset_path: Path
     core_overtime_pseudocode: Path
     core_overtime_validation_json: Path
     core_overtime_validation_markdown: Path
@@ -66,7 +65,7 @@ class RulesetArtifactPaths:
     revised_markdown: Path
     revised_json: Path
     formatted_markdown: Path
-    manual_4b_markdown: Path
+    manual_ruleset_markdown: Path
     pseudocode_markdown: Path
     pseudocode_validation_json: Path
     pseudocode_validation_markdown: Path
@@ -94,7 +93,9 @@ def canonical_ruleset_paths(
     combined_markdown = award_dir / f"3_1_{short_label}_ruleset.md"
     revised_markdown = award_dir / f"3_2_{short_label}_revised_ruleset.md"
     formatted_markdown = award_dir / f"4_1_{short_label}_formatted_ruleset.md"
-    manual_4b_markdown = revised_markdown.with_name(f"{revised_markdown.stem}_4b.md")
+    manual_ruleset_markdown = revised_markdown.with_name(
+        f"{revised_markdown.stem}_manual.md"
+    )
     pseudocode_markdown = award_dir / f"5_1_{short_label}_pseudocode.md"
 
     return RulesetArtifactPaths(
@@ -115,7 +116,7 @@ def canonical_ruleset_paths(
         revised_markdown=revised_markdown,
         revised_json=revised_markdown.with_suffix(".json"),
         formatted_markdown=formatted_markdown,
-        manual_4b_markdown=manual_4b_markdown,
+        manual_ruleset_markdown=manual_ruleset_markdown,
         pseudocode_markdown=pseudocode_markdown,
         pseudocode_validation_json=validation_json_path_for_pseudocode(pseudocode_markdown),
         pseudocode_validation_markdown=validation_markdown_path_for_pseudocode(
@@ -151,7 +152,6 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         original_overtime_interpretation_expert_b=creation_ruleset_paths.expert_b_markdown,
         original_overtime_interpretation_comparison=creation_ruleset_paths.comparison_json,
         original_overtime_rules_json=creation_ruleset_paths.combined_json,
-        agentic_review_conversation=feedback_dir / "3_2_OT_creation_agentic_review_conversation.md",
         evaluator_feedback=creation_ruleset_paths.evaluator_feedback,
         evaluator_feedback_json=creation_ruleset_paths.evaluator_feedback_json,
         creator_response=creation_ruleset_paths.creator_response,
@@ -159,7 +159,7 @@ def artifact_paths_for_award(award_code: str) -> ArtifactPaths:
         revised_overtime_interpretation=creation_ruleset_paths.revised_markdown,
         revised_overtime_rules_json=creation_ruleset_paths.revised_json,
         overtime_entitlements=creation_ruleset_paths.formatted_markdown,
-        manual_4b_overtime_interpretation=creation_ruleset_paths.manual_4b_markdown,
+        manual_ruleset_path=creation_ruleset_paths.manual_ruleset_markdown,
         core_overtime_pseudocode=creation_ruleset_paths.pseudocode_markdown,
         core_overtime_validation_json=creation_ruleset_paths.pseudocode_validation_json,
         core_overtime_validation_markdown=creation_ruleset_paths.pseudocode_validation_markdown,
@@ -192,9 +192,9 @@ def write_text_file(path: Path, text: str) -> None:
     write_text_output(path, text)
 
 
-def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
-    if artifact_paths.manual_4b_overtime_interpretation.exists():
-        return artifact_paths.manual_4b_overtime_interpretation
+def source_path_for_manual_ruleset_editor(artifact_paths: ArtifactPaths) -> Path:
+    if artifact_paths.manual_ruleset_path.exists():
+        return artifact_paths.manual_ruleset_path
 
     if artifact_paths.overtime_entitlements.exists():
         return artifact_paths.overtime_entitlements
@@ -205,11 +205,11 @@ def source_path_for_manual_4b_editor(artifact_paths: ArtifactPaths) -> Path:
     return artifact_paths.original_overtime_interpretation
 
 
-def source_path_for_ruleset_manual_4b_editor(
+def source_path_for_ruleset_manual_ruleset_editor(
     ruleset_artifact_paths: RulesetArtifactPaths,
 ) -> Path:
-    if ruleset_artifact_paths.manual_4b_markdown.exists():
-        return ruleset_artifact_paths.manual_4b_markdown
+    if ruleset_artifact_paths.manual_ruleset_markdown.exists():
+        return ruleset_artifact_paths.manual_ruleset_markdown
 
     if ruleset_artifact_paths.formatted_markdown.exists():
         return ruleset_artifact_paths.formatted_markdown
@@ -221,8 +221,8 @@ def source_path_for_ruleset_manual_4b_editor(
 
 
 def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> Path:
-    if artifact_paths.manual_4b_overtime_interpretation.exists():
-        return artifact_paths.manual_4b_overtime_interpretation
+    if artifact_paths.manual_ruleset_path.exists():
+        return artifact_paths.manual_ruleset_path
 
     if artifact_paths.overtime_entitlements.exists():
         return artifact_paths.overtime_entitlements
@@ -236,8 +236,8 @@ def source_path_for_core_overtime_pseudocode(artifact_paths: ArtifactPaths) -> P
 def source_path_for_ruleset_core_overtime_pseudocode(
     ruleset_artifact_paths: RulesetArtifactPaths,
 ) -> Path:
-    if ruleset_artifact_paths.manual_4b_markdown.exists():
-        return ruleset_artifact_paths.manual_4b_markdown
+    if ruleset_artifact_paths.manual_ruleset_markdown.exists():
+        return ruleset_artifact_paths.manual_ruleset_markdown
 
     if ruleset_artifact_paths.formatted_markdown.exists():
         return ruleset_artifact_paths.formatted_markdown
@@ -407,3 +407,4 @@ def natural_key(value: str) -> list[int | str]:
             key_parts.append(part)
 
     return key_parts
+

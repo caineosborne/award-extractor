@@ -1,3 +1,7 @@
+Historical plan note:
+
+This document captures an older refactor idea and is retained for reference only. The active pipeline has since moved to the numbered-step structure described in `resources/METHODOLOGY.md` and `resources/TECHNICAL_GUIDE.md`.
+
 Refactor the overtime entitlement generation into two separate LLM steps.
 
 Current state:

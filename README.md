@@ -43,7 +43,7 @@ Run the Streamlit review app with:
 uv run streamlit run review_outputs.py
 ```
 
-The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual `4B` markdown, and inspect the later `5B` pseudocode outputs.
+The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual ruleset markdown, and inspect the later step `5.1` pseudocode outputs.
 The main review screens are now reviewer-facing:
 - payment clauses
 - payment clause categories

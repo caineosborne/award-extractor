@@ -301,11 +301,11 @@ def test_run_step_5_1_uses_award_code_for_source_selection():
     )
 
 
-def test_run_step_5_1_prefers_manual_4b_when_present(tmp_path):
-    revised_path = tmp_path / "MA000018_overtime_interpretation_revised.md"
+def test_run_step_5_1_prefers_manual_ruleset_when_present(tmp_path):
+    revised_path = tmp_path / "3_2_OT_creation_revised_ruleset.md"
     revised_path.write_text("# Revised", encoding="utf-8")
-    manual_4b_path = tmp_path / "MA000018_overtime_interpretation_4b.md"
-    manual_4b_path.write_text("# Manual 4B", encoding="utf-8")
+    manual_ruleset_path = tmp_path / "3_2_OT_creation_revised_ruleset_manual.md"
+    manual_ruleset_path.write_text("# Manual ruleset", encoding="utf-8")
 
     paths = build_paths(
         award_code="MA000018",
@@ -331,7 +331,7 @@ def test_run_step_5_1_prefers_manual_4b_when_present(tmp_path):
         "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
-        summary_path=manual_4b_path,
+        summary_path=manual_ruleset_path,
         output_path=paths.core_overtime_pseudocode_path,
     )
 

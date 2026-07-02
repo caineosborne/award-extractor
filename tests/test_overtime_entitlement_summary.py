@@ -33,26 +33,24 @@ class FakeClient:
 
 
 class OvertimeEntitlementSummaryTests(unittest.TestCase):
-    def test_output_path_for_revised_interpretation_uses_award_stem(self):
+    def test_output_path_for_revised_interpretation_uses_canonical_creation_name(self):
         result = output_path_for_interpretation(
-            Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md")
+            Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md")
         )
 
         self.assertEqual(
             result,
-            Path("data/processed/MA000018/MA000018_overtime_entitlements.md"),
+            Path("data/processed/MA000018/4_1_OT_creation_formatted_ruleset.md"),
         )
 
-    def test_output_path_for_ruleset_revised_interpretation_keeps_ruleset_isolation(self):
+    def test_output_path_for_ruleset_revised_interpretation_keeps_canonical_ruleset_isolation(self):
         result = output_path_for_interpretation(
-            Path("data/processed/MA000018/MA000018_overtime_consequence_ruleset_revised.md")
+            Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md")
         )
 
         self.assertEqual(
             result,
-            Path(
-                "data/processed/MA000018/MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
-            ),
+            Path("data/processed/MA000018/4_1_OT_consequence_formatted_ruleset.md"),
         )
 
     def test_resolve_interpretation_path_supports_ruleset_award_lookup(self):
@@ -60,7 +58,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             project_root = Path(temp_dir)
             award_dir = project_root / "data" / "processed" / "MA000999"
             award_dir.mkdir(parents=True)
-            revised_path = award_dir / "MA000999_overtime_consequence_ruleset_revised.md"
+            revised_path = award_dir / "3_2_OT_consequence_revised_ruleset.md"
             revised_path.write_text("# Revised", encoding="utf-8")
 
             from unittest.mock import patch

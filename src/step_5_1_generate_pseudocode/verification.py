@@ -53,7 +53,7 @@ STOPWORDS = {
 
 @dataclass(frozen=True)
 class ImplementationRule:
-    """One rule-like bullet extracted from 5B pseudocode output."""
+    """One rule-like bullet extracted from step 5.1 pseudocode output."""
 
     rule_text: str
     clause_references: tuple[str, ...]
@@ -430,7 +430,7 @@ def validate_overtime_pseudocode_against_inventory(
 
 def render_validation_report_markdown(report: ValidationReport) -> str:
     lines = [
-        "# 5B validation report",
+        "# Step 5.1 validation report",
         "",
         f"- Source path: `{report.source_path}`",
         f"- Target path: `{report.target_path}`",

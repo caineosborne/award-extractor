@@ -207,7 +207,7 @@ def revised_interpretation_path_for_interpretation(interpretation_path: Path | s
 def core_overtime_pseudocode_path_for_interpretation(
     interpretation_path: Path | str,
 ) -> Path:
-    """Return the default step-5B pseudocode path for one reviewed interpretation."""
+    """Return the default step-5.1 pseudocode path for one reviewed interpretation."""
     path = Path(interpretation_path)
     stem = path.stem
 

@@ -10,7 +10,7 @@ from src.prompts.step_5_1_generate_pseudocode import (
     first_top_level_bullets,
     overtime_rule_bullets,
 )
-from src.step_5_1_generate_pseudocode.core import DEFAULT_MODEL
+from src.step_5_1_generate_pseudocode.core import DEFAULT_MODEL, DEFAULT_OVERTIME_SUMMARY_PATH
 from src.step_5_1_generate_pseudocode.deterministic import (
     default_overtime_interpretation_path,
     load_overtime_interpretation,
@@ -70,29 +70,25 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_output_path_for_summary(self):
         self.assertEqual(
             output_path_for_summary(
-                Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_revised.md")
+                Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md")
             ),
-            Path("data/processed/MA000018/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_uses_4b_source_when_present(self):
+    def test_output_path_for_summary_uses_canonical_manual_ruleset_source_when_present(self):
         self.assertEqual(
             output_path_for_summary(
-                Path("data/processed/3_overtime_interpretations/MA000018_overtime_interpretation_4b.md")
+                Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset_manual.md")
             ),
-            Path("data/processed/MA000018/MA000018_core_overtime_pseudocode.md"),
+            Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_keeps_ruleset_isolation(self):
+    def test_output_path_for_summary_keeps_canonical_ruleset_isolation(self):
         self.assertEqual(
             output_path_for_summary(
-                Path(
-                    "data/processed/MA000018/MA000018_overtime_consequence_ruleset_overtime_entitlements.md"
-                )
+                Path("data/processed/MA000018/4_1_OT_consequence_formatted_ruleset.md")
             ),
-            Path(
-                "data/processed/MA000018/MA000018_overtime_consequence_ruleset_core_overtime_pseudocode.md"
-            ),
+            Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         )
 
     def test_output_path_for_summary_uses_canonical_step_numbered_names(self):
@@ -206,7 +202,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
     def test_build_repair_messages_include_validation_report_and_initial_draft(self):
         summary_markdown = "# Overtime\n\n- Rule one. Clause **11.1(a)**."
         initial_pseudocode = "# Overtime pseudocode\n\n## Pseudocode\n\n- Incomplete."
-        validation_report = "# 5B validation report\n\n- Failed rules: `1`"
+        validation_report = "# Step 5.1 validation report\n\n- Failed rules: `1`"
 
         from src.common.rule_inventory import parse_rule_inventory_from_markdown
 
@@ -234,16 +230,16 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("Carry the relevant source clause references into comments", messages[1]["content"])
         self.assertIn("Keep this in overtime creation mode.", messages[1]["content"])
 
-    def test_select_overtime_interpretation_path_falls_back_from_4b_to_revised(self):
+    def test_select_overtime_interpretation_path_falls_back_from_manual_ruleset_to_4_1_then_3_2(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir)
-            manual_4b_path = source_dir / "award_overtime_interpretation_4b.md"
-            entitlement_path = source_dir / "award_overtime_entitlements.md"
-            revised_path = source_dir / "award_overtime_interpretation_revised.md"
-            entitlement_path.write_text("# 4A", encoding="utf-8")
+            manual_ruleset_path = source_dir / "3_2_OT_creation_revised_ruleset_manual.md"
+            entitlement_path = source_dir / "4_1_OT_creation_formatted_ruleset.md"
+            revised_path = source_dir / "3_2_OT_creation_revised_ruleset.md"
+            entitlement_path.write_text("# 4.1", encoding="utf-8")
             revised_path.write_text("# Revised", encoding="utf-8")
 
-            selected_path = select_overtime_interpretation_path(manual_4b_path)
+            selected_path = select_overtime_interpretation_path(manual_ruleset_path)
 
         self.assertEqual(selected_path, entitlement_path)
 
@@ -252,7 +248,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             project_root = Path(temp_dir)
             award_dir = project_root / "data" / "processed" / "MA000003"
             award_dir.mkdir(parents=True)
-            entitlement_path = award_dir / "MA000003_overtime_entitlements.md"
+            entitlement_path = award_dir / "4_1_OT_creation_formatted_ruleset.md"
             entitlement_path.write_text("# 4A", encoding="utf-8")
 
             from unittest.mock import patch
@@ -270,9 +266,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             project_root = Path(temp_dir)
             award_dir = project_root / "data" / "processed" / "MA000003"
             award_dir.mkdir(parents=True)
-            entitlement_path = (
-                award_dir / "MA000003_overtime_consequence_ruleset_overtime_entitlements.md"
-            )
+            entitlement_path = award_dir / "4_1_OT_consequence_formatted_ruleset.md"
             entitlement_path.write_text("# 4A", encoding="utf-8")
 
             from unittest.mock import patch
@@ -288,17 +282,17 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
 
         self.assertEqual(selected_path, entitlement_path)
 
-    def test_load_overtime_interpretation_prefers_existing_4b(self):
+    def test_load_overtime_interpretation_prefers_existing_manual_ruleset(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             source_dir = Path(temp_dir)
-            manual_4b_path = source_dir / "award_overtime_interpretation_4b.md"
-            revised_path = source_dir / "award_overtime_interpretation_revised.md"
-            manual_4b_path.write_text("# Manual 4B", encoding="utf-8")
+            manual_ruleset_path = source_dir / "3_2_OT_creation_revised_ruleset_manual.md"
+            revised_path = source_dir / "3_2_OT_creation_revised_ruleset.md"
+            manual_ruleset_path.write_text("# Manual ruleset", encoding="utf-8")
             revised_path.write_text("# Revised", encoding="utf-8")
 
-            selected_text = load_overtime_interpretation(manual_4b_path)
+            selected_text = load_overtime_interpretation(manual_ruleset_path)
 
-        self.assertEqual(selected_text, "# Manual 4B")
+        self.assertEqual(selected_text, "# Manual ruleset")
 
     def test_generate_core_overtime_pseudocode_writes_markdown_with_mocked_client(self):
         summary = """# Overtime entitlements
@@ -407,15 +401,15 @@ None
         self.assertIn("Initial pseudocode draft to repair", fake_client.responses.calls[1]["input"][1]["content"])
         self.assertIn("Overall status: `passed`", validation_markdown)
 
-    def test_default_overtime_interpretation_path_prefers_4b_then_4a_then_3b(self):
+    def test_default_overtime_interpretation_path_prefers_canonical_manual_ruleset_then_4_1_then_3_2(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             project_root = Path(temp_dir)
             award_dir = project_root / "data" / "processed" / "MA000018"
             award_dir.mkdir(parents=True)
 
-            manual_4b_path = award_dir / "MA000018_overtime_interpretation_4b.md"
-            entitlement_path = award_dir / "MA000018_overtime_entitlements.md"
-            revised_path = award_dir / "MA000018_overtime_interpretation_revised.md"
+            manual_ruleset_path = award_dir / "3_2_OT_creation_revised_ruleset_manual.md"
+            entitlement_path = award_dir / "4_1_OT_creation_formatted_ruleset.md"
+            revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
             revised_path.write_text("# Revised", encoding="utf-8")
 
             from unittest.mock import patch
@@ -435,11 +429,17 @@ None
                     entitlement_path,
                 )
 
-                manual_4b_path.write_text("# 4B", encoding="utf-8")
+                manual_ruleset_path.write_text("# Manual ruleset", encoding="utf-8")
                 self.assertEqual(
                     default_overtime_interpretation_path("MA000018"),
-                    manual_4b_path,
+                    manual_ruleset_path,
                 )
+
+    def test_default_summary_path_uses_canonical_creation_revised_ruleset(self):
+        self.assertEqual(
+            DEFAULT_OVERTIME_SUMMARY_PATH,
+            Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md").resolve(),
+        )
 
 
 if __name__ == "__main__":
