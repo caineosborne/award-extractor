@@ -39,11 +39,11 @@ Scope:
 - Suggested fix: Review the consequence pseudocode source and the validation coverage rules if this warning is not acceptable for release.
 - Status: Present in the final run output.
 
-### 4. Low severity / enhancement: subset selection is still single-select
+'### 4. Low severity / enhancement: subset selection is still single-select
 - Request: Add a dropdown or tick-box control so the user can choose the ruleset subset combination to run, instead of only choosing one ruleset at a time.
 - Current state: Not implemented in the Streamlit UI.
 - Suggested fix: Replace the current single `Step 3 ruleset` selector with a multi-select checkbox control that can include creation, consequence, or both.
-- Status: Enhancement request only.
+- Status: Enhancement request only.'
 
 ### 5. Not reproduced in test harness: output-set dropdown visibility
 - Observation: In the Streamlit test harness, the `Load existing output set` dropdown includes `MA000120`, `MA000120_e2e_cli_check`, and `MA000120_e2e_qa_20260702`.

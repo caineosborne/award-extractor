@@ -1134,7 +1134,13 @@ The Streamlit sidebar should have distinct run controls for:
 
 Status:
 
-- not started
+- completed through the Phase `4.10` Streamlit and test update work
+
+Notes:
+
+- this phase did not run as a separate standalone implementation pass;
+- the required Streamlit and test changes were completed during the later Phase `4.10` canonicalisation work;
+- any remaining Streamlit cleanup now belongs to Phase `7`, because it is legacy-removal work rather than structure-adoption work.
 
 ### Phase 7. Delete legacy wrappers and fallback-heavy path logic
 
@@ -1154,6 +1160,107 @@ This is the step where complexity should drop sharply.
 Status:
 
 - not started
+
+Recommended direction for the current codebase:
+
+This phase should now include the explicit removal of the parked agentic review path from the active Streamlit surface.
+
+For the current version, treat the active operator workflow as:
+
+- step `1`
+- step `2.1`
+- step `2.2`
+- step `3.1`
+- step `3.2`
+- step `4.1`
+- step `5.1`
+
+Do not expose the older agentic review workflow in Streamlit during this phase.
+
+Recommended implementation steps:
+
+#### Phase 7.1. Remove parked agentic review references from the active Streamlit path
+
+Scope:
+
+- remove Streamlit references to the parked agentic review conversation artifacts;
+- keep the WIP agentic files in the repository for later work, but do not let the active Streamlit review surface depend on them;
+- make the active Streamlit review screens reflect only the canonical step `3.2` review outputs:
+  - `review.md/.json`
+  - `creator_response.md/.json`
+  - revised ruleset artifacts
+
+Specific changes:
+
+- remove `agentic_review_conversation` from the active Streamlit artifact model if it is no longer part of the active review contract;
+- remove the `Agentic review conversation` expander from the Streamlit review screen;
+- remove Streamlit tests that still treat the agentic conversation file as part of the active canonical review surface;
+- keep the parked WIP files such as `src/WIP - script_3b_agentic_review_workflow.py` out of the active Streamlit path for now.
+
+Why this belongs in Phase 7:
+
+- this is no longer a structure-adoption task;
+- it is a cleanup task that removes a leftover compatibility-era concept from the active operator UI.
+
+#### Phase 7.2. Remove remaining active legacy wrappers and compatibility aliases
+
+Scope:
+
+- scan the active runtime for names, wrappers, and imports that still preserve script-era concepts without adding active value;
+- remove duplicate helper names and compatibility aliases where the numbered-step entrypoints are already proven.
+
+Priority areas to review:
+
+- `src/award_pipeline.py`
+- `src/common/active_pipeline_paths.py`
+- `streamlit_review/`
+- active prompt modules under `src/prompts/`
+
+Specific targets:
+
+- remove duplicate helper names that only preserve pre-refactor terminology;
+- remove active imports or test fixtures that still depend on old prompt-module names or script-era labels;
+- remove wrapper functions whose only purpose is backward naming compatibility where no active caller still needs them.
+
+#### Phase 7.3. Simplify remaining fallback-heavy deterministic logic
+
+Scope:
+
+- review active deterministic helpers for fallback chains that still exist only to support older artifact shapes;
+- keep only the canonical active path logic plus any tiny temporary shim that is genuinely still needed.
+
+Specific targets:
+
+- remove old overtime-only path inference where the numbered canonical outputs already determine the file;
+- simplify downstream source-selection logic once the active operator flow is fully canonical;
+- review legacy-oriented helpers such as markdown-to-rules fallbacks and retain them only if they still serve an active deterministic validation purpose.
+
+#### Phase 7.4. Perform one final active-workflow simplification scan
+
+After the removals above, do one additional pass focused on simplification rather than migration.
+
+The goal of this pass is to identify places where the refactor has moved code without yet reducing complexity.
+
+Focus questions:
+
+1. Is this still active?
+2. Is this still canonical?
+3. Is this only preserving an old concept?
+4. Can this now be deleted or collapsed into the clearer owner?
+
+Suggested acceptance checks for Phase 7:
+
+- the active Streamlit review path no longer refers to parked agentic review conversation artifacts;
+- the active Streamlit review path reads only the canonical step `3.2` review outputs;
+- the active runtime no longer depends on script-era compatibility aliases where the numbered step folders already own the workflow;
+- remaining fallback logic is limited to cases that are still clearly justified in the active deterministic flow.
+
+Suggested execution order:
+
+1. Phase `7.1` Streamlit agentic exclusion
+2. Phase `7.2` wrapper and alias removal
+3. Phase `7.3` fallback simplification
+4. Phase `7.4` final simplification scan
 
 
 ### Phase 8. Update docs and remove dead content
