@@ -18,15 +18,17 @@ from src.common.overtime_rulesets import (
     infer_overtime_ruleset_key_from_path,
     overtime_ruleset_config,
 )
-from src.step_2_2_classify_overtime_clauses.core import (
+from src.prompts.step_2_2_classify_overtime_clauses import (
     build_clause_classification_messages,
+)
+from src.prompts.step_3_1_generate_ruleset import (
+    build_interpretation_messages as build_ruleset_interpretation_messages,
+)
+from src.step_2_2_classify_overtime_clauses.core import (
     clause_source_text as clause_text,
     select_overtime_creation_clauses,
     select_ruleset_related_clauses,
     validate_overtime_clause_classifications,
-)
-from src.step_3_1_generate_ruleset.core import (
-    build_interpretation_messages as build_ruleset_interpretation_messages,
 )
 from src.common.overtime_rules import (
     OvertimeRule,
@@ -68,9 +70,9 @@ def build_step_3_2_creator_prompt_context(
             selected_ruleset_key,
         ),
         "interpretation_messages": build_ruleset_interpretation_messages(
+            selected_ruleset_key,
             str(classification_path),
             generation_ready_clauses,
-            selected_ruleset_key,
         ),
     }
 
@@ -680,6 +682,61 @@ Earlier evaluator feedback:
 Return JSON only:
 {{"status":"pass"|"needs_revision","reason":"..."}}
 """
+
+
+def build_creator_repair_messages(
+    original_messages: list[Mapping[str, str]],
+    *,
+    validation_error: str,
+    prior_response_text: str,
+) -> list[dict[str, str]]:
+    """Ask the creator model to correct an invalid structured review response."""
+    repair_instruction = (
+        "Your previous structured JSON response failed validation.\n\n"
+        f"Validation error:\n- {validation_error}\n\n"
+        "Correct the JSON and return JSON only.\n"
+        "Do not omit any original rule.\n"
+        "Do not remove a rule unless both evaluator and creator explicitly support removal.\n"
+        "If you marked a rule as modify but do not need to change any fields, use decision keep.\n"
+        "If you mark a rule as modify, include an updated_rule object or change the decision to keep.\n"
+        "Do not invent creator-only new rules.\n"
+        "Treat the evaluator structured review JSON new_rules array as the only authoritative source of evaluator-proposed new rule_ids.\n"
+        "Do not include any new_rule_reviews entry unless its rule_id appears in that evaluator structured review JSON new_rules array.\n"
+        "Every evaluator-proposed new rule must appear in new_rule_reviews with decision accept, modify, or reject.\n"
+        "If you use decision modify for an evaluator-proposed new rule, include updated_rule.\n\n"
+        "Previous response:\n"
+        f"```json\n{prior_response_text}\n```"
+    )
+
+    repaired_messages = [dict(message) for message in original_messages]
+    repaired_messages.append({"role": "user", "content": repair_instruction})
+    return repaired_messages
+
+
+def build_evaluator_repair_messages(
+    original_messages: list[Mapping[str, str]],
+    *,
+    validation_error: str,
+    prior_response_text: str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
+) -> list[dict[str, str]]:
+    """Ask the evaluator model to correct an invalid structured review response."""
+    del ruleset_key
+    repair_instruction = (
+        "Your previous structured JSON response failed validation.\n\n"
+        f"Validation error:\n- {validation_error}\n\n"
+        "Correct the JSON and return JSON only.\n"
+        "You must keep one rule_reviews item for every original rule_id.\n"
+        "Do not silently drop any original rule.\n"
+        "If you recommend removal, the rationale must clearly support that removal.\n"
+        "Only use new_rules for clearly supported missing rules for the selected ruleset.\n\n"
+        "Previous response:\n"
+        f"```json\n{prior_response_text}\n```"
+    )
+
+    repaired_messages = [dict(message) for message in original_messages]
+    repaired_messages.append({"role": "user", "content": repair_instruction})
+    return repaired_messages
 
 
 def evaluator_structured_output_instructions() -> str:

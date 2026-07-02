@@ -4,7 +4,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
-from src.prompts.overtime_guide_formatting import build_messages
+from src.prompts.step_4_1_format_ruleset import build_messages
 from src.step_4_1_format_ruleset import (
     DEFAULT_MODEL,
     DEFAULT_TEMPLATE_PATH,

@@ -36,9 +36,9 @@ from src.common.overtime_rulesets import (
 )
 from src.common.output_paths import write_text_with_archive
 from src.common.pipeline_runtime import load_openai_environment
-from src.prompts.overtime_ruleset import (
-    build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
-    build_interpretation_messages as build_ruleset_interpretation_messages,
+from src.prompts.step_3_1_generate_ruleset import (
+    build_expert_comparison_messages,
+    build_interpretation_messages,
 )
 from src.step_2_2_classify_overtime_clauses.core import (
     DEFAULT_MODEL as STEP_2_2_DEFAULT_MODEL,
@@ -271,53 +271,6 @@ def comparison_output_path(base_markdown_path: Path | str) -> Path:
     """Return the JSON path used for the expert-comparison artifact."""
     path = Path(base_markdown_path)
     return path.with_name(f"{path.stem}_comparison.json")
-
-
-def format_working_paper_input(
-    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
-) -> str:
-    """Format the creation-oriented clauses into a readable working paper."""
-    sections = ["# Overtime Creation Clauses\n"]
-
-    for clause in overtime_creation_clauses:
-        sections.append(
-            f"""## Clause {clause.clause_number}
-
-Classification:
-{", ".join(clause.classifications)}
-
-Employee cohort:
-{clause.employee_cohort}
-
-Work arrangement:
-{clause.work_arrangement}
-
-Other scope notes:
-{clause.other_scope_notes or "(none)"}
-
-Explanation:
-{clause.explanation}
-
-Source Text:
-{clause.clause_text}
-"""
-        )
-
-    return "\n".join(sections)
-
-
-def build_interpretation_messages(
-    source_file: str,
-    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> list[dict[str, str]]:
-    """Build the messages used to write the structured overtime rules."""
-    working_paper_input = format_working_paper_input(overtime_creation_clauses)
-    return build_ruleset_interpretation_messages(
-        ruleset_key,
-        source_file,
-        working_paper_input,
-    )
 
 
 def interpretation_response_json_schema() -> dict[str, Any]:
@@ -662,39 +615,6 @@ def request_structured_interpretation_run(
         ]
 
     return structured_rules, validation_warnings, output_text
-
-
-def build_expert_comparison_messages(
-    *,
-    source_path: Path,
-    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
-    run_a_rules: Sequence[OvertimeRule],
-    run_b_rules: Sequence[OvertimeRule],
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> list[dict[str, str]]:
-    """Build the prompt used to compare and merge two expert runs."""
-    shortlisted_clauses = [
-        {
-            "clause_number": classification.clause_number,
-            "classification": classification.classification,
-            "classifications": list(classification.classifications),
-            "clause_text": classification.clause_text,
-            "explanation": classification.explanation,
-            "employee_cohort": classification.employee_cohort,
-            "work_arrangement": classification.work_arrangement,
-            "other_scope_notes": classification.other_scope_notes,
-        }
-        for classification in overtime_creation_clauses
-    ]
-    run_a_rules_json = [rule_to_dict(rule) for rule in run_a_rules]
-    run_b_rules_json = [rule_to_dict(rule) for rule in run_b_rules]
-    return build_ruleset_expert_comparison_messages(
-        ruleset_key=ruleset_key,
-        source_path=source_path,
-        shortlisted_clauses=shortlisted_clauses,
-        run_a_rules_json=run_a_rules_json,
-        run_b_rules_json=run_b_rules_json,
-    )
 
 
 def comparison_response_json_schema() -> dict[str, Any]:

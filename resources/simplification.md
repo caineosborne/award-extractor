@@ -1102,6 +1102,8 @@ Each step should have:
 
 All prompts shoudl be in the /prompts/ files
 
+Ensure all scrips have terminology (step number and naming) that aligns to the main script in src 
+
 Status:
 
 - not started

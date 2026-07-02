@@ -7,12 +7,14 @@ from unittest.mock import sentinel
 
 import pytest
 
-from src.prompts.agentic_review import (
+from src.prompts.WIP_agentic_review import (
     build_agentic_creator_input,
     build_agentic_source_context_prompt,
 )
-from src.prompts.overtime_ruleset import (
+from src.prompts.step_2_2_classify_overtime_clauses import (
     build_clause_classification_messages as build_ruleset_clause_classification_messages,
+)
+from src.prompts.step_3_1_generate_ruleset import (
     build_expert_comparison_messages as build_ruleset_expert_comparison_messages,
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
@@ -22,6 +24,7 @@ from streamlit_review.app import (
     available_award_code_index,
     build_review_decision_rows,
     combine_pipeline_logs,
+    json_expander_widget_key,
     manual_4b_editor_widget_key,
     move_selected_index,
     overtime_clause_text_widget_key,
@@ -148,7 +151,7 @@ def test_award_code_for_artifact_paths_uses_payment_classification_stem():
 def test_ruleset_artifact_paths_for_award():
     paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
 
-    assert paths.clause_classification.name == "2_2_OT_consequence_clause_classification.json"
+    assert paths.clause_classification.name == "2_2_OT_creation_clause_classification.json"
     assert paths.expert_a_markdown.name == "3_1_OT_consequence_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "3_1_OT_consequence_ruleset_expert_b.md"
     assert paths.comparison_json.name == "3_1_OT_consequence_ruleset_comparison.json"
@@ -267,6 +270,24 @@ def test_overtime_clause_text_widget_key_changes_with_selected_clause():
 
     assert first_key != second_key
     assert first_key == "screen_one_overtime_clause_text_22.1"
+
+
+def test_json_expander_widget_key_changes_with_panel_suffix():
+    rendered_json = '{"rule_id": "R1"}'
+
+    first_key = json_expander_widget_key(
+        label="Structured overtime rules JSON",
+        rendered_json=rendered_json,
+        key_suffix="screen_one_/tmp/example.json",
+    )
+    second_key = json_expander_widget_key(
+        label="Structured overtime rules JSON",
+        rendered_json=rendered_json,
+        key_suffix="screen_two_/tmp/example.json",
+    )
+
+    assert first_key != second_key
+    assert first_key.startswith("Structured overtime rules JSON_screen_one_")
 
 
 def test_manual_4b_editor_widget_key_uses_output_path_stem():

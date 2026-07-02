@@ -24,9 +24,7 @@ from src.common.overtime_rulesets import (
     overtime_ruleset_config,
 )
 from src.common.pipeline_runtime import load_openai_environment
-from src.prompts.overtime_ruleset import (
-    build_clause_classification_messages as build_ruleset_clause_classification_messages,
-)
+from src.prompts.step_2_2_classify_overtime_clauses import build_clause_classification_messages
 
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
@@ -147,28 +145,6 @@ def select_ruleset_related_clauses(
             overtime_related_clauses[clause_id] = clause
 
     return overtime_related_clauses
-
-
-def format_clauses_for_prompt(overtime_clauses: Mapping[str, Any]) -> str:
-    """Format shortlisted clauses into clear markdown sections for the model."""
-    sections: list[str] = []
-
-    for clause_number, clause in overtime_clauses.items():
-        if not isinstance(clause, Mapping):
-            continue
-
-        sections.append(f"## Clause {clause_number}\n\n{clause_source_text(clause)}")
-
-    return "\n\n---\n\n".join(sections)
-
-
-def build_clause_classification_messages(
-    overtime_clauses: Mapping[str, Any],
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> list[dict[str, str]]:
-    """Build the messages used for the clause-role classification pass."""
-    clauses_text = format_clauses_for_prompt(overtime_clauses)
-    return build_ruleset_clause_classification_messages(ruleset_key, clauses_text)
 
 
 def classification_response_json_schema(

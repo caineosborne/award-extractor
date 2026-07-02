@@ -34,6 +34,12 @@ from src.common.pipeline_io import load_json_object, load_text_file as load_text
 from src.common.pipeline_runtime import (
     load_openai_environment as require_openai_environment,
 )
+from src.prompts.step_3_2_review_ruleset import (
+    build_creator_repair_messages,
+    build_evaluator_repair_messages,
+    build_review_creator_messages,
+    build_review_evaluator_messages,
+)
 from src.step_2_2_classify_overtime_clauses.core import load_classification
 
 from .core import (
@@ -133,61 +139,6 @@ def extract_json_object_from_text(output_text: str) -> dict[str, Any]:
         raise ValueError("Model output was not a JSON object.")
 
     return parsed_data
-
-
-def build_creator_repair_messages(
-    original_messages: Sequence[Mapping[str, str]],
-    *,
-    validation_error: str,
-    prior_response_text: str,
-) -> list[dict[str, str]]:
-    """Ask the creator model to correct an invalid structured review response."""
-    repair_instruction = (
-        "Your previous structured JSON response failed validation.\n\n"
-        f"Validation error:\n- {validation_error}\n\n"
-        "Correct the JSON and return JSON only.\n"
-        "Do not omit any original rule.\n"
-        "Do not remove a rule unless both evaluator and creator explicitly support removal.\n"
-        "If you marked a rule as modify but do not need to change any fields, use decision keep.\n"
-        "If you mark a rule as modify, include an updated_rule object or change the decision to keep.\n"
-        "Do not invent creator-only new rules.\n"
-        "Treat the evaluator structured review JSON new_rules array as the only authoritative source of evaluator-proposed new rule_ids.\n"
-        "Do not include any new_rule_reviews entry unless its rule_id appears in that evaluator structured review JSON new_rules array.\n"
-        "Every evaluator-proposed new rule must appear in new_rule_reviews with decision accept, modify, or reject.\n"
-        "If you use decision modify for an evaluator-proposed new rule, include updated_rule.\n\n"
-        "Previous response:\n"
-        f"```json\n{prior_response_text}\n```"
-    )
-
-    repaired_messages = [dict(message) for message in original_messages]
-    repaired_messages.append({"role": "user", "content": repair_instruction})
-    return repaired_messages
-
-
-def build_evaluator_repair_messages(
-    original_messages: Sequence[Mapping[str, str]],
-    *,
-    validation_error: str,
-    prior_response_text: str,
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> list[dict[str, str]]:
-    """Ask the evaluator model to correct an invalid structured review response."""
-    del ruleset_key
-    repair_instruction = (
-        "Your previous structured JSON response failed validation.\n\n"
-        f"Validation error:\n- {validation_error}\n\n"
-        "Correct the JSON and return JSON only.\n"
-        "You must keep one rule_reviews item for every original rule_id.\n"
-        "Do not silently drop any original rule.\n"
-        "If you recommend removal, the rationale must clearly support that removal.\n"
-        "Only use new_rules for clearly supported missing rules for the selected ruleset.\n\n"
-        "Previous response:\n"
-        f"```json\n{prior_response_text}\n```"
-    )
-
-    repaired_messages = [dict(message) for message in original_messages]
-    repaired_messages.append({"role": "user", "content": repair_instruction})
-    return repaired_messages
 
 
 def fallback_creator_response_markdown(
@@ -458,15 +409,3 @@ def request_creator_revision(
         revised_interpretation_markdown,
         last_validation_error,
     )
-
-
-def build_review_evaluator_messages(*args, **kwargs):
-    from src.prompts.overtime_interpretation_review import build_review_evaluator_messages
-
-    return build_review_evaluator_messages(*args, **kwargs)
-
-
-def build_review_creator_messages(*args, **kwargs):
-    from src.prompts.overtime_interpretation_review import build_review_creator_messages
-
-    return build_review_creator_messages(*args, **kwargs)

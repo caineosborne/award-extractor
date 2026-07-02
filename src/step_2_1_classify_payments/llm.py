@@ -11,7 +11,7 @@ from typing import Any, Mapping
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
-from src.prompts.payment_clause_classification import ALLOWED_TAGS, build_messages
+from src.prompts.step_2_1_classify_payments import ALLOWED_TAGS, build_messages
 from src.step_2_1_classify_payments.deterministic import (
     apply_deterministic_tag_repairs,
     has_substantive_l1_content,

@@ -131,6 +131,21 @@ def test_main_runs_selected_active_step():
     )
 
 
+def test_main_allows_ruleset_subset_for_shared_step_without_changing_shared_artifact_contract():
+    with patch("src.award_pipeline.run_selected_step") as run_selected_step_mock:
+        main(["MA000018", "2.2", "--subset", "1", "2"])
+
+    passed_paths, passed_step, passed_ruleset_keys = run_selected_step_mock.call_args.args
+    assert passed_step == "2.2"
+    assert passed_ruleset_keys == [
+        OVERTIME_CREATION_RULESET,
+        OVERTIME_CONSEQUENCE_RULESET,
+    ]
+    assert passed_paths.overtime_clause_classification_path.name == (
+        "2_2_OT_creation_clause_classification.json"
+    )
+
+
 def test_run_step_2_2_uses_step_2_1_output_and_writes_step_2_2_artifact():
     paths = build_paths(
         award_code="MA000018",

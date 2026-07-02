@@ -97,6 +97,35 @@ Why it is no longer listed as active:
 
 ## Active issues
 
+### Streamlit subset selection still only supports one ruleset at a time
+
+Status:
+- Open
+
+Area:
+- `streamlit_review/app.py`
+
+Current behaviour:
+- the Streamlit sidebar exposes one `Step 3 ruleset` selector at a time;
+- the selected value controls both:
+  - which ruleset-specific pipeline steps run; and
+  - which ruleset-specific artifacts the review screens display.
+
+Remaining issue:
+- the active CLI supports running multiple ruleset subsets in one invocation;
+- the Streamlit UI does not yet expose that capability through a multi-select control.
+
+Why this still matters:
+- users can run both creation and consequence flows from the CLI;
+- the review UI still requires separate runs and separate screen changes to inspect each branch.
+
+Suggested follow-up:
+- replace the single-select ruleset control with a multi-select or checkbox control for:
+  - overtime creation;
+  - overtime consequence;
+  - or both;
+- decide separately how the review screens should behave when both are selected, because running both and viewing both are different UI decisions.
+
 ### Step 3B evaluator occasionally returns empty or truncated structured output in live runs
 
 Status:

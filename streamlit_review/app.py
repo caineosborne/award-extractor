@@ -592,7 +592,6 @@ def overtime_clause_text_widget_key(panel_key: str, selected_clause_key: str) ->
 
 
 def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
@@ -601,11 +600,11 @@ def render_original_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
     render_overtime_rules_json(
         json_path,
         source_markdown_path=ruleset_artifacts.combined_markdown,
+        panel_key=panel_key,
     )
 
 
 def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
@@ -614,11 +613,11 @@ def render_expert_a_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
     render_overtime_rules_json(
         json_path,
         source_markdown_path=ruleset_artifacts.expert_a_markdown,
+        panel_key=panel_key,
     )
 
 
 def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
-    del panel_key
     ruleset_artifacts = ruleset_artifact_paths_for_award(
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
@@ -627,6 +626,7 @@ def render_expert_b_overtime_screen(artifact_paths: Any, panel_key: str, ruleset
     render_overtime_rules_json(
         json_path,
         source_markdown_path=ruleset_artifacts.expert_b_markdown,
+        panel_key=panel_key,
     )
 
 
@@ -751,6 +751,7 @@ def render_review_feedback_screen(artifact_paths: Any, panel_key: str, ruleset_k
             render_overtime_rules_json(
                 ruleset_artifacts.revised_json,
                 source_markdown_path=ruleset_artifacts.revised_markdown,
+                panel_key="review_feedback_outcome",
             )
 
     with st.expander("Raw evaluator commentary", expanded=False):
@@ -1403,6 +1404,7 @@ def render_overtime_rules_json(
     json_path: Path,
     *,
     source_markdown_path: Path | None = None,
+    panel_key: str,
 ) -> None:
     render_file_details(
         json_path,
@@ -1434,7 +1436,7 @@ def render_overtime_rules_json(
         render_json_expander(
             "Structured overtime rules JSON",
             rules_data,
-            key_suffix=str(json_path),
+            key_suffix=f"{panel_key}_{json_path}",
         )
         return
 
@@ -1472,7 +1474,7 @@ def render_overtime_rules_json(
     render_json_expander(
         "Structured overtime rules JSON",
         rules_data,
-        key_suffix=str(json_path),
+        key_suffix=f"{panel_key}_{json_path}",
     )
 
 
@@ -2022,10 +2024,10 @@ def render_json_expander(
         rendered_json = json.dumps(value, indent=2, ensure_ascii=False)
         line_count = rendered_json.count("\n") + 1
         widget_height = min(max(220, line_count * 20), 700)
-        unique_widget_key = (
-            f"{label}_{key_suffix}_{abs(hash(rendered_json))}_json_view"
-            if key_suffix
-            else f"{label}_{abs(hash(rendered_json))}_json_view"
+        unique_widget_key = json_expander_widget_key(
+            label=label,
+            rendered_json=rendered_json,
+            key_suffix=key_suffix,
         )
         st.text_area(
             label,
@@ -2034,6 +2036,18 @@ def render_json_expander(
             disabled=True,
             key=unique_widget_key,
         )
+
+
+def json_expander_widget_key(
+    *,
+    label: str,
+    rendered_json: str,
+    key_suffix: str = "",
+) -> str:
+    if key_suffix:
+        return f"{label}_{key_suffix}_{abs(hash(rendered_json))}_json_view"
+
+    return f"{label}_{abs(hash(rendered_json))}_json_view"
 
 
 def bool_label(value: Any) -> str:

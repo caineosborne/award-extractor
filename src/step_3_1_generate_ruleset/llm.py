@@ -13,7 +13,7 @@ from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import OvertimeRule, rule_to_dict, rules_from_markdown_fallback, validate_rule_list
 from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET, overtime_ruleset_config
 from src.common.pipeline_runtime import load_openai_environment
-from src.prompts.overtime_ruleset import (
+from src.prompts.step_3_1_generate_ruleset import (
     build_expert_comparison_messages,
     build_interpretation_messages,
 )
@@ -77,7 +77,7 @@ def request_structured_interpretation_run(
             input=build_interpretation_messages(
                 ruleset_key,
                 str(source_path),
-                format_working_paper_input(overtime_creation_clauses),
+                overtime_creation_clauses,
             ),
             text={
                 "format": {
@@ -187,21 +187,9 @@ def compare_expert_interpretation_runs(
     messages = build_expert_comparison_messages(
         ruleset_key=ruleset_key,
         source_path=source_path,
-        shortlisted_clauses=[
-            {
-                "clause_number": classification.clause_number,
-                "classification": classification.classification,
-                "classifications": list(classification.classifications),
-                "clause_text": classification.clause_text,
-                "explanation": classification.explanation,
-                "employee_cohort": classification.employee_cohort,
-                "work_arrangement": classification.work_arrangement,
-                "other_scope_notes": classification.other_scope_notes,
-            }
-            for classification in overtime_creation_clauses
-        ],
-        run_a_rules_json=[rule_to_dict(rule) for rule in run_a_rules],
-        run_b_rules_json=[rule_to_dict(rule) for rule in run_b_rules],
+        overtime_creation_clauses=overtime_creation_clauses,
+        run_a_rules=run_a_rules,
+        run_b_rules=run_b_rules,
     )
     try:
         response = client.responses.create(
@@ -340,38 +328,6 @@ def merge_expert_drafts(
         run_b_rules=run_b_rules,
         ruleset_key=ruleset_key,
     )
-
-
-def format_working_paper_input(
-    overtime_creation_clauses: list[Any],
-) -> str:
-    sections = ["# Overtime Creation Clauses\n"]
-
-    for clause in overtime_creation_clauses:
-        sections.append(
-            f"""## Clause {clause.clause_number}
-
-Classification:
-{", ".join(clause.classifications)}
-
-Employee cohort:
-{clause.employee_cohort}
-
-Work arrangement:
-{clause.work_arrangement}
-
-Other scope notes:
-{clause.other_scope_notes or "(none)"}
-
-Explanation:
-{clause.explanation}
-
-Source Text:
-{clause.clause_text}
-"""
-        )
-
-    return "\n".join(sections)
 
 
 def interpretation_response_json_schema() -> dict[str, Any]:

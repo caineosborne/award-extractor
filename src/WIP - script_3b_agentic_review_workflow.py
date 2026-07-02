@@ -1,7 +1,7 @@
 """Agentic step 3B overtime interpretation review workflow.
 
 Prompt ownership:
-- Uses `src/prompts/overtime_interpretation_review.py`.
+- Uses `src/prompts/step_3_2_review_ruleset.py`.
 - Uses `src/prompts/agentic_review.py`.
 """
 
@@ -40,13 +40,13 @@ from src.script_3b_review_overtime_interpretation import (
     load_text_file,
     revised_output_path_for_interpretation,
 )
-from src.prompts.agentic_review import (
+from src.prompts.WIP_agentic_review import (
     build_agentic_creator_input,
     build_agentic_source_context_prompt,
     build_evaluator_agent_instructions,
     build_feedback_cycle_input,
 )
-from src.prompts.overtime_interpretation_review import (
+from src.prompts.step_3_2_review_ruleset import (
     build_agentic_creator_instructions,
     build_minimal_pass_fail_evaluator_prompt,
 )

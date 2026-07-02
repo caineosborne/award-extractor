@@ -9,7 +9,7 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text as extract_llm_response_text
-from src.prompts.overtime_guide_formatting import build_messages
+from src.prompts.step_4_1_format_ruleset import build_messages
 from .deterministic import OvertimeEntitlementSummaryError
 
 
@@ -69,4 +69,3 @@ def request_formatted_ruleset(
     if not output_text:
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
     return output_text
-

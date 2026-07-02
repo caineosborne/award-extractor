@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.prompts.core_overtime_pseudocode import (
+from src.prompts.step_5_1_generate_pseudocode import (
     PSEUDOCODE_FIELDS,
     build_messages,
     build_repair_messages,

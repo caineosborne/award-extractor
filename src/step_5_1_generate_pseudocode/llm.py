@@ -8,7 +8,7 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
-from src.prompts.core_overtime_pseudocode import build_messages, build_repair_messages
+from src.prompts.step_5_1_generate_pseudocode import build_messages, build_repair_messages
 from src.step_5_1_generate_pseudocode.core import (
     DEFAULT_MODEL,
     CoreOvertimePseudocodeError,

@@ -1,99 +1,18 @@
-"""Prompt content for reusable overtime rulesets.
-
-Used by:
-- `src/step_2_2_classify_overtime_clauses/`
-- `src/step_3_1_generate_ruleset/`
-"""
+"""Prompt content for step 3.1 ruleset generation."""
 
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
+from src.common.overtime_rules import OvertimeRule, rule_to_dict
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
-from src.prompts.overtime_prompt_shared import (
-    SHARED_OVERTIME_CATEGORIES,
-    SHARED_PRIMARY_CLASSIFICATION_RULES,
-)
-from src.prompts.payment_clause_classification import DEFINITIONS, TAG_DEFINITIONS
-from src.common.overtime_rules import OvertimeRule, rule_to_dict
-
-
-CLAUSE_CLASSIFICATION_SHARED_SYSTEM_PROMPT = f"""You classify Australian modern award clauses for payroll implementation.
-
-Use the shared classifier glossary and tag definitions below:
-{DEFINITIONS}
-
-{TAG_DEFINITIONS}
-
-Task:
-- Use only the supplied clauses tagged Ordinary Hours & Overtime.
-- Classify every supplied clause into one or more categories.
-- Return one primary classification and the complete list of applicable classifications.
-- Keep clause references visible.
-- Do not invent rules.
-- Do not calculate dollar amounts.
-- Explain each classification in one sentence.
-- Classify the operative clause text that is actually supplied, not the heading you expect.
-- Be conservative: do not label a clause as a trigger or consequence unless the text supports that label.
-
-Shared categories:
-{SHARED_OVERTIME_CATEGORIES}
-
-Shared decision rules:
-- A clause can carry more than one classification when it genuinely does more than one thing.
-- Use `Overtime Consequence` only where the clause text tells the payroll system what result applies once overtime already exists, such as a multiplier, minimum payment, TOIL option, paid rest outcome, allowance consequence, or other post-overtime entitlement.
-- Do not use `Overtime Consequence` merely because the clause says hours "will be paid at overtime rates" as part of explaining when the hours become overtime. In that case the clause is usually primarily an `Overtime Trigger`, even if it also carries a secondary consequence label.
-- Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
-
-Primary classification rules:
-{SHARED_PRIMARY_CLASSIFICATION_RULES}
-"""
-
-
-CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
-    OVERTIME_CREATION_RULESET: """Important:
-- Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
-- Overtime Trigger clauses matter because this ruleset is identifying what causes overtime, not how overtime is paid.
-- A clause can be both Overtime Trigger and Overtime Consequence.
-- If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
-- Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
-- Consequence handling is deferred for this ruleset, but consequence clauses should still be classified accurately.
-""",
-    OVERTIME_CONSEQUENCE_RULESET: """Important:
-- This ruleset is identifying what happens after overtime exists, not what causes overtime.
-- A clause can still include both Overtime Trigger and Overtime Consequence, but only the consequence part is in scope for the downstream ruleset.
-- Include clauses that define overtime rates, minimum payments, time off instead of overtime payment, rest-after-overtime outcomes, or other direct overtime consequences.
-- Do not treat a clause as an overtime consequence merely because it helps define ordinary hours.
-- Boundary and trigger labels can still be used when they genuinely appear in the clause, but consequence handling is the focus for this ruleset.
-""",
-}
-
-
-CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE = """Using the Ordinary Hours & Overtime clauses below, classify every listed clause for the `{ruleset_label}` ruleset.
-
-For each clause return:
-- clause_number
-- classification: the primary classification for the clause
-- classifications: all applicable classifications for the clause
-- clause_text
-- explanation
-- employee_cohort
-- work_arrangement
-- other_scope_notes
-
-Clauses:
-
-{clauses_text}
-
-Special Instructions:
-
-{variant_instructions}
-""".strip()
+from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
 
 
 INTERPRETATION_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.
@@ -226,29 +145,45 @@ Clauses:
 }
 
 
-def build_clause_classification_messages(
-    ruleset_key: str,
-    clauses_text: str,
-) -> list[dict[str, str]]:
-    config = overtime_ruleset_config(ruleset_key)
-    return [
-        {"role": "system", "content": CLAUSE_CLASSIFICATION_SHARED_SYSTEM_PROMPT},
-        {
-            "role": "user",
-            "content": CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE.format(
-                ruleset_label=config.display_name.lower(),
-                clauses_text=clauses_text,
-                variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
-            ),
-        },
-    ]
+def format_working_paper_input(
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+) -> str:
+    """Format the shortlisted clauses into the step 3.1 working paper layout."""
+    sections = ["# Overtime Creation Clauses\n"]
+
+    for clause in overtime_creation_clauses:
+        sections.append(
+            f"""## Clause {clause.clause_number}
+
+Classification:
+{", ".join(clause.classifications)}
+
+Employee cohort:
+{clause.employee_cohort}
+
+Work arrangement:
+{clause.work_arrangement}
+
+Other scope notes:
+{clause.other_scope_notes or "(none)"}
+
+Explanation:
+{clause.explanation}
+
+Source Text:
+{clause.clause_text}
+"""
+        )
+
+    return "\n".join(sections)
 
 
 def build_interpretation_messages(
     ruleset_key: str,
     source_file: str,
-    working_paper_input: str,
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
 ) -> list[dict[str, str]]:
+    """Build the prompt messages for the structured ruleset draft."""
     return [
         {
             "role": "system",
@@ -258,7 +193,7 @@ def build_interpretation_messages(
             "role": "user",
             "content": INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
                 source_file=source_file,
-                working_paper_input=working_paper_input,
+                working_paper_input=format_working_paper_input(overtime_creation_clauses),
             ),
         },
     ]
@@ -268,93 +203,28 @@ def build_expert_comparison_messages(
     *,
     ruleset_key: str,
     source_path: Path,
-    shortlisted_clauses: list[dict],
-    run_a_rules_json: list[dict],
-    run_b_rules_json: list[dict],
+    overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    run_a_rules: Sequence[OvertimeRule],
+    run_b_rules: Sequence[OvertimeRule],
 ) -> list[dict[str, str]]:
+    """Build the prompt messages for the expert comparison merge."""
     config = overtime_ruleset_config(ruleset_key)
-    variant_system_instructions = ""
-    variant_user_instructions = ""
-
-    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
-        variant_system_instructions = (
-            "\n\nFor overtime consequence, prefer pruning over preserving mixed trigger content. "
-            "If a drafted rule mainly states what causes overtime, do not keep it as a standalone "
-            "merged rule unless the consequence itself cannot be understood without it."
-        )
-        variant_user_instructions = (
-            "\n\nAdditional merge instructions for overtime consequence:\n"
-            "- Keep only rules whose main payroll purpose is the consequence after overtime already exists.\n"
-            "- For mixed clauses, keep only the consequence-oriented part of the rule where possible.\n"
-            "- Remove standalone trigger/boundary rules that survived expert drafting by mistake.\n"
-            "- If a shortlisted clause is mixed and does not produce a clean standalone consequence rule, "
-            "do not force it into merged_rules; explain that decision in comparison_summary_markdown or merge_explanations."
-        )
-
-    system_prompt = (
-        "You are comparing two structured payroll ruleset extraction outputs for the same "
-        f"{config.display_name.lower()} ruleset. Merge them into one best structured rule set.\n\n"
-        "Preserve the business meaning of the rules. Do not drop a rule merely because "
-        "it is named differently. Treat the same rule with different wording as a merge "
-        "candidate. If one run split a rule and the other combined it, produce the clearest "
-        "merged structure.\n\n"
-        "Every input rule from run A and run B must be accounted for. Every shortlisted "
-        "source clause must still be represented somewhere in the merged output or the "
-        "comparison summary must say why the clause does not produce a standalone rule.\n\n"
-        "Return JSON only."
-        f"{variant_system_instructions}"
-    )
-    user_prompt = (
-        f"Source classification file: {source_path}\n\n"
-        f"Shortlisted source clauses from the {config.display_name.lower()} clause classification step:\n```json\n"
-        f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Run A structured rules:\n```json\n"
-        f"{json.dumps(run_a_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Run B structured rules:\n```json\n"
-        f"{json.dumps(run_b_rules_json, indent=2, ensure_ascii=False)}\n```\n\n"
-        "Return a merged ruleset with:\n"
-        "- comparison_summary_markdown\n"
-        "- accounted_run_a_rule_ids\n"
-        "- accounted_run_b_rule_ids\n"
-        "- merged_rules\n"
-        "- merge_explanations"
-        f"{variant_user_instructions}"
-    )
-    return [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_prompt},
-    ]
-
-
-def build_interpretation_messages(
-    ruleset_key: str,
-    source_file: str,
-    working_paper_input: str,
-) -> list[dict[str, str]]:
-    return [
+    shortlisted_clauses = [
         {
-            "role": "system",
-            "content": INTERPRETATION_VARIANT_SYSTEM_PROMPTS[ruleset_key],
-        },
-        {
-            "role": "user",
-            "content": INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
-                source_file=source_file,
-                working_paper_input=working_paper_input,
-            ),
-        },
+            "clause_number": classification.clause_number,
+            "classification": classification.classification,
+            "classifications": list(classification.classifications),
+            "clause_text": classification.clause_text,
+            "explanation": classification.explanation,
+            "employee_cohort": classification.employee_cohort,
+            "work_arrangement": classification.work_arrangement,
+            "other_scope_notes": classification.other_scope_notes,
+        }
+        for classification in overtime_creation_clauses
     ]
+    run_a_rules_json = [rule_to_dict(rule) for rule in run_a_rules]
+    run_b_rules_json = [rule_to_dict(rule) for rule in run_b_rules]
 
-
-def build_expert_comparison_messages(
-    *,
-    ruleset_key: str,
-    source_path: Path,
-    shortlisted_clauses: list[dict],
-    run_a_rules_json: list[dict],
-    run_b_rules_json: list[dict],
-) -> list[dict[str, str]]:
-    config = overtime_ruleset_config(ruleset_key)
     variant_system_instructions = ""
     variant_user_instructions = ""
 

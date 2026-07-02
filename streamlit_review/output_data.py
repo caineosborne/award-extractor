@@ -14,6 +14,9 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
 )
 from src.common.output_naming import ruleset_short_label
+from src.common.active_pipeline_paths import (
+    ruleset_clause_classification_output_path_for_classification,
+)
 from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -87,6 +90,7 @@ def canonical_ruleset_paths(
     award_dir = award_dir_for_output_set(output_set_name)
     feedback_dir = award_dir / "feedback"
     short_label = ruleset_short_label(ruleset_key)
+    payment_classification_path = award_dir / "2_1_payment_classification.json"
     combined_markdown = award_dir / f"3_1_{short_label}_ruleset.md"
     revised_markdown = award_dir / f"3_2_{short_label}_revised_ruleset.md"
     formatted_markdown = award_dir / f"4_1_{short_label}_formatted_ruleset.md"
@@ -95,7 +99,10 @@ def canonical_ruleset_paths(
 
     return RulesetArtifactPaths(
         ruleset_key=ruleset_key,
-        clause_classification=award_dir / f"2_2_{short_label}_clause_classification.json",
+        clause_classification=ruleset_clause_classification_output_path_for_classification(
+            payment_classification_path,
+            ruleset_key,
+        ),
         expert_a_markdown=award_dir / f"3_1_{short_label}_ruleset_expert_a.md",
         expert_b_markdown=award_dir / f"3_1_{short_label}_ruleset_expert_b.md",
         comparison_json=award_dir / f"3_1_{short_label}_ruleset_comparison.json",

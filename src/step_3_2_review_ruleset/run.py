@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.prompts.overtime_interpretation_review import (
+from src.prompts.step_3_2_review_ruleset import (
     build_review_creator_messages,
     build_review_evaluator_messages,
 )
