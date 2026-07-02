@@ -20,6 +20,7 @@ Active default pipeline:
 - Step `3.1`
 - Step `3.2`
 - Step `4.1`
+- Step `4.9`
 - Step `5.1`
 
 Primary orchestrator:
@@ -44,6 +45,7 @@ Primary shared helpers:
 | 3.1 | `src/step_3_1_generate_ruleset/run.py` | Yes | Expert rule-set JSON/MD and comparison JSON |
 | 3.2 | `src/step_3_2_review_ruleset/run.py` | Yes | Evaluator feedback JSON/MD, creator response JSON/MD, revised interpretation JSON/MD |
 | 4.1 | `src/step_4_1_format_ruleset/run.py` | Yes | Formatted overtime guide MD |
+| 4.9 | `streamlit_review/app.py`, `streamlit_review/output_data.py` | No | Human-reviewed ruleset MD |
 | 5.1 | `src/step_5_1_generate_pseudocode/run.py` | Yes | Pseudocode MD |
 | 5.1 validation | `src/step_5_1_generate_pseudocode/verification.py` | No | Validation JSON/MD |
 
@@ -225,7 +227,7 @@ Prompt:
 Purpose:
 - turn the revised interpretation artifact into a cleaner human-readable overtime guide;
 - prefer the revised step `3.2` interpretation when an award code is used;
-- use `resources/Template.md` as a formatting and heading reference;
+- use `resources/Templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
@@ -244,6 +246,20 @@ Purpose:
 
 Validation files:
 - `src/step_5_1_generate_pseudocode/verification.py`
+
+## Step 4.9. Human Review Ruleset
+
+Owner:
+- `streamlit_review/app.py`
+- `streamlit_review/output_data.py`
+
+Purpose:
+- allow an operator to save a human-reviewed ruleset working file after step `4.1`;
+- keep that file in the canonical award folder;
+- make that file the first-choice source for step `5.1` when it exists.
+
+Primary artifact:
+- `3_2_OT_<ruleset>_revised_ruleset_manual.md`
 
 ## Streamlit Review Surface
 

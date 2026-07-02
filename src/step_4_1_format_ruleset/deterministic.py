@@ -17,7 +17,7 @@ from src.common.pipeline_io import load_text_file as load_required_text_file
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_CODE = "MA000018"
-DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Template.md"
+DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Templates" / "Template.md"
 
 
 class OvertimeEntitlementSummaryError(RuntimeError):

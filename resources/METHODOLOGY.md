@@ -63,8 +63,7 @@ Outputs:
 - raw HTML snapshot;
 - structured award JSON;
 - supporting section index JSON;
-- supporting heading CSV;
-- timestamped archive copies for the JSON and supporting artifacts.
+- supporting heading CSV.
 
 The main award JSON is the only step-1 artifact required by the active downstream pipeline. The supporting files exist for review and lookup rather than for later pipeline execution.
 
@@ -202,24 +201,33 @@ Files:
 - `src/step_4_1_format_ruleset/run.py`
 - `src/prompts/step_4_1_format_ruleset.py`
 
-This step is retained and maintained, but it is not part of the current default manager-review pipeline.
-
 Purpose:
 - turn the revised interpretation artifact into a cleaner human-readable overtime guide;
 - prefer the revised step `3.2` interpretation when an award code is used;
-- use `resources/Template.md` as a formatting and heading reference;
+- use `resources/Templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
+
+## Step 4.9. Human review ruleset
+
+Files:
+- `streamlit_review/app.py`
+- `streamlit_review/output_data.py`
+
+This step is part of the active operator flow.
+
+Purpose:
+- allow a reviewer to save a human-reviewed ruleset working file after step `4.1`;
+- keep that reviewed working file visible as a canonical artifact in the award folder;
+- provide the highest-priority source for step `5.1` when a human-reviewed version exists.
 
 ## Step 5.1. Core overtime pseudocode
 
 Files:
 - `src/step_5_1_generate_pseudocode/run.py`
 - `src/step_5_1_generate_pseudocode/verification.py`
-
-This step is also retained and maintained outside the default manager-review path.
 
 Purpose:
 - generate implementation-oriented ordinary/overtime pseudocode from the latest available interpretation source;
@@ -256,7 +264,7 @@ Its role is:
 - discover existing award output sets;
 - run the active pipeline or selected steps for an award code;
 - compare intermediate and final artifacts side by side;
-- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, final formatted ruleset, manual edited ruleset, and pseudocode.
+- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, the step `4.1` formatted guide, the step `4.9` human-review ruleset, and step `5.1` pseudocode.
 
 The parked agentic review conversation is no longer part of the active Streamlit surface.
 
@@ -270,7 +278,8 @@ The easiest way to understand the system is:
 4. Step `3.1` drafts the overtime ruleset.
 5. Step `3.2` critiques and revises that draft with explicit rule-level decisions.
 6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
-7. Step `5.1` generates implementation-oriented pseudocode from the reviewed artifact.
+7. Step `4.9` allows a human-reviewed ruleset working file to be saved when needed.
+8. Step `5.1` generates implementation-oriented pseudocode from the best available reviewed artifact.
 
 So the method is not "one model reads the award and answers."
 

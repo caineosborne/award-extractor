@@ -104,7 +104,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         messages = build_messages(
             "interpretation.md",
             "## All employees\n\n- After 38 hours in a week. [20.1]",
-            "Template.md",
+            "Templates/Template.md",
             "# Overtime Triggers\n\n## All Employees\n-",
             "overtime_creation",
         )
@@ -144,7 +144,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         messages = build_messages(
             "interpretation.md",
             "## All employees\n\n- Overtime on Sunday is paid at double time. [23.5]",
-            "Template.md",
+            "Templates/Template.md",
             "# unused",
             OVERTIME_CONSEQUENCE_RULESET,
         )

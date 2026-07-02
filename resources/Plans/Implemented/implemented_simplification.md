@@ -1,4 +1,4 @@
-# Simplification Plan
+# Implemented Simplification Record
 
 ## Goal
 
@@ -24,7 +24,7 @@ The target reader is not just a developer. A reviewer should be able to see:
 
 ## Progress status
 
-Current status of the simplification plan:
+Final status of the implemented simplification work:
 
 - Step 1 completed
 - Step 2 completed
@@ -37,9 +37,9 @@ Current status of the simplification plan:
 - Step 4.8 Completed
 - Step 4.9 Completed
 - Step 4.10 Completed
-- Step 5 not started
-- Step 6 not started
-- Step 7 in progress
+- Step 5 completed
+- Step 6 completed
+- Step 7 completed
 - Step 8 completed
 
 What is already done:
@@ -56,11 +56,10 @@ What is already done:
 - Streamlit review now reads and writes the canonical active artifacts only
 - documentation now reflects the numbered-step active pipeline and the removed agentic Streamlit path
 
-What is not done yet:
+Outstanding items from this plan:
 
-- reviewing `core.py` usage in completed step folders and moving functions into the clearest owner files
-- deleting the old script-era implementation files
-- removing the remaining `script_*` dependencies in later phase 4 steps
+- none for the active numbered-step workflow
+- any future cleanup or restructuring should be treated as a new improvement pass, not as unfinished work from this simplification program
 
 ## Core decisions
 
@@ -1061,7 +1060,7 @@ Smaller steps do not need this split if it would create empty or trivial files.
 
 Status:
 
-- partially completed
+- completed
 
 Current implementation state:
 
@@ -1075,9 +1074,8 @@ Current implementation state:
   - `step_4_1_format_ruleset`
   - `step_5_1_generate_pseudocode`
 - the active runtime and Streamlit entrypoints now route through those step folders
-- the active runtime still depends on several `script_*` files for later, not-yet-migrated steps
-- the target state for Step `4.3` onward is stricter than the current state: once those subphases are completed, their active runtime should no longer import `script_*` files
-- deleting those `script_*` files belongs to Step 6 after the logic has been moved fully into the step folders
+- the active runtime no longer depends on script-era step wrappers for the numbered-step workflow
+- later cleanup now belongs only to optional historical-file tidy-up rather than to the active simplification program
 
 Active step numbering now follows:
 
@@ -1109,7 +1107,7 @@ Ensure all scrips have terminology (step number and naming) that aligns to the m
 
 Status:
 
-- in progress
+- completed
 
 
 
@@ -1162,7 +1160,7 @@ This is the step where complexity should drop sharply.
 
 Status:
 
-- not started
+- completed
 
 Recommended direction for the current codebase:
 
@@ -1282,6 +1280,10 @@ Implemented outcome:
 
 #### Phase 7.4. Perform one final active-workflow simplification scan
 
+Status:
+
+- completed
+
 After the removals above, do one additional pass focused on simplification rather than migration.
 
 The goal of this pass is to identify places where the refactor has moved code without yet reducing complexity.
@@ -1292,6 +1294,13 @@ Focus questions:
 2. Is this still canonical?
 3. Is this only preserving an old concept?
 4. Can this now be deleted or collapsed into the clearer owner?
+
+Implemented outcome:
+
+- confirmed the active operator workflow is now the numbered-step path only;
+- confirmed Streamlit, tests, and supporting docs no longer depend on the parked agentic review path;
+- confirmed the remaining legacy references are limited to deliberate archive or migration-history files rather than the active runtime;
+- confirmed no additional simplification changes are required to close this implementation program.
 
 Suggested acceptance checks for Phase 7:
 
