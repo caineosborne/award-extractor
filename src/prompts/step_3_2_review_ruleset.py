@@ -192,7 +192,7 @@ def build_relevant_clause_excerpt_markdown(
             sections.extend(
                 [
                     "",
-                    "Step 2.2 overtime clause classification:",
+                    "Step 2.2 subset clause classification:",
                     f"- Primary classification: {step_2_2_clause.get('classification', '')}",
                     f"- All classifications: {classifications_text}",
                     f"- Explanation: {step_2_2_clause.get('explanation', '')}",
@@ -409,7 +409,7 @@ def build_full_evaluator_review_prompt(
 Do not rewrite the ruleset. Provide concise reviewer findings only.
 
 Review the draft against the full step 2.1 payment classification JSON, the step 2.2 subset classification JSON, and the canonical step 3.1 rule JSON.
-Do not limit the review to clauses already tagged as obvious overtime clauses if the wider payment classification suggests relevant support was missed.
+Do not limit the review to clauses already selected in step 2.2 if the wider payment classification suggests relevant support was missed.
 
 Key review question:
 {config.review_question}
@@ -449,7 +449,7 @@ Full payment classification source from step 2.1: {classification_path}
 {payment_classification_json}
 ```
 
-Step 2.2 overtime clause classification source: {overtime_clause_classification_path}
+Step 2.2 subset clause classification source: {overtime_clause_classification_path}
 
 ```json
 {overtime_clause_classification_json}

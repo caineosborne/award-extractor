@@ -57,7 +57,7 @@ def resolve_generation_inputs(
     clause_classification_path = (
         Path(classification_output_path)
         if classification_output_path is not None
-        else overtime_clause_classification_path_for_source(source_path)
+        else overtime_clause_classification_path_for_source(source_path, ruleset_key)
     )
     destination = (
         Path(output_path)

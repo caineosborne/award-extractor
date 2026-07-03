@@ -30,7 +30,7 @@ Use the shared classifier glossary and tag definitions below:
 {TAG_DEFINITIONS}
 
 Task:
-- Use only the supplied clauses tagged Ordinary Hours & Overtime.
+- Use only the supplied clauses selected for this ruleset subset from step 2.1.
 - Classify every supplied clause into one or more categories.
 - Return one primary classification and the complete list of applicable classifications.
 - Keep clause references visible.
@@ -82,7 +82,7 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 }
 
 
-CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE = """Using the Ordinary Hours & Overtime clauses below, classify every listed clause for the `{ruleset_label}` ruleset.
+CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE = """Using the selected subset clauses below, classify every listed clause for the `{ruleset_label}` ruleset.
 
 For each clause return:
 - clause_number
