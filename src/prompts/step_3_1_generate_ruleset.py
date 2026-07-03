@@ -16,10 +16,14 @@ from src.prompts.step_3_1_shared import (
     STEP_3_1_GENERIC_RULESET_LANGUAGE,
     STEP_3_1_OVERTIME_TOPIC_LANGUAGE,
 )
+from src.prompts.overtime_common_prompt_blocks import (
+    GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+    common_overtime_question_block,
+)
 from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
 
 
-INTERPRETATION_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.
+INTERPRETATION_GENERIC_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.
 
 Analyse the provided award clauses carefully and conservatively.
 
@@ -31,12 +35,9 @@ Use clause references wherever possible.
 """
 
 
-INTERPRETATION_VARIANT_SYSTEM_PROMPTS = {
-    OVERTIME_CREATION_RULESET: INTERPRETATION_SYSTEM_PROMPT,
-    OVERTIME_CONSEQUENCE_RULESET: INTERPRETATION_SYSTEM_PROMPT
-    + """
-
-For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
+INTERPRETATION_VARIANT_SYSTEM_INSTRUCTIONS = {
+    OVERTIME_CREATION_RULESET: "",
+    OVERTIME_CONSEQUENCE_RULESET: """For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
 
 Treat employee-cohort coverage as critical:
 - Make sure the output clearly states the overtime multiplier or other direct consequence for each employee cohort supported by the clauses.
@@ -45,6 +46,16 @@ Treat employee-cohort coverage as critical:
 - Do not leave a cohort's multiplier unstated if the supplied clauses provide it.
 - If different cohorts have different overtime multiplier rules, keep them separate and explicit.
 """,
+}
+
+
+INTERPRETATION_VARIANT_SYSTEM_PROMPTS = {
+    ruleset_key: (
+        INTERPRETATION_GENERIC_SYSTEM_PROMPT
+        if not variant_instructions
+        else f"{INTERPRETATION_GENERIC_SYSTEM_PROMPT}\n{variant_instructions}"
+    )
+    for ruleset_key, variant_instructions in INTERPRETATION_VARIANT_SYSTEM_INSTRUCTIONS.items()
 }
 
 
@@ -140,12 +151,18 @@ def _build_step_3_1_user_prompt(
     *,
     source_file: str,
     variant_prompt: str,
+    ruleset_question_block: str,
     working_paper_input: str,
 ) -> str:
     return (
-        f"{variant_prompt}\n\n"
+        "Generic prompt instructions:\n\n"
+        f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
         f"{STEP_3_1_OVERTIME_TOPIC_LANGUAGE}\n\n"
+        "Reusable ruleset checks:\n\n"
+        f"{ruleset_question_block}\n\n"
+        "Prompt-specific ruleset instructions:\n\n"
+        f"{variant_prompt}\n\n"
         "Clauses:\n\n"
         f"{working_paper_input}"
     )
@@ -203,6 +220,7 @@ def build_interpretation_messages(
                     source_file=source_file,
                     working_paper_input="{working_paper_input}",
                 ),
+                ruleset_question_block=common_overtime_question_block(ruleset_key),
                 working_paper_input=format_working_paper_input(overtime_creation_clauses),
             ),
         },
@@ -237,6 +255,7 @@ def build_expert_comparison_messages(
 
     variant_system_instructions = ""
     variant_user_instructions = ""
+    ruleset_question_block = common_overtime_question_block(ruleset_key)
 
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         variant_system_instructions = (
@@ -257,6 +276,11 @@ def build_expert_comparison_messages(
         "You are comparing two structured payroll ruleset extraction outputs for the same "
         f"{config.display_name.lower()} ruleset. Merge them into one best structured rule set.\n\n"
         "Your role is to reconcile Expert A and Expert B, not to perform a fresh extraction.\n\n"
+        "Generic prompt instructions:\n\n"
+        f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
+        "Reusable ruleset checks:\n\n"
+        f"{ruleset_question_block}\n\n"
+        "Prompt-specific merge instructions:\n\n"
         "Preserve the business meaning of the rules. Do not drop a rule merely because "
         "it is named differently. Treat the same rule with different wording as a merge "
         "candidate. If one run split a rule and the other combined it, prefer preserving "

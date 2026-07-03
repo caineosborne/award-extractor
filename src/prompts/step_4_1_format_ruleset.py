@@ -13,12 +13,18 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
+from src.prompts.overtime_common_prompt_blocks import (
+    GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+    common_overtime_question_block,
+)
 
 
-FORMATTER_SYSTEM_PROMPT = """You convert a reviewed overtime ruleset into a polished
+FORMATTER_SYSTEM_PROMPT = f"""You convert a reviewed overtime ruleset into a polished
 human-readable payroll guide.
 
 Requirements:
+{GENERIC_PAYROLL_CONFIGURATION_PROMPT}
+
 - Use only the supplied reviewed ruleset for award-specific facts.
 - Treat the supplied template as a structural guide, not a hard contract.
 - Only keep headings and sections that are supported by the reviewed ruleset.
@@ -130,6 +136,10 @@ Template source: {template_path}
 ```markdown
 {template_markdown}
 ```
+
+Reusable ruleset checks:
+
+{common_overtime_question_block(ruleset_key)}
 
 Reviewed ruleset:
 

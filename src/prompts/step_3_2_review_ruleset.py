@@ -18,6 +18,10 @@ from src.common.overtime_rulesets import (
     infer_overtime_ruleset_key_from_path,
 )
 from src.prompts.step_3_2_prompt_config import step_3_2_prompt_subset_config
+from src.prompts.overtime_common_prompt_blocks import (
+    GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+    common_overtime_question_block,
+)
 from src.prompts.step_2_2_classify_overtime_clauses import (
     build_clause_classification_messages,
 )
@@ -398,6 +402,7 @@ def build_full_evaluator_review_prompt(
         subset_scope_notes = "\n".join(
             f"- {scope_note}" for scope_note in config.subset_scope_notes
         )
+    ruleset_question_block = common_overtime_question_block(ruleset_key)
 
     return f"""Review this {config.display_name.lower()} working document.
 
@@ -408,6 +413,12 @@ Do not limit the review to clauses already tagged as obvious overtime clauses if
 
 Key review question:
 {config.review_question}
+
+Shared configuration approach:
+{GENERIC_PAYROLL_CONFIGURATION_PROMPT}
+
+Reusable ruleset checks:
+{ruleset_question_block}
 
 Subset-specific scope notes:
 {subset_scope_notes or "- No extra subset-specific scope note was defined."}
@@ -478,6 +489,7 @@ Prior creator decision record:
         subset_scope_notes = "\n".join(
             f"- {scope_note}" for scope_note in config.subset_scope_notes
         )
+    ruleset_question_block = common_overtime_question_block(ruleset_key)
 
     return f"""Review the evaluator feedback and update the ruleset only where needed.
 
@@ -489,6 +501,12 @@ Do not infer any extra add, remove, merge, or split action from evaluator prose 
 
 Keep the revised ruleset simple. Include only rules that answer this question:
 {config.review_question}
+
+Shared configuration approach:
+{GENERIC_PAYROLL_CONFIGURATION_PROMPT}
+
+Reusable ruleset checks:
+{ruleset_question_block}
 
 Subset-specific scope notes:
 {subset_scope_notes or "- No extra subset-specific scope note was defined."}

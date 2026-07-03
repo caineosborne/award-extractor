@@ -14,6 +14,10 @@ from src.prompts.shared_overtime_clause_classification import (
     SHARED_OVERTIME_CATEGORIES,
     SHARED_PRIMARY_CLASSIFICATION_RULES,
 )
+from src.prompts.overtime_common_prompt_blocks import (
+    GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+    common_overtime_question_block,
+)
 from src.prompts.step_2_1_classify_payments import DEFINITIONS, TAG_DEFINITIONS
 
 
@@ -46,6 +50,8 @@ Shared decision rules:
 
 Primary classification rules:
 {SHARED_PRIMARY_CLASSIFICATION_RULES}
+
+{GENERIC_PAYROLL_CONFIGURATION_PROMPT}
 """
 
 
@@ -84,7 +90,11 @@ Clauses:
 
 {clauses_text}
 
-Special Instructions:
+Reusable ruleset checks:
+
+{ruleset_question_block}
+
+Prompt-specific ruleset instructions:
 
 {variant_instructions}
 """.strip()
@@ -123,6 +133,7 @@ def build_clause_classification_messages(
                 ruleset_label=config.display_name.lower(),
                 clauses_text=format_clauses_for_prompt(overtime_clauses),
                 variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
+                ruleset_question_block=common_overtime_question_block(ruleset_key),
             ),
         },
     ]

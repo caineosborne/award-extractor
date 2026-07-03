@@ -164,6 +164,11 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("system that will configure code", messages[0]["content"])
         self.assertIn("structured English and pseudocode", messages[0]["content"])
         self.assertIn("explicit data points, conditions, and outputs", messages[0]["content"])
+        self.assertIn(
+            "Is overtime created by working outside a defined span of hours?",
+            messages[0]["content"],
+        )
+        self.assertIn("day workers and shift workers", messages[0]["content"])
         self.assertIn("Complete reviewed source markdown to convert", messages[1]["content"])
         self.assertIn("Daily excess rule", messages[1]["content"])
         self.assertIn("Clause interpretation table", messages[1]["content"])
@@ -197,6 +202,14 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("direct condition/output statements", messages[1]["content"])
         self.assertIn(
             "Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "What multiplier is paid when overtime is worked?",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Every award is expected to have a clause stating the overtime rates for the main employee cohorts.",
             messages[0]["content"],
         )
         self.assertIn(

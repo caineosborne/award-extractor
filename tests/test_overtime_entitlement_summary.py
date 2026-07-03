@@ -170,6 +170,14 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             messages[1]["content"],
         )
         self.assertIn(
+            "Every award is expected to have a clause stating the overtime rates for the main employee cohorts.",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "Do not include standalone commentary on what creates overtime.",
+            messages[1]["content"],
+        )
+        self.assertIn(
             "Place each rule under the most specific supported heading, not under `### Other` by default.",
             messages[1]["content"],
         )

@@ -11,6 +11,10 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
 )
 from src.common.rule_inventory import RuleInventory, render_inventory_for_prompt
+from src.prompts.overtime_common_prompt_blocks import (
+    GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+    common_overtime_question_block,
+)
 from src.step_5_1_generate_pseudocode.core import CoreOvertimePseudocodeError
 
 
@@ -35,8 +39,6 @@ PSEUDOCODE_FIELDS = {
 
 
 COMMON_CONSTRAINTS = """Common constraints:
-- Write for a system that will configure code, not for a payroll expert reading a policy note.
-- Use structured English and pseudocode, with explicit data points, conditions, and outputs, and rule order.
 - Preserve the business meaning of the reviewed source rules, even if headings or bullet formatting have been edited by a human.
 - Read the complete document for meaning. Do not rely on an exact markdown heading or bullet label.
 - Every reviewed source rule must be represented in the pseudocode or implementation notes. Do not omit a reviewed rule merely because another rule sounds similar.
@@ -61,6 +63,12 @@ Goal:
 
 Available fields:
 {fields}
+
+Shared configuration approach:
+{generic_prompt}
+
+Reusable ruleset checks:
+{ruleset_question_block}
 
 Ruleset-specific constraints:
 {ruleset_constraints}
@@ -163,6 +171,8 @@ def _system_prompt_for_ruleset(ruleset_key: str, fields: str) -> str:
         goal=ruleset_variant["goal"],
         fields=fields,
         ruleset_constraints=ruleset_variant["ruleset_constraints"],
+        generic_prompt=GENERIC_PAYROLL_CONFIGURATION_PROMPT,
+        ruleset_question_block=common_overtime_question_block(ruleset_key),
         common_constraints=COMMON_CONSTRAINTS,
         required_markdown_structure=ruleset_variant["required_markdown_structure"],
     )

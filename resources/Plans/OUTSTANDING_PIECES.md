@@ -4,29 +4,6 @@ This document records the current known gaps that still deserve follow-up in the
 
 ## Active items
 
-### Global prompt framing for common overtime questions
-
-Status:
-- In progress
-
-What to review:
-- whether the prompts throughout the workflow should ask the same three common overtime questions explicitly
-- whether those questions should apply across creation, consequence, Streamlit review, and final output drafting
-
-Core questions:
-- Is overtime created by working more than a number of hours in a day?
-- Is overtime created by working outside a defined span of hours?
-- Is overtime created by working more than a number of hours in a week or pay period?
-
-For each question, the prompt should answer:
-- who it applies to
-- the triggering condition
-- any exceptions or limits
-
-Why it matters:
-- this is a cross-cutting prompt principle, not a `5.1`-specific item;
-- the same framing should improve the whole piece, not just one step.
-
 ### Consequence treatment
 
 Status:
@@ -275,11 +252,40 @@ Why it is no longer listed as active:
 - the change has been implemented and covered by focused tests;
 - the remaining work is now around downstream usage and review, not the `4.1` wiring itself.
 
+### Global prompt framing for common overtime questions
+
+Status:
+- Resolved
+
+Current state:
+- `src/prompts/overtime_common_prompt_blocks.py` now stores the reusable overtime creation and consequence question blocks.
+- creation prompts now explicitly check daily excess hours, span-of-hours rules, and weekly or pay-period thresholds.
+- consequence prompts now explicitly check overtime multipliers by employee cohort and other post-overtime consequences such as breaks, meal allowances, TOIL, rest or release entitlements, and minimum payments.
+
+Why it is no longer listed as active:
+- the reusable question blocks are now injected into the relevant overtime prompt builders instead of being repeated ad hoc.
+
+### Prompt home and reusable configuration surface
+
+Status:
+- Resolved
+
+Current state:
+- shared prompt text now has a clean home in `src/prompts/overtime_common_prompt_blocks.py`.
+- the main overtime prompt builders compose:
+  - generic payroll configuration guidance;
+  - the relevant reusable ruleset question block;
+  - the prompt-specific creation or consequence instructions.
+- this keeps the prompt files easier to read today and creates a simpler path toward future user-editable prompt configuration.
+
+Why it is no longer listed as active:
+- the prompt layer now has the requested shared configuration surface and a consistent generic-plus-specific layout.
+
 ## Current recommendation
 
 The active priority should be:
 
-1. finish the step `5.1` prompt tightening for common creation and consequence questions;
-2. review the Streamlit path and final YAML screen;
-3. work through the known Streamlit and artifact issues below in priority order;
+1. run the end-to-end creation and consequence smoke test;
+2. review the consequence outputs for misplaced creation rules and missing multipliers;
+3. review the Streamlit path and final YAML screen;
 4. keep the Streamlit review screen aligned with the structured artifact contracts as step `3.2` evolves.
