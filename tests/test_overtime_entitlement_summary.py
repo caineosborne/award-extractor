@@ -164,6 +164,10 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "what is paid, owed, or applied once overtime already exists",
             messages[1]["content"],
         )
+        self.assertIn("This is a formatting step, not a summarisation or rewriting step.", messages[0]["content"])
+        self.assertIn("The output must be lossless in substance", messages[0]["content"])
+        self.assertIn("Do not delete, omit, merge, split, generalise, or invent substantive rules.", messages[0]["content"])
+        self.assertIn("Do not add new operational claims, even if they seem implied by the source.", messages[1]["content"])
         self.assertIn("weekend/public-holiday overtime consequences", messages[1]["content"])
         self.assertIn(
             "Keep the actual multiplier, block, minimum payment, entitlement, and cohort condition in the bullet text itself.",

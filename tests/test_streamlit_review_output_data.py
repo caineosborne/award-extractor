@@ -21,7 +21,7 @@ from src.prompts.step_3_2_review_ruleset import (
 from streamlit_review.app import (
     PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
     award_code_for_artifact_paths,
-    available_award_code_index,
+    award_selection_index,
     candidate_clause_keys,
     clause_hover_text,
     build_review_decision_rows,
@@ -38,6 +38,7 @@ from streamlit_review.app import (
     review_decision_concerns,
     run_pipeline_for_award,
     summarize_review_decision_rows,
+    selected_award_code_from_choice,
     validate_award_code_input,
 )
 from streamlit_review.pipeline_runs import (
@@ -1075,12 +1076,18 @@ def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
     assert calls == [("MA000120", expected_step, OVERTIME_CONSEQUENCE_RULESET)]
 
 
-def test_available_award_code_index_prefers_current_selection_when_present():
+def test_award_selection_index_prefers_current_selection_when_present():
     award_codes = ["MA000002", "MA000018", "ColesRetailEnterpriseAgreement2024"]
 
-    assert available_award_code_index(award_codes, "ma000018") == 1
-    assert available_award_code_index(award_codes, "ColesRetailEnterpriseAgreement2024") == 2
-    assert available_award_code_index(award_codes, "MA999999") == 0
+    assert award_selection_index(award_codes, "ma000018") == 1
+    assert award_selection_index(award_codes, "ColesRetailEnterpriseAgreement2024") == 2
+    assert award_selection_index(award_codes, "MA999999") == len(award_codes)
+
+
+def test_selected_award_code_from_choice_uses_new_award_text_when_requested():
+    assert selected_award_code_from_choice("MA000018") == "MA000018"
+    assert selected_award_code_from_choice("Add new award", " MA000120 ") == "MA000120"
+    assert selected_award_code_from_choice("Add new award", "") == ""
 
 
 def test_validate_award_code_input_accepts_existing_output_sets_or_standard_codes():

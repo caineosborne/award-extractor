@@ -100,6 +100,8 @@ RULESET_OPTIONS = {
     "Overtime consequence": OVERTIME_CONSEQUENCE_RULESET,
 }
 
+ADD_NEW_AWARD_LABEL = "Add new award"
+
 SCREEN_OPTIONS = [
     SCREEN_L1_PAYMENT,
     SCREEN_L2_PAYMENT,
@@ -205,25 +207,34 @@ def render_sidebar(award_codes: list[str]) -> str:
         if "award_code" not in st.session_state:
             st.session_state["award_code"] = default_award_code
 
-        st.text_input(
+        award_selection_options = [*award_codes, ADD_NEW_AWARD_LABEL]
+        selected_award_choice = st.selectbox(
             "Award code",
-            key="award_code",
-            placeholder="MA000002",
+            award_selection_options,
+            index=award_selection_index(award_codes, st.session_state["award_code"]),
+            key="award_selection",
         )
 
-        if award_codes:
-            available_award_code = st.selectbox(
-                "Load existing output set",
-                award_codes,
-                index=available_award_code_index(award_codes, st.session_state["award_code"]),
-                key="available_award_code",
-                on_change=copy_available_award_code_to_input,
+        if selected_award_choice == ADD_NEW_AWARD_LABEL:
+            if "award_code_new" not in st.session_state:
+                st.session_state["award_code_new"] = (
+                    default_award_code if default_award_code not in award_codes else ""
+                )
+            st.text_input(
+                "New award code",
+                key="award_code_new",
+                placeholder="MA000002",
             )
-            st.caption(f"Selected saved output set: `{available_award_code}`")
+            selected_award_code = selected_award_code_from_choice(
+                selected_award_choice,
+                st.session_state["award_code_new"],
+            )
+            st.caption("Enter a new award code to add it to the review workspace.")
         else:
-            st.caption("No existing processed outputs were found. Enter an award code to run the pipeline.")
+            st.session_state["award_code"] = selected_award_choice
+            selected_award_code = selected_award_code_from_choice(selected_award_choice)
+            st.caption(f"Selected saved output set: `{selected_award_choice}`")
 
-        selected_award_code = st.session_state["award_code"].strip()
         validated_award_code, validation_error = validate_award_code_input(
             selected_award_code,
             existing_output_sets=award_codes,
@@ -320,7 +331,7 @@ def render_sidebar(award_codes: list[str]) -> str:
     return selected_award_code
 
 
-def available_award_code_index(award_codes: list[str], selected_award_code: str) -> int:
+def award_selection_index(award_codes: list[str], selected_award_code: str) -> int:
     normalized_award_code = selected_award_code.strip()
 
     if normalized_award_code in award_codes:
@@ -330,11 +341,17 @@ def available_award_code_index(award_codes: list[str], selected_award_code: str)
     if normalized_award_code.upper() in upper_lookup:
         return upper_lookup[normalized_award_code.upper()]
 
-    return 0
+    return len(award_codes)
 
 
-def copy_available_award_code_to_input() -> None:
-    st.session_state["award_code"] = st.session_state["available_award_code"]
+def selected_award_code_from_choice(
+    selected_award_choice: str,
+    award_code_new: str | None = None,
+) -> str:
+    if selected_award_choice == ADD_NEW_AWARD_LABEL:
+        return (award_code_new or "").strip()
+
+    return selected_award_choice.strip()
 
 
 def ensure_layout_state() -> None:
