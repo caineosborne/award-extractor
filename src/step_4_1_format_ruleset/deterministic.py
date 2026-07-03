@@ -19,6 +19,9 @@ from src.common.pipeline_io import load_text_file as load_required_text_file
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_CODE = "MA000018"
 DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Templates" / "Template.md"
+DEFAULT_CONSEQUENCE_TEMPLATE_PATH = (
+    PROJECT_ROOT / "resources" / "Templates" / "overtime_consequence_template.md"
+)
 
 
 class OvertimeEntitlementSummaryError(RuntimeError):
@@ -149,13 +152,20 @@ def resolve_formatting_inputs(
         interpretation_path,
         ruleset_key,
     )
-    selected_template_path = Path(template_path)
     try:
         effective_ruleset_key = ruleset_key or infer_overtime_ruleset_key_from_path(
             selected_interpretation_path
         )
     except ValueError:
         effective_ruleset_key = OVERTIME_CREATION_RULESET
+
+    if template_path == DEFAULT_TEMPLATE_PATH:
+        if effective_ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+            selected_template_path = DEFAULT_CONSEQUENCE_TEMPLATE_PATH
+        else:
+            selected_template_path = DEFAULT_TEMPLATE_PATH
+    else:
+        selected_template_path = Path(template_path)
 
     interpretation_markdown = load_text_file(
         selected_interpretation_path,

@@ -7,10 +7,12 @@ from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
 from src.prompts.step_4_1_format_ruleset import build_messages
 from src.step_4_1_format_ruleset import (
     DEFAULT_MODEL,
+    DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
     DEFAULT_TEMPLATE_PATH,
     load_text_file,
     output_path_for_interpretation,
     resolve_interpretation_path,
+    resolve_formatting_inputs,
     strip_validation_notes_preamble,
     strip_wrapping_markdown_fence,
     summarize_overtime_entitlements,
@@ -122,8 +124,11 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             messages[0]["content"],
         )
         self.assertIn("Reviewed ruleset source: interpretation.md", messages[1]["content"])
+        self.assertIn("Template source: Templates/Template.md", messages[1]["content"])
+        self.assertIn("Core template structure", messages[1]["content"])
         self.assertIn("After 38 hours in a week. [20.1]", messages[1]["content"])
         self.assertIn("# Overtime Triggers", messages[1]["content"])
+        self.assertIn("## All Employees", messages[1]["content"])
         self.assertIn("Only include a heading", messages[1]["content"])
         self.assertIn("Do not add headings outside this structure", messages[1]["content"])
         self.assertIn(
@@ -152,7 +157,9 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             OVERTIME_CONSEQUENCE_RULESET,
         )
 
+        self.assertIn("Template source: Templates/Template.md", messages[1]["content"])
         self.assertIn("# Overtime Consequences", messages[1]["content"])
+        self.assertIn("## Full-Time And Part-Time Employees", messages[1]["content"])
         self.assertIn(
             "what is paid, owed, or applied once overtime already exists",
             messages[1]["content"],
@@ -172,6 +179,33 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
         self.assertIn("# Overtime Triggers", template_text)
         self.assertIn("## Special Circumstances", template_text)
+
+    def test_load_text_file_reads_consequence_template_markdown(self):
+        template_text = load_text_file(
+            DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
+            "Consequence template markdown",
+        )
+
+        self.assertIn("# Overtime Consequences", template_text)
+        self.assertIn("## Full-Time And Part-Time Employees", template_text)
+
+    def test_resolve_formatting_inputs_uses_consequence_template_by_default(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            interpretation_path = (
+                Path(temp_dir) / "3_2_OT_consequence_revised_ruleset.md"
+            )
+            interpretation_path.write_text(
+                "# Overtime Consequences\n\n- Overtime is paid at 150%. [23.1]",
+                encoding="utf-8",
+            )
+
+            inputs = resolve_formatting_inputs(
+                interpretation_path=interpretation_path,
+                ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+            )
+
+        self.assertEqual(inputs.template_path, DEFAULT_CONSEQUENCE_TEMPLATE_PATH)
+        self.assertIn("# Overtime Consequences", inputs.template_markdown)
 
     def test_summarize_overtime_entitlements_writes_formatted_markdown(self):
         interpretation = (

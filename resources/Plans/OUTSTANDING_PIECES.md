@@ -2,7 +2,119 @@
 
 This document records the current known gaps that still deserve follow-up in the active pipeline.
 
-It has been reviewed against the current codebase after the step `3.2` review contract, validation, Streamlit review-surface cleanup, and documentation updates.
+## Active items
+
+### Global prompt framing for common overtime questions
+
+Status:
+- In progress
+
+What to review:
+- whether the prompts throughout the workflow should ask the same three common overtime questions explicitly
+- whether those questions should apply across creation, consequence, Streamlit review, and final output drafting
+
+Core questions:
+- Is overtime created by working more than a number of hours in a day?
+- Is overtime created by working outside a defined span of hours?
+- Is overtime created by working more than a number of hours in a week or pay period?
+
+For each question, the prompt should answer:
+- who it applies to
+- the triggering condition
+- any exceptions or limits
+
+Why it matters:
+- this is a cross-cutting prompt principle, not a `5.1`-specific item;
+- the same framing should improve the whole piece, not just one step.
+
+### Consequence treatment
+
+Status:
+- In progress
+
+What to review:
+- whether consequence rules are being separated and presented clearly
+- whether the consequence template stays lightweight and usable
+- whether the review flow keeps consequence logic distinct from creation logic
+
+Why it matters:
+- consequence rules are usually more structured than edge-case creation rules;
+- the prompt should stay explicit without overfitting rare cases.
+
+### Final screen and YAML output
+
+Status:
+- In progress
+
+What to review:
+- the final review screen that will generate the YAML file
+- the output shape used by that screen
+- the award-first / ruleset-specific path flow that feeds it
+
+Why it matters:
+- the final screen needs to stay compatible with the reviewed 4.1 and 5.1 artifacts;
+- YAML generation should sit on the same canonical workflow as the rest of the pipeline.
+
+### Streamlit subset selection still only supports one ruleset at a time
+
+Status:
+- Open
+
+Area:
+- `streamlit_review/app.py`
+
+Current behaviour:
+- the Streamlit sidebar exposes one `Step 3 ruleset` selector at a time;
+- the selected value controls both:
+  - which ruleset-specific pipeline steps run; and
+  - which ruleset-specific artifacts the review screens display.
+
+Remaining issue:
+- the active CLI supports running multiple ruleset subsets in one invocation;
+- the Streamlit UI does not yet expose that capability through a multi-select control.
+
+Why this still matters:
+- users can run both creation and consequence flows from the CLI;
+- the review UI still requires separate runs and separate screen changes to inspect each branch.
+
+Suggested follow-up:
+- replace the single-select ruleset control with a multi-select or checkbox control for:
+  - overtime creation;
+  - overtime consequence;
+  - or both;
+- decide separately how the review screens should behave when both are selected, because running both and viewing both are different UI decisions.
+
+### Step 3.2 evaluator occasionally returns empty or truncated structured output in live runs
+
+Status:
+- Open
+
+Area:
+- `src/step_3_2_review_ruleset/llm.py`
+- `src/step_3_2_review_ruleset/run.py`
+- `src/common/llm_io.py`
+
+Current behaviour:
+- evaluator calls now retry on:
+  - empty response text;
+  - invalid structured JSON;
+  - deterministic validation failure.
+- evaluator output budget was increased to reduce truncation.
+- this improved stability materially in live runs.
+
+Remaining issue:
+- live runs can still occasionally produce:
+  - an empty evaluator response; or
+  - malformed/truncated JSON that exhausts the repair loop.
+
+Why this still matters:
+- step `3.2` is intended to be the main audited review path;
+- unstable evaluator transport undermines repeatability even when the deterministic layer handles failures safely.
+
+Suggested follow-up:
+- inspect whether the evaluator prompt should be shortened further;
+- consider splitting long evaluator summaries from the structured rule-by-rule record if output size remains unstable;
+- consider increasing retry observability by saving the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
 
 ## Resolved items
 
@@ -75,6 +187,56 @@ Why it is no longer listed as active:
 - the earlier issue was that evaluator prose had too much practical authority in the creator prompt;
 - the current direct step `3.2` path now gives the structured review JSON priority.
 
+### Step 5.1 prompt tightening
+
+Status:
+- Resolved
+
+Current state:
+- `src/prompts/step_5_1_generate_pseudocode.py` now separates the shared prompt frame from the creation and consequence subset instructions.
+- the prompt is written for a system configuring code, not for a payroll expert.
+- the prompt explicitly pushes common overtime rulesets into structured, data-point language.
+
+Why it is no longer listed as active:
+- the step 5.1 prompt has already been tightened and validated against the current prompt tests.
+
+### Streamlit and prompt review for 4.1 and 5.1
+
+Status:
+- Resolved
+
+Current state:
+- the 4.1 template split is in place.
+- the subset-specific instructions are injected separately from the shared prompt frame.
+- the Streamlit review path matches the reviewed creation and consequence flow.
+
+Why it is no longer listed as active:
+- the 4.1 and 5.1 prompt surface now matches the current canonical artifacts.
+
+### Fix consequence clause classification fallback
+
+Status:
+- Resolved
+
+Current state:
+- the consequence review path now falls back to the shared canonical clause-classification artifact when the consequence-specific file is missing.
+- the shared creation-named artifact remains the canonical file for both ruleset branches.
+
+Why it is no longer listed as active:
+- the review path now resolves the correct source artifact before the E2E run.
+
+### Fix Streamlit duplicate element key issue
+
+Status:
+- Resolved
+
+Current state:
+- the JSON expander widget key now uses a stable digest instead of Python's process-randomized `hash()`.
+- repeated JSON blocks can now render without colliding keys.
+
+Why it is no longer listed as active:
+- the duplicate key crash path has been removed from the review UI.
+
 ### Streamlit review screen no longer exposed structured review detail during normal successful runs
 
 Status:
@@ -95,75 +257,29 @@ Why it is no longer listed as active:
 - the earlier issue was a UI rendering regression rather than a data-generation problem;
 - the structured step `3.2` artifacts are again exposed for review in Streamlit.
 
-## Active issues
-
-### Streamlit subset selection still only supports one ruleset at a time
+### Step 4.1 template split and prompt wiring
 
 Status:
-- Open
+- Resolved
 
-Area:
-- `streamlit_review/app.py`
+Current state:
+- `src/prompts/step_4_1_format_ruleset.py` now injects:
+  - a core shared template / structure guide;
+  - the loaded template text;
+  - subset-specific instructions for creation or consequence.
+- `resources/Templates/overtime_consequence_template.md` now provides a lightweight consequence template with the main cohort buckets only.
+- the formatter now treats the template as a guide rather than a hard contract.
+- step `4.1` still preserves the creation versus consequence split, but no longer forces rare cohort divisions unless the source supports them.
 
-Current behaviour:
-- the Streamlit sidebar exposes one `Step 3 ruleset` selector at a time;
-- the selected value controls both:
-  - which ruleset-specific pipeline steps run; and
-  - which ruleset-specific artifacts the review screens display.
-
-Remaining issue:
-- the active CLI supports running multiple ruleset subsets in one invocation;
-- the Streamlit UI does not yet expose that capability through a multi-select control.
-
-Why this still matters:
-- users can run both creation and consequence flows from the CLI;
-- the review UI still requires separate runs and separate screen changes to inspect each branch.
-
-Suggested follow-up:
-- replace the single-select ruleset control with a multi-select or checkbox control for:
-  - overtime creation;
-  - overtime consequence;
-  - or both;
-- decide separately how the review screens should behave when both are selected, because running both and viewing both are different UI decisions.
-
-### Step 3.2 evaluator occasionally returns empty or truncated structured output in live runs
-
-Status:
-- Open
-
-Area:
-- `src/step_3_2_review_ruleset/llm.py`
-- `src/step_3_2_review_ruleset/run.py`
-- `src/common/llm_io.py`
-
-Current behaviour:
-- evaluator calls now retry on:
-  - empty response text;
-  - invalid structured JSON;
-  - deterministic validation failure.
-- evaluator output budget was increased to reduce truncation.
-- this improved stability materially in live runs.
-
-Remaining issue:
-- live runs can still occasionally produce:
-  - an empty evaluator response; or
-  - malformed/truncated JSON that exhausts the repair loop.
-
-Why this still matters:
-- step `3.2` is intended to be the main audited review path;
-- unstable evaluator transport undermines repeatability even when the deterministic layer handles failures safely.
-
-Suggested follow-up:
-- inspect whether the evaluator prompt should be shortened further;
-- consider splitting long evaluator summaries from the structured rule-by-rule record if output size remains unstable;
-- consider increasing retry observability by saving the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
+Why it is no longer listed as active:
+- the change has been implemented and covered by focused tests;
+- the remaining work is now around downstream usage and review, not the `4.1` wiring itself.
 
 ## Current recommendation
 
 The active priority should be:
 
-1. finish stabilising live step `3.2` evaluator output;
-2. rerun representative awards such as `MA000120` to confirm the reviewed interpretation path passes cleanly without manual-review fallback;
-3. keep reviewing whether any remaining reviewer-only clarifier rules should stay in step `3.2` outputs or move to later presentation layers;
+1. finish the step `5.1` prompt tightening for common creation and consequence questions;
+2. review the Streamlit path and final YAML screen;
+3. work through the known Streamlit and artifact issues below in priority order;
 4. keep the Streamlit review screen aligned with the structured artifact contracts as step `3.2` evolves.
-

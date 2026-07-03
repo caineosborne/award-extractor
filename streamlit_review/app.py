@@ -1,3 +1,4 @@
+import hashlib
 import json
 import re
 import sys
@@ -2531,10 +2532,12 @@ def json_expander_widget_key(
     rendered_json: str,
     key_suffix: str = "",
 ) -> str:
+    digest_source = f"{label}\n{key_suffix}\n{rendered_json}".encode("utf-8")
+    rendered_digest = hashlib.sha1(digest_source).hexdigest()
     if key_suffix:
-        return f"{label}_{key_suffix}_{abs(hash(rendered_json))}_json_view"
+        return f"{label}_{key_suffix}_{rendered_digest}_json_view"
 
-    return f"{label}_{abs(hash(rendered_json))}_json_view"
+    return f"{label}_{rendered_digest}_json_view"
 
 
 def bool_label(value: Any) -> str:

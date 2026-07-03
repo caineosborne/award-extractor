@@ -20,6 +20,9 @@ human-readable payroll guide.
 
 Requirements:
 - Use only the supplied reviewed ruleset for award-specific facts.
+- Treat the supplied template as a structural guide, not a hard contract.
+- Only keep headings and sections that are supported by the reviewed ruleset.
+- Do not force rare cohort splits or empty sections just because they appear in the template.
 - Keep the output concise and easy to scan.
 - Use short markdown bullet points under each heading.
 - Write each rule as clearly and operationally as possible so it can be read in isolation by a payroll reviewer.
@@ -32,6 +35,13 @@ Requirements:
 - Every rule must stay traceable to the source clauses.
 - Return markdown only.
 - Do not wrap the answer in a markdown code fence.
+"""
+
+
+CORE_TEMPLATE_GUIDANCE = """Core template structure:
+
+Use the supplied template as the starting shape for the output, but only retain headings that are supported by the source.
+If a section is not supported by the reviewed ruleset, leave it out rather than forcing a placeholder.
 """
 
 
@@ -108,15 +118,26 @@ def build_messages(
     template_markdown: str,
     ruleset_key: str,
 ) -> list[dict[str, str]]:
-    del template_path, template_markdown
     config = overtime_ruleset_config(ruleset_key)
     user_prompt = f"""Format the supplied reviewed {config.display_name.lower()} into the required heading structure.
 
 Reviewed ruleset source: {interpretation_path}
 
+Template source: {template_path}
+
+{CORE_TEMPLATE_GUIDANCE}
+
+```markdown
+{template_markdown}
+```
+
+Reviewed ruleset:
+
 ```markdown
 {interpretation_markdown}
 ```
+
+Subset-specific instructions:
 
 {FORMATTER_VARIANT_INSTRUCTIONS[ruleset_key]}
 """

@@ -35,6 +35,8 @@ PSEUDOCODE_FIELDS = {
 
 
 COMMON_CONSTRAINTS = """Common constraints:
+- Write for a system that will configure code, not for a payroll expert reading a policy note.
+- Use structured English and pseudocode, with explicit data points, conditions, and outputs, and rule order.
 - Preserve the business meaning of the reviewed source rules, even if headings or bullet formatting have been edited by a human.
 - Read the complete document for meaning. Do not rely on an exact markdown heading or bullet label.
 - Every reviewed source rule must be represented in the pseudocode or implementation notes. Do not omit a reviewed rule merely because another rule sounds similar.
@@ -44,8 +46,9 @@ COMMON_CONSTRAINTS = """Common constraints:
 - Do not list straightforward calculations as separate derived fields unless they are reused across multiple rules and make the pseudocode materially clearer.
 - Treat `Derived Fields` as optional reusable calculations. If none are needed, write `None`.
 - Treat `Required additional inputs` narrowly. Only include facts that are not already provided and cannot be calculated directly from the supplied fields and shift records.
-- Use clear payroll variables. Do not invent vague helper variables or placeholders that hide the calculation.
+- Use clear field names and rule names. Do not invent vague helper variables or placeholders that hide the calculation.
 - Prefer simple step-by-step pseudocode over dense formulas.
+- Write each rule so the triggering data point, condition, and output are all explicit.
 - When determining priority, process outlier and exception rules first, then day-type and time-of-day rules, then shorter-period thresholds, then longer-period thresholds.
 - Return markdown only.
 """
@@ -76,12 +79,13 @@ PSEUDOCODE_RULESET_VARIANTS = {
 - Classify whether worked hours are `Ordinary_Hours` or `Overtime_Hours`.
 - Treat `Unallocated_Hours` as the total hours worked that still need ordinary/overtime classification.
 - For this task, any hours that are not ordinary hours are overtime.
-- Focus on what causes hours to become overtime, not on multiplier or dollar calculation.""",
+- Focus on what causes hours to become overtime, using explicit data points, conditions, and outputs rather than narrative explanation.""",
         "ruleset_constraints": """- Apply rules only to currently `Unallocated_Hours`.
 - The same worked hour must never be classified into more than one bucket.
 - Assign remaining `Unallocated_Hours` to `Ordinary_Hours` after all overtime triggers have been applied.
 - Do not cover allowance calculations, dollar amounts, overtime multipliers, or penalty amounts.
-- If the ruleset applies to all employees, it is not necessary to repeat the employee cohort unless a rule targets a narrower cohort.""",
+- If the ruleset applies to all employees, it is not necessary to repeat the employee cohort unless a rule targets a narrower cohort.
+- Prefer compact if/then style statements that can be translated into configuration logic without a payroll-expert explanation layer.""",
         "required_markdown_structure": """# Overtime pseudocode
 
 ## Derived Fields
@@ -95,26 +99,29 @@ PSEUDOCODE_RULESET_VARIANTS = {
 ## Implementation notes""",
         "user_instructions": (
             "Treat this as overtime creation mode. Determine which worked hours become "
-            "overtime and which remain ordinary hours. Do not calculate overtime "
-            "multipliers or pay outcomes."
+            "overtime and which remain ordinary hours. Use structured English and "
+            "pseudocode with explicit data points, conditions, and outputs. Do not "
+            "calculate overtime multipliers or pay outcomes."
         ),
         "repair_instructions": (
             "Keep this in overtime creation mode. Repair the pseudocode so it "
             "correctly determines which hours become overtime, without switching into "
-            "multiplier or payment-consequence logic."
+            "multiplier or payment-consequence logic. Keep the output structured and "
+            "configuration-oriented."
         ),
     },
     OVERTIME_CONSEQUENCE_RULESET: {
         "goal": """- Convert the supplied reviewed overtime consequence guide into bullet-point pseudocode.
 - Determine what overtime consequence applies once hours are already overtime.
 - Do not classify ordinary hours versus overtime hours in this mode unless a source rule expressly needs that distinction as a condition.
-- Focus on consequence outcomes such as multipliers, minimum payments, ordinary-rate exceptions, meal entitlements, paid-release outcomes, and weekend/public-holiday overrides.""",
+- Focus on consequence outcomes such as multipliers, minimum payments, ordinary-rate exceptions, meal entitlements, paid-release outcomes, and weekend/public-holiday overrides, expressed as explicit configuration logic.""",
         "ruleset_constraints": """- Treat the input as already-overtime hours or already-identified overtime circumstances that now need the correct consequence applied.
 - Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs in this mode.
 - Use implementation outputs such as `Overtime_Rate_Multiplier`, `Minimum_Payment_Hours`, `Meal_Allowance_Payable`, `Meal_Allowance_Amount`, `Paid_Release_Required`, `Paid_Release_Minimum_Hours`, `Apply_Ordinary_Rate_Instead`, `Weekend_Public_Holiday_Override`, or similarly explicit consequence outputs when supported by the rules.
 - Split distinct consequence outcomes into separate implementation rules when payroll would configure them separately.
 - Keep trigger wording only where it is needed to identify when the consequence applies.
-- If a source rule is informational context only and does not change the outcome, place it in `Implementation notes` rather than forcing it into executable pseudocode.""",
+- If a source rule is informational context only and does not change the outcome, place it in `Implementation notes` rather than forcing it into executable pseudocode.
+- Prefer direct condition/output statements over explanatory prose.""",
         "required_markdown_structure": """# Overtime consequence pseudocode
 
 ## Derived Fields
@@ -131,14 +138,17 @@ PSEUDOCODE_RULESET_VARIANTS = {
             "the relevant hours or circumstances are overtime. Determine the correct "
             "consequence to apply, such as multipliers, minimum payments, paid release, "
             "meal entitlements, ordinary-rate exceptions, or other post-overtime "
-            "outcomes. Do not rebuild overtime creation logic unless a source rule "
-            "expressly needs it as a condition."
+            "outcomes. Use structured English and pseudocode with explicit data points, "
+            "conditions, and outputs. Prefer direct condition/output statements. Do not "
+            "rebuild overtime creation logic unless a source rule expressly needs it as "
+            "a condition."
         ),
         "repair_instructions": (
             "Keep this in overtime consequence mode. Repair the pseudocode so it "
             "applies the correct consequence after overtime already exists. Do not "
             "drift into classifying ordinary versus overtime hours unless a source rule "
-            "expressly requires that condition."
+            "expressly requires that condition. Keep the output structured and "
+            "configuration-oriented."
         ),
     },
 }

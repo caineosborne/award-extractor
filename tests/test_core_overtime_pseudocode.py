@@ -161,6 +161,9 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             "Treat `Required additional inputs` narrowly",
             messages[0]["content"],
         )
+        self.assertIn("system that will configure code", messages[0]["content"])
+        self.assertIn("structured English and pseudocode", messages[0]["content"])
+        self.assertIn("explicit data points, conditions, and outputs", messages[0]["content"])
         self.assertIn("Complete reviewed source markdown to convert", messages[1]["content"])
         self.assertIn("Daily excess rule", messages[1]["content"])
         self.assertIn("Clause interpretation table", messages[1]["content"])
@@ -190,6 +193,8 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             "Do not rebuild overtime creation logic unless a source rule expressly needs it as a condition.",
             messages[1]["content"],
         )
+        self.assertIn("explicit configuration logic", messages[0]["content"])
+        self.assertIn("direct condition/output statements", messages[1]["content"])
         self.assertIn(
             "Do not use `Ordinary_Hours` and `Overtime_Hours` as the primary outputs",
             messages[0]["content"],
@@ -229,6 +234,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("Failed rules", messages[1]["content"])
         self.assertIn("Carry the relevant source clause references into comments", messages[1]["content"])
         self.assertIn("Keep this in overtime creation mode.", messages[1]["content"])
+        self.assertIn("configuration-oriented", messages[1]["content"])
 
     def test_select_overtime_interpretation_path_falls_back_from_manual_ruleset_to_4_1_then_3_2(self):
         with tempfile.TemporaryDirectory() as temp_dir:

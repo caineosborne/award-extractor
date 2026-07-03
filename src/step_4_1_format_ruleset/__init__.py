@@ -2,6 +2,7 @@
 
 from .deterministic import (
     DEFAULT_AWARD_CODE,
+    DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
     DEFAULT_TEMPLATE_PATH,
     Step4FormattingInputs,
     default_interpretation_path_for_award,
@@ -17,6 +18,7 @@ from .run import summarize_overtime_entitlements
 
 __all__ = [
     "DEFAULT_AWARD_CODE",
+    "DEFAULT_CONSEQUENCE_TEMPLATE_PATH",
     "DEFAULT_MODEL",
     "DEFAULT_TEMPLATE_PATH",
     "Step4FormattingInputs",
@@ -31,4 +33,3 @@ __all__ = [
     "strip_wrapping_markdown_fence",
     "summarize_overtime_entitlements",
 ]
-
