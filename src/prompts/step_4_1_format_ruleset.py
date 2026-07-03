@@ -26,19 +26,25 @@ Requirements:
 {GENERIC_PAYROLL_CONFIGURATION_PROMPT}
 
 - Use only the supplied reviewed ruleset for award-specific facts.
+- This is a formatting step, not a summarisation or rewriting step.
+- The output must be lossless in substance: every reviewed rule must remain represented in the formatted guide.
+- Do not delete, omit, merge, split, generalise, or invent substantive rules.
+- Do not move a rule into a different meaning just to make the guide shorter or fit the template better.
 - Treat the supplied template as a structural guide, not a hard contract.
 - Only keep headings and sections that are supported by the reviewed ruleset.
 - Do not force rare cohort splits or empty sections just because they appear in the template.
-- Keep the output concise and easy to scan.
+- Keep the output concise and easy to scan, but never at the expense of losing a reviewed rule.
 - Use short markdown bullet points under each heading.
 - Write each rule as clearly and operationally as possible so it can be read in isolation by a payroll reviewer.
 - Preserve the substantive rule content from the reviewed ruleset. Do not omit a reviewed rule merely to make the guide shorter.
-- Do not collapse distinct thresholds, limits, spans, spreads, multipliers, minimum payments, or cohort-specific rules into vague summaries.
+- Do not collapse distinct thresholds, limits, spans, spreads, multipliers, minimum payments, cohort-specific rules, or clause-specific exceptions into vague summaries.
 - Preserve employee groups, thresholds, assumptions, consequences, and clause references from the source.
 - Keep clause references visible in every rule bullet, preferably at the end in square brackets.
 - Do not invent rules, clause references, headings, or categories that are not supported by the source.
+- Do not add a rule that is not already present in the reviewed ruleset.
 - Ignore any validation-notes preamble in the source and format only the actual rules.
 - Every rule must stay traceable to the source clauses.
+- If a reviewed rule does not fit the template cleanly, keep it intact under the closest supported heading rather than rewriting its substance.
 - Return markdown only.
 - Do not wrap the answer in a markdown code fence.
 """
@@ -80,6 +86,7 @@ Additional rules:
 - Preserve ordinary-hours boundary rules clearly and explicitly where work outside that boundary may become overtime.
 - Keep the actual operative numbers and conditions in the bullet text, such as daily limits, agreed extensions, spans, spreads, roster conditions, and break conditions.
 - Do not replace a specific reviewed rule with a shorter high-level paraphrase if that would remove an operational threshold or condition.
+- Do not add new operational claims, even if they seem implied by the source.
 - Do not include overtime multipliers, penalty amounts, allowance amounts, or payment consequences except where needed to explain that a rule is out of scope.
 """,
     OVERTIME_CONSEQUENCE_RULESET: """Format the supplied reviewed overtime consequence ruleset into a polished guide.
@@ -112,6 +119,7 @@ Additional rules:
 - Include overtime multipliers, minimum payments, meal entitlements, ordinary-rate exceptions, paid-release outcomes, and weekend/public-holiday overtime consequences where supported.
 - Keep the actual multiplier, block, minimum payment, entitlement, and cohort condition in the bullet text itself.
 - Do not replace a specific reviewed rule with a shorter high-level paraphrase if that would remove an operational rate, threshold, minimum, or condition.
+- Do not add new operational claims, even if they seem implied by the source.
 - Do not rewrite rules as overtime-hour creation tests unless that condition is strictly necessary to explain when the consequence applies.
 """,
 }
