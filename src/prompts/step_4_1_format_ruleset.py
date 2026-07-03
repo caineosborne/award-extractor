@@ -1,4 +1,4 @@
-"""Prompt content for step 4.1 overtime guide formatting.
+"""Prompt content for step 4.1 ruleset guide formatting.
 
 Used by:
 - `src/step_4_1_format_ruleset/`
@@ -11,6 +11,7 @@ from pathlib import Path
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     overtime_ruleset_config,
 )
 from src.prompts.overtime_common_prompt_blocks import (
@@ -19,7 +20,7 @@ from src.prompts.overtime_common_prompt_blocks import (
 )
 
 
-FORMATTER_SYSTEM_PROMPT = f"""You convert a reviewed overtime ruleset into a polished
+FORMATTER_SYSTEM_PROMPT = f"""You convert a reviewed payroll ruleset into a polished
 human-readable payroll guide.
 
 Requirements:
@@ -121,6 +122,31 @@ Additional rules:
 - Do not replace a specific reviewed rule with a shorter high-level paraphrase if that would remove an operational rate, threshold, minimum, or condition.
 - Do not add new operational claims, even if they seem implied by the source.
 - Do not rewrite rules as overtime-hour creation tests unless that condition is strictly necessary to explain when the consequence applies.
+""",
+    PENALTIES_RULESET: """Format the supplied reviewed penalties ruleset into a polished guide.
+
+Use this heading structure and order exactly:
+
+# Penalties
+
+One short introductory sentence explaining that the following rules describe penalty rates, shift allowances, and break-between-work-period rules that affect or support payroll outcomes based on when work is performed.
+
+## Shift-Based Allowances And Penalties
+## Time-Band And Day-Based Penalties
+## Breaks Between Work Periods
+## Supporting Conditions
+
+Additional rules:
+- Only include a heading when the source supports at least one real rule for that heading.
+- Do not add headings outside this structure.
+- Keep the guide focused on penalties, shift allowances, and supporting break-gap conditions for this ruleset.
+- Place each rule under the most specific supported heading.
+- Preserve explicit multipliers, fixed dollar add-ons, named days, public-holiday qualifiers, time bands, cohort splits, and clause references.
+- Keep whole-shift qualification rules separate from specific-hours rules in the bullet text itself.
+- Keep shift commencement tests distinct from shift end tests and distinct from actual-hours tests.
+- Keep non-financial break-gap rules representable where the reviewed rules support them. Do not force every break-between-work-period rule into a premium-pay statement.
+- Do not add new operational claims, even if they seem implied by the source.
+- Do not drift into overtime creation or overtime consequence summaries unless a reviewed rule expressly requires that context to identify the penalties outcome.
 """,
 }
 

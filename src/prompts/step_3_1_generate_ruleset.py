@@ -10,11 +10,13 @@ from src.common.overtime_rules import OvertimeRule, rule_to_dict
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     overtime_ruleset_config,
 )
 from src.prompts.step_3_1_shared import (
     STEP_3_1_GENERIC_RULESET_LANGUAGE,
     STEP_3_1_OVERTIME_TOPIC_LANGUAGE,
+    STEP_3_1_PENALTIES_TOPIC_LANGUAGE,
 )
 from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
@@ -45,6 +47,16 @@ Treat employee-cohort coverage as critical:
 - Also capture casual employee overtime multipliers or rate rules where the clauses state them.
 - Do not leave a cohort's multiplier unstated if the supplied clauses provide it.
 - If different cohorts have different overtime multiplier rules, keep them separate and explicit.
+""",
+    PENALTIES_RULESET: """For penalties, the most important implementation outcome is the additional payment or supporting operational condition that applies because of when the employee works or because insufficient break time occurs between work periods.
+
+Treat these distinctions as critical:
+- Keep shift-commencement qualification rules separate from actual-hours qualification rules.
+- Keep whole-shift outcomes separate from rules that apply only to specific qualifying hours.
+- Preserve day-based, time-band, public-holiday, and shift-worker distinctions where the clauses support them.
+- Keep employee-cohort coverage explicit where the clauses genuinely narrow the rule, but do not invent narrower cohorts.
+- Supporting break-between-work-period rules remain in scope even where they do not create a direct financial outcome.
+- Do not convert a supporting break-gap rule into an invented premium outcome unless the clauses expressly state that consequence.
 """,
 }
 
@@ -144,13 +156,51 @@ Important:
 - Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort. If the clauses state different overtime multiplier outcomes for full-time, part-time, or casual employees, include those cohort-specific rules explicitly.
 - Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
 """.strip(),
+    PENALTIES_RULESET: """Source classification file: {source_file}
+
+The clauses below have already been identified as relevant to determining penalty outcomes and supporting break-between-work-period rules.
+
+Your task is to turn them into a payroll implementation working paper. This will be a plain english document to be used by the payroll management team to configure their payroll system.
+
+As such it should be written clearly, in definitive language to display specific points that answer the question 'What penalty, shift allowance, or break-between-work-period rule applies based on when the employee works?'
+
+Return JSON only.
+
+For each rule return:
+- rule_id: stable snake or kebab style identifier
+- section_heading
+- employee_scope
+- employee_cohort
+- work_arrangement
+- other_scope_notes
+- clause_references
+- rule_markdown: one markdown bullet beginning with `- `
+- rule_plain_text
+- source_clause_numbers
+- source_classifications
+
+Important:
+- Treat each returned rule as one operational penalties rule in the ruleset.
+- Every distinct payroll-configurable penalty condition, whole-shift allowance rule, specific-hours penalty rule, day-based penalty rule, public-holiday rule, or break-between-work-period supporting rule must be a separate rule object.
+- Split rules where the payroll system would configure them separately, including different qualifying time bands, different days, different cohorts, different multipliers, different fixed add-ons, and different whole-shift versus specific-hours outcomes.
+- source_classifications must contain only `Penalty Rule`.
+- Use the upstream scope tags as the starting point for scope. Do not narrow or broaden scope unless the cited clause text clearly requires it.
+- Each rule must be readable in isolation by a payroll reviewer. State the operative qualification test and the operative outcome in the rule text itself.
+- Do not rely on a clause reference as a substitute for the rule content. If a clause says a night shift commencing between 4.00 pm and 4.00 am is paid at 115% for the entire shift, say that in the rule.
+- Keep shift commencement rules separate from shift end rules and separate from actual-hours rules.
+- Keep `applies to the entire shift` separate from `applies only to qualifying hours`.
+- Preserve employee cohort and work arrangement only where supported by the clause text.
+- Do not invent a financial consequence for a supporting break-between-work-period rule if the clause only states the minimum gap, rest period, broken-shift structure, or roster-changeover requirement.
+- Keep non-financial supporting break-gap rules when they are operationally relevant to the penalties subset.
+- Do not drift into overtime creation rules or overtime consequence rules unless the penalty clause expressly states a penalty-specific premium or supporting condition that belongs in this subset.
+""".strip(),
 }
 
 
 def _build_step_3_1_user_prompt(
     *,
-    source_file: str,
     variant_prompt: str,
+    topic_language: str,
     ruleset_question_block: str,
     working_paper_input: str,
 ) -> str:
@@ -158,7 +208,7 @@ def _build_step_3_1_user_prompt(
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
-        f"{STEP_3_1_OVERTIME_TOPIC_LANGUAGE}\n\n"
+        f"{topic_language}\n\n"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
         "Prompt-specific ruleset instructions:\n\n"
@@ -170,9 +220,11 @@ def _build_step_3_1_user_prompt(
 
 def format_working_paper_input(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
     """Format the shortlisted clauses into the step 3.1 working paper layout."""
-    sections = ["# Overtime Creation Clauses\n"]
+    config = overtime_ruleset_config(ruleset_key)
+    sections = [f"# {config.display_name} Clauses\n"]
 
     for clause in overtime_creation_clauses:
         sections.append(
@@ -215,13 +267,20 @@ def build_interpretation_messages(
         {
             "role": "user",
             "content": _build_step_3_1_user_prompt(
-                source_file=source_file,
                 variant_prompt=INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
                     source_file=source_file,
                     working_paper_input="{working_paper_input}",
                 ),
+                topic_language=(
+                    STEP_3_1_PENALTIES_TOPIC_LANGUAGE
+                    if ruleset_key == PENALTIES_RULESET
+                    else STEP_3_1_OVERTIME_TOPIC_LANGUAGE
+                ),
                 ruleset_question_block=common_overtime_question_block(ruleset_key),
-                working_paper_input=format_working_paper_input(overtime_creation_clauses),
+                working_paper_input=format_working_paper_input(
+                    overtime_creation_clauses,
+                    ruleset_key,
+                ),
             ),
         },
     ]
@@ -270,6 +329,21 @@ def build_expert_comparison_messages(
             "- Remove standalone trigger/boundary rules that survived expert drafting by mistake.\n"
             "- If a shortlisted clause is mixed and does not produce a clean standalone consequence rule, "
             "do not force it into merged_rules; explain that decision in comparison_summary_markdown or merge_explanations."
+        )
+    elif ruleset_key == PENALTIES_RULESET:
+        variant_system_instructions = (
+            "\n\nFor penalties, preserve the operational distinction between whole-shift rules, "
+            "specific-hours rules, and supporting break-between-work-period rules. Do not collapse "
+            "those rule types into one generic penalty statement."
+        )
+        variant_user_instructions = (
+            "\n\nAdditional merge instructions for penalties:\n"
+            "- Keep valid premium-pay rules and valid supporting break-gap rules in scope for this subset.\n"
+            "- Distinguish shift-commencement qualification rules from actual-hours qualification rules.\n"
+            "- Distinguish rules that apply to an entire shift from rules that apply only to qualifying hours.\n"
+            "- Do not convert a supporting non-financial break-gap rule into an invented multiplier or premium outcome.\n"
+            "- Remove overtime drift where a drafted rule mainly states what creates overtime or what consequence applies after overtime already exists.\n"
+            "- If a shortlisted clause is relevant only as a supporting operational condition, keep that supporting rule explicitly or explain in merge_explanations why it does not produce a standalone merged rule."
         )
 
     system_prompt = (

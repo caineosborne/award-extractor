@@ -12,7 +12,7 @@ from typing import Any
 from src.common.active_pipeline_paths import (
     PROJECT_ROOT,
     default_classification_path_for_award,
-    overtime_clause_classification_output_path_for_classification,
+    ruleset_clause_classification_output_path_for_classification,
 )
 from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import (
@@ -20,6 +20,7 @@ from src.common.overtime_rules import (
     ALLOWED_WORK_ARRANGEMENTS,
 )
 from src.common.overtime_rulesets import (
+    PENALTIES_RULESET,
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
@@ -38,6 +39,7 @@ OVERTIME_CREATION_CLASSIFICATIONS = (
     "Ordinary Hours Boundary",
     "Overtime Trigger",
 )
+PENALTIES_CLASSIFICATION = "Penalty Rule"
 
 
 class OvertimeInterpretationError(RuntimeError):
@@ -96,10 +98,12 @@ def load_classification(classification_path: Path | str) -> dict[str, Any]:
 
 def overtime_clause_classification_path_for_source(
     classification_path: Path | str,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> Path:
     """Return the default path for the intermediate clause-classification artifact."""
-    return overtime_clause_classification_output_path_for_classification(
-        classification_path
+    return ruleset_clause_classification_output_path_for_classification(
+        classification_path,
+        ruleset_key,
     )
 
 
@@ -121,6 +125,26 @@ def normalized_work_arrangement_from_clause_text(clause_text: str) -> str:
         return "shiftworker"
     if re.search(r"\bshiftwork\b", normalized_text):
         return "shiftworker"
+
+    return "all"
+
+
+def normalized_employee_cohort_from_clause_text(clause_text: str) -> str:
+    """Return an explicit employee-cohort tag supported by the clause text."""
+    normalized_text = clause_text.lower()
+
+    has_full_time = bool(re.search(r"\bfull[- ]time\b", normalized_text))
+    has_part_time = bool(re.search(r"\bpart[- ]time\b", normalized_text))
+    has_casual = bool(re.search(r"\bcasual\b", normalized_text))
+
+    if has_full_time and has_part_time and not has_casual:
+        return "permanent"
+    if has_full_time and not has_part_time and not has_casual:
+        return "full-time"
+    if has_part_time and not has_full_time and not has_casual:
+        return "part-time"
+    if has_casual and not has_full_time and not has_part_time:
+        return "casual"
 
     return "all"
 
@@ -375,6 +399,68 @@ def parse_response_json(output_text: str) -> dict[str, Any]:
         )
 
     return data
+
+
+def deterministic_penalties_explanation(source_tags: Sequence[str]) -> str:
+    """Explain why a clause was shortlisted for the penalties subset."""
+    ordered_tags = [
+        tag
+        for tag in ("Penalty", "Breaks (Between Work Periods)")
+        if tag in source_tags
+    ]
+    if not ordered_tags:
+        return (
+            "Included deterministically in the penalties subset based on the "
+            "step 2.1 payment classification."
+        )
+
+    joined_tags = " and ".join(ordered_tags)
+    return (
+        "Included deterministically in the penalties subset because step 2.1 tagged "
+        f"the clause as {joined_tags}."
+    )
+
+
+def build_deterministic_penalties_classifications(
+    shortlisted_clauses: Mapping[str, Any],
+) -> list[OvertimeClauseClassification]:
+    """Build the penalties subset without calling the LLM."""
+    classifications: list[OvertimeClauseClassification] = []
+
+    for clause_number in sorted(shortlisted_clauses):
+        raw_clause = shortlisted_clauses[clause_number]
+        if not isinstance(raw_clause, Mapping):
+            continue
+
+        source_text = clause_source_text(raw_clause)
+        raw_tags = raw_clause.get("tags", [])
+        source_tags = (
+            tuple(str(tag) for tag in raw_tags)
+            if isinstance(raw_tags, list)
+            else ()
+        )
+
+        classifications.append(
+            OvertimeClauseClassification(
+                clause_number=clause_number,
+                classification=PENALTIES_CLASSIFICATION,
+                clause_text=source_text,
+                explanation=deterministic_penalties_explanation(source_tags),
+                employee_cohort=normalized_employee_cohort_from_clause_text(source_text),
+                work_arrangement=normalized_work_arrangement_from_clause_text(
+                    source_text
+                ),
+                other_scope_notes="",
+                classifications=(PENALTIES_CLASSIFICATION,),
+            )
+        )
+
+    if not classifications:
+        raise OvertimeInterpretationError(
+            "No penalties-related clauses were found in step 2 output."
+        )
+
+    return classifications
 
 
 def classify_overtime_clauses(

@@ -20,6 +20,7 @@ from src.prompts.step_3_2_review_ruleset import (
 )
 from streamlit_review.app import (
     PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
+    RULESET_OPTIONS,
     award_code_for_artifact_paths,
     award_selection_index,
     candidate_clause_keys,
@@ -74,6 +75,7 @@ from streamlit_review.output_data import (
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
 )
 from src.common.overtime_rules import OvertimeRule
 from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
@@ -153,7 +155,7 @@ def test_award_code_for_artifact_paths_uses_payment_classification_stem():
 def test_ruleset_artifact_paths_for_award():
     paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
 
-    assert paths.clause_classification.name == "2_2_OT_creation_clause_classification.json"
+    assert paths.clause_classification.name == "2_2_OT_consequence_clause_classification.json"
     assert paths.expert_a_markdown.name == "3_1_OT_consequence_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "3_1_OT_consequence_ruleset_expert_b.md"
     assert paths.comparison_json.name == "3_1_OT_consequence_ruleset_comparison.json"
@@ -182,6 +184,27 @@ def test_creation_ruleset_artifact_paths_for_award_are_canonical():
     assert paths.formatted_markdown.name == "4_1_OT_creation_formatted_ruleset.md"
     assert paths.manual_ruleset_markdown.name == "3_2_OT_creation_revised_ruleset_manual.md"
     assert paths.pseudocode_markdown.name == "5_1_OT_creation_pseudocode.md"
+
+
+def test_penalties_ruleset_artifact_paths_for_award_are_canonical():
+    paths = ruleset_artifact_paths_for_award("MA000018", PENALTIES_RULESET)
+
+    assert paths.clause_classification.name == "2_2_Penalties_clause_classification.json"
+    assert paths.expert_a_markdown.name == "3_1_Penalties_ruleset_expert_a.md"
+    assert paths.expert_b_markdown.name == "3_1_Penalties_ruleset_expert_b.md"
+    assert paths.comparison_json.name == "3_1_Penalties_ruleset_comparison.json"
+    assert paths.combined_markdown.name == "3_1_Penalties_ruleset.md"
+    assert paths.combined_json.name == "3_1_Penalties_ruleset.json"
+    assert paths.evaluator_feedback.name == "3_2_Penalties_review.md"
+    assert paths.creator_response.name == "3_2_Penalties_creator_response.md"
+    assert paths.revised_markdown.name == "3_2_Penalties_revised_ruleset.md"
+    assert paths.formatted_markdown.name == "4_1_Penalties_formatted_ruleset.md"
+    assert paths.manual_ruleset_markdown.name == "3_2_Penalties_revised_ruleset_manual.md"
+    assert paths.pseudocode_markdown.name == "5_1_Penalties_pseudocode.md"
+
+
+def test_streamlit_ruleset_options_include_penalties():
+    assert RULESET_OPTIONS["Penalties"] == PENALTIES_RULESET
 
 
 def test_phase_1_prompt_builders_live_under_prompts_folder():
@@ -224,8 +247,8 @@ def test_step_3_1_prompt_distinguishes_clauses_from_operational_rules():
     user_prompt = messages[1]["content"]
 
     assert "A clause and a ruleset item are not the same thing." in user_prompt
-    assert "A single clause may contain multiple distinct operational overtime rules." in user_prompt
-    assert "A single operational overtime rule may rely on multiple clauses" in user_prompt
+    assert "A single clause may contain multiple distinct operational rules." in user_prompt
+    assert "A single operational rule may rely on multiple clauses" in user_prompt
     assert "Treat each returned rule as one operational overtime rule in the ruleset." in user_prompt
 
 
@@ -625,6 +648,47 @@ def test_ruleset_manual_ruleset_editor_prefers_existing_saved_update_then_revise
     assert source_path_for_ruleset_manual_ruleset_editor(ruleset_artifact_paths) == manual_ruleset_path
 
 
+def test_penalties_ruleset_manual_ruleset_editor_prefers_existing_saved_update_then_revised_source(
+    tmp_path,
+):
+    combined_path = tmp_path / "3_1_Penalties_ruleset.md"
+    revised_path = tmp_path / "3_2_Penalties_revised_ruleset.md"
+    formatted_path = tmp_path / "4_1_Penalties_formatted_ruleset.md"
+    manual_ruleset_path = tmp_path / "3_2_Penalties_revised_ruleset_manual.md"
+
+    ruleset_artifact_paths = RulesetArtifactPaths(
+        ruleset_key=PENALTIES_RULESET,
+        clause_classification=tmp_path / "2_2_Penalties_clause_classification.json",
+        expert_a_markdown=tmp_path / "3_1_Penalties_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "3_1_Penalties_ruleset_expert_b.md",
+        comparison_json=tmp_path / "3_1_Penalties_ruleset_comparison.json",
+        combined_markdown=combined_path,
+        combined_json=tmp_path / "3_1_Penalties_ruleset.json",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_Penalties_review.md",
+        evaluator_feedback_json=tmp_path / "feedback" / "3_2_Penalties_review.json",
+        creator_response=tmp_path / "feedback" / "3_2_Penalties_creator_response.md",
+        creator_response_json=tmp_path / "feedback" / "3_2_Penalties_creator_response.json",
+        revised_markdown=revised_path,
+        revised_json=tmp_path / "3_2_Penalties_revised_ruleset.json",
+        formatted_markdown=formatted_path,
+        manual_ruleset_markdown=manual_ruleset_path,
+        pseudocode_markdown=tmp_path / "5_1_Penalties_pseudocode.md",
+        pseudocode_validation_json=tmp_path / "5_1_Penalties_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path / "5_1_Penalties_pseudocode_validation.md",
+    )
+
+    assert source_path_for_ruleset_manual_ruleset_editor(ruleset_artifact_paths) == combined_path
+
+    revised_path.write_text("# Revised 3B", encoding="utf-8")
+    assert source_path_for_ruleset_manual_ruleset_editor(ruleset_artifact_paths) == revised_path
+
+    formatted_path.write_text("# 4A", encoding="utf-8")
+    assert source_path_for_ruleset_manual_ruleset_editor(ruleset_artifact_paths) == formatted_path
+
+    manual_ruleset_path.write_text("# Saved manual ruleset", encoding="utf-8")
+    assert source_path_for_ruleset_manual_ruleset_editor(ruleset_artifact_paths) == manual_ruleset_path
+
+
 def test_ruleset_core_overtime_pseudocode_prefers_ruleset_manual_ruleset_then_4_1_then_revised_source(
     tmp_path,
 ):
@@ -652,6 +716,53 @@ def test_ruleset_core_overtime_pseudocode_prefers_ruleset_manual_ruleset_then_4_
         pseudocode_markdown=tmp_path / "5_1_OT_creation_pseudocode.md",
         pseudocode_validation_json=tmp_path / "5_1_OT_creation_pseudocode_validation.json",
         pseudocode_validation_markdown=tmp_path / "5_1_OT_creation_pseudocode_validation.md",
+    )
+
+    assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == combined_path
+
+    revised_path.write_text("# Revised 3.2", encoding="utf-8")
+    assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == revised_path
+
+    formatted_path.write_text("# 4A", encoding="utf-8")
+    assert (
+        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
+        == formatted_path
+    )
+
+    manual_ruleset_path.write_text("# Saved manual ruleset", encoding="utf-8")
+    assert (
+        source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths)
+        == manual_ruleset_path
+    )
+
+
+def test_penalties_ruleset_core_overtime_pseudocode_prefers_ruleset_manual_ruleset_then_4_1_then_revised_source(
+    tmp_path,
+):
+    combined_path = tmp_path / "3_1_Penalties_ruleset.md"
+    revised_path = tmp_path / "3_2_Penalties_revised_ruleset.md"
+    formatted_path = tmp_path / "4_1_Penalties_formatted_ruleset.md"
+    manual_ruleset_path = tmp_path / "3_2_Penalties_revised_ruleset_manual.md"
+
+    ruleset_artifact_paths = RulesetArtifactPaths(
+        ruleset_key=PENALTIES_RULESET,
+        clause_classification=tmp_path / "2_2_Penalties_clause_classification.json",
+        expert_a_markdown=tmp_path / "3_1_Penalties_ruleset_expert_a.md",
+        expert_b_markdown=tmp_path / "3_1_Penalties_ruleset_expert_b.md",
+        comparison_json=tmp_path / "3_1_Penalties_ruleset_comparison.json",
+        combined_markdown=combined_path,
+        combined_json=tmp_path / "3_1_Penalties_ruleset.json",
+        evaluator_feedback=tmp_path / "feedback" / "3_2_Penalties_review.md",
+        evaluator_feedback_json=tmp_path / "feedback" / "3_2_Penalties_review.json",
+        creator_response=tmp_path / "feedback" / "3_2_Penalties_creator_response.md",
+        creator_response_json=tmp_path / "feedback" / "3_2_Penalties_creator_response.json",
+        revised_markdown=revised_path,
+        revised_json=tmp_path / "3_2_Penalties_revised_ruleset.json",
+        formatted_markdown=formatted_path,
+        manual_ruleset_markdown=manual_ruleset_path,
+        pseudocode_markdown=tmp_path / "5_1_Penalties_pseudocode.md",
+        pseudocode_validation_json=tmp_path / "5_1_Penalties_pseudocode_validation.json",
+        pseudocode_validation_markdown=tmp_path / "5_1_Penalties_pseudocode_validation.md",
     )
 
     assert source_path_for_ruleset_core_overtime_pseudocode(ruleset_artifact_paths) == combined_path

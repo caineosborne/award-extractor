@@ -17,6 +17,7 @@ from src.common.active_pipeline_paths import (
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
 )
 from src.common.output_naming import (
     ACTIVE_PIPELINE_STEP_CHOICES,
@@ -52,14 +53,18 @@ from src.step_5_1_generate_pseudocode.run import (
 
 STEP_CHOICES = ACTIVE_PIPELINE_STEP_CHOICES
 DEFAULT_PIPELINE_STEPS = DEFAULT_ACTIVE_PIPELINE_STEPS
-RULESET_SPECIFIC_STEPS = ("3.1", "3.2", "4.1", "5.1")
-SHARED_PIPELINE_STEPS = ("1", "2.1", "2.2")
+RULESET_SPECIFIC_STEPS = ("2.2", "3.1", "3.2", "4.1", "5.1")
+SHARED_PIPELINE_STEPS = ("1", "2.1")
 RULESET_SUBSET_TO_KEY = {
     "1": OVERTIME_CREATION_RULESET,
     "2": OVERTIME_CONSEQUENCE_RULESET,
+    "3": PENALTIES_RULESET,
 }
 RULESET_SUBSET_CHOICES = tuple(RULESET_SUBSET_TO_KEY.keys())
-CLI_DEFAULT_RULESET_KEYS = tuple(RULESET_SUBSET_TO_KEY.values())
+CLI_DEFAULT_RULESET_KEYS = (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+)
 
 
 class AwardPipelineError(RuntimeError):
@@ -222,12 +227,25 @@ def run_step_2_1(paths: ActivePipelinePaths) -> None:
     )
 
 
-def run_step_2_2(paths: ActivePipelinePaths) -> None:
+def run_step_2_2(
+    paths: ActivePipelinePaths,
+    ruleset_key: str | None = None,
+) -> None:
     """Run step 2.2 overtime clause classification."""
     require_existing(paths.classification_path, "2.2", "2.1")
+    output_path = paths.overtime_clause_classification_path
+    active_ruleset_key = OVERTIME_CREATION_RULESET
+    if ruleset_key is not None:
+        output_path = ruleset_clause_classification_output_path_for_classification(
+            paths.classification_path,
+            ruleset_key,
+        )
+        active_ruleset_key = ruleset_key
+
     run_step_2_2_classify_overtime_clauses(
         classification_path=paths.classification_path,
-        output_path=paths.overtime_clause_classification_path,
+        output_path=output_path,
+        ruleset_key=active_ruleset_key,
     )
 
 
@@ -472,7 +490,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=None,
         help=(
             "Optional ruleset subset ids to run. "
-            "Use 1 for overtime creation, 2 for overtime consequence. "
+            "Use 1 for overtime creation, 2 for overtime consequence, "
+            "3 for penalties. "
             "If omitted, the CLI runs all configured rulesets."
         ),
     )

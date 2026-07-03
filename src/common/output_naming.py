@@ -72,6 +72,8 @@ def ruleset_short_label(ruleset_key: str) -> str:
         return "OT_creation"
     if ruleset_key == "overtime_consequence":
         return "OT_consequence"
+    if ruleset_key == "penalties":
+        return "Penalties"
     raise ValueError(f"Unsupported overtime ruleset: {ruleset_key}")
 
 
@@ -180,6 +182,8 @@ def evaluator_feedback_path_for_interpretation(interpretation_path: Path | str) 
         return review_markdown_path_for_ruleset(path, "overtime_creation")
     if stem == "3_1_OT_consequence_ruleset":
         return review_markdown_path_for_ruleset(path, "overtime_consequence")
+    if stem == "3_1_Penalties_ruleset":
+        return review_markdown_path_for_ruleset(path, "penalties")
     return feedback_dir_for_interpretation(path) / f"{path.stem}_evaluator_feedback.md"
 
 
@@ -191,6 +195,8 @@ def creator_response_path_for_interpretation(interpretation_path: Path | str) ->
         return creator_response_markdown_path_for_ruleset(path, "overtime_creation")
     if stem == "3_1_OT_consequence_ruleset":
         return creator_response_markdown_path_for_ruleset(path, "overtime_consequence")
+    if stem == "3_1_Penalties_ruleset":
+        return creator_response_markdown_path_for_ruleset(path, "penalties")
     return feedback_dir_for_interpretation(path) / f"{path.stem}_creator_response.md"
 
 
@@ -201,6 +207,8 @@ def revised_interpretation_path_for_interpretation(interpretation_path: Path | s
         return revised_ruleset_path_for_ruleset(path, "overtime_creation")
     if path.stem == "3_1_OT_consequence_ruleset":
         return revised_ruleset_path_for_ruleset(path, "overtime_consequence")
+    if path.stem == "3_1_Penalties_ruleset":
+        return revised_ruleset_path_for_ruleset(path, "penalties")
     return path.with_name(f"{path.stem}_revised{path.suffix}")
 
 
@@ -219,6 +227,9 @@ def core_overtime_pseudocode_path_for_interpretation(
         "4_1_OT_consequence_formatted_ruleset",
     ):
         return pseudocode_path_for_ruleset(path, "overtime_consequence")
+
+    if stem in ("3_2_Penalties_revised_ruleset", "4_1_Penalties_formatted_ruleset"):
+        return pseudocode_path_for_ruleset(path, "penalties")
 
     if stem.endswith("_overtime_interpretation_revised"):
         base_stem = stem.removesuffix("_overtime_interpretation_revised")

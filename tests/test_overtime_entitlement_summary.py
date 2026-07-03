@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
 from src.prompts.step_4_1_format_ruleset import build_messages
 from src.step_4_1_format_ruleset import (
     DEFAULT_MODEL,
@@ -114,7 +114,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "overtime_creation",
         )
 
-        self.assertIn("reviewed overtime ruleset", messages[0]["content"])
+        self.assertIn("reviewed payroll ruleset", messages[0]["content"])
         self.assertIn(
             "Write each rule as clearly and operationally as possible",
             messages[0]["content"],
@@ -185,6 +185,24 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "Place each rule under the most specific supported heading, not under `### Other` by default.",
             messages[1]["content"],
         )
+
+    def test_build_messages_supports_penalties_ruleset_formatting(self):
+        messages = build_messages(
+            "interpretation.md",
+            "## Shift-Based Allowances And Penalties\n\n- Night shift commencing at 4.00 pm and before 4.00 am is paid at 115% for the entire shift. [26.1(c)]",
+            "Templates/Template.md",
+            "# unused",
+            PENALTIES_RULESET,
+        )
+
+        self.assertIn("# Penalties", messages[1]["content"])
+        self.assertIn("## Shift-Based Allowances And Penalties", messages[1]["content"])
+        self.assertIn("## Breaks Between Work Periods", messages[1]["content"])
+        self.assertIn(
+            "Keep whole-shift qualification rules separate from specific-hours rules",
+            messages[1]["content"],
+        )
+        self.assertIn("Keep non-financial break-gap rules representable", messages[1]["content"])
 
     def test_load_text_file_reads_template_markdown(self):
         template_text = load_text_file(DEFAULT_TEMPLATE_PATH, "Template markdown")

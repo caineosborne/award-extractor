@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     overtime_ruleset_config,
 )
 
@@ -34,6 +35,13 @@ STEP_3_2_PROMPT_SUBSET_OVERRIDES: dict[str, dict[str, tuple[str, ...]]] = {
     OVERTIME_CONSEQUENCE_RULESET: {
         "subset_scope_notes": (
             "Focus on what consequence applies after the time is already overtime.",
+        ),
+    },
+    PENALTIES_RULESET: {
+        "subset_scope_notes": (
+            "Focus on penalty rates, shift allowances, day or time-based premiums, and break-between-work-period rules that support this subset.",
+            "Keep supporting break-gap rules even when they do not create a separate payment outcome, if the clause text makes them operationally relevant.",
+            "Exclude overtime-only drafting drift unless the clause expressly states a penalties-specific rule that belongs in this subset.",
         ),
     },
 }

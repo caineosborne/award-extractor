@@ -35,6 +35,7 @@ from src.common.award_sources import (
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
 )
 from src.common.overtime_rules import (
     HIGH_IMPACT_VALIDATION_SECTION,
@@ -98,6 +99,7 @@ CLAUSE_REFERENCE_PATTERN = re.compile(
 RULESET_OPTIONS = {
     "Overtime creation": OVERTIME_CREATION_RULESET,
     "Overtime consequence": OVERTIME_CONSEQUENCE_RULESET,
+    "Penalties": PENALTIES_RULESET,
 }
 
 ADD_NEW_AWARD_LABEL = "Add new award"

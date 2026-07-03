@@ -12,6 +12,7 @@ from src.common.output_paths import (
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
 )
 from src.common.output_naming import ruleset_short_label
 from src.common.active_pipeline_paths import (
@@ -170,7 +171,11 @@ def ruleset_artifact_paths_for_award(
     award_code: str,
     ruleset_key: str,
 ) -> RulesetArtifactPaths:
-    if ruleset_key not in {OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET}:
+    if ruleset_key not in {
+        OVERTIME_CREATION_RULESET,
+        OVERTIME_CONSEQUENCE_RULESET,
+        PENALTIES_RULESET,
+    }:
         raise ValueError(f"Unsupported ruleset key: {ruleset_key}")
 
     return canonical_ruleset_paths(award_code, ruleset_key)
@@ -407,4 +412,3 @@ def natural_key(value: str) -> list[int | str]:
             key_parts.append(part)
 
     return key_parts
-

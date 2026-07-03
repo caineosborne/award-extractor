@@ -8,6 +8,7 @@ from typing import Any
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     overtime_ruleset_config,
 )
 from src.prompts.shared_overtime_clause_classification import (
@@ -70,6 +71,13 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - Include clauses that define overtime rates, minimum payments, time off instead of overtime payment, rest-after-overtime outcomes, or other direct overtime consequences.
 - Do not treat a clause as an overtime consequence merely because it helps define ordinary hours.
 - Boundary and trigger labels can still be used when they genuinely appear in the clause, but consequence handling is the focus for this ruleset.
+""",
+    PENALTIES_RULESET: """Important:
+- This ruleset is identifying penalty rates, shift allowances, and break-between-work-period rules that are relevant to the penalties subset.
+- For the penalties subset, downstream handling is deterministic and all shortlisted clauses are treated as `Penalty Rule`.
+- Focus on whether the clause is relevant to additional payment outcomes based on when work is performed, or to supporting break-gap and broken-shift conditions that remain in scope for penalties even without a direct premium outcome.
+- Keep whole-shift qualification rules, specific-hours rules, day-type rules, and supporting break-gap rules in scope when the clause text supports them.
+- Do not treat a clause as relevant to this subset merely because it describes overtime creation or an overtime-only consequence.
 """,
 }
 

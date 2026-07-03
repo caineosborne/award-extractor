@@ -14,7 +14,7 @@ from src.common.active_pipeline_paths import (
     resolve_overtime_clause_classification_path,
     revised_output_path_for_interpretation,
 )
-from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
 
 
 def test_default_step_3_paths_match_award_first_layout():
@@ -54,12 +54,16 @@ def test_explicit_ruleset_paths_match_award_first_layout():
         classification_path,
         OVERTIME_CONSEQUENCE_RULESET,
     ) == Path(
-        "data/processed/MA000018/2_2_OT_creation_clause_classification.json"
+        "data/processed/MA000018/2_2_OT_consequence_clause_classification.json"
     )
     assert ruleset_output_path_for_classification(
         classification_path,
         OVERTIME_CONSEQUENCE_RULESET,
     ) == Path("data/processed/MA000018/3_1_OT_consequence_ruleset.md")
+    assert ruleset_clause_classification_output_path_for_classification(
+        classification_path,
+        PENALTIES_RULESET,
+    ) == Path("data/processed/MA000018/2_2_Penalties_clause_classification.json")
 
 
 def test_resolve_clause_classification_path_uses_ruleset_when_interpretation_is_explicit_ruleset():

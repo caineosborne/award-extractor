@@ -10,12 +10,13 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.output_paths import write_text_output
-from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET
+from src.common.overtime_rulesets import PENALTIES_RULESET, OVERTIME_CREATION_RULESET
 
 from .core import (
     DEFAULT_MODEL,
     OvertimeClauseClassification,
     OvertimeInterpretationError,
+    build_deterministic_penalties_classifications,
     build_clause_classification_artifact,
     classify_overtime_clauses,
     load_environment,
@@ -46,6 +47,7 @@ def load_or_generate_clause_classifications(
     output_path: Path,
     client: Any | None,
     selected_model: str | None,
+    ruleset_key: str,
 ) -> list[OvertimeClauseClassification]:
     """Reuse a valid step-2.2 artifact or regenerate it with the model."""
     if output_path.exists():
@@ -53,24 +55,39 @@ def load_or_generate_clause_classifications(
             return load_overtime_clause_classification_artifact(
                 output_path,
                 overtime_clauses,
-                OVERTIME_CREATION_RULESET,
+                ruleset_key,
             )
         except OvertimeInterpretationError:
             # Step 2.1 may have been rerun, making the existing step 2.2 artifact
             # inconsistent with the current shortlisted clause set. Regenerate it.
             pass
 
+    if ruleset_key == PENALTIES_RULESET:
+        classifications = build_deterministic_penalties_classifications(
+            overtime_clauses
+        )
+        artifact = build_clause_classification_artifact(
+            source_path,
+            classifications,
+            ruleset_key,
+        )
+        write_text_output(
+            output_path,
+            json.dumps(artifact, indent=2, ensure_ascii=False),
+        )
+        return classifications
+
     active_client = client or load_openai_client()
     classifications = classify_overtime_clauses(
         overtime_clauses,
         active_client,
         model_name(selected_model),
-        OVERTIME_CREATION_RULESET,
+        ruleset_key,
     )
     artifact = build_clause_classification_artifact(
         source_path,
         classifications,
-        OVERTIME_CREATION_RULESET,
+        ruleset_key,
     )
     write_text_output(
         output_path,
@@ -85,15 +102,16 @@ def prepare_overtime_clause_classifications(
     classification_output_path: Path | str | None = None,
     model: str | None = None,
     client: Any | None = None,
+    ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
     """Run step 2.2 and write the intermediate overtime clause classification."""
     source_path = Path(classification_path)
     data = load_step_2_classification(source_path)
-    overtime_clauses = select_overtime_source_clauses(data)
+    overtime_clauses = select_overtime_source_clauses(data, ruleset_key)
     destination = (
         Path(classification_output_path)
         if classification_output_path is not None
-        else output_path_for_classification(source_path)
+        else output_path_for_classification(source_path, ruleset_key)
     )
 
     return load_or_generate_clause_classifications(
@@ -102,4 +120,5 @@ def prepare_overtime_clause_classifications(
         output_path=destination,
         client=client,
         selected_model=model,
+        ruleset_key=ruleset_key,
     )

@@ -11,6 +11,7 @@ from src.common.overtime_rules import VALIDATION_SECTION_TITLES
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     infer_overtime_ruleset_key_from_path,
 )
 from src.common.pipeline_io import load_text_file as load_required_text_file
@@ -104,6 +105,11 @@ def default_interpretation_path_for_award(
         if explicit_revised_path.exists():
             return explicit_revised_path
         return award_dir / "3_1_OT_consequence_ruleset.md"
+    if ruleset_key == PENALTIES_RULESET:
+        explicit_revised_path = award_dir / "3_2_Penalties_revised_ruleset.md"
+        if explicit_revised_path.exists():
+            return explicit_revised_path
+        return award_dir / "3_1_Penalties_ruleset.md"
     revised_path = award_dir / "3_2_OT_creation_revised_ruleset.md"
     if revised_path.exists():
         return revised_path
@@ -133,10 +139,13 @@ def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
 
     if stem == "3_2_OT_consequence_revised_ruleset":
         return formatted_ruleset_path_for_ruleset(path, OVERTIME_CONSEQUENCE_RULESET)
+    if stem == "3_2_Penalties_revised_ruleset":
+        return formatted_ruleset_path_for_ruleset(path, PENALTIES_RULESET)
     raise OvertimeEntitlementSummaryError(
         "Step 4.1 expects a canonical revised ruleset path such as "
         "`3_2_OT_creation_revised_ruleset.md` or "
-        "`3_2_OT_consequence_revised_ruleset.md`."
+        "`3_2_OT_consequence_revised_ruleset.md`. "
+        "Penalties canonical paths are also supported."
     )
 
 
