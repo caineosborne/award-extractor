@@ -1746,18 +1746,19 @@ def format_validation_warning_for_display(warning: str) -> str:
     if direct_match:
         clause_number = direct_match.group(1)
         return (
-            f"Clause {clause_number} was shortlisted as potentially relevant to overtime, "
+            f"Clause {clause_number} was shortlisted as potentially relevant to the selected ruleset, "
             "but no rule in this ruleset currently represents it."
         )
 
     pre_review_match = re.fullmatch(
-        r"Clause (.+) was identified as relevant to overtime, but it is not present in the step 3\.4 ruleset\.",
+        r"Clause (.+) was identified as relevant to (.+), but it is not present in the step 3\.4 ruleset\.",
         warning,
     )
     if pre_review_match:
         clause_number = pre_review_match.group(1)
+        ruleset_subject_label = pre_review_match.group(2)
         return (
-            f"Clause {clause_number} was identified as relevant to overtime, but it is "
+            f"Clause {clause_number} was identified as relevant to {ruleset_subject_label}, but it is "
             "not present in the draft ruleset before review."
         )
 
@@ -1768,7 +1769,7 @@ def format_validation_warning_for_display(warning: str) -> str:
     if merged_match:
         clause_number = merged_match.group(1)
         return (
-            f"Clause {clause_number} was shortlisted as potentially relevant to overtime, "
+            f"Clause {clause_number} was shortlisted as potentially relevant to the selected ruleset, "
             "and it is still not represented in the combined ruleset after expert comparison."
         )
 
@@ -2247,7 +2248,7 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="2.2")
+            execute_pipeline_run(selected_award_code, step="2.2", ruleset_key=ruleset_key)
 
     with step_three_b_column:
         if st.button(

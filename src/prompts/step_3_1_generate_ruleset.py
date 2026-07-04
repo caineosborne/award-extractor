@@ -184,6 +184,9 @@ Important:
 - Every distinct payroll-configurable penalty condition, whole-shift allowance rule, specific-hours penalty rule, day-based penalty rule, public-holiday rule, or break-between-work-period supporting rule must be a separate rule object.
 - Split rules where the payroll system would configure them separately, including different qualifying time bands, different days, different cohorts, different multipliers, different fixed add-ons, and different whole-shift versus specific-hours outcomes.
 - source_classifications must contain only `Penalty Rule`.
+- Some shortlisted clauses may also contain overtime language because the upstream payment classification can tag one clause with both penalties and overtime topics.
+- When a clause is mixed, extract only the penalty or break-between-work-period component that belongs in the penalties subset.
+- Do not draft a standalone penalties rule whose real content is only an overtime trigger, an overtime multiplier, or an overtime-only consequence.
 - Use the upstream scope tags as the starting point for scope. Do not narrow or broaden scope unless the cited clause text clearly requires it.
 - Each rule must be readable in isolation by a payroll reviewer. State the operative qualification test and the operative outcome in the rule text itself.
 - Do not rely on a clause reference as a substitute for the rule content. If a clause says a night shift commencing between 4.00 pm and 4.00 am is paid at 115% for the entire shift, say that in the rule.
@@ -192,7 +195,8 @@ Important:
 - Preserve employee cohort and work arrangement only where supported by the clause text.
 - Do not invent a financial consequence for a supporting break-between-work-period rule if the clause only states the minimum gap, rest period, broken-shift structure, or roster-changeover requirement.
 - Keep non-financial supporting break-gap rules when they are operationally relevant to the penalties subset.
-- Do not drift into overtime creation rules or overtime consequence rules unless the penalty clause expressly states a penalty-specific premium or supporting condition that belongs in this subset.
+- Do not drift into overtime creation rules or overtime consequence rules unless the clause expressly states a penalties-specific premium or a supporting break-gap condition that belongs in this subset.
+- If overtime is mentioned only as surrounding context, prune it from the drafted penalties rule unless it is strictly necessary to explain the penalties-domain outcome.
 """.strip(),
 }
 

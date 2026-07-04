@@ -79,6 +79,12 @@ Penalties examples to preserve where supported by the clauses:
 - A break-between-work-period rule may require 10 hours off duty, allow reduction by agreement, and then pay 200% until release if the employee resumes without the required break.
 - A minimum-break rule with no entitlement should still be captured in the subset as a supporting rule.
 
+Mixed-clause handling:
+- Some shortlisted clauses may also mention overtime, ordinary hours, allowances, or other payment topics because step 2.1 can assign more than one source tag to the same clause.
+- For the penalties ruleset, keep only the penalty or break-between-work-period component that belongs in this subset.
+- Do not create a penalties rule from a clause component that only creates overtime, only sets overtime rates, or only explains when overtime applies.
+- Mention overtime only where the clause expressly makes it part of a penalties-domain rule, such as a break-gap consequence that applies after insufficient rest, or a cross-reference that is strictly necessary to explain the penalties outcome.
+
 Keep whole-shift qualification rules separate from specific-hours rules. Do not invent a financial consequence where the clause only states a supporting operational condition.
 """
 

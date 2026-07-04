@@ -215,11 +215,12 @@ def scope_validation_warnings_for_rule(
 def missing_shortlisted_clause_warning(
     clause_number: str,
     *,
+    ruleset_subject_label: str,
     ruleset_label: str,
 ) -> str:
     """Return a reviewer-friendly warning when a shortlisted clause is missing."""
     return (
-        f"Clause {clause_number} was identified as relevant to overtime, "
+        f"Clause {clause_number} was identified as relevant to {ruleset_subject_label}, "
         f"but it is not present in the {ruleset_label}."
     )
 
@@ -336,6 +337,9 @@ def validate_interpretation_rules(
         if ruleset_key == OVERTIME_CREATION_RULESET
         else f"{config.display_name.lower()} ruleset"
     )
+    missing_clause_subject_label = (
+        "overtime" if ruleset_key == OVERTIME_CREATION_RULESET else config.display_name.lower()
+    )
     raw_rules = response_data.get("rules")
     if not isinstance(raw_rules, list):
         raise OvertimeInterpretationError("Interpretation response must contain rules array.")
@@ -445,6 +449,7 @@ def validate_interpretation_rules(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
+                ruleset_subject_label=missing_clause_subject_label,
                 ruleset_label=missing_clause_ruleset_label,
             )
         )
@@ -811,6 +816,11 @@ def compare_expert_interpretation_runs(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
+                ruleset_subject_label=(
+                    "overtime"
+                    if ruleset_key == OVERTIME_CREATION_RULESET
+                    else config.display_name.lower()
+                ),
                 ruleset_label=f"merged {config.display_name.lower()} expert comparison ruleset",
             )
         )

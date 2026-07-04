@@ -101,6 +101,7 @@ def test_scope_validation_warnings_hide_multi_clause_scope_noise():
 def test_missing_shortlisted_clause_warning_remains_visible():
     warning = missing_shortlisted_clause_warning(
         "21.9",
+        ruleset_subject_label="overtime",
         ruleset_label="draft ruleset before review",
     )
 

@@ -4,19 +4,33 @@ This document records the current known gaps that still deserve follow-up in the
 
 ## Active items
 
-### Consequence treatment
 
-Status:
-- In progress
+## Add Penalties
 
-What to review:
-- whether consequence rules are being separated and presented clearly
-- whether the consequence template stays lightweight and usable
-- whether the review flow keeps consequence logic distinct from creation logic
+Current in progress
 
-Why it matters:
-- consequence rules are usually more structured than edge-case creation rules;
-- the prompt should stay explicit without overfitting rare cases.
+Once completed need to 
+
+2 - Confirm working for streamlit  Rerun for MA000018 via the streamlit interface
+
+2b: This states overtime - is it overtime? 
+
+Action required
+Clause 2 was identified as relevant to overtime, but it is not present in the penalties ruleset.
+Clause 33.3 was identified as relevant to overtime, but it is not present in the penalties ruleset.
+
+3 - confirm that the user edit (4.9) process is working for user edits 
+
+4 - Confirm that we are only passing clauess classified as Penalties or Break into the model
+4 - test for any opporunities to optimise - including all prompts fit to the perscribed format - with common rulesets applied to all codes under the same subset, and every LLM call is split into core instructions and limited specific testing. 
+5 - User testing for prompt optimisation - Instruct it to remove Overitme clauses. 
+6 - Confirm this will work for PDFs 
+7 - Update all documentation 
+
+
+
+### Make expert and review count able to be adjusted 
+
 
 ### Final screen and YAML output
 
@@ -264,6 +278,20 @@ Current state:
 
 Why it is no longer listed as active:
 - the reusable question blocks are now injected into the relevant overtime prompt builders instead of being repeated ad hoc.
+
+### Consequence treatment
+
+Status:
+- Resolved
+
+Current state:
+- consequence prompts now use the shared consequence question block across classification, generation, review, formatting, and pseudocode steps.
+- consequence handling now explicitly prioritises overtime multipliers by cohort and other post-overtime outcomes while avoiding standalone creation-rule commentary.
+- the consequence template remains lightweight and focused on the main cohort buckets.
+
+Why it is no longer listed as active:
+- the consequence treatment work has been incorporated into the shared prompt blocks and ruleset-specific instructions;
+- remaining consequence quality checks should now happen through the next E2E smoke test rather than this planning item.
 
 ### Prompt home and reusable configuration surface
 

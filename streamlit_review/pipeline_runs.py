@@ -14,6 +14,7 @@ from typing import Any
 
 from src.award_pipeline import (
     AwardPipelineError,
+    RULESET_SPECIFIC_STEPS,
     build_paths,
     run_default_pipeline,
     run_selected_step,
@@ -338,6 +339,7 @@ def run_pipeline_for_award(
                             f"{artifact_paths.overtime_entitlements}"
                         )
                 else:
+                    selected_ruleset_keys = [ruleset_key] if ruleset_key is not None else None
                     if planned_step.step_id == "3.1" and ruleset_key is not None:
                         generate_overtime_ruleset(
                             classification_path=paths.classification_path,
@@ -380,6 +382,15 @@ def run_pipeline_for_award(
                         print(
                             "Core overtime pseudocode saved to "
                             f"{ruleset_artifacts.pseudocode_markdown}"
+                        )
+                    elif (
+                        ruleset_key is not None
+                        and planned_step.step_id in RULESET_SPECIFIC_STEPS
+                    ):
+                        run_selected_step(
+                            paths,
+                            planned_step.step_id,
+                            selected_ruleset_keys,
                         )
                     else:
                         run_selected_step(paths, planned_step.step_id)
