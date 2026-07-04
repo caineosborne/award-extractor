@@ -117,7 +117,9 @@ Important:
 - In a work-arrangement section, still state the employee type affected when the rule is not identical for all employees.
 - Do not repeat a general rule under narrower headings unless the segment-specific version is materially different.
 - Do not include overtime rates, overtime calculations, penalty rates, allowances, or clauses that do not affect whether hours become overtime.
-- Avoid duplicate rules. If two bullets have the same threshold, condition, and clause source, combine them. Keep separate bullets where the operational overtime rule is materially different.
+- Avoid exact duplicates. If two bullets have the same threshold, condition, and clause source, combine them. Keep separate bullets where the operational overtime rule is materially different.
+- If the choice is between omitting a plausible supported overtime-creation rule or keeping a partly overlapping rule, prefer keeping it.
+- Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
     OVERTIME_CONSEQUENCE_RULESET: """Source classification file: {source_file}
 
@@ -151,10 +153,12 @@ Important:
 - If a clause is mixed, extract only the consequence component that answers what payment, rate, minimum, allowance, TOIL outcome, or rest entitlement applies after overtime already exists.
 - Prune trigger-only or boundary-only content from the drafted rule unless that context is strictly necessary to identify when the consequence applies.
 - Do not produce a standalone rule whose main purpose is to say when hours become overtime.
-- If a shortlisted clause does not yield a standalone consequence rule after pruning, omit it from the rules and let the comparison step explain why.
+- If a shortlisted clause supports a plausible overtime consequence rule, prefer keeping that consequence rule even if some overlap or mixed context remains.
+- Do not omit a plausible supported consequence rule merely because another rule may later cover similar consequence logic.
 - Do not include penalty rates or allowances unless the clause expressly says they form part of the overtime consequence.
 - Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort. If the clauses state different overtime multiplier outcomes for full-time, part-time, or casual employees, include those cohort-specific rules explicitly.
 - Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
+- Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
     PENALTIES_RULESET: """Source classification file: {source_file}
 
@@ -197,6 +201,8 @@ Important:
 - Keep non-financial supporting break-gap rules when they are operationally relevant to the penalties subset.
 - Do not drift into overtime creation rules or overtime consequence rules unless the clause expressly states a penalties-specific premium or a supporting break-gap condition that belongs in this subset.
 - If overtime is mentioned only as surrounding context, prune it from the drafted penalties rule unless it is strictly necessary to explain the penalties-domain outcome.
+- If the choice is between omitting a plausible supported penalties rule or keeping a partly overlapping rule, prefer keeping it.
+- Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
 }
 
@@ -367,6 +373,9 @@ def build_expert_comparison_messages(
         "contains a plausible rule supported by the shortlisted clauses, keep it unless it "
         "is clearly wrong, duplicated, or fully subsumed by a clearer merged rule. Do not "
         "drop a rule merely because the other expert omitted it.\n\n"
+        "Do not over-merge overlapping rules merely to make the output shorter. Some overlap "
+        "is acceptable at this stage if later aggregation may consolidate related rulesets or "
+        "subset outputs.\n\n"
         "Do not create new substantive rule content unless necessary to combine equivalent "
         "rules already present in the expert drafts. A shortlisted clause may produce zero, "
         "one, or multiple merged rules. A merged rule may rely on one or multiple shortlisted "

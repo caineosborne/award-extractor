@@ -54,6 +54,7 @@ PENALTIES_COMMON_QUESTIONS = """Reusable penalties checks:
 - Penalties includes anything other than overtime that can increase pay for worked hours.
 - This includes shift allowances, shift penalties, weekend penalties, public holiday penalties, afternoon penalties, evening penalties, night penalties, and similar higher-paid time-based rules.
 - This also includes break-between-work-period clauses, even where they do not create a direct financial entitlement, because those clauses may still define operational rules relevant to the penalties domain.
+- Break-between-work-period rules are still in scope even when they do not create any separate payment outcome.
 - Some rules qualify by shift commencement.
 - Some rules apply to the whole shift once qualified.
 - Some rules apply only to specific hours worked.
@@ -77,6 +78,7 @@ Penalties examples to preserve where supported by the clauses:
 - Once a shift qualifies, the allowance may apply to the entire shift.
 - A table-based penalty may instead apply only to the specific hours worked during a period such as 7.00 pm to midnight, midnight to 7.00 am, Saturday, Sunday, or public holiday.
 - A break-between-work-period rule may require 10 hours off duty, allow reduction by agreement, and then pay 200% until release if the employee resumes without the required break.
+- A break-between-work-period rule may create a 200% payment consequence plus paid release until the employee receives the required break.
 - A minimum-break rule with no entitlement should still be captured in the subset as a supporting rule.
 
 Mixed-clause handling:

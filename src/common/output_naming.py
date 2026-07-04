@@ -77,14 +77,22 @@ def ruleset_short_label(ruleset_key: str) -> str:
     raise ValueError(f"Unsupported overtime ruleset: {ruleset_key}")
 
 
+def clause_classification_filename_for_ruleset(ruleset_key: str) -> str:
+    """Return the canonical step-2.2 filename for one ruleset family."""
+    if ruleset_key in {"overtime_creation", "overtime_consequence"}:
+        return "2_2_OT_clause_classification.json"
+    if ruleset_key == "penalties":
+        return "2_2_Penalties_clause_classification.json"
+    raise ValueError(f"Unsupported overtime ruleset: {ruleset_key}")
+
+
 def clause_classification_path_for_ruleset(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
     """Return the canonical step 2.2 output path for one ruleset."""
     path = Path(classification_path)
-    short_label = ruleset_short_label(ruleset_key)
-    return path.parent / f"2_2_{short_label}_clause_classification.json"
+    return path.parent / clause_classification_filename_for_ruleset(ruleset_key)
 
 
 def ruleset_markdown_path_for_ruleset(

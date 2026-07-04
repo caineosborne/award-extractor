@@ -116,7 +116,7 @@ def test_artifact_paths_for_award():
     paths = artifact_paths_for_award("MA000018")
 
     assert paths.payment_classification.name == "2_1_payment_classification.json"
-    assert paths.overtime_clause_classification.name == "2_2_OT_creation_clause_classification.json"
+    assert paths.overtime_clause_classification.name == "2_2_OT_clause_classification.json"
     assert paths.original_overtime_interpretation.name == "3_1_OT_creation_ruleset.md"
     assert (
         paths.original_overtime_interpretation_expert_a.name
@@ -155,7 +155,7 @@ def test_award_code_for_artifact_paths_uses_payment_classification_stem():
 def test_ruleset_artifact_paths_for_award():
     paths = ruleset_artifact_paths_for_award("MA000018", OVERTIME_CONSEQUENCE_RULESET)
 
-    assert paths.clause_classification.name == "2_2_OT_consequence_clause_classification.json"
+    assert paths.clause_classification.name == "2_2_OT_clause_classification.json"
     assert paths.expert_a_markdown.name == "3_1_OT_consequence_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "3_1_OT_consequence_ruleset_expert_b.md"
     assert paths.comparison_json.name == "3_1_OT_consequence_ruleset_comparison.json"
@@ -172,7 +172,7 @@ def test_ruleset_artifact_paths_for_award():
 def test_creation_ruleset_artifact_paths_for_award_are_canonical():
     paths = ruleset_artifact_paths_for_award("MA000120", OVERTIME_CREATION_RULESET)
 
-    assert paths.clause_classification.name == "2_2_OT_creation_clause_classification.json"
+    assert paths.clause_classification.name == "2_2_OT_clause_classification.json"
     assert paths.expert_a_markdown.name == "3_1_OT_creation_ruleset_expert_a.md"
     assert paths.expert_b_markdown.name == "3_1_OT_creation_ruleset_expert_b.md"
     assert paths.comparison_json.name == "3_1_OT_creation_ruleset_comparison.json"
@@ -547,7 +547,7 @@ def test_manual_ruleset_editor_prefers_existing_saved_update_then_revised_source
 
     artifact_paths = ArtifactPaths(
         payment_classification=tmp_path / "2_1_payment_classification.json",
-        overtime_clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        overtime_clause_classification=tmp_path / "2_2_OT_clause_classification.json",
         original_overtime_interpretation=original_path,
         original_overtime_interpretation_expert_a=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
         original_overtime_interpretation_expert_b=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
@@ -582,7 +582,7 @@ def test_core_overtime_pseudocode_prefers_existing_manual_ruleset_then_4_1_then_
 
     artifact_paths = ArtifactPaths(
         payment_classification=tmp_path / "2_1_payment_classification.json",
-        overtime_clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        overtime_clause_classification=tmp_path / "2_2_OT_clause_classification.json",
         original_overtime_interpretation=original_path,
         original_overtime_interpretation_expert_a=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
         original_overtime_interpretation_expert_b=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
@@ -617,7 +617,7 @@ def test_ruleset_manual_ruleset_editor_prefers_existing_saved_update_then_revise
 
     ruleset_artifact_paths = RulesetArtifactPaths(
         ruleset_key=OVERTIME_CREATION_RULESET,
-        clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        clause_classification=tmp_path / "2_2_OT_clause_classification.json",
         expert_a_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
         expert_b_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
         comparison_json=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
@@ -699,7 +699,7 @@ def test_ruleset_core_overtime_pseudocode_prefers_ruleset_manual_ruleset_then_4_
 
     ruleset_artifact_paths = RulesetArtifactPaths(
         ruleset_key=OVERTIME_CREATION_RULESET,
-        clause_classification=tmp_path / "2_2_OT_creation_clause_classification.json",
+        clause_classification=tmp_path / "2_2_OT_clause_classification.json",
         expert_a_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_a.md",
         expert_b_markdown=tmp_path / "3_1_OT_creation_ruleset_expert_b.md",
         comparison_json=tmp_path / "3_1_OT_creation_ruleset_comparison.json",
@@ -1587,8 +1587,8 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         calls.append(("ruleset_artifact_paths_for_award", selected_award_code, ruleset_key))
         return ruleset_artifacts
 
-    def fake_run_selected_step(paths, step: str) -> None:
-        calls.append(("run_selected_step", paths.classification_path, step))
+    def fake_run_selected_step(paths, step: str, ruleset_keys=None) -> None:
+        calls.append(("run_selected_step", paths.classification_path, step, ruleset_keys))
 
     def fake_generate_overtime_ruleset(*, classification_path: Path, ruleset_key: str) -> None:
         calls.append(("generate_overtime_ruleset", classification_path, ruleset_key))
@@ -1657,9 +1657,9 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         ("source_record_for_award", award_code),
         ("build_paths", award_code, None, f"https://example.com/{award_code}.html"),
         ("artifact_paths_for_award", award_code),
-        ("run_selected_step", classification_path, "1"),
-        ("run_selected_step", classification_path, "2.1"),
-        ("run_selected_step", classification_path, "2.2"),
+        ("ruleset_artifact_paths_for_award", award_code, OVERTIME_CONSEQUENCE_RULESET),
+        ("run_selected_step", classification_path, "1", None),
+        ("run_selected_step", classification_path, "2.2", [OVERTIME_CONSEQUENCE_RULESET]),
         (
             "generate_overtime_ruleset",
             classification_path,

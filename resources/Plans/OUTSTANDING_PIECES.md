@@ -11,11 +11,9 @@ Current in progress
 
 Once completed need to 
 
-5 - User testing for prompt optimisation - Instruct it to remove Overitme clauses. 
-6 - Confirm this will work for PDFs 
-7 - Update all documentation 
+1 - User testing for prompt optimisation - Instruct it to remove Overitme clauses. 
 
-
+Also to consider - a lot of information is being sent to the evulator - can this be simplified. 
 
 ### Make expert and review count able to be adjusted 
 

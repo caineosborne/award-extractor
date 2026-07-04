@@ -54,6 +54,8 @@ Shared categories:
 
 Shared decision rules:
 - A clause can carry more than one classification when it genuinely does more than one thing.
+- If a clause plausibly contributes to this ruleset and the text supports that contribution, prefer inclusion with a conservative classification and explanation rather than exclusion.
+- Do not exclude a clause merely because another clause appears to cover similar ground. Overlap can be resolved later; missed clause coverage is harder to recover.
 - Use `Overtime Consequence` only where the clause text tells the payroll system what result applies once overtime already exists, such as a multiplier, minimum payment, TOIL option, paid rest outcome, allowance consequence, or other post-overtime entitlement.
 - Do not use `Overtime Consequence` merely because the clause says hours "will be paid at overtime rates" as part of explaining when the hours become overtime. In that case the clause is usually primarily an `Overtime Trigger`, even if it also carries a secondary consequence label.
 - Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
@@ -88,6 +90,7 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - A clause can be both Overtime Trigger and Overtime Consequence.
 - If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
+- If a clause plausibly helps determine when hours become overtime, prefer keeping it in scope with an explicit explanation rather than excluding it too aggressively.
 - Consequence handling is deferred for this ruleset, but consequence clauses should still be classified accurately.
 """,
     OVERTIME_CONSEQUENCE_RULESET: """Important:
@@ -96,6 +99,7 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - Include clauses that define overtime rates, minimum payments, time off instead of overtime payment, rest-after-overtime outcomes, or other direct overtime consequences.
 - Do not treat a clause as an overtime consequence merely because it helps define ordinary hours.
 - Boundary and trigger labels can still be used when they genuinely appear in the clause, but consequence handling is the focus for this ruleset.
+- If a clause plausibly contains an overtime consequence and the text supports that reading, prefer including it with a careful explanation rather than excluding it because the clause is mixed.
 """,
     PENALTIES_RULESET: """Important:
 - This ruleset is identifying penalty rates, shift allowances, and break-between-work-period rules that are relevant to the penalties subset.
@@ -103,6 +107,7 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - Focus on whether the clause is relevant to additional payment outcomes based on when work is performed, or to supporting break-gap and broken-shift conditions that remain in scope for penalties even without a direct premium outcome.
 - Keep whole-shift qualification rules, specific-hours rules, day-type rules, and supporting break-gap rules in scope when the clause text supports them.
 - Do not treat a clause as relevant to this subset merely because it describes overtime creation or an overtime-only consequence.
+- If a clause plausibly contains a penalties-domain rule and the text supports it, prefer inclusion over exclusion. Duplication can be handled later; missing coverage should be avoided.
 """,
 }
 

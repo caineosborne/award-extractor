@@ -39,6 +39,7 @@ Requirements:
 - Write each rule as clearly and operationally as possible so it can be read in isolation by a payroll reviewer.
 - Preserve the substantive rule content from the reviewed ruleset. Do not omit a reviewed rule merely to make the guide shorter.
 - Do not collapse distinct thresholds, limits, spans, spreads, multipliers, minimum payments, cohort-specific rules, or clause-specific exceptions into vague summaries.
+- If the source contains overlapping but plausible reviewed rules, preserve them rather than deduplicating aggressively at the formatting stage.
 - Preserve employee groups, thresholds, assumptions, consequences, and clause references from the source.
 - Keep clause references visible in every rule bullet, preferably at the end in square brackets.
 - Do not invent rules, clause references, headings, or categories that are not supported by the source.

@@ -71,7 +71,7 @@ def test_build_paths_covers_step_5_1_artifacts():
     assert paths.output_stem == output_stem_for_award("MA000018", "draft")
     assert paths.classification_path.name == "2_1_payment_classification.json"
     assert paths.overtime_clause_classification_path.name == (
-        "2_2_OT_creation_clause_classification.json"
+        "2_2_OT_clause_classification.json"
     )
     assert paths.evaluator_feedback_path.name == (
         "3_2_OT_creation_review.md"
@@ -145,7 +145,7 @@ def test_main_allows_ruleset_subset_for_shared_step_without_changing_shared_arti
         PENALTIES_RULESET,
     ]
     assert passed_paths.overtime_clause_classification_path.name == (
-        "2_2_OT_creation_clause_classification.json"
+        "2_2_OT_clause_classification.json"
     )
 
 
@@ -270,7 +270,7 @@ def test_run_step_3_1_supports_consequence_ruleset_artifact_paths():
     assert require_existing_mock.call_args_list == [
         ((paths.classification_path, "3.1", "2.1"),),
         ((
-            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_consequence_clause_classification.json"),
+            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
             "3.1",
             "2.2",
         ),),
@@ -281,7 +281,7 @@ def test_run_step_3_1_supports_consequence_ruleset_artifact_paths():
             "3_1_OT_consequence_ruleset.md"
         ),
         classification_output_path=PROJECT_ROOT / Path(
-            "data/processed/MA000018/2_2_OT_consequence_clause_classification.json"
+            "data/processed/MA000018/2_2_OT_clause_classification.json"
         ),
         expert_run_count=2,
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
@@ -409,7 +409,6 @@ def test_run_default_pipeline_with_rulesets_runs_shared_steps_once_then_ruleset_
         ("3.2", OVERTIME_CREATION_RULESET),
         ("4.1", OVERTIME_CREATION_RULESET),
         ("5.1", OVERTIME_CREATION_RULESET),
-        ("2.2", OVERTIME_CONSEQUENCE_RULESET),
         ("3.1", OVERTIME_CONSEQUENCE_RULESET),
         ("3.2", OVERTIME_CONSEQUENCE_RULESET),
         ("4.1", OVERTIME_CONSEQUENCE_RULESET),
@@ -476,7 +475,7 @@ def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
     assert require_existing_mock.call_args_list == [
         ((paths.classification_path, "3.1", "2.1"),),
         ((
-            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_consequence_clause_classification.json"),
+            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
             "3.1",
             "2.2",
         ),),
@@ -488,7 +487,7 @@ def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
             "data/processed/MA000018/3_1_OT_consequence_ruleset.md"
         ),
         classification_output_path=PROJECT_ROOT
-        / Path("data/processed/MA000018/2_2_OT_consequence_clause_classification.json"),
+        / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
         expert_run_count=2,
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )

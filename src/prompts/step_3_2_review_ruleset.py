@@ -430,6 +430,8 @@ Check:
 - whether the ruleset is easy for a payroll reviewer to check and easy for an implementation team to convert into payroll logic.
 
 Flag duplicate points, unclear employee scope, unclear work-arrangement scope, missing thresholds, missing clause references, and bullets that combine materially different payroll tests.
+If you are substantively uncertain whether a plausible clause-supported rule should be excluded, prefer recommending narrower wording, clearer scope, or clearer clause support rather than immediate removal.
+At this stage, overlap is generally less harmful than omission.
 
 Ruleset source: {interpretation_path}
 
@@ -518,6 +520,8 @@ Apply accepted feedback about both:
 Preserve supported rules unless accepted feedback requires a change.
 Make the smallest changes necessary to address accepted feedback.
 Do not rewrite unrelated rules.
+If the choice is between removing a plausible clause-supported rule or retaining it with narrower wording or clearer scope, prefer retaining and clarifying it.
+At this stage, overlap is generally less harmful than omission.
 
 For original rules:
 - use `keep` when the final rule remains substantively the same;
@@ -847,6 +851,8 @@ Apply accepted feedback about both:
 Preserve existing supported rules unless accepted feedback requires changing or removing them.
 Do not remove a rule unless you explicitly state why it is unsupported, duplicative, or out of scope.
 If a rule is unaffected by the accepted feedback, keep it in the revised ruleset.
+If the choice is between removing a plausible supported rule or keeping it with narrower wording, clearer scope, or clearer evidence, prefer keeping it.
+Do not over-merge or over-prune just to reduce repetition. Later aggregation may consolidate overlapping outputs.
 
 Later cycles are confirmation cycles, not fresh rewrites.
 After the first evaluator review, make the smallest changes necessary to resolve accepted feedback.
@@ -881,6 +887,9 @@ Focus on:
 - valid rules in the current draft that appear to have been removed, weakened, or omitted without support;
 - employee group, threshold, roster condition, span, spread, or clause-reference errors.
 - presentation issues that make the ruleset harder to review or implement, including duplicate bullets, unclear grouping, unclear employee scope, combined rules that should be split, split rules that should be combined, or missing clause references.
+
+If a rule is plausibly supported but imperfectly scoped, prefer asking for clarification, narrowing, or restructuring rather than recommending outright removal.
+At this stage, overlap is generally less harmful than omission.
 
 Return markdown only with this structure:
 

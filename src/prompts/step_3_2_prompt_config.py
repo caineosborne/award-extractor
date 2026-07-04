@@ -30,11 +30,13 @@ STEP_3_2_PROMPT_SUBSET_OVERRIDES: dict[str, dict[str, tuple[str, ...]]] = {
     OVERTIME_CREATION_RULESET: {
         "subset_scope_notes": (
             "Focus on circumstances that cause time to become overtime.",
+            "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },
     OVERTIME_CONSEQUENCE_RULESET: {
         "subset_scope_notes": (
             "Focus on what consequence applies after the time is already overtime.",
+            "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },
     PENALTIES_RULESET: {
@@ -43,6 +45,7 @@ STEP_3_2_PROMPT_SUBSET_OVERRIDES: dict[str, dict[str, tuple[str, ...]]] = {
             "Keep supporting break-gap rules even when they do not create a separate payment outcome, if the clause text makes them operationally relevant.",
             "Exclude overtime-only drafting drift unless the clause expressly states a penalties-specific rule that belongs in this subset.",
             "If a shortlisted clause is mixed, keep the penalties or break-gap component and do not require the final ruleset to restate standalone overtime triggers or overtime rates.",
+            "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },
 }

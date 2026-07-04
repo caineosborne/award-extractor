@@ -11,6 +11,8 @@ STEP_3_1_GENERIC_RULESET_LANGUAGE = """Generic interpretation rules:
 - Preserve every operative threshold, span, limit, boundary, exception, condition, and qualification supported by the cited clause text.
 - Do not collapse multiple operative rules from one clause into one vague summary.
 - Do not omit one operative rule from a clause merely because another rule from the same clause is already represented.
+- If the choice is between retaining a plausible clause-supported rule with some overlap or omitting it entirely, prefer retaining it.
+- Do not over-merge overlapping rules merely to reduce repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 - The unit of extraction is one operational rule that a payroll reviewer could read and implement.
 """.strip()
 

@@ -139,8 +139,11 @@ def resolve_overtime_clause_classification_path(
         canonical_path = overtime_clause_classification_output_path_for_classification(
             classification_path
         )
-        consequence_filename = "2_2_OT_consequence_clause_classification.json"
-        if selected_path.name == consequence_filename and canonical_path.exists():
+        legacy_overtime_filenames = {
+            "2_2_OT_creation_clause_classification.json",
+            "2_2_OT_consequence_clause_classification.json",
+        }
+        if selected_path.name in legacy_overtime_filenames and canonical_path.exists():
             return canonical_path
 
         return selected_path

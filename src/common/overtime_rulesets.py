@@ -46,7 +46,7 @@ OVERTIME_RULESET_CONFIGS = {
             "Ordinary Hours Boundary",
             "Overtime Trigger",
         ),
-        clause_classification_filename_stem="2_2_OT_creation_clause_classification",
+        clause_classification_filename_stem="2_2_OT_clause_classification",
         ruleset_filename_stem="3_1_OT_creation_ruleset",
         comparison_schema_name="overtime_creation_rule_comparison",
         interpretation_schema_name="overtime_creation_rules",
@@ -66,7 +66,7 @@ OVERTIME_RULESET_CONFIGS = {
             "Not Relevant",
         ),
         generation_classifications=("Overtime Consequence",),
-        clause_classification_filename_stem="2_2_OT_consequence_clause_classification",
+        clause_classification_filename_stem="2_2_OT_clause_classification",
         ruleset_filename_stem="3_1_OT_consequence_ruleset",
         comparison_schema_name="overtime_consequence_rule_comparison",
         interpretation_schema_name="overtime_consequence_rules",
@@ -103,6 +103,8 @@ def infer_overtime_ruleset_key_from_path(path: Path | str) -> str:
     stem = Path(path).stem
 
     if stem.startswith("2_2_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem == "2_2_OT_clause_classification":
         return OVERTIME_CREATION_RULESET
     if stem.startswith("3_1_OT_creation_"):
         return OVERTIME_CREATION_RULESET

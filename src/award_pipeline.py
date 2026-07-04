@@ -235,7 +235,7 @@ def run_step_2_2(
     require_existing(paths.classification_path, "2.2", "2.1")
     output_path = paths.overtime_clause_classification_path
     active_ruleset_key = OVERTIME_CREATION_RULESET
-    if ruleset_key is not None:
+    if ruleset_key == PENALTIES_RULESET:
         output_path = ruleset_clause_classification_output_path_for_classification(
             paths.classification_path,
             ruleset_key,
@@ -424,8 +424,17 @@ def run_default_pipeline(
     for step in SHARED_PIPELINE_STEPS:
         STEP_RUNNERS[step](paths)
 
+    seen_clause_classification_paths: set[Path] = set()
     for ruleset_key in deduplicate_preserving_order(ruleset_keys):
         for step in RULESET_SPECIFIC_STEPS:
+            if step == "2.2":
+                clause_classification_path = build_ruleset_step_paths(
+                    paths,
+                    ruleset_key,
+                ).clause_classification_path
+                if clause_classification_path in seen_clause_classification_paths:
+                    continue
+                seen_clause_classification_paths.add(clause_classification_path)
             STEP_RUNNERS[step](paths, ruleset_key)
 
 
@@ -435,7 +444,17 @@ def run_selected_ruleset_steps(
     ruleset_keys: list[str],
 ) -> None:
     """Run one ruleset-specific step for each selected ruleset."""
+    seen_clause_classification_paths: set[Path] = set()
+
     for ruleset_key in deduplicate_preserving_order(ruleset_keys):
+        if step == "2.2":
+            clause_classification_path = build_ruleset_step_paths(
+                paths,
+                ruleset_key,
+            ).clause_classification_path
+            if clause_classification_path in seen_clause_classification_paths:
+                continue
+            seen_clause_classification_paths.add(clause_classification_path)
         STEP_RUNNERS[step](paths, ruleset_key)
 
 
