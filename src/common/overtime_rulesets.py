@@ -11,6 +11,7 @@ from src.common.output_naming import (
 
 OVERTIME_CREATION_RULESET = "overtime_creation"
 OVERTIME_CONSEQUENCE_RULESET = "overtime_consequence"
+PENALTIES_RULESET = "penalties"
 
 
 @dataclass(frozen=True)
@@ -45,7 +46,7 @@ OVERTIME_RULESET_CONFIGS = {
             "Ordinary Hours Boundary",
             "Overtime Trigger",
         ),
-        clause_classification_filename_stem="2_2_OT_creation_clause_classification",
+        clause_classification_filename_stem="2_2_OT_clause_classification",
         ruleset_filename_stem="3_1_OT_creation_ruleset",
         comparison_schema_name="overtime_creation_rule_comparison",
         interpretation_schema_name="overtime_creation_rules",
@@ -65,13 +66,27 @@ OVERTIME_RULESET_CONFIGS = {
             "Not Relevant",
         ),
         generation_classifications=("Overtime Consequence",),
-        clause_classification_filename_stem="2_2_OT_consequence_clause_classification",
+        clause_classification_filename_stem="2_2_OT_clause_classification",
         ruleset_filename_stem="3_1_OT_consequence_ruleset",
         comparison_schema_name="overtime_consequence_rule_comparison",
         interpretation_schema_name="overtime_consequence_rules",
         clause_classification_schema_name="overtime_consequence_clause_classification",
         prompt_variant="consequence",
         review_question="What overtime consequence applies once hours are already overtime?",
+    ),
+    PENALTIES_RULESET: OvertimeRulesetConfig(
+        key=PENALTIES_RULESET,
+        display_name="Penalties",
+        source_tags=("Penalty", "Breaks (Between Work Periods)"),
+        allowed_classifications=("Penalty Rule",),
+        generation_classifications=("Penalty Rule",),
+        clause_classification_filename_stem="2_2_Penalties_clause_classification",
+        ruleset_filename_stem="3_1_Penalties_ruleset",
+        comparison_schema_name="penalties_rule_comparison",
+        interpretation_schema_name="penalties_rules",
+        clause_classification_schema_name="penalties_clause_classification",
+        prompt_variant="penalties",
+        review_question="What penalties or related break-between-work-period rules apply?",
     ),
 }
 
@@ -88,6 +103,8 @@ def infer_overtime_ruleset_key_from_path(path: Path | str) -> str:
     stem = Path(path).stem
 
     if stem.startswith("2_2_OT_creation_"):
+        return OVERTIME_CREATION_RULESET
+    if stem == "2_2_OT_clause_classification":
         return OVERTIME_CREATION_RULESET
     if stem.startswith("3_1_OT_creation_"):
         return OVERTIME_CREATION_RULESET
@@ -108,6 +125,17 @@ def infer_overtime_ruleset_key_from_path(path: Path | str) -> str:
         return OVERTIME_CONSEQUENCE_RULESET
     if stem.startswith("5_1_OT_consequence_"):
         return OVERTIME_CONSEQUENCE_RULESET
+
+    if stem.startswith("2_2_Penalties_"):
+        return PENALTIES_RULESET
+    if stem.startswith("3_1_Penalties_"):
+        return PENALTIES_RULESET
+    if stem.startswith("3_2_Penalties_"):
+        return PENALTIES_RULESET
+    if stem.startswith("4_1_Penalties_"):
+        return PENALTIES_RULESET
+    if stem.startswith("5_1_Penalties_"):
+        return PENALTIES_RULESET
 
     if stem.endswith("_overtime_creation_clause_classification"):
         return OVERTIME_CREATION_RULESET

@@ -323,7 +323,7 @@ def categorize_validation_warnings(
 
 def validation_section_for_warning(warning: str) -> str:
     """Classify a validation warning by business-review impact."""
-    if warning.startswith("Clause ") and "was identified as relevant to overtime" in warning:
+    if warning.startswith("Clause ") and "was identified as relevant to " in warning:
         return HIGH_IMPACT_VALIDATION_SECTION
 
     if warning.startswith("The comparison output did not account for every run "):

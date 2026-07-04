@@ -10,7 +10,12 @@ Use:
 
 ## Purpose
 
-The project turns award source material into reviewable overtime interpretation artifacts.
+The project turns award source material into reviewable payroll ruleset interpretation artifacts.
+
+The active rulesets are:
+- overtime creation;
+- overtime consequence;
+- penalties.
 
 It does not try to produce a payroll engine result in one step. Instead, it narrows the source material progressively and leaves an audit trail at each stage.
 
@@ -18,7 +23,7 @@ The active path is:
 
 1. Fetch and structure the award.
 2. Classify payment-relevant clauses.
-3. Classify overtime clauses, draft rulesets, and review the revised interpretation.
+3. Build one selected ruleset subset, draft rulesets, and review the revised interpretation.
 4. Format the reviewed ruleset for reviewer-facing output.
 5. Generate implementation-oriented pseudocode.
 
@@ -39,6 +44,23 @@ The governing design choices are:
 - each stage should have a narrow purpose;
 - each important stage should leave an artifact that can be reviewed independently;
 - later steps should preserve traceability back to earlier source clauses.
+
+From step `2.2` onward, the pipeline is ruleset-aware rather than overtime-only. One run works on one selected ruleset at a time:
+- `overtime_creation`
+- `overtime_consequence`
+- `penalties`
+
+## Prompt construction pattern
+
+The active LLM-backed steps use a layered prompt pattern so the shared business framing is reused consistently while the step-specific task stays narrow.
+
+Where a step uses an LLM, the prompt is split into:
+- generic prompt instructions used for that kind of payroll configuration task;
+- reusable ruleset checks shared by all prompts for the same ruleset;
+- prompt-specific instructions for the current step;
+- the current step payload, such as shortlisted clauses, a reviewed ruleset, or a rule inventory.
+
+This matters for penalties because the penalties ruleset now runs in parallel with the two overtime rulesets, but should not inherit overtime-only framing. The reusable penalties layer carries the shared penalties scope into every relevant downstream prompt.
 
 ## Step 1. Fetch and structure the award
 
@@ -77,7 +99,7 @@ Files:
 
 Purpose:
 - identify which top-level clauses are relevant to payment or definitional logic;
-- classify the direct `L2` clauses that matter for downstream overtime work.
+- classify the direct `L2` clauses that matter for downstream ruleset work.
 
 The unit of work is one top-level clause group at a time. This keeps model calls smaller and makes it easier to trace a result back to the source clause group that produced it.
 
@@ -139,17 +161,25 @@ If validation fails, the step fails.
 
 ### Why Step 2.1 exists
 
-This step narrows the award to the subset that is likely to matter for payment logic. It does not yet attempt to explain overtime.
+This step narrows the award to the subset that is likely to matter for payment logic. It does not yet attempt to draft any ruleset.
 
-## Step 2.2. Overtime clause classification
+## Step 2.2. Ruleset clause classification
 
 Files:
 - `src/step_2_2_classify_overtime_clauses/run.py`
 - `src/prompts/step_2_2_classify_overtime_clauses.py`
 
-This step is deterministic apart from the model call.
+This step selects one ruleset subset from the step-`2.1` output and writes a structured clause-classification artifact for that ruleset.
 
-It filters the step-2.1 classification output down to the clauses tagged `Ordinary Hours & Overtime`, then classifies those clauses into overtime-specific roles.
+For the overtime rulesets:
+- the step filters the step-`2.1` output down to clauses tagged `Ordinary Hours & Overtime`;
+- it then uses an LLM to classify those shortlisted clauses into overtime-specific roles.
+
+For the penalties ruleset:
+- the step filters the step-`2.1` output down to clauses tagged `Penalty` or `Breaks (Between Work Periods)`;
+- it then builds the penalties clause-classification artifact deterministically without an LLM call;
+- every shortlisted clause is saved as `Penalty Rule`;
+- employee cohort and work arrangement are still kept conservative by deriving them from express clause text rather than inventing narrow scope.
 
 The output is a structured clause-role classification artifact.
 
@@ -157,22 +187,34 @@ The scope-tagging design is intentionally conservative:
 - the prompt tells the model to use `day-worker` or `shiftworker` only where the clause expressly supports that label;
 - deterministic post-validation code normalises unsupported work-arrangement inferences back to `all`.
 
-This classification separates:
+For overtime creation and overtime consequence, this classification separates:
 - clauses that create overtime;
 - clauses that describe consequences after overtime already exists;
 - related clauses that give context but do not create overtime themselves.
 
-The step is validated so the downstream rule drafting step receives a narrow and reviewable source set.
+For penalties, the deterministic shortlist intentionally keeps both:
+- premium-pay rules such as shift allowances, weekend or public holiday penalties, and time-band penalties;
+- break-between-work-period rules, including supporting operational rules with no direct financial entitlement.
 
-## Step 3.1. Overtime ruleset generation
+The step is validated so the downstream rule drafting step receives a narrow and reviewable source set for the selected ruleset.
+
+## Step 3.1. Ruleset generation
 
 Files:
 - `src/step_3_1_generate_ruleset/run.py`
 - `src/prompts/step_3_1_generate_ruleset.py`
 
-This step generates the drafted overtime ruleset from the shortlisted step-2.2 clauses.
+This step generates the drafted ruleset from the shortlisted step-`2.2` clauses for the selected ruleset.
 
 The active pipeline uses two expert runs and a deterministic comparison/merge pass so that omissions and interpretive differences are visible in reviewable artifacts.
+
+For penalties, the drafting contract keeps these distinctions separate where supported by the source:
+- shift-commencement qualification rules;
+- shift-end qualification rules;
+- actual-hours qualification rules;
+- whole-shift outcomes;
+- specific-hours outcomes;
+- supporting break-gap rules with no direct premium outcome.
 
 The outputs are:
 - expert A draft;
@@ -190,25 +232,32 @@ This step reviews the drafted ruleset using structured evaluator and creator out
 
 The goal is not to silently replace the earlier ruleset. The goal is to make the changes explicit, keep the rule-by-rule record visible, and rebuild the revised artifact from structured decisions.
 
+For penalties, the review step should:
+- keep valid premium-pay rules;
+- keep valid supporting break-gap rules even where they do not create a direct payment outcome;
+- remove overtime-only drift unless the clause expressly creates a penalties-domain rule.
+
 The outputs are:
 - evaluator feedback markdown and JSON;
 - creator response markdown and JSON;
-- revised overtime interpretation markdown and JSON.
+- revised ruleset markdown and JSON.
 
-## Step 4.1. Formatted overtime guide
+## Step 4.1. Formatted ruleset guide
 
 Files:
 - `src/step_4_1_format_ruleset/run.py`
 - `src/prompts/step_4_1_format_ruleset.py`
 
 Purpose:
-- turn the revised interpretation artifact into a cleaner human-readable overtime guide;
+- turn the revised interpretation artifact into a cleaner human-readable ruleset guide;
 - prefer the revised step `3.2` interpretation when an award code is used;
 - use `resources/Templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
+
+For penalties, the formatter keeps supporting non-financial break-gap rules representable and uses penalties-specific headings instead of overtime headings.
 
 ## Step 4.9. Human review ruleset
 
@@ -223,18 +272,20 @@ Purpose:
 - keep that reviewed working file visible as a canonical artifact in the award folder;
 - provide the highest-priority source for step `5.1` when a human-reviewed version exists.
 
-## Step 5.1. Core overtime pseudocode
+## Step 5.1. Ruleset pseudocode
 
 Files:
 - `src/step_5_1_generate_pseudocode/run.py`
 - `src/step_5_1_generate_pseudocode/verification.py`
 
 Purpose:
-- generate implementation-oriented ordinary/overtime pseudocode from the latest available interpretation source;
+- generate implementation-oriented pseudocode from the latest available interpretation source for the selected ruleset;
 - prefer the step `4.9` human-review ruleset file, then `4.1`, then revised `3.2`, then the earlier reviewed interpretation;
 - validate the generated pseudocode deterministically against a rule inventory built from the source interpretation.
 
 This step mixes free-text generation with hard deterministic post-generation checks.
+
+For penalties, the pseudocode is not an ordinary-versus-overtime classifier. It instead produces explicit penalty-oriented outputs such as penalty category, multiplier, fixed add-on, whole-shift application, and supporting break-gap requirements where the reviewed rules support them.
 
 ## Technical detail boundary
 
@@ -258,6 +309,8 @@ The Streamlit review application is the main operator surface for:
 - inspecting the structured JSON artifacts and their warnings;
 - deleting an award output set under the award-first processed-output layout.
 
+It is also ruleset-aware for the active rulesets, so reviewers can load overtime creation, overtime consequence, or penalties artifacts through the same review flow.
+
 The Streamlit app is part of the working methodology because it is the review surface for generated artifacts.
 
 Its role is:
@@ -274,8 +327,8 @@ The easiest way to understand the system is:
 
 1. Step `1` creates a deterministic source record.
 2. Step `2.1` narrows the award to payment-relevant material.
-3. Step `2.2` classifies overtime-related clauses by role.
-4. Step `3.1` drafts the overtime ruleset.
+3. Step `2.2` builds the selected ruleset clause subset.
+4. Step `3.1` drafts the selected ruleset.
 5. Step `3.2` critiques and revises that draft with explicit rule-level decisions.
 6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
 7. Step `4.9` allows a human-reviewed ruleset working file to be saved when needed.

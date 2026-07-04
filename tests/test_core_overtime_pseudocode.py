@@ -20,7 +20,7 @@ from src.step_5_1_generate_pseudocode.deterministic import (
 from src.step_5_1_generate_pseudocode.run import (
     generate_core_overtime_pseudocode,
 )
-from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
 from src.step_5_1_generate_pseudocode.verification import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -103,6 +103,20 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
                 Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
+        )
+
+    def test_output_path_for_summary_supports_penalties_canonical_names(self):
+        self.assertEqual(
+            output_path_for_summary(
+                Path("data/processed/MA000018/3_2_Penalties_revised_ruleset.md")
+            ),
+            Path("data/processed/MA000018/5_1_Penalties_pseudocode.md"),
+        )
+        self.assertEqual(
+            output_path_for_summary(
+                Path("data/processed/MA000018/4_1_Penalties_formatted_ruleset.md")
+            ),
+            Path("data/processed/MA000018/5_1_Penalties_pseudocode.md"),
         )
 
     def test_overtime_rule_bullets_selects_only_overtime_labelled_rules(self):
@@ -216,6 +230,29 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             "Include exact source clause references in comments",
             messages[0]["content"],
         )
+
+    def test_build_messages_supports_penalties_ruleset_mode(self):
+        summary_markdown = (
+            "# Penalties\n\n"
+            "## Time-Band And Day-Based Penalties\n\n"
+            "- Saturday hours are paid at 125%. [14.1]\n"
+        )
+
+        messages = build_messages(
+            "summary.md",
+            summary_markdown,
+            ruleset_key=PENALTIES_RULESET,
+        )
+
+        self.assertIn(
+            "Determine what penalty, shift allowance, or supporting break-between-work-period rule applies",
+            messages[0]["content"],
+        )
+        self.assertIn("Penalty_Applies", messages[0]["content"])
+        self.assertIn("Public_Holiday_Indicator", messages[0]["content"])
+        self.assertIn("Previous_Shift_End", messages[0]["content"])
+        self.assertIn("Treat this as penalties mode.", messages[1]["content"])
+        self.assertIn("keep non-financial supporting break-gap rules", messages[1]["content"])
 
     def test_build_repair_messages_include_validation_report_and_initial_draft(self):
         summary_markdown = "# Overtime\n\n- Rule one. Clause **11.1(a)**."

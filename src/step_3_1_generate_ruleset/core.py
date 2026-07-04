@@ -31,6 +31,7 @@ from src.common.overtime_rules import (
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     OVERTIME_CONSEQUENCE_RULESET,
+    PENALTIES_RULESET,
     explicit_ruleset_output_path,
     overtime_ruleset_config,
 )
@@ -214,11 +215,12 @@ def scope_validation_warnings_for_rule(
 def missing_shortlisted_clause_warning(
     clause_number: str,
     *,
+    ruleset_subject_label: str,
     ruleset_label: str,
 ) -> str:
     """Return a reviewer-friendly warning when a shortlisted clause is missing."""
     return (
-        f"Clause {clause_number} was identified as relevant to overtime, "
+        f"Clause {clause_number} was identified as relevant to {ruleset_subject_label}, "
         f"but it is not present in the {ruleset_label}."
     )
 
@@ -230,7 +232,7 @@ def interpretation_output_path_for_source(
     """Return the default markdown interpretation path for step 3.1."""
     if ruleset_key == OVERTIME_CREATION_RULESET:
         return interpretation_output_path_for_classification(classification_path)
-    if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
+    if ruleset_key in {OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET}:
         return explicit_ruleset_output_path(classification_path, ruleset_key)
     raise ValueError(f"Unsupported overtime ruleset: {ruleset_key}")
 
@@ -334,6 +336,9 @@ def validate_interpretation_rules(
         "draft ruleset before review"
         if ruleset_key == OVERTIME_CREATION_RULESET
         else f"{config.display_name.lower()} ruleset"
+    )
+    missing_clause_subject_label = (
+        "overtime" if ruleset_key == OVERTIME_CREATION_RULESET else config.display_name.lower()
     )
     raw_rules = response_data.get("rules")
     if not isinstance(raw_rules, list):
@@ -444,6 +449,7 @@ def validate_interpretation_rules(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
+                ruleset_subject_label=missing_clause_subject_label,
                 ruleset_label=missing_clause_ruleset_label,
             )
         )
@@ -810,6 +816,11 @@ def compare_expert_interpretation_runs(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
+                ruleset_subject_label=(
+                    "overtime"
+                    if ruleset_key == OVERTIME_CREATION_RULESET
+                    else config.display_name.lower()
+                ),
                 ruleset_label=f"merged {config.display_name.lower()} expert comparison ruleset",
             )
         )

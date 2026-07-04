@@ -10,6 +10,7 @@ from src.common.overtime_rules import build_rule_inventory_from_rules
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     OVERTIME_CONSEQUENCE_RULESET,
+    PENALTIES_RULESET,
     infer_overtime_ruleset_key_from_path,
 )
 from src.common.active_pipeline_paths import looks_like_path
@@ -58,6 +59,8 @@ def entitlement_path_for_award(
         return award_dir / "4_1_OT_creation_formatted_ruleset.md"
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         return award_dir / "4_1_OT_consequence_formatted_ruleset.md"
+    if ruleset_key == PENALTIES_RULESET:
+        return award_dir / "4_1_Penalties_formatted_ruleset.md"
     return award_dir / "4_1_OT_creation_formatted_ruleset.md"
 
 
@@ -80,6 +83,14 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
             path.parent / "3_1_OT_consequence_ruleset.md",
         ]
 
+    if stem == "3_2_Penalties_revised_ruleset_manual":
+        return [
+            path,
+            path.parent / "4_1_Penalties_formatted_ruleset.md",
+            path.parent / "3_2_Penalties_revised_ruleset.md",
+            path.parent / "3_1_Penalties_ruleset.md",
+        ]
+
     if stem == "3_2_OT_creation_revised_ruleset":
         return [
             path.parent / "4_1_OT_creation_formatted_ruleset.md",
@@ -94,6 +105,13 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
             path.parent / "3_1_OT_consequence_ruleset.md",
         ]
 
+    if stem == "3_2_Penalties_revised_ruleset":
+        return [
+            path.parent / "4_1_Penalties_formatted_ruleset.md",
+            path,
+            path.parent / "3_1_Penalties_ruleset.md",
+        ]
+
     if stem == "4_1_OT_creation_formatted_ruleset":
         return [
             path,
@@ -106,6 +124,13 @@ def fallback_source_paths_for_path(path: Path) -> list[Path]:
             path,
             path.parent / "3_2_OT_consequence_revised_ruleset.md",
             path.parent / "3_1_OT_consequence_ruleset.md",
+        ]
+
+    if stem == "4_1_Penalties_formatted_ruleset":
+        return [
+            path,
+            path.parent / "3_2_Penalties_revised_ruleset.md",
+            path.parent / "3_1_Penalties_ruleset.md",
         ]
 
     return [path]
@@ -159,6 +184,17 @@ def default_overtime_interpretation_path(
         if revised_path.exists():
             return revised_path
         return award_dir / "3_1_OT_consequence_ruleset.md"
+    if ruleset_key == PENALTIES_RULESET:
+        manual_ruleset_path = award_dir / "3_2_Penalties_revised_ruleset_manual.md"
+        if manual_ruleset_path.exists():
+            return manual_ruleset_path
+        entitlement_path = entitlement_path_for_award(award_code, ruleset_key)
+        if entitlement_path.exists():
+            return entitlement_path
+        revised_path = award_dir / "3_2_Penalties_revised_ruleset.md"
+        if revised_path.exists():
+            return revised_path
+        return award_dir / "3_1_Penalties_ruleset.md"
     manual_ruleset_path = award_dir / "3_2_OT_creation_revised_ruleset_manual.md"
     if manual_ruleset_path.exists():
         return manual_ruleset_path
@@ -181,17 +217,25 @@ def source_stage_for_path(path: Path) -> str:
         return "manual"
     if stem == "3_2_OT_consequence_revised_ruleset_manual":
         return "manual"
+    if stem == "3_2_Penalties_revised_ruleset_manual":
+        return "manual"
     if stem == "4_1_OT_creation_formatted_ruleset":
         return "4.1"
     if stem == "4_1_OT_consequence_formatted_ruleset":
+        return "4.1"
+    if stem == "4_1_Penalties_formatted_ruleset":
         return "4.1"
     if stem == "3_2_OT_creation_revised_ruleset":
         return "3.2"
     if stem == "3_2_OT_consequence_revised_ruleset":
         return "3.2"
+    if stem == "3_2_Penalties_revised_ruleset":
+        return "3.2"
     if stem == "3_1_OT_creation_ruleset":
         return "3.1"
     if stem == "3_1_OT_consequence_ruleset":
+        return "3.1"
+    if stem == "3_1_Penalties_ruleset":
         return "3.1"
     return "unknown"
 
@@ -238,19 +282,26 @@ def output_path_for_summary(summary_path: Path | str) -> Path:
         return path.with_name("5_1_OT_creation_pseudocode.md")
     if stem == "3_2_OT_consequence_revised_ruleset_manual":
         return path.with_name("5_1_OT_consequence_pseudocode.md")
+    if stem == "3_2_Penalties_revised_ruleset_manual":
+        return path.with_name("5_1_Penalties_pseudocode.md")
     if stem == "4_1_OT_creation_formatted_ruleset":
         return path.with_name("5_1_OT_creation_pseudocode.md")
     if stem == "4_1_OT_consequence_formatted_ruleset":
         return path.with_name("5_1_OT_consequence_pseudocode.md")
+    if stem == "4_1_Penalties_formatted_ruleset":
+        return path.with_name("5_1_Penalties_pseudocode.md")
     if stem == "3_2_OT_creation_revised_ruleset":
         return path.with_name("5_1_OT_creation_pseudocode.md")
     if stem == "3_2_OT_consequence_revised_ruleset":
         return path.with_name("5_1_OT_consequence_pseudocode.md")
+    if stem == "3_2_Penalties_revised_ruleset":
+        return path.with_name("5_1_Penalties_pseudocode.md")
     raise CoreOvertimePseudocodeError(
         "Step 5.1 expects a canonical source path such as "
         "`3_2_OT_creation_revised_ruleset.md`, "
         "`3_2_OT_creation_revised_ruleset_manual.md`, or "
-        "`4_1_OT_creation_formatted_ruleset.md`."
+        "`4_1_OT_creation_formatted_ruleset.md`. "
+        "Penalties canonical paths are also supported."
     )
 
 

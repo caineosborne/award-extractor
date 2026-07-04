@@ -7,6 +7,7 @@ from src.award_pipeline import (
     DEFAULT_PIPELINE_STEPS,
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     build_paths,
     main,
     output_stem_for_award,
@@ -32,16 +33,16 @@ def test_parse_args_defaults_to_active_pipeline_through_5_1():
 
 
 def test_parse_args_accepts_ruleset_subset_ids():
-    args = parse_args(["MA000018", "3.1", "--subset", "2", "1", "2"])
+    args = parse_args(["MA000018", "3.1", "--subset", "3", "2", "1", "2"])
 
     assert args.award_code == "MA000018"
     assert args.step == "3.1"
-    assert args.subset == ["2", "1", "2"]
+    assert args.subset == ["3", "2", "1", "2"]
 
 
 def test_parse_args_rejects_invalid_ruleset_subset_id():
     try:
-        parse_args(["MA000018", "--subset", "3"])
+        parse_args(["MA000018", "--subset", "4"])
     except SystemExit as exc:
         assert exc.code == 2
     else:
@@ -53,7 +54,8 @@ def test_resolve_cli_ruleset_keys_defaults_to_all_rulesets():
 
 
 def test_resolve_cli_ruleset_keys_deduplicates_and_preserves_order():
-    assert resolve_cli_ruleset_keys(["2", "1", "2"]) == [
+    assert resolve_cli_ruleset_keys(["3", "2", "1", "2"]) == [
+        PENALTIES_RULESET,
         OVERTIME_CONSEQUENCE_RULESET,
         OVERTIME_CREATION_RULESET,
     ]
@@ -69,7 +71,7 @@ def test_build_paths_covers_step_5_1_artifacts():
     assert paths.output_stem == output_stem_for_award("MA000018", "draft")
     assert paths.classification_path.name == "2_1_payment_classification.json"
     assert paths.overtime_clause_classification_path.name == (
-        "2_2_OT_creation_clause_classification.json"
+        "2_2_OT_clause_classification.json"
     )
     assert paths.evaluator_feedback_path.name == (
         "3_2_OT_creation_review.md"
@@ -133,16 +135,17 @@ def test_main_runs_selected_active_step():
 
 def test_main_allows_ruleset_subset_for_shared_step_without_changing_shared_artifact_contract():
     with patch("src.award_pipeline.run_selected_step") as run_selected_step_mock:
-        main(["MA000018", "2.2", "--subset", "1", "2"])
+        main(["MA000018", "2.2", "--subset", "1", "2", "3"])
 
     passed_paths, passed_step, passed_ruleset_keys = run_selected_step_mock.call_args.args
     assert passed_step == "2.2"
     assert passed_ruleset_keys == [
         OVERTIME_CREATION_RULESET,
         OVERTIME_CONSEQUENCE_RULESET,
+        PENALTIES_RULESET,
     ]
     assert passed_paths.overtime_clause_classification_path.name == (
-        "2_2_OT_creation_clause_classification.json"
+        "2_2_OT_clause_classification.json"
     )
 
 
@@ -169,6 +172,35 @@ def test_run_step_2_2_uses_step_2_1_output_and_writes_step_2_2_artifact():
     run_step_mock.assert_called_once_with(
         classification_path=paths.classification_path,
         output_path=paths.overtime_clause_classification_path,
+        ruleset_key=OVERTIME_CREATION_RULESET,
+    )
+
+
+def test_run_step_2_2_supports_penalties_ruleset_artifact_path():
+    paths = build_paths(
+        award_code="MA000018",
+        suffix=None,
+        url="https://awards.fairwork.gov.au/MA000018.html",
+    )
+
+    with patch("src.award_pipeline.require_existing") as require_existing_mock:
+        with patch(
+            "src.award_pipeline.run_step_2_2_classify_overtime_clauses"
+        ) as run_step_mock:
+            from src.award_pipeline import run_step_2_2
+
+            run_step_2_2(paths, PENALTIES_RULESET)
+
+    require_existing_mock.assert_called_once_with(
+        paths.classification_path,
+        "2.2",
+        "2.1",
+    )
+    run_step_mock.assert_called_once_with(
+        classification_path=paths.classification_path,
+        output_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/2_2_Penalties_clause_classification.json"),
+        ruleset_key=PENALTIES_RULESET,
     )
 
 
@@ -237,14 +269,20 @@ def test_run_step_3_1_supports_consequence_ruleset_artifact_paths():
 
     assert require_existing_mock.call_args_list == [
         ((paths.classification_path, "3.1", "2.1"),),
-        ((paths.overtime_clause_classification_path, "3.1", "2.2"),),
+        ((
+            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
+            "3.1",
+            "2.2",
+        ),),
     ]
     generate_ruleset_mock.assert_called_once_with(
         classification_path=paths.classification_path,
         output_path=paths.revised_interpretation_path.with_name(
             "3_1_OT_consequence_ruleset.md"
         ),
-        classification_output_path=paths.overtime_clause_classification_path,
+        classification_output_path=PROJECT_ROOT / Path(
+            "data/processed/MA000018/2_2_OT_clause_classification.json"
+        ),
         expert_run_count=2,
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )
@@ -347,7 +385,7 @@ def test_run_default_pipeline_with_rulesets_runs_shared_steps_once_then_ruleset_
     fake_step_runners = {
         "1": lambda current_paths: calls.append(("1", None)),
         "2.1": lambda current_paths: calls.append(("2.1", None)),
-        "2.2": lambda current_paths: calls.append(("2.2", None)),
+        "2.2": lambda current_paths, ruleset_key=None: calls.append(("2.2", ruleset_key)),
         "3.1": lambda current_paths, ruleset_key=None: calls.append(("3.1", ruleset_key)),
         "3.2": lambda current_paths, ruleset_key=None: calls.append(("3.2", ruleset_key)),
         "4.1": lambda current_paths, ruleset_key=None: calls.append(("4.1", ruleset_key)),
@@ -366,7 +404,7 @@ def test_run_default_pipeline_with_rulesets_runs_shared_steps_once_then_ruleset_
     assert calls == [
         ("1", None),
         ("2.1", None),
-        ("2.2", None),
+        ("2.2", OVERTIME_CREATION_RULESET),
         ("3.1", OVERTIME_CREATION_RULESET),
         ("3.2", OVERTIME_CREATION_RULESET),
         ("4.1", OVERTIME_CREATION_RULESET),
@@ -403,7 +441,7 @@ def test_run_selected_step_runs_ruleset_specific_step_for_selected_rulesets():
     ]
 
 
-def test_run_selected_step_ignores_ruleset_list_for_shared_step():
+def test_run_selected_step_runs_ruleset_specific_step_for_step_2_2():
     paths = build_paths(
         award_code="MA000018",
         suffix=None,
@@ -412,13 +450,13 @@ def test_run_selected_step_ignores_ruleset_list_for_shared_step():
     calls: list[tuple[object, ...]] = []
 
     fake_step_runners = {
-        "2.2": lambda current_paths: calls.append((current_paths,))
+        "2.2": lambda current_paths, ruleset_key=None: calls.append((current_paths, ruleset_key))
     }
 
     with patch.dict("src.award_pipeline.STEP_RUNNERS", fake_step_runners, clear=True):
         run_selected_step(paths, "2.2", [OVERTIME_CONSEQUENCE_RULESET])
 
-    assert calls == [(paths,)]
+    assert calls == [(paths, OVERTIME_CONSEQUENCE_RULESET)]
 
 
 def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
@@ -436,7 +474,11 @@ def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
 
     assert require_existing_mock.call_args_list == [
         ((paths.classification_path, "3.1", "2.1"),),
-        ((paths.overtime_clause_classification_path, "3.1", "2.2"),),
+        ((
+            PROJECT_ROOT / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
+            "3.1",
+            "2.2",
+        ),),
     ]
     generate_ruleset_mock.assert_called_once_with(
         classification_path=paths.classification_path,
@@ -444,7 +486,8 @@ def test_run_step_3_1_with_explicit_ruleset_uses_ruleset_specific_paths():
         / Path(
             "data/processed/MA000018/3_1_OT_consequence_ruleset.md"
         ),
-        classification_output_path=paths.overtime_clause_classification_path,
+        classification_output_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/2_2_OT_clause_classification.json"),
         expert_run_count=2,
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )
@@ -469,7 +512,7 @@ def test_run_step_5_1_with_explicit_ruleset_uses_ruleset_specific_outputs():
         "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
-        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
+        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/4_1_OT_consequence_formatted_ruleset.md"),
         output_path=PROJECT_ROOT / Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )

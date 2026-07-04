@@ -14,6 +14,7 @@ from typing import Any
 
 from src.award_pipeline import (
     AwardPipelineError,
+    RULESET_SPECIFIC_STEPS,
     build_paths,
     run_default_pipeline,
     run_selected_step,
@@ -196,6 +197,35 @@ def progress_value(completed_steps: int, total_steps: int) -> float:
     return min(max(completed_steps / total_steps, 0.0), 1.0)
 
 
+def artifact_exists(path: Any) -> bool:
+    """Return whether one artifact path exists, treating non-path test sentinels as missing."""
+    return isinstance(path, Path) and path.exists()
+
+
+def step_output_exists(
+    *,
+    award_code: str,
+    paths: Any,
+    step_id: str,
+    ruleset_key: str | None,
+) -> bool:
+    """Return whether the selected full-run step has already produced its output."""
+    if step_id == "1":
+        return artifact_exists(getattr(paths, "award_json_path", None))
+
+    if step_id == "2.1":
+        return artifact_exists(getattr(paths, "classification_path", None))
+
+    if step_id == "2.2":
+        if ruleset_key is None:
+            return artifact_exists(getattr(paths, "overtime_clause_classification_path", None))
+
+        ruleset_artifacts = ruleset_artifact_paths_for_award(award_code, ruleset_key)
+        return artifact_exists(getattr(ruleset_artifacts, "clause_classification", None))
+
+    return False
+
+
 def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelinePlannedStep]:
     """Return the planned execution steps for one requested run."""
     if step is None:
@@ -227,6 +257,34 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
         return [PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step")]
 
     return [PipelinePlannedStep(step, PIPELINE_STEP_LABELS[step], "selected_step")]
+
+
+def filtered_pipeline_steps_for_run(
+    *,
+    award_code: str,
+    source_type: str,
+    step: str | None,
+    paths: Any,
+    ruleset_key: str | None,
+) -> list[PipelinePlannedStep]:
+    """Return planned steps, skipping reusable shared artifacts for full app runs."""
+    planned_steps = pipeline_steps_for_run(source_type, step)
+    if step is not None:
+        return planned_steps
+
+    filtered_steps: list[PipelinePlannedStep] = []
+
+    for planned_step in planned_steps:
+        if step_output_exists(
+            award_code=award_code,
+            paths=paths,
+            step_id=planned_step.step_id,
+            ruleset_key=ruleset_key,
+        ):
+            continue
+        filtered_steps.append(planned_step)
+
+    return filtered_steps
 
 
 def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] | None:
@@ -267,7 +325,13 @@ def run_pipeline_for_award(
         url = ""
     paths = build_paths(award_code, suffix=None, url=url)
     artifact_paths = artifact_paths_for_award(award_code)
-    planned_steps = pipeline_steps_for_run(str(source_record["source_type"]), step)
+    planned_steps = filtered_pipeline_steps_for_run(
+        award_code=award_code,
+        source_type=str(source_record["source_type"]),
+        step=step,
+        paths=paths,
+        ruleset_key=ruleset_key,
+    )
     output_buffer = StringIO()
     error_buffer = StringIO()
     started_at = time.perf_counter()
@@ -286,6 +350,9 @@ def run_pipeline_for_award(
 
     try:
         with redirect_stdout(output_writer), redirect_stderr(error_writer):
+            if not planned_steps:
+                print("No pipeline steps needed. Reusing existing shared artifacts.")
+
             for step_index, planned_step in enumerate(planned_steps, start=1):
                 active_step = planned_step
 
@@ -338,6 +405,7 @@ def run_pipeline_for_award(
                             f"{artifact_paths.overtime_entitlements}"
                         )
                 else:
+                    selected_ruleset_keys = [ruleset_key] if ruleset_key is not None else None
                     if planned_step.step_id == "3.1" and ruleset_key is not None:
                         generate_overtime_ruleset(
                             classification_path=paths.classification_path,
@@ -380,6 +448,15 @@ def run_pipeline_for_award(
                         print(
                             "Core overtime pseudocode saved to "
                             f"{ruleset_artifacts.pseudocode_markdown}"
+                        )
+                    elif (
+                        ruleset_key is not None
+                        and planned_step.step_id in RULESET_SPECIFIC_STEPS
+                    ):
+                        run_selected_step(
+                            paths,
+                            planned_step.step_id,
+                            selected_ruleset_keys,
                         )
                     else:
                         run_selected_step(paths, planned_step.step_id)

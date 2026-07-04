@@ -19,6 +19,7 @@ from src.common.output_paths import (
 )
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
+    explicit_clause_classification_output_path,
     explicit_ruleset_output_path,
 )
 
@@ -76,11 +77,8 @@ def ruleset_clause_classification_output_path_for_classification(
     classification_path: Path | str,
     ruleset_key: str,
 ) -> Path:
-    """Return the canonical clause-classification path shared by all rulesets."""
-    del ruleset_key
-    return overtime_clause_classification_output_path_for_classification(
-        classification_path
-    )
+    """Return the canonical clause-classification path for one explicit ruleset."""
+    return explicit_clause_classification_output_path(classification_path, ruleset_key)
 
 
 def award_code_from_interpretation_path(interpretation_path: Path | str) -> str:
@@ -141,8 +139,11 @@ def resolve_overtime_clause_classification_path(
         canonical_path = overtime_clause_classification_output_path_for_classification(
             classification_path
         )
-        consequence_filename = "2_2_OT_consequence_clause_classification.json"
-        if selected_path.name == consequence_filename and canonical_path.exists():
+        legacy_overtime_filenames = {
+            "2_2_OT_creation_clause_classification.json",
+            "2_2_OT_consequence_clause_classification.json",
+        }
+        if selected_path.name in legacy_overtime_filenames and canonical_path.exists():
             return canonical_path
 
         return selected_path

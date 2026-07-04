@@ -19,17 +19,26 @@ def load_step_2_classification(classification_path: Path | str) -> dict[str, Any
     return load_classification(classification_path)
 
 
-def select_overtime_source_clauses(data: Mapping[str, Any]) -> dict[str, Any]:
-    """Keep only the clauses relevant to overtime ruleset drafting."""
-    overtime_clauses = select_ruleset_related_clauses(data)
+def select_overtime_source_clauses(
+    data: Mapping[str, Any],
+    ruleset_key: str,
+) -> dict[str, Any]:
+    """Keep only the clauses relevant to one ruleset draft."""
+    overtime_clauses = select_ruleset_related_clauses(data, ruleset_key)
     if not overtime_clauses:
         raise OvertimeInterpretationError(
-            "No overtime source clauses were found in step 2 output."
+            "No ruleset source clauses were found in step 2 output."
         )
 
     return overtime_clauses
 
 
-def output_path_for_classification(classification_path: Path | str) -> Path:
+def output_path_for_classification(
+    classification_path: Path | str,
+    ruleset_key: str,
+) -> Path:
     """Return the canonical step-2.2 output path for one step-2.1 input."""
-    return overtime_clause_classification_path_for_source(classification_path)
+    return overtime_clause_classification_path_for_source(
+        classification_path,
+        ruleset_key,
+    )

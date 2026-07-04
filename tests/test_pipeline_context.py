@@ -19,7 +19,7 @@ def test_build_active_pipeline_context_covers_current_artifacts():
     assert context.classification_path.name == "2_1_payment_classification.json"
     assert (
         context.overtime_clause_classification_path.name
-        == "2_2_OT_creation_clause_classification.json"
+        == "2_2_OT_clause_classification.json"
     )
     assert context.interpretation_path.name == "3_1_OT_creation_ruleset.md"
     assert (

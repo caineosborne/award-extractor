@@ -8,6 +8,7 @@ from typing import Any
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
     overtime_ruleset_config,
 )
 from src.prompts.shared_overtime_clause_classification import (
@@ -21,20 +22,29 @@ from src.prompts.overtime_common_prompt_blocks import (
 from src.prompts.step_2_1_classify_payments import DEFINITIONS, TAG_DEFINITIONS
 
 
-CLAUSE_CLASSIFICATION_SHARED_SYSTEM_PROMPT = f"""You classify Australian modern award clauses for payroll implementation.
+CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT = """You classify Australian modern award clauses for payroll implementation.
+
+Analyse the provided award clauses carefully and conservatively.
+
+Do not invent rules.
+
+Do not calculate dollar amounts.
+
+Keep clause references visible.
+"""
+
+
+CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE = f"""Shared classification glossary:
 
 Use the shared classifier glossary and tag definitions below:
 {DEFINITIONS}
 
 {TAG_DEFINITIONS}
 
-Task:
-- Use only the supplied clauses tagged Ordinary Hours & Overtime.
+Shared classification rules:
+- Use only the supplied clauses selected for this ruleset subset from step 2.1.
 - Classify every supplied clause into one or more categories.
 - Return one primary classification and the complete list of applicable classifications.
-- Keep clause references visible.
-- Do not invent rules.
-- Do not calculate dollar amounts.
 - Explain each classification in one sentence.
 - Classify the operative clause text that is actually supplied, not the heading you expect.
 - Be conservative: do not label a clause as a trigger or consequence unless the text supports that label.
@@ -44,6 +54,8 @@ Shared categories:
 
 Shared decision rules:
 - A clause can carry more than one classification when it genuinely does more than one thing.
+- If a clause plausibly contributes to this ruleset and the text supports that contribution, prefer inclusion with a conservative classification and explanation rather than exclusion.
+- Do not exclude a clause merely because another clause appears to cover similar ground. Overlap can be resolved later; missed clause coverage is harder to recover.
 - Use `Overtime Consequence` only where the clause text tells the payroll system what result applies once overtime already exists, such as a multiplier, minimum payment, TOIL option, paid rest outcome, allowance consequence, or other post-overtime entitlement.
 - Do not use `Overtime Consequence` merely because the clause says hours "will be paid at overtime rates" as part of explaining when the hours become overtime. In that case the clause is usually primarily an `Overtime Trigger`, even if it also carries a secondary consequence label.
 - Use `Related Rule` for supporting clauses that affect interpretation context, procedure, or surrounding conditions, but that do not themselves create overtime and do not themselves state the post-overtime outcome.
@@ -55,6 +67,22 @@ Primary classification rules:
 """
 
 
+CLAUSE_CLASSIFICATION_TOPIC_LANGUAGE = {
+    OVERTIME_CREATION_RULESET: """Overtime creation clause-classification rules:
+- Classify the shortlisted clauses for what causes overtime, not how overtime is ultimately paid.
+- Keep the language definitive, concrete, and implementation-oriented.
+""",
+    OVERTIME_CONSEQUENCE_RULESET: """Overtime consequence clause-classification rules:
+- Classify the shortlisted clauses for what happens after overtime already exists.
+- Keep the language definitive, concrete, and implementation-oriented.
+""",
+    PENALTIES_RULESET: """Penalties clause-classification rules:
+- Classify the shortlisted clauses for penalty rates, shift allowances, and break-between-work-period rules in the penalties subset.
+- Keep the language definitive, concrete, and implementation-oriented.
+""",
+}
+
+
 CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
     OVERTIME_CREATION_RULESET: """Important:
 - Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
@@ -62,6 +90,7 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - A clause can be both Overtime Trigger and Overtime Consequence.
 - If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
+- If a clause plausibly helps determine when hours become overtime, prefer keeping it in scope with an explicit explanation rather than excluding it too aggressively.
 - Consequence handling is deferred for this ruleset, but consequence clauses should still be classified accurately.
 """,
     OVERTIME_CONSEQUENCE_RULESET: """Important:
@@ -70,13 +99,51 @@ CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
 - Include clauses that define overtime rates, minimum payments, time off instead of overtime payment, rest-after-overtime outcomes, or other direct overtime consequences.
 - Do not treat a clause as an overtime consequence merely because it helps define ordinary hours.
 - Boundary and trigger labels can still be used when they genuinely appear in the clause, but consequence handling is the focus for this ruleset.
+- If a clause plausibly contains an overtime consequence and the text supports that reading, prefer including it with a careful explanation rather than excluding it because the clause is mixed.
+""",
+    PENALTIES_RULESET: """Important:
+- This ruleset is identifying penalty rates, shift allowances, and break-between-work-period rules that are relevant to the penalties subset.
+- For the penalties subset, downstream handling is deterministic and all shortlisted clauses are treated as `Penalty Rule`.
+- Focus on whether the clause is relevant to additional payment outcomes based on when work is performed, or to supporting break-gap and broken-shift conditions that remain in scope for penalties even without a direct premium outcome.
+- Keep whole-shift qualification rules, specific-hours rules, day-type rules, and supporting break-gap rules in scope when the clause text supports them.
+- Do not treat a clause as relevant to this subset merely because it describes overtime creation or an overtime-only consequence.
+- If a clause plausibly contains a penalties-domain rule and the text supports it, prefer inclusion over exclusion. Duplication can be handled later; missing coverage should be avoided.
 """,
 }
 
 
-CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE = """Using the Ordinary Hours & Overtime clauses below, classify every listed clause for the `{ruleset_label}` ruleset.
+CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS = {
+    OVERTIME_CREATION_RULESET: """Using the selected subset clauses below, classify every listed clause for the `{ruleset_label}` ruleset.""",
+    OVERTIME_CONSEQUENCE_RULESET: """Using the selected subset clauses below, classify every listed clause for the `{ruleset_label}` ruleset.""",
+    PENALTIES_RULESET: """Using the selected subset clauses below, classify every listed clause for the `{ruleset_label}` ruleset.""",
+}
 
-For each clause return:
+
+def _build_step_2_2_user_prompt(
+    *,
+    variant_prompt: str,
+    topic_language: str,
+    ruleset_question_block: str,
+    clauses_text: str,
+    variant_instructions: str,
+) -> str:
+    return (
+        f"{variant_prompt}\n\n"
+        "Generic prompt instructions:\n\n"
+        f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
+        f"{CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE}\n\n"
+        f"{topic_language}\n\n"
+        "Reusable ruleset checks:\n\n"
+        f"{ruleset_question_block}\n\n"
+        "Prompt-specific ruleset instructions:\n\n"
+        f"{variant_instructions}\n\n"
+        "Clauses:\n\n"
+        f"{clauses_text}"
+    )
+
+
+CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT = """For each clause return:
+
 - clause_number
 - classification: the primary classification for the clause
 - classifications: all applicable classifications for the clause
@@ -85,18 +152,6 @@ For each clause return:
 - employee_cohort
 - work_arrangement
 - other_scope_notes
-
-Clauses:
-
-{clauses_text}
-
-Reusable ruleset checks:
-
-{ruleset_question_block}
-
-Prompt-specific ruleset instructions:
-
-{variant_instructions}
 """.strip()
 
 
@@ -125,15 +180,23 @@ def build_clause_classification_messages(
 ) -> list[dict[str, str]]:
     """Build the prompt messages for step 2.2 clause classification."""
     config = overtime_ruleset_config(ruleset_key)
+    clauses_text = format_clauses_for_prompt(overtime_clauses)
     return [
-        {"role": "system", "content": CLAUSE_CLASSIFICATION_SHARED_SYSTEM_PROMPT},
+        {"role": "system", "content": CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": CLAUSE_CLASSIFICATION_USER_PROMPT_TEMPLATE.format(
-                ruleset_label=config.display_name.lower(),
-                clauses_text=format_clauses_for_prompt(overtime_clauses),
-                variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
+            "content": _build_step_2_2_user_prompt(
+                variant_prompt=(
+                    CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS[ruleset_key].format(
+                        ruleset_label=config.display_name.lower()
+                    )
+                    + "\n\n"
+                    + CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT
+                ),
+                topic_language=CLAUSE_CLASSIFICATION_TOPIC_LANGUAGE[ruleset_key],
                 ruleset_question_block=common_overtime_question_block(ruleset_key),
+                clauses_text=clauses_text,
+                variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
             ),
         },
     ]

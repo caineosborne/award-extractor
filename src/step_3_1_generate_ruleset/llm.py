@@ -293,6 +293,11 @@ def compare_expert_interpretation_runs(
         validation_warnings.append(
             missing_shortlisted_clause_warning(
                 clause_number,
+                ruleset_subject_label=(
+                    "overtime"
+                    if ruleset_key == OVERTIME_CREATION_RULESET
+                    else config.display_name.lower()
+                ),
                 ruleset_label=f"merged {config.display_name.lower()} expert comparison ruleset",
             )
         )

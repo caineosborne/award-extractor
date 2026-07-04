@@ -9,6 +9,7 @@ from __future__ import annotations
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
     OVERTIME_CREATION_RULESET,
+    PENALTIES_RULESET,
 )
 from src.common.rule_inventory import RuleInventory, render_inventory_for_prompt
 from src.prompts.overtime_common_prompt_blocks import (
@@ -26,11 +27,17 @@ PSEUDOCODE_FIELDS = {
     "Roster_Start": "The time the employees is rostered to start work.",
     "Roster_End": "The time the employee is rostered to end work.",
     "Day_of_Week": "The day of the week for the shift date.",
+    "Public_Holiday_Indicator": "Whether the shift or relevant hours fall on a public holiday.",
+    "Previous_Shift_End": "The end time of the employee's previous shift or work period.",
+    "Roster_Changeover_Indicator": "Whether the minimum-break test is being assessed after a roster changeover.",
     "Employee Type - Shift Worker/Day Worker": (
         "Whether the employee is classified as a shift worker or day worker."
     ),
     "Employee Type - Full Time/PartTime/Casual": (
         "Whether the employee is full-time, part-time, or casual."
+    ),
+    "Shift_Worker_Status": (
+        "Whether the employee qualifies as a shift worker for rules that only apply to shift workers."
     ),
     "Unallocated_Hours": (
         "The hours in the shift that have not yet been allocated by another clause."
@@ -157,6 +164,42 @@ PSEUDOCODE_RULESET_VARIANTS = {
             "drift into classifying ordinary versus overtime hours unless a source rule "
             "expressly requires that condition. Keep the output structured and "
             "configuration-oriented."
+        ),
+    },
+    PENALTIES_RULESET: {
+        "goal": """- Convert the supplied reviewed penalties guide into bullet-point pseudocode.
+- Determine what penalty, shift allowance, or supporting break-between-work-period rule applies based on when the employee works.
+- Do not classify ordinary hours versus overtime hours as the primary task in this mode.
+- Focus on explicit penalty outputs such as multipliers, fixed hourly add-ons, whole-shift application flags, supporting break-gap requirements, and paid-release consequences where supported by the reviewed rules.""",
+        "ruleset_constraints": """- Use explicit outputs such as `Penalty_Applies`, `Penalty_Category`, `Penalty_Rate_Multiplier`, `Penalty_Fixed_Add_On_Per_Hour`, `Penalty_Applies_To_Entire_Shift`, `Minimum_Break_Between_Shifts_Required`, `Paid_Release_Required`, or similarly direct fields when supported by the rules.
+- Distinguish whole-shift qualification rules from rules that apply only to qualifying hours.
+- Distinguish shift commencement tests from shift end tests and from actual-hours tests.
+- Keep employee cohort and arrangement checks only where the reviewed rules genuinely require them.
+- Supporting non-financial break-gap rules may appear as operational checks or implementation notes. Do not invent a premium payment where the reviewed rule does not state one.
+- Prefer direct condition/output statements over explanatory prose.""",
+        "required_markdown_structure": """# Penalties pseudocode
+
+## Derived Fields
+
+## Required additional inputs
+
+## Rule priority
+
+## Pseudocode
+
+## Implementation notes""",
+        "user_instructions": (
+            "Treat this as penalties mode. Determine the correct penalty, shift allowance, "
+            "or supporting break-between-work-period rule based on when the employee works. "
+            "Use structured English and pseudocode with explicit data points, conditions, "
+            "and outputs. Produce explicit penalties outputs rather than ordinary/overtime "
+            "hour classification, and keep non-financial supporting break-gap rules where supported."
+        ),
+        "repair_instructions": (
+            "Keep this in penalties mode. Repair the pseudocode so it applies the correct "
+            "penalty, shift allowance, or supporting break-between-work-period rule without "
+            "falling back to overtime creation logic. Preserve explicit penalties outputs and "
+            "keep non-financial supporting rules where the reviewed rules support them."
         ),
     },
 }
