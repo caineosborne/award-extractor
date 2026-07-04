@@ -1,6 +1,6 @@
 # Award Extractor
 
-This project produces audit-readable overtime interpretation artifacts from Australian modern awards.
+This project produces audit-readable payroll ruleset interpretation artifacts from Australian modern awards.
 
 Keep this file as the short entry point. The detailed documentation now lives in:
 
@@ -14,11 +14,16 @@ The current default pipeline is:
 
 1. `1` = fetch and structure the award. This combines phases `1.1` and `1.2`.
 2. `2.1` = classify payment-relevant clauses.
-3. `2.2` = classify overtime-relevant clauses.
-4. `3.1` = generate the overtime ruleset.
+3. `2.2` = build the selected ruleset clause subset.
+4. `3.1` = generate the selected ruleset.
 5. `3.2` = review and revise the ruleset.
 6. `4.1` = format the ruleset.
 7. `5.1` = generate pseudocode.
+
+From step `2.2` onward, the active rulesets are:
+- overtime creation
+- overtime consequence
+- penalties
 
 The default `award-pipeline` run goes through `3.2`.
 
@@ -55,7 +60,7 @@ The main review screens are now reviewer-facing:
 - final formatted ruleset
 - manually edited ruleset
 - pseudocode
-- step-3 ruleset selector for overtime creation vs overtime consequence
+- step-3 ruleset selector for overtime creation, overtime consequence, and penalties
 
 For step `3B`, the review screen shows both:
 - the readable evaluator and creator markdown summaries; and

@@ -11,18 +11,6 @@ Current in progress
 
 Once completed need to 
 
-2 - Confirm working for streamlit  Rerun for MA000018 via the streamlit interface
-
-2b: This states overtime - is it overtime? 
-
-Action required
-Clause 2 was identified as relevant to overtime, but it is not present in the penalties ruleset.
-Clause 33.3 was identified as relevant to overtime, but it is not present in the penalties ruleset.
-
-3 - confirm that the user edit (4.9) process is working for user edits 
-
-4 - Confirm that we are only passing clauess classified as Penalties or Break into the model
-4 - test for any opporunities to optimise - including all prompts fit to the perscribed format - with common rulesets applied to all codes under the same subset, and every LLM call is split into core instructions and limited specific testing. 
 5 - User testing for prompt optimisation - Instruct it to remove Overitme clauses. 
 6 - Confirm this will work for PDFs 
 7 - Update all documentation 
@@ -104,6 +92,7 @@ Why this still matters:
 
 Suggested follow-up:
 - inspect whether the evaluator prompt should be shortened further;
+- replace the full reconstructed creator-context JSON in the evaluator prompt with a smaller reviewer-oriented shortlisted-clause summary, so the evaluator sees the evidence it needs without repeated prompt-message scaffolding;
 - consider splitting long evaluator summaries from the structured rule-by-rule record if output size remains unstable;
 - consider increasing retry observability by saving the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
 
