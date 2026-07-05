@@ -20,7 +20,7 @@ from src.prompts.overtime_common_prompt_blocks import (
 )
 
 
-FORMATTER_SYSTEM_PROMPT = f"""You convert a reviewed payroll ruleset into a polished
+FORMAT_RULESET_GENERIC_SYSTEM_PROMPT = f"""You convert a reviewed payroll ruleset into a polished
 human-readable payroll guide, focusing on improving the layout and readability. 
 
 Requirements:
@@ -54,14 +54,14 @@ Requirements:
 """
 
 
-CORE_TEMPLATE_GUIDANCE = """Core template structure:
+FORMAT_RULESET_GENERIC_TEMPLATE_GUIDANCE = """Core template structure:
 
 Use the supplied template as the starting shape for the output, but only retain headings that are supported by the source.
 If a section is not supported by the reviewed ruleset, leave it out rather than forcing a placeholder.
 """
 
 
-FORMATTER_VARIANT_INSTRUCTIONS = {
+FORMAT_RULESET_VARIANT_INSTRUCTIONS = {
     OVERTIME_CREATION_RULESET: """Format the supplied reviewed overtime creation ruleset into a polished guide.
 
 Use this heading structure and order exactly:
@@ -82,6 +82,7 @@ One short introductory sentence explaining that the following circumstances incr
 
 Additional rules:
 - Only include a heading when the source supports at least one real rule for that heading.
+- Do not add headings outside this structure.
 - Add additional headings as necessary, if it is appropriate for grouping. 
 - Keep the guide focused on what causes hours to become overtime.
 - Place each rule under the most specific supported heading, not under `Other` by default.
@@ -124,6 +125,8 @@ Additional rules:
 - Use `### Other` only when a reviewed rule does not fit a more specific heading in the required structure.
 - Include overtime multipliers, minimum payments, meal entitlements, ordinary-rate exceptions, paid-release outcomes, and weekend/public-holiday overtime consequences where supported.
 - Keep the actual multiplier, block, minimum payment, entitlement, and cohort condition in the bullet text itself.
+- You may merge or deduplicate two reviewed rules only where they have the same cohort scope, the same operative outcome, the same thresholds or time bands, and the same clause references.
+- If any of cohort scope, operative outcome, thresholds, time bands, or clause references differ, keep the rules separate.
 - Do not replace a specific reviewed rule with a shorter high-level paraphrase if that would remove an operational rate, threshold, minimum, or condition.
 - Do not add new operational claims, even if they seem implied by the source.
 - Do not rewrite rules as overtime-hour creation tests unless that condition is strictly necessary to explain when the consequence applies.
@@ -171,7 +174,7 @@ Reviewed ruleset source: {interpretation_path}
 
 Template source: {template_path}
 
-{CORE_TEMPLATE_GUIDANCE}
+{FORMAT_RULESET_GENERIC_TEMPLATE_GUIDANCE}
 
 ```markdown
 {template_markdown}
@@ -189,9 +192,9 @@ Reviewed ruleset:
 
 Subset-specific instructions:
 
-{FORMATTER_VARIANT_INSTRUCTIONS[ruleset_key]}
+{FORMAT_RULESET_VARIANT_INSTRUCTIONS[ruleset_key]}
 """
     return [
-        {"role": "system", "content": FORMATTER_SYSTEM_PROMPT},
+        {"role": "system", "content": FORMAT_RULESET_GENERIC_SYSTEM_PROMPT},
         {"role": "user", "content": user_prompt},
     ]

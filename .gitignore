@@ -25,6 +25,8 @@ data/parsed/
 data/processed/
 data/
 src/archive/
+src/Archive/
+src/WIP*
 
 
 # Testing

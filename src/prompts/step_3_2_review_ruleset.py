@@ -349,7 +349,7 @@ def build_creator_review_action_pack(
     }
 
 
-def build_full_evaluator_review_prompt(
+def build_step_3_2_evaluator_user_prompt(
     interpretation_path: Path | str,
     interpretation_markdown: str,
     original_rules_artifact: Mapping[str, Any] | None,
@@ -470,7 +470,7 @@ Reconstructed step 3.2 creator context:
 """
 
 
-def build_minimal_creator_revision_prompt(
+def build_step_3_2_creator_user_prompt(
     interpretation_path: Path | str,
     interpretation_markdown: str,
     relevant_clause_excerpt_markdown: str,
@@ -587,10 +587,10 @@ def build_review_evaluator_messages(
 ) -> list[dict[str, str]]:
     """Build the evaluator prompt set for the step-3.2 review."""
     return [
-        {"role": "system", "content": evaluation_system_prompt(ruleset_key)},
+        {"role": "system", "content": build_step_3_2_evaluator_system_prompt(ruleset_key)},
         {
             "role": "user",
-            "content": build_full_evaluator_review_prompt(
+            "content": build_step_3_2_evaluator_user_prompt(
                 interpretation_path=interpretation_path,
                 interpretation_markdown=interpretation_markdown,
                 original_rules_artifact=original_rules_artifact,
@@ -601,7 +601,7 @@ def build_review_evaluator_messages(
                 ruleset_key=ruleset_key,
             )
             + "\n\n"
-            + evaluator_structured_output_instructions(),
+            + build_step_3_2_evaluator_structured_output_instructions(),
         },
     ]
 
@@ -645,7 +645,7 @@ def build_review_creator_messages(
         creator_prompt_context["interpretation_messages"][0],
         {
             "role": "user",
-            "content": build_minimal_creator_revision_prompt(
+            "content": build_step_3_2_creator_user_prompt(
                 interpretation_path=interpretation_path,
                 interpretation_markdown=interpretation_markdown,
                 relevant_clause_excerpt_markdown=relevant_clause_excerpt_markdown,
@@ -681,12 +681,12 @@ def build_review_creator_messages(
             )
             + "\n```\n"
             + "\n\n"
-            + creator_structured_output_instructions(),
+            + build_step_3_2_creator_structured_output_instructions(),
         },
     ]
 
 
-def build_minimal_pass_fail_evaluator_prompt(
+def build_step_3_2_pass_fail_evaluator_user_prompt(
     current_draft_markdown: str,
     evaluator_feedback_markdown: str,
     prior_creator_decision_markdown: str | None = None,
@@ -786,7 +786,7 @@ def build_evaluator_repair_messages(
     return repaired_messages
 
 
-def evaluator_structured_output_instructions() -> str:
+def build_step_3_2_evaluator_structured_output_instructions() -> str:
     return (
         "Return JSON only with these top-level fields:\n"
         "- summary_markdown\n"
@@ -805,7 +805,7 @@ def evaluator_structured_output_instructions() -> str:
     )
 
 
-def creator_structured_output_instructions() -> str:
+def build_step_3_2_creator_structured_output_instructions() -> str:
     return (
         "Return JSON only with these top-level fields:\n"
         "- decision_record_markdown\n"
@@ -835,7 +835,7 @@ def creator_structured_output_instructions() -> str:
     )
 
 
-def build_agentic_creator_instructions(
+def build_step_3_2_agentic_creator_instructions(
     max_feedback_cycles: int,
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
@@ -872,7 +872,7 @@ When you are finished, return structured final output with:
 """
 
 
-def evaluation_system_prompt(
+def build_step_3_2_evaluator_system_prompt(
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> str:
     """Return the system prompt for the one-pass interpretation evaluator."""

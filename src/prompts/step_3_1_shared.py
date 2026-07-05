@@ -18,7 +18,7 @@ STEP_3_1_GENERIC_RULESET_LANGUAGE = """Generic interpretation rules:
 """.strip()
 
 
-STEP_3_1_OVERTIME_TOPIC_LANGUAGE = """Overtime ruleset drafting rules:
+STEP_3_1_OVERTIME_RULESET_TOPIC_LANGUAGE = """Overtime ruleset drafting rules:
 - Convert the shortlisted overtime clauses into a reviewable overtime ruleset for payroll implementation.
 - Each ruleset item must be clear enough for a payroll reviewer to configure as an operational rule.
 - State the operative business rule itself, not just the clause citation.
@@ -27,7 +27,7 @@ STEP_3_1_OVERTIME_TOPIC_LANGUAGE = """Overtime ruleset drafting rules:
 """.strip()
 
 
-STEP_3_1_PENALTIES_TOPIC_LANGUAGE = """Penalties ruleset drafting rules:
+STEP_3_1_PENALTIES_RULESET_TOPIC_LANGUAGE = """Penalties ruleset drafting rules:
 - Convert the shortlisted penalties clauses into a reviewable penalties ruleset for payroll implementation.
 - Each ruleset item must be clear enough for a payroll reviewer to configure as an operational rule.
 - State the operative business rule itself, not just the clause citation.

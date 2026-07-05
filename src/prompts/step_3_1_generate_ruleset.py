@@ -15,8 +15,8 @@ from src.common.overtime_rulesets import (
 )
 from src.prompts.step_3_1_shared import (
     STEP_3_1_GENERIC_RULESET_LANGUAGE,
-    STEP_3_1_OVERTIME_TOPIC_LANGUAGE,
-    STEP_3_1_PENALTIES_TOPIC_LANGUAGE,
+    STEP_3_1_OVERTIME_RULESET_TOPIC_LANGUAGE,
+    STEP_3_1_PENALTIES_RULESET_TOPIC_LANGUAGE,
 )
 from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
@@ -25,7 +25,7 @@ from src.prompts.overtime_common_prompt_blocks import (
 from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
 
 
-INTERPRETATION_GENERIC_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.
+GENERATE_RULESET_GENERIC_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.
 
 Analyse the provided award clauses carefully and conservatively.
 
@@ -37,7 +37,7 @@ Use clause references wherever possible.
 """
 
 
-INTERPRETATION_VARIANT_SYSTEM_INSTRUCTIONS = {
+GENERATE_RULESET_VARIANT_SYSTEM_INSTRUCTIONS = {
     OVERTIME_CREATION_RULESET: "",
     OVERTIME_CONSEQUENCE_RULESET: """For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
 
@@ -61,17 +61,17 @@ Treat these distinctions as critical:
 }
 
 
-INTERPRETATION_VARIANT_SYSTEM_PROMPTS = {
+GENERATE_RULESET_VARIANT_SYSTEM_PROMPTS = {
     ruleset_key: (
-        INTERPRETATION_GENERIC_SYSTEM_PROMPT
+        GENERATE_RULESET_GENERIC_SYSTEM_PROMPT
         if not variant_instructions
-        else f"{INTERPRETATION_GENERIC_SYSTEM_PROMPT}\n{variant_instructions}"
+        else f"{GENERATE_RULESET_GENERIC_SYSTEM_PROMPT}\n{variant_instructions}"
     )
-    for ruleset_key, variant_instructions in INTERPRETATION_VARIANT_SYSTEM_INSTRUCTIONS.items()
+    for ruleset_key, variant_instructions in GENERATE_RULESET_VARIANT_SYSTEM_INSTRUCTIONS.items()
 }
 
 
-INTERPRETATION_VARIANT_USER_PROMPTS = {
+GENERATE_RULESET_VARIANT_USER_PROMPTS = {
     OVERTIME_CREATION_RULESET: """Source classification file: {source_file}
 
 The clauses below have already been identified as relevant to determining when overtime is created.
@@ -157,6 +157,8 @@ Important:
 - Do not omit a plausible supported consequence rule merely because another rule may later cover similar consequence logic.
 - Do not include penalty rates or allowances unless the clause expressly says they form part of the overtime consequence.
 - Prioritise overtime pay multipliers and other direct rate outcomes for each employee cohort. If the clauses state different overtime multiplier outcomes for full-time, part-time, or casual employees, include those cohort-specific rules explicitly.
+- Full-time employee overtime consequence rates are commonly present in awards. Check tables, headings, and cohort labels carefully before concluding that a rate applies only to part-time employees or only to another narrower cohort.
+- If a table or clause expressly states that a rate applies to full-time and part-time employees together, preserve both cohorts unless the same source text expressly narrows one of them.
 - Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
 - Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
@@ -207,7 +209,7 @@ Important:
 }
 
 
-def _build_step_3_1_user_prompt(
+def _build_generate_ruleset_user_prompt(
     *,
     variant_prompt: str,
     topic_language: str,
@@ -272,19 +274,19 @@ def build_interpretation_messages(
     return [
         {
             "role": "system",
-            "content": INTERPRETATION_VARIANT_SYSTEM_PROMPTS[ruleset_key],
+            "content": GENERATE_RULESET_VARIANT_SYSTEM_PROMPTS[ruleset_key],
         },
         {
             "role": "user",
-            "content": _build_step_3_1_user_prompt(
-                variant_prompt=INTERPRETATION_VARIANT_USER_PROMPTS[ruleset_key].format(
+            "content": _build_generate_ruleset_user_prompt(
+                variant_prompt=GENERATE_RULESET_VARIANT_USER_PROMPTS[ruleset_key].format(
                     source_file=source_file,
                     working_paper_input="{working_paper_input}",
                 ),
                 topic_language=(
-                    STEP_3_1_PENALTIES_TOPIC_LANGUAGE
+                    STEP_3_1_PENALTIES_RULESET_TOPIC_LANGUAGE
                     if ruleset_key == PENALTIES_RULESET
-                    else STEP_3_1_OVERTIME_TOPIC_LANGUAGE
+                    else STEP_3_1_OVERTIME_RULESET_TOPIC_LANGUAGE
                 ),
                 ruleset_question_block=common_overtime_question_block(ruleset_key),
                 working_paper_input=format_working_paper_input(

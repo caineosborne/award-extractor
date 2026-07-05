@@ -55,6 +55,7 @@ For each supported consequence rule, answer:
 - the triggering condition for applying the consequence;
 - any exceptions or limits.
 
+Do not include standalone commentary on what creates overtime.
 Do not include any clauses related to the creation of overtime hours, or anythign which moves hours to overtime. Only include rulesets related to the consequences of working overtime. 
 Only include creation context when it is strictly necessary to identify which consequence applies after overtime is already defined.
 """

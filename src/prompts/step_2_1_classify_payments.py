@@ -10,7 +10,7 @@ import json
 
 from src.step_2_1_classify_payments.schema import TopLevelGroup
 
-ALLOWED_TAGS = (
+PAYMENT_CLASSIFICATION_ALLOWED_TAGS = (
     "Hourly Rate",
     "Ordinary Hours & Overtime",
     "Penalty",
@@ -22,14 +22,14 @@ ALLOWED_TAGS = (
     "Other Payment",
 )
 
-DEFINITIONS = """Definitions:
+PAYMENT_CLASSIFICATION_GENERIC_DEFINITIONS = """Definitions:
 - ordinary hours: The hours worked by an employee that do not include overtime. For example, the ordinary hours of a full-time employee are usually 38 hours per week.
 - overtime: The time worked outside of ordinary hours. Awards and registered agreements state when overtime can be worked and the rate of pay for working overtime. 
 - penalty: A higher pay rate that can apply when an employee works evenings, weekends or public holidays. These rates are provided in awards and registered agreements.
 - shiftworker: An employee who works fixed hours of work, such as shifts or rosters, that are outside or partly outside normal working hours, such as 9am to 5pm. Awards and registered agreements often provide a specific definition of shiftworker.
 """
 
-TAG_DEFINITIONS = """Tag definitions:
+PAYMENT_CLASSIFICATION_GENERIC_TAG_DEFINITIONS = """Tag definitions:
 - Hourly Rate: clauses related to an employee's base hourly rate, wage table, classification rate, minimum rate, or dollar amount per hour, excluding allowances, and excluding specific multipliers or loadings (eg excluding statements like overtime will be paid at 200%, or night penalties will be paid at 150%)
 - Ordinary Hours & Overtime: clauses defining ordinary hours, overtime hours, the boundary between ordinary and overtime hours, or minimum shift/payment periods tied to worked hours. This includes statements about payment for overitme, including statements like 'overtime will be paid at 150%'
 - Penalty: additional payment on top of ordinary hours for evenings, weekends, public holidays, shifts, or similar loadings.  THis may be callsed shift workek allowance.  This includes statements about the payment multipliers for penalties, like 'night penalties will be paid at 115%'
@@ -42,7 +42,7 @@ TAG_DEFINITIONS = """Tag definitions:
   Do not use Other Payment for non-payment clauses or payment-administration clauses that only describe how, when, or through which account wages are paid.
 """
 
-SYSTEM_PROMPT = f"""You are classifying Australian modern award clauses for payroll implementation.
+PAYMENT_CLASSIFICATION_GENERIC_SYSTEM_PROMPT = f"""You are classifying Australian modern award clauses for payroll implementation.
 
 This is not an award interpreter. Do not produce rules, pseudocode, pay calculations, or legal advice.
 
@@ -60,11 +60,11 @@ An L1 clause may be both payment-relevant and definition-relevant.
 Prefer inclusion where the supplied clause text plausibly creates or changes a payment amount, payment entitlement, deduction, reimbursement, ordinary/overtime boundary, leave payment, allowance, penalty, rate, or payroll-relevant definition. However, do not mark a top-level clause as relevant from its heading alone where the supplied text contains no operative payment rule, payment entitlement, or payroll-relevant definition. For example, a top-level clause containing only "District allowances" with no amount, entitlement, condition, or cross-reference detail should be treated as not relevant.
 
 Allowed tags:
-{chr(10).join(f"- {tag}" for tag in ALLOWED_TAGS)}
+{chr(10).join(f"- {tag}" for tag in PAYMENT_CLASSIFICATION_ALLOWED_TAGS)}
 
-{DEFINITIONS}
+{PAYMENT_CLASSIFICATION_GENERIC_DEFINITIONS}
 
-{TAG_DEFINITIONS}
+{PAYMENT_CLASSIFICATION_GENERIC_TAG_DEFINITIONS}
 
 Return only valid JSON matching this shape:
 {{
@@ -140,7 +140,7 @@ def classification_payload_for_group(group: TopLevelGroup) -> dict:
 
 def build_messages(group: TopLevelGroup) -> list[dict[str, str]]:
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": PAYMENT_CLASSIFICATION_GENERIC_SYSTEM_PROMPT},
         {
             "role": "user",
             "content": build_user_prompt(classification_payload_for_group(group)),

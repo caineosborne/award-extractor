@@ -148,10 +148,10 @@ COMPARISON_PRESETS = {
 PIPELINE_STEP_LABELS = {
     "1": "Retrieve award",
     "2.1": "Classify clauses",
-    "2.2": "Classify overtime clauses",
-    "3.1": "Generate overtime ruleset",
-    "3.2": "Review overtime ruleset",
-    "4.1": "Format overtime guide",
+    "2.2": "Classify ruleset clauses",
+    "3.1": "Generate ruleset",
+    "3.2": "Review ruleset",
+    "4.1": "Format ruleset guide",
     "5.1": "Generate pseudocode",
 }
 

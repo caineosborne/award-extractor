@@ -42,7 +42,7 @@ PSEUDOCODE_FIELDS = {
 }
 
 
-COMMON_CONSTRAINTS = """Common constraints:
+PSEUDOCODE_GENERIC_CONSTRAINTS = """Common constraints:
 - Preserve the business meaning of the reviewed source rules, even if headings or bullet formatting have been edited by a human.
 - Read the complete document for meaning. Do not rely on an exact markdown heading or bullet label.
 - Every reviewed source rule must be represented in the pseudocode or implementation notes. Do not omit a reviewed rule merely because another rule sounds similar.
@@ -62,7 +62,7 @@ COMMON_CONSTRAINTS = """Common constraints:
 """
 
 
-SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
+PSEUDOCODE_GENERIC_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented payroll pseudocode.
 
 Goal:
 {goal}
@@ -87,7 +87,7 @@ Required markdown structure:
 """
 
 
-PSEUDOCODE_RULESET_VARIANTS = {
+PSEUDOCODE_VARIANT_PROMPT_CONFIG = {
     OVERTIME_CREATION_RULESET: {
         "goal": """- Convert the supplied reviewed overtime creation guide into bullet-point pseudocode.
 - Classify whether worked hours are `Ordinary_Hours` or `Overtime_Hours`.
@@ -212,17 +212,17 @@ PSEUDOCODE_RULESET_VARIANTS = {
 
 
 def _system_prompt_for_ruleset(ruleset_key: str, fields: str) -> str:
-    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+    ruleset_variant = PSEUDOCODE_VARIANT_PROMPT_CONFIG.get(
         ruleset_key,
-        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+        PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
-    return SYSTEM_PROMPT_TEMPLATE.format(
+    return PSEUDOCODE_GENERIC_SYSTEM_PROMPT_TEMPLATE.format(
         goal=ruleset_variant["goal"],
         fields=fields,
         ruleset_constraints=ruleset_variant["ruleset_constraints"],
         generic_prompt=GENERIC_PAYROLL_CONFIGURATION_PROMPT,
         ruleset_question_block=common_overtime_question_block(ruleset_key),
-        common_constraints=COMMON_CONSTRAINTS,
+        common_constraints=PSEUDOCODE_GENERIC_CONSTRAINTS,
         required_markdown_structure=ruleset_variant["required_markdown_structure"],
     )
 
@@ -243,9 +243,9 @@ def build_messages(
             "Required rule inventory derived from the reviewed source markdown:\n"
             f"{render_inventory_for_prompt(source_inventory)}\n\n"
         )
-    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+    ruleset_variant = PSEUDOCODE_VARIANT_PROMPT_CONFIG.get(
         ruleset_key,
-        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+        PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
     user_prompt = (
         f"Reviewed source markdown: {source_file}\n\n"
@@ -273,9 +273,9 @@ def build_repair_messages(
         f"- {field}: {description}" for field, description in PSEUDOCODE_FIELDS.items()
     )
     system_prompt = _system_prompt_for_ruleset(ruleset_key, fields)
-    ruleset_variant = PSEUDOCODE_RULESET_VARIANTS.get(
+    ruleset_variant = PSEUDOCODE_VARIANT_PROMPT_CONFIG.get(
         ruleset_key,
-        PSEUDOCODE_RULESET_VARIANTS[OVERTIME_CREATION_RULESET],
+        PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
     user_prompt = (
         f"Reviewed source markdown: {source_file}\n\n"

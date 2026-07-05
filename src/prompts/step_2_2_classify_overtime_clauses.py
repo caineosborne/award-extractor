@@ -19,7 +19,10 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
-from src.prompts.step_2_1_classify_payments import DEFINITIONS, TAG_DEFINITIONS
+from src.prompts.step_2_1_classify_payments import (
+    PAYMENT_CLASSIFICATION_GENERIC_DEFINITIONS,
+    PAYMENT_CLASSIFICATION_GENERIC_TAG_DEFINITIONS,
+)
 
 
 CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT = """You classify Australian modern award clauses for payroll implementation.
@@ -37,9 +40,9 @@ Keep clause references visible.
 CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE = f"""Shared classification glossary:
 
 Use the shared classifier glossary and tag definitions below:
-{DEFINITIONS}
+{PAYMENT_CLASSIFICATION_GENERIC_DEFINITIONS}
 
-{TAG_DEFINITIONS}
+{PAYMENT_CLASSIFICATION_GENERIC_TAG_DEFINITIONS}
 
 Shared classification rules:
 - Use only the supplied clauses selected for this ruleset subset from step 2.1.
@@ -119,7 +122,7 @@ CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS = {
 }
 
 
-def _build_step_2_2_user_prompt(
+def _build_clause_classification_user_prompt(
     *,
     variant_prompt: str,
     topic_language: str,
@@ -185,7 +188,7 @@ def build_clause_classification_messages(
         {"role": "system", "content": CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT},
         {
             "role": "user",
-            "content": _build_step_2_2_user_prompt(
+            "content": _build_clause_classification_user_prompt(
                 variant_prompt=(
                     CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS[ruleset_key].format(
                         ruleset_label=config.display_name.lower()
