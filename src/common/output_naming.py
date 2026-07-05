@@ -11,7 +11,7 @@ from src.common.output_paths import (
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
 
-ACTIVE_PIPELINE_STEP_CHOICES = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
+ACTIVE_PIPELINE_STEP_CHOICES = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1", "6.1")
 DEFAULT_ACTIVE_PIPELINE_STEPS = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
 
 
@@ -256,3 +256,8 @@ def validation_markdown_path_for_pseudocode(pseudocode_path: Path | str) -> Path
     """Return the markdown validation path for one pseudocode file."""
     path = Path(pseudocode_path)
     return path.with_name(f"{path.stem}_validation.md")
+
+
+def calculator_yaml_path_for_output_stem(output_stem: str) -> Path:
+    """Return the canonical step 6.1 calculator YAML path for one output set."""
+    return award_dir_for_output_stem(output_stem) / "calculator" / "6_1_calculator_rules.yaml"

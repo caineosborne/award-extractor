@@ -83,6 +83,10 @@ def award_dir_for_output_set(output_set_name: str) -> Path:
     return PROCESSED_ROOT / output_set_name
 
 
+def calculator_yaml_path_for_award(output_set_name: str) -> Path:
+    return award_dir_for_output_set(output_set_name) / "calculator" / "6_1_calculator_rules.yaml"
+
+
 def canonical_ruleset_paths(
     output_set_name: str,
     ruleset_key: str,

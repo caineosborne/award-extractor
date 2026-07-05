@@ -15,6 +15,7 @@ from src.award_pipeline import (
     resolve_cli_ruleset_keys,
     run_default_pipeline,
     run_step_3_1,
+    run_step_6_1,
     run_step_5_1,
     run_selected_step,
     run_step_2_1,
@@ -225,6 +226,49 @@ def test_run_step_2_1_uses_step_1_output_and_writes_step_2_1_artifact():
     classify_payments_mock.assert_called_once_with(
         award_path=paths.award_json_path,
         output_path=paths.classification_path,
+    )
+
+
+def test_run_step_6_1_uses_three_revised_ruleset_json_sources():
+    paths = build_paths(
+        award_code="MA000018",
+        suffix=None,
+        url="https://awards.fairwork.gov.au/MA000018.html",
+    )
+
+    with patch("src.award_pipeline.require_existing") as require_existing_mock:
+        with patch(
+            "src.award_pipeline.run_step_6_1_generate_calculator_yaml"
+        ) as generate_yaml_mock:
+            run_step_6_1(paths)
+
+    assert require_existing_mock.call_args_list == [
+        ((
+            PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.json"),
+            "6.1",
+            "3.2",
+        ),),
+        ((
+            PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.json"),
+            "6.1",
+            "3.2",
+        ),),
+        ((
+            PROJECT_ROOT / Path("data/processed/MA000018/3_2_Penalties_revised_ruleset.json"),
+            "6.1",
+            "3.2",
+        ),),
+    ]
+    generate_yaml_mock.assert_called_once_with(
+        award_code="MA000018",
+        creation_json_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.json"),
+        consequence_json_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.json"),
+        penalties_json_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/3_2_Penalties_revised_ruleset.json"),
+        output_path=PROJECT_ROOT
+        / Path("data/processed/MA000018/calculator/6_1_calculator_rules.yaml"),
     )
 
 

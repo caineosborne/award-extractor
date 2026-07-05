@@ -5,7 +5,7 @@ from __future__ import annotations
 
 STEP_3_1_GENERIC_RULESET_LANGUAGE = """Generic interpretation rules:
 - The source clauses are evidence. The output ruleset is the operational payroll logic that payroll would implement from that evidence.
-- A clause and a ruleset item do not have a one to one relatoinship. A single clause may support multiple ruleset items, and a single ruleset item may be supported by multiple clauses. Think in terms of rulesets that payroll would implement, rather than in clauses. 
+- A clause and a ruleset item are not the same thing. A single clause may support multiple ruleset items, and a single ruleset item may be supported by multiple clauses. Think in terms of rulesets that payroll would implement, rather than in clauses.
 - A single clause may contain multiple distinct operational rules. Extract each one separately when payroll would configure it separately.
 - A single operational rule may rely on multiple clauses when those clauses work together to describe one implementable rule.
 - Preserve every operative threshold, span, limit, boundary, exception, condition, and qualification supported by the cited clause text.

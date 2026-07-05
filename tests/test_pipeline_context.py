@@ -50,3 +50,15 @@ def test_step_constants_cover_current_and_future_pipeline_shapes():
         "4.1",
         "5.1",
     )
+    from src.common.output_naming import ACTIVE_PIPELINE_STEP_CHOICES
+
+    assert ACTIVE_PIPELINE_STEP_CHOICES == (
+        "1",
+        "2.1",
+        "2.2",
+        "3.1",
+        "3.2",
+        "4.1",
+        "5.1",
+        "6.1",
+    )

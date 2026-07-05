@@ -22,6 +22,7 @@ from src.common.overtime_rulesets import (
 from src.common.output_naming import (
     ACTIVE_PIPELINE_STEP_CHOICES,
     DEFAULT_ACTIVE_PIPELINE_STEPS,
+    calculator_yaml_path_for_output_stem,
     normalize_output_suffix,
     output_stem_for_award,
 )
@@ -49,6 +50,9 @@ from src.step_4_1_format_ruleset.run import (
 from src.step_5_1_generate_pseudocode.deterministic import output_path_for_summary
 from src.step_5_1_generate_pseudocode.run import (
     generate_core_overtime_pseudocode as run_step_5_1_generate_pseudocode,
+)
+from src.step_6_1_generate_calculator_yaml.run import (
+    generate_calculator_rules_yaml as run_step_6_1_generate_calculator_yaml,
 )
 
 STEP_CHOICES = ACTIVE_PIPELINE_STEP_CHOICES
@@ -400,6 +404,36 @@ def run_step_4_1(
     )
 
 
+def run_step_6_1(
+    paths: ActivePipelinePaths,
+    ruleset_key: str | None = None,
+) -> None:
+    """Run step 6.1 calculator YAML generation."""
+    del ruleset_key
+    creation_ruleset_paths = build_ruleset_step_paths(paths, OVERTIME_CREATION_RULESET)
+    consequence_ruleset_paths = build_ruleset_step_paths(
+        paths,
+        OVERTIME_CONSEQUENCE_RULESET,
+    )
+    penalties_ruleset_paths = build_ruleset_step_paths(paths, PENALTIES_RULESET)
+
+    creation_json_path = creation_ruleset_paths.revised_interpretation_path.with_suffix(".json")
+    consequence_json_path = consequence_ruleset_paths.revised_interpretation_path.with_suffix(".json")
+    penalties_json_path = penalties_ruleset_paths.revised_interpretation_path.with_suffix(".json")
+
+    require_existing(creation_json_path, "6.1", "3.2")
+    require_existing(consequence_json_path, "6.1", "3.2")
+    require_existing(penalties_json_path, "6.1", "3.2")
+
+    run_step_6_1_generate_calculator_yaml(
+        award_code=paths.award_code,
+        creation_json_path=creation_json_path,
+        consequence_json_path=consequence_json_path,
+        penalties_json_path=penalties_json_path,
+        output_path=calculator_yaml_path_for_output_stem(paths.output_stem),
+    )
+
+
 STEP_RUNNERS = {
     "1": run_step_1,
     "2.1": run_step_2_1,
@@ -408,6 +442,7 @@ STEP_RUNNERS = {
     "3.2": run_step_3_2,
     "4.1": run_step_4_1,
     "5.1": run_step_5_1,
+    "6.1": run_step_6_1,
 }
 
 
