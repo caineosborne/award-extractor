@@ -29,13 +29,15 @@ class Step32PromptSubsetConfig:
 STEP_3_2_PROMPT_SUBSET_OVERRIDES: dict[str, dict[str, tuple[str, ...]]] = {
     OVERTIME_CREATION_RULESET: {
         "subset_scope_notes": (
-            "Focus on circumstances that cause time to become overtime.",
+            "Focus on circumstances that cause time worked to become overtime, that is any rules that increase the amount of hours classified as overtime.",
+            "Any hours which are not ordinary hours are considered overtime, there any rules which define ordinary hours are relevant to this subset.",
             "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },
     OVERTIME_CONSEQUENCE_RULESET: {
         "subset_scope_notes": (
-            "Focus on what consequence applies after the time is already overtime.",
+            "Focus on what consequence applies after the time is already overtime, that is what has happened once hours are already defined as overtime.",
+            "Do not include any clauses related to the creation of overtime hours, or anythign which moves hours to overtime. Only include rulesets related to the consequences of working overtime.",
             "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },

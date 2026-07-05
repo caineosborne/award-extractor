@@ -29,7 +29,6 @@ PSEUDOCODE_FIELDS = {
     "Day_of_Week": "The day of the week for the shift date.",
     "Public_Holiday_Indicator": "Whether the shift or relevant hours fall on a public holiday.",
     "Previous_Shift_End": "The end time of the employee's previous shift or work period.",
-    "Roster_Changeover_Indicator": "Whether the minimum-break test is being assessed after a roster changeover.",
     "Employee Type - Shift Worker/Day Worker": (
         "Whether the employee is classified as a shift worker or day worker."
     ),
@@ -37,11 +36,9 @@ PSEUDOCODE_FIELDS = {
         "Whether the employee is full-time, part-time, or casual."
     ),
     "Shift_Worker_Status": (
-        "Whether the employee qualifies as a shift worker for rules that only apply to shift workers."
+        "Whether the employee qualifies as a shift worker for rules that only apply to shift workers. Employees who are not shift workers are day workers."
     ),
-    "Unallocated_Hours": (
-        "The hours in the shift that have not yet been allocated by another clause."
-    ),
+
 }
 
 
@@ -50,15 +47,17 @@ COMMON_CONSTRAINTS = """Common constraints:
 - Read the complete document for meaning. Do not rely on an exact markdown heading or bullet label.
 - Every reviewed source rule must be represented in the pseudocode or implementation notes. Do not omit a reviewed rule merely because another rule sounds similar.
 - Include exact source clause references in comments on the relevant implementation rule. Use actual clause references such as `10.4(f)` or `23.2(a)`, not only internal rule ids.
-- If a rule needs an input that is not in the available fields, name it under `Required additional inputs`.
+- If a rule needs an input that is not in the available fields, name it under `Required additional inputs`. Only add rules into 'Required additional inputs' if they are unable to be derived base don the supplied list of derived fields, instead state how this would be derived, and include in the `Derived Fields` section.
 - Do not list a derived field that is just a renamed component of an existing field.
 - Do not list straightforward calculations as separate derived fields unless they are reused across multiple rules and make the pseudocode materially clearer.
 - Treat `Derived Fields` as optional reusable calculations. If none are needed, write `None`.
 - Treat `Required additional inputs` narrowly. Only include facts that are not already provided and cannot be calculated directly from the supplied fields and shift records.
 - Use clear field names and rule names. Do not invent vague helper variables or placeholders that hide the calculation.
+- Use structured English and pseudocode with explicit data points, conditions, and outputs.
 - Prefer simple step-by-step pseudocode over dense formulas.
 - Write each rule so the triggering data point, condition, and output are all explicit.
 - When determining priority, process outlier and exception rules first, then day-type and time-of-day rules, then shorter-period thresholds, then longer-period thresholds.
+- If any fields are unable to be converted into psuedocode, add these to the `Conditions not considered by the pseudocode` section, and explain why they are not included.
 - Return markdown only.
 """
 
@@ -92,7 +91,7 @@ PSEUDOCODE_RULESET_VARIANTS = {
     OVERTIME_CREATION_RULESET: {
         "goal": """- Convert the supplied reviewed overtime creation guide into bullet-point pseudocode.
 - Classify whether worked hours are `Ordinary_Hours` or `Overtime_Hours`.
-- Treat `Unallocated_Hours` as the total hours worked that still need ordinary/overtime classification.
+- Treat `Unallocated_Hours` as the total hours worked that still need ordinary/overtime classification. This will initially be set to all hours, and will reduce based on hours being allocated. 
 - For this task, any hours that are not ordinary hours are overtime.
 - Focus on what causes hours to become overtime, using explicit data points, conditions, and outputs rather than narrative explanation.""",
         "ruleset_constraints": """- Apply rules only to currently `Unallocated_Hours`.
@@ -111,6 +110,8 @@ PSEUDOCODE_RULESET_VARIANTS = {
 
 ## Pseudocode
 
+## Conditions not considered by the pseudocode
+
 ## Implementation notes""",
         "user_instructions": (
             "Treat this as overtime creation mode. Determine which worked hours become "
@@ -128,6 +129,7 @@ PSEUDOCODE_RULESET_VARIANTS = {
     OVERTIME_CONSEQUENCE_RULESET: {
         "goal": """- Convert the supplied reviewed overtime consequence guide into bullet-point pseudocode.
 - Determine what overtime consequence applies once hours are already overtime.
+- The question to answer is 'now these hours are classified as overtime, what consequence applies?'
 - Do not classify ordinary hours versus overtime hours in this mode unless a source rule expressly needs that distinction as a condition.
 - Focus on consequence outcomes such as multipliers, minimum payments, ordinary-rate exceptions, meal entitlements, paid-release outcomes, and weekend/public-holiday overrides, expressed as explicit configuration logic.""",
         "ruleset_constraints": """- Treat the input as already-overtime hours or already-identified overtime circumstances that now need the correct consequence applied.
@@ -146,6 +148,8 @@ PSEUDOCODE_RULESET_VARIANTS = {
 ## Rule priority
 
 ## Pseudocode
+
+## Conditions not considered by the pseudocode
 
 ## Implementation notes""",
         "user_instructions": (
@@ -186,6 +190,8 @@ PSEUDOCODE_RULESET_VARIANTS = {
 ## Rule priority
 
 ## Pseudocode
+
+## Conditions not considered by the pseudocode
 
 ## Implementation notes""",
         "user_instructions": (

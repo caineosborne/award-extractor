@@ -21,7 +21,7 @@ from src.prompts.overtime_common_prompt_blocks import (
 
 
 FORMATTER_SYSTEM_PROMPT = f"""You convert a reviewed payroll ruleset into a polished
-human-readable payroll guide.
+human-readable payroll guide, focusing on improving the layout and readability. 
 
 Requirements:
 {GENERIC_PAYROLL_CONFIGURATION_PROMPT}
@@ -29,6 +29,8 @@ Requirements:
 - Use only the supplied reviewed ruleset for award-specific facts.
 - This is a formatting step, not a summarisation or rewriting step.
 - The output must be lossless in substance: every reviewed rule must remain represented in the formatted guide.
+- Ensure clause numbers are prsesent in the output, preferably at the end of each rule in square brackets.
+- Be careful when aggregating that you do not loose any operational threshhold - eg if a rule is featured in all employees and full time employees, it may be removed if the context is the same, but if the context is different, it must be preserved in both places. Rules should never be removed from all employees. 
 - Do not delete, omit, merge, split, generalise, or invent substantive rules.
 - Do not move a rule into a different meaning just to make the guide shorter or fit the template better.
 - Treat the supplied template as a structural guide, not a hard contract.
@@ -72,14 +74,15 @@ One short introductory sentence explaining that the following circumstances incr
 ## Full-Time Employees Only
 ## Part-Time Employees Only
 ## Casual Employees Only
-## Shift Workers
+## Shift Workers 
+## Day Workers 
 ### Meal Breaks
 ### Rest Periods Between Shifts
 ### Other
 
 Additional rules:
 - Only include a heading when the source supports at least one real rule for that heading.
-- Do not add headings outside this structure.
+- Add additional headings as necessary, if it is appropriate for grouping. 
 - Keep the guide focused on what causes hours to become overtime.
 - Place each rule under the most specific supported heading, not under `Other` by default.
 - Use `## All Employees (Full-Time, Part-Time, Casual, Day Workers And Shift Workers)` for general rules that apply across employee cohorts or are expressed generally as `employee` or `ordinary hours`, including ordinary-hours boundaries, spans, spreads, daily limits, agreed daily extensions, and Monday-to-Friday ordinary-hours rules, unless the reviewed source clearly narrows them to a smaller cohort.
@@ -104,6 +107,7 @@ One short introductory sentence explaining that the following rules describe wha
 ## Casual Employees
 ## Part-Time Employees Only
 ## Shift Workers
+## Day Workers
 ### Minimum Payments And Blocks
 ### Allowances And Meal Entitlements
 ### Rest And Release Consequences
@@ -134,6 +138,7 @@ One short introductory sentence explaining that the following rules describe pen
 
 ## Shift-Based Allowances And Penalties
 ## Time-Band And Day-Based Penalties
+## Day Workers
 ## Breaks Between Work Periods
 ## Supporting Conditions
 

@@ -2,6 +2,35 @@
 
 Date: 2026-07-04
 
+## Changes made after the first run
+
+- Shared pipeline reuse is now explicit in the runner.
+  - `2.1` is treated as award-level shared output.
+  - overtime `2.2` is treated as one shared artifact for both overtime subsets.
+  - penalties `2.2` remains separate and deterministic.
+- The canonical overtime `2.2` artifact is now `2_2_OT_clause_classification.json`.
+  - The older subset-specific overtime filenames are legacy outputs from the first run and should no longer be treated as the canonical artifact names.
+- The prompt layer was updated to bias toward conservative inclusion rather than aggressive exclusion.
+  - The prompts now prefer retaining plausible clause-supported rules.
+  - They avoid over-merging overlapping rules purely to reduce repetition.
+  - They stay generic so they can be reused across awards.
+- The Streamlit report below reflects the original UI-based end-to-end run.
+  - The CLI subset rerun was started after these changes, but it had not completed when this report section was last updated.
+- Step 1.1 can now read a local HTML file path as input.
+  - That allowed the suffix rerun to reuse the cached MA000009 HTML without needing live fetch access.
+
+## CLI rerun status
+
+Status: Blocked after step 1
+
+- A new suffix rerun was started for `MA000009_promptcmp` so the prompt changes could be reviewed in a clean output tree.
+- Step 1.1 completed successfully and wrote the suffixed award inputs to `data/processed/MA000009_promptcmp`.
+- Step 2.1 then failed with `openai.APIConnectionError` because this environment cannot reach the OpenAI API.
+- No prompt-change comparison outputs were produced from this rerun, so the quality review still needs a network-enabled run.
+- A second retry was started as `MA000009_promptcmp2`.
+  - It reached the same point: step 1.1 succeeded, step 2.1 failed with the same OpenAI connection error.
+  - This makes the blocker reproducible rather than a one-off failure.
+
 ## Run status for each of the 3 configurations
 
 ### 1. Overtime creation

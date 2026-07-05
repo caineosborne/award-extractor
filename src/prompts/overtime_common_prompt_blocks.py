@@ -15,14 +15,23 @@ from src.common.overtime_rulesets import (
 
 GENERIC_PAYROLL_CONFIGURATION_PROMPT = """Shared payroll configuration approach:
 - Write for a system that will configure code or payroll logic, not for a payroll expert reading a policy note.
-- Prefer structured English and pseudocode, with explicit data points, clear conditions, and concrete outputs.
+- Prefer structured English or pseudocode (as requested), with explicit data points, clear conditions, and concrete outputs.
 - Treat the questions below as expected checks for common award rules in the selected ruleset, not as the complete universe of possible rules.
 - If the source supports another material rule for the selected ruleset, include it even if it is not listed below.
 - Do not invent a rule where the source does not support it.
 """
 
 
+COMMON_OVERTIME_RULES_PREAMBLE = """Common overtime rules:
+- The following rules may appear across multiple awards.
+- If the source supports a rule, include it in the ruleset.
+- If the source does not support a rule, do not invent it.
+- Include any other material rules supported by the source, even if they are not listed below.
+"""
+
+
 OVERTIME_CREATION_COMMON_QUESTIONS = """Reusable overtime creation checks:
+
 - Is overtime created by working more than a number of hours in a day?
 - Is overtime created by working outside a defined span of hours? This often, but not always, varies for day workers and shift workers.
 - Is overtime created by working more than a number of hours in a week or pay period?
@@ -35,7 +44,7 @@ For each supported creation rule, answer:
 
 
 OVERTIME_CONSEQUENCE_COMMON_QUESTIONS = """Reusable overtime consequence checks:
-- What multiplier is paid when overtime is worked?
+- What multiplier is paid when overtime is worked? eg is it 150% or 200%? Does it vary on the day of the week, the time of day, or the number of hours worked?
 - Does the multiplier vary by employee cohort, including full-time, part-time, and casual employees?
 - What other consequences apply once overtime exists, such as additional breaks, meal allowances, time off instead of payment, rest or release entitlements, minimum payments, or other post-overtime entitlements?
 
@@ -46,12 +55,14 @@ For each supported consequence rule, answer:
 - the triggering condition for applying the consequence;
 - any exceptions or limits.
 
-Do not include standalone commentary on what creates overtime. Only include creation context when it is strictly necessary to identify which consequence applies after overtime is already defined.
+Do not include any clauses related to the creation of overtime hours, or anythign which moves hours to overtime. Only include rulesets related to the consequences of working overtime. 
+Only include creation context when it is strictly necessary to identify which consequence applies after overtime is already defined.
 """
 
 
 PENALTIES_COMMON_QUESTIONS = """Reusable penalties checks:
 - Penalties includes anything other than overtime that can increase pay for worked hours.
+- Do not include anything related to overtime creation or overtime consequences, unless the clause expressly makes it part of a penalties-domain rule.
 - This includes shift allowances, shift penalties, weekend penalties, public holiday penalties, afternoon penalties, evening penalties, night penalties, and similar higher-paid time-based rules.
 - This also includes break-between-work-period clauses, even where they do not create a direct financial entitlement, because those clauses may still define operational rules relevant to the penalties domain.
 - Break-between-work-period rules are still in scope even when they do not create any separate payment outcome.
@@ -92,9 +103,13 @@ Keep whole-shift qualification rules separate from specific-hours rules. Do not 
 
 
 OVERTIME_COMMON_QUESTION_BLOCKS = {
-    OVERTIME_CREATION_RULESET: OVERTIME_CREATION_COMMON_QUESTIONS,
-    OVERTIME_CONSEQUENCE_RULESET: OVERTIME_CONSEQUENCE_COMMON_QUESTIONS,
-    PENALTIES_RULESET: PENALTIES_COMMON_QUESTIONS,
+    OVERTIME_CREATION_RULESET: (
+        f"{COMMON_OVERTIME_RULES_PREAMBLE}\n{OVERTIME_CREATION_COMMON_QUESTIONS}"
+    ),
+    OVERTIME_CONSEQUENCE_RULESET: (
+        f"{COMMON_OVERTIME_RULES_PREAMBLE}\n{OVERTIME_CONSEQUENCE_COMMON_QUESTIONS}"
+    ),
+    PENALTIES_RULESET: f"{COMMON_OVERTIME_RULES_PREAMBLE}\n{PENALTIES_COMMON_QUESTIONS}",
 }
 
 

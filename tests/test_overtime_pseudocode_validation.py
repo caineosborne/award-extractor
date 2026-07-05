@@ -155,3 +155,111 @@ None
 
     assert report.overall_status == "passed"
     assert report.passed_rule_count == 1
+
+
+def test_validate_overtime_pseudocode_treats_explicit_exclusion_as_unresolved():
+    source_markdown = """## All employees
+
+- Employees must be released after overtime where the clause requires immediate release and managerial direction. [21.8]
+"""
+
+    pseudocode_markdown = """# Overtime consequence pseudocode
+
+## Derived Fields
+
+None
+
+## Required additional inputs
+
+- None
+
+## Rule priority
+
+1. Apply direct overtime payment rules before commentary-only conditions
+
+## Pseudocode
+
+- If overtime is worked on Sunday, apply the Sunday overtime multiplier. # Source: 20.1
+
+## Conditions not considered by the pseudocode
+
+- Clause 21.8 is not modelled because it depends on managerial judgement about immediate release rather than a stable code-definable condition.
+
+## Implementation notes
+
+- None
+"""
+
+    inventory = parse_rule_inventory_from_markdown(
+        source_markdown,
+        source_path=Path("source.md"),
+        inventory_name="reviewed_overtime_rules",
+        source_stage="3b",
+        domain="overtime",
+    )
+
+    report = validate_overtime_pseudocode_against_inventory(
+        inventory,
+        pseudocode_markdown,
+        target_path=Path("target.md"),
+    )
+
+    assert report.overall_status == "unresolved"
+    assert report.failed_rule_count == 0
+    assert report.unresolved_rule_count == 1
+    assert report.rule_results[0].status == "unresolved"
+    assert "explicitly excluded" in report.rule_results[0].message
+
+
+def test_validate_overtime_pseudocode_fails_exclusion_without_reason():
+    source_markdown = """## All employees
+
+- Employees must be released after overtime where the clause requires immediate release and managerial direction. [21.8]
+"""
+
+    pseudocode_markdown = """# Overtime consequence pseudocode
+
+## Derived Fields
+
+None
+
+## Required additional inputs
+
+- None
+
+## Rule priority
+
+1. Apply direct overtime payment rules before commentary-only conditions
+
+## Pseudocode
+
+- If overtime is worked on Sunday, apply the Sunday overtime multiplier. # Source: 20.1
+
+## Conditions not considered by the pseudocode
+
+- Clause 21.8
+
+## Implementation notes
+
+- None
+"""
+
+    inventory = parse_rule_inventory_from_markdown(
+        source_markdown,
+        source_path=Path("source.md"),
+        inventory_name="reviewed_overtime_rules",
+        source_stage="3b",
+        domain="overtime",
+    )
+
+    report = validate_overtime_pseudocode_against_inventory(
+        inventory,
+        pseudocode_markdown,
+        target_path=Path("target.md"),
+    )
+
+    assert report.overall_status == "failed"
+    assert any(
+        issue.issue_type == "excluded_condition_missing_reason"
+        for issue in report.issues
+    )

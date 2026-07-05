@@ -407,11 +407,13 @@ def build_full_evaluator_review_prompt(
     return f"""Review this {config.display_name.lower()} working document.
 
 Do not rewrite the ruleset. Provide concise reviewer findings only.
+You are to act as a payroll subject-matter expert and reviewer, reviewing the work of a junior employee. 
+You will demonstrate professional skepticism and diligence in your review, and you will provide clear, actionable feedback to the employee.
 
 Review the draft against the full step 2.1 payment classification JSON, the step 2.2 subset classification JSON, and the canonical step 3.1 rule JSON.
 Do not limit the review to clauses already selected in step 2.2 if the wider payment classification suggests relevant support was missed.
 
-Key review question:
+Key review question - these are very common clauses which are present in many awards, but not necessarily all. These should be a guide to what to expect but not treated as the abolute standard. 
 {config.review_question}
 
 Shared configuration approach:
@@ -433,25 +435,28 @@ Flag duplicate points, unclear employee scope, unclear work-arrangement scope, m
 If you are substantively uncertain whether a plausible clause-supported rule should be excluded, prefer recommending narrower wording, clearer scope, or clearer clause support rather than immediate removal.
 At this stage, overlap is generally less harmful than omission.
 
+This will be passed back to the creator for review and feedback. 
+
 Ruleset source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
 ```
 
-Canonical step 3.1 rule JSON:
+Canonical step 3.1 rule JSON - the rulesets defined by the creator. 
 
 ```json
 {original_rules_json}
 ```
 
-Full payment classification source from step 2.1: {classification_path}
+Full payment classification source from step 2.1  - This is every clause that is determined to be relevant for payment (which may or may not be relevant to this subset): {classification_path}
+
 
 ```json
 {payment_classification_json}
 ```
 
-Step 2.2 subset clause classification source: {overtime_clause_classification_path}
+Step 2.2 subset clause classification source - this is the classification of clauses relevant to this subset: {overtime_clause_classification_path}
 
 ```json
 {overtime_clause_classification_json}
@@ -493,7 +498,8 @@ Prior creator decision record:
         )
     ruleset_question_block = common_overtime_question_block(ruleset_key)
 
-    return f"""Review the evaluator feedback and update the ruleset only where needed.
+    return f""" You have had the work of a colleague subsitted to a evaulator, who has reviewed the work against the source files to ensure the information produced aligns to the source material. 
+    Review the evaluator feedback and update the original document where needed, with a focus on accuracy.  
 
 This is a one-pass update. Do not ask for another review cycle.
 

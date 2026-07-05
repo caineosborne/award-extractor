@@ -266,7 +266,19 @@ def extract_award(main_content) -> OrderedDict:
 
 
 def fetch(url: str) -> BeautifulSoup:
-    """Fetch a Fair Work award URL and parse the response HTML."""
+    """Fetch award HTML from a URL or a local file path and parse the response."""
+    parsed = urlparse(url)
+
+    if parsed.scheme in {"", "file"}:
+        if parsed.scheme == "file":
+            local_path = Path(parsed.path)
+        else:
+            local_path = Path(url)
+
+        if local_path.exists():
+            html_text = local_path.read_text(encoding="utf-8")
+            return BeautifulSoup(html_text, "html.parser")
+
     response = requests.get(url, timeout=30)
     response.raise_for_status()
     return BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")

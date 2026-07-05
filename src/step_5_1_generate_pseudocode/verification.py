@@ -61,6 +61,14 @@ class ImplementationRule:
 
 
 @dataclass(frozen=True)
+class ExcludedCondition:
+    """One explicitly acknowledged source rule excluded from executable pseudocode."""
+
+    condition_text: str
+    clause_references: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class RuleValidationResult:
     """Coverage result for one required source rule."""
 
@@ -208,6 +216,23 @@ def parse_implementation_rules(pseudocode_markdown: str) -> tuple[Implementation
     return tuple(parsed_rules)
 
 
+def parse_excluded_conditions(pseudocode_markdown: str) -> tuple[ExcludedCondition, ...]:
+    sections = split_markdown_sections(pseudocode_markdown)
+    excluded_lines = sections.get("Conditions not considered by the pseudocode", [])
+    parsed_conditions: list[ExcludedCondition] = []
+
+    for bullet in parse_top_level_bullets(excluded_lines):
+        clause_references = extract_clause_references(bullet)
+        parsed_conditions.append(
+            ExcludedCondition(
+                condition_text=bullet,
+                clause_references=clause_references,
+            )
+        )
+
+    return tuple(parsed_conditions)
+
+
 def normalize_text_for_keywords(value: str) -> list[str]:
     normalized_text = re.sub(r"[^a-z0-9\s]+", " ", value.lower())
     keywords: list[str] = []
@@ -241,6 +266,7 @@ def scopes_conflict(source_rule: RuleRecord, target_rule: ImplementationRule) ->
 def find_best_matching_rule(
     source_rule: RuleRecord,
     implementation_rules: tuple[ImplementationRule, ...],
+    excluded_conditions: tuple[ExcludedCondition, ...],
 ) -> tuple[ImplementationRule | None, str, str]:
     best_clause_match: ImplementationRule | None = None
     best_clause_overlap: tuple[str, ...] = ()
@@ -271,6 +297,21 @@ def find_best_matching_rule(
         )
 
     if source_rule.clause_references:
+        for excluded_condition in excluded_conditions:
+            overlapping_clauses = tuple(
+                clause_reference
+                for clause_reference in source_rule.clause_references
+                if clause_reference in excluded_condition.clause_references
+            )
+            if not overlapping_clauses:
+                continue
+
+            return (
+                None,
+                "unresolved",
+                "This reviewed source rule was explicitly excluded from executable pseudocode in `Conditions not considered by the pseudocode`.",
+            )
+
         return (
             None,
             "failed",
@@ -342,6 +383,58 @@ def find_missing_required_inputs(
     ]
 
 
+def find_invalid_excluded_conditions(
+    excluded_conditions: tuple[ExcludedCondition, ...],
+) -> list[ValidationIssue]:
+    issues: list[ValidationIssue] = []
+
+    for excluded_condition in excluded_conditions:
+        normalized_text = excluded_condition.condition_text.lower()
+
+        if not excluded_condition.clause_references:
+            issues.append(
+                ValidationIssue(
+                    issue_type="excluded_condition_missing_clause_reference",
+                    severity="failed",
+                    message=(
+                        "Each item in `Conditions not considered by the pseudocode` must include "
+                        "the source clause reference."
+                    ),
+                )
+            )
+
+        has_reason = any(
+            marker in normalized_text
+            for marker in (
+                "because",
+                "cannot",
+                "can't",
+                "unable",
+                "not coded",
+                "not modelled",
+                "not modeled",
+                "manual",
+                "judgement",
+                "judgment",
+                "review",
+                "outside scope",
+            )
+        )
+        if not has_reason:
+            issues.append(
+                ValidationIssue(
+                    issue_type="excluded_condition_missing_reason",
+                    severity="failed",
+                    message=(
+                        "Each item in `Conditions not considered by the pseudocode` must explain "
+                        "why the condition was excluded."
+                    ),
+                )
+            )
+
+    return issues
+
+
 def find_priority_issues(
     priority_items: list[str],
     implementation_rules: tuple[ImplementationRule, ...],
@@ -377,6 +470,7 @@ def validate_overtime_pseudocode_against_inventory(
 ) -> ValidationReport:
     sections = split_markdown_sections(pseudocode_markdown)
     implementation_rules = parse_implementation_rules(pseudocode_markdown)
+    excluded_conditions = parse_excluded_conditions(pseudocode_markdown)
     priority_items = parse_numbered_items(sections.get("Rule priority", []))
     required_inputs = parse_required_inputs(sections.get("Required additional inputs", []))
 
@@ -386,6 +480,7 @@ def validate_overtime_pseudocode_against_inventory(
         matched_rule, status, message = find_best_matching_rule(
             source_rule,
             implementation_rules,
+            excluded_conditions,
         )
         matched_clause_references = ()
         if matched_rule is not None:
@@ -404,6 +499,7 @@ def validate_overtime_pseudocode_against_inventory(
 
     issues = find_priority_issues(priority_items, implementation_rules)
     issues.extend(find_missing_required_inputs(required_inputs, implementation_rules))
+    issues.extend(find_invalid_excluded_conditions(excluded_conditions))
 
     passed_rule_count = sum(1 for result in rule_results if result.status == "passed")
     failed_rule_count = sum(1 for result in rule_results if result.status == "failed")
