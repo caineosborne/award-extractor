@@ -1,4 +1,4 @@
-"""LLM helpers for step 6.1 calculator YAML generation."""
+"""LLM helpers for step 6.1 calculator Python generation."""
 
 from __future__ import annotations
 
@@ -8,7 +8,6 @@ from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
-import yaml
 
 from src.common.llm_io import extract_response_text
 from src.common.pipeline_runtime import load_openai_environment
@@ -17,6 +16,7 @@ from src.prompts.step_6_1_generate_calculator_yaml import build_messages
 from .core import (
     DEFAULT_MODEL,
     CalculatorRulesYamlError,
+    calculator_rules_response_json_schema,
 )
 
 
@@ -48,31 +48,43 @@ def request_calculator_rules(
     penalties_json_path: Path,
     penalties_rules: list[dict[str, Any]],
 ) -> dict[str, Any]:
-    """Request the calculator-ready rules structure from the model."""
-    response = client.responses.create(
-        model=model,
-        input=build_messages(
-            award_code=award_code,
-            creation_json_path=creation_json_path,
-            creation_rules=creation_rules,
-            consequence_json_path=consequence_json_path,
-            consequence_rules=consequence_rules,
-            penalties_json_path=penalties_json_path,
-            penalties_rules=penalties_rules,
-        ),
-    )
+    """Request the structured questionnaire answers from the model."""
+    try:
+        response = client.responses.create(
+            model=model,
+            input=build_messages(
+                award_code=award_code,
+                creation_json_path=creation_json_path,
+                creation_rules=creation_rules,
+                consequence_json_path=consequence_json_path,
+                consequence_rules=consequence_rules,
+                penalties_json_path=penalties_json_path,
+                penalties_rules=penalties_rules,
+            ),
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": "calculator_rules_questionnaire",
+                    "schema": calculator_rules_response_json_schema(),
+                    "strict": True,
+                }
+            },
+        )
+    except Exception as exc:
+        raise CalculatorRulesYamlError("OpenAI calculator questionnaire request failed.") from exc
+
     output_text = extract_response_text(response)
     if not output_text:
         raise CalculatorRulesYamlError("OpenAI response did not include output text.")
 
     try:
-        loaded = yaml.safe_load(output_text)
-    except yaml.YAMLError as exc:
+        loaded = json.loads(output_text)
+    except json.JSONDecodeError as exc:
         raise CalculatorRulesYamlError(
-            f"Step 6.1 model output was not valid YAML: {exc}"
+            f"Step 6.1 model output was not valid JSON: {exc}"
         ) from exc
 
     if not isinstance(loaded, dict):
-        raise CalculatorRulesYamlError("Step 6.1 model output must be a YAML object.")
+        raise CalculatorRulesYamlError("Step 6.1 model output must be a JSON object.")
 
     return loaded

@@ -1,4 +1,4 @@
-"""Prompt content for step 6.1 calculator YAML generation."""
+"""Prompt content for step 6.1 calculator Python generation."""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ def build_messages(
     penalties_json_path: Path,
     penalties_rules: list[dict[str, Any]],
 ) -> list[dict[str, str]]:
-    """Build the prompt for calculator-ready YAML derivation."""
+    """Build the prompt for the structured calculator questionnaire."""
     payload = {
         "award_code": award_code,
         "source_artifacts": {
@@ -37,110 +37,45 @@ def build_messages(
     }
 
     instructions = """
-You create a calculator-ready rules profile from reviewed award rules.
+You answer a fixed calculator questionnaire from reviewed award rules.
 
 Use only the supplied step 3.2 reviewed JSON rules. Do not invent rules.
-If a field cannot be answered confidently from the supplied rules, leave the field null
-or an empty object as appropriate, and mark the evidence status as `needs_review`.
+Return structured questionnaire answers only.
 
-Interpret the award first, then map it to the calculator fields.
-Do not let the target field list prevent you from answering the real award question.
-When the award clearly answers a business question, prefer answering it in the closest
-calculator field rather than suppressing it just because the calculator shape is narrow.
+Important:
+- This is one questionnaire, not free-form calculator code.
+- Every answer must include evidence fields.
+- If the source does not support a confident live answer, set `answer` to null,
+  use status `needs_review` or `not_found`, and explain why.
+- Prefer the standard case that should drive a first-pass payroll calculator.
+- Record special cases in `special_case_notes`.
+- Do not let exceptional variants replace the standard live rule.
 
-The target fields are:
-- ordinary_hours_limit_daily
-- ordinary_hours_limit_weekly
-- day_worker_ordinary_hours_daily
-- day_worker_ordinary_hours_weekly
-- standard_overtime_rate
-- extended_overtime_rate
-- sunday_overtime_rate
-- saturday_overtime_rate
-- saturday_penalty_rate
-- sunday_penalty_rate
-- apply_span_overtime
-- span_overtime_hour
-- gap_penalty_hours
-- gap_penalty_rate
-- penalties
-- hours_pen_rules
-- weekend_rules
-- two_tier_overtime
-- two_tier_overtime_threshold
+Business interpretation rules:
+- For core-hours limits, separate day workers and shift workers where the source supports that distinction.
+- For two-tier overtime, answer whether there is a standard higher overtime tier, the higher multiplier, and the threshold in hours.
+- For span overtime, answer only for day workers. If the award has a more complex span than one live cutoff, choose the best single live cutoff and explain the limitation in `special_case_notes`.
+- For weekend treatment, answer whether weekend hours are overtime or penalty-based for each worker group and weekend day.
+- For gap between shifts, the calculator can only use one live threshold. Choose the standard live threshold and record differing worker-group thresholds in `special_case_notes`.
+- For the gap breach answer, use the calculator loading above base rather than the total paid rate. Example: if the award says pay 200%, answer `1.0`, not `2.0`.
+- For weekday penalties, include only standard cases that can be represented with numeric start and end hours. Do not include special cases that depend on rotation patterns, permanence, or non-time conditions unless they can be safely expressed in the structured rule shape.
+- Exclude permanent night shift variants from the live weekday penalty list unless the reviewed rules clearly show that permanent night is the standard default case.
 
-Return one YAML object with exactly this top-level shape:
-- calculator_rules:
-- field_evidence:
+Weekday penalty rule requirements:
+- `code_name` must be a stable snake_case identifier.
+- `type` must be `shift_based` or `time_based`.
+- `start_hour` and `end_hour` must be numeric 24-hour clock values.
+- `rate` must be the penalty loading above base time, such as `0.15` for 115%.
+- `applies_to` must only use `day` and/or `shift`.
+- If a penalty cannot be expressed with numeric windows, omit it from the live list and explain it in `other_penalty_notes` or `special_case_notes`.
 
-Formatting requirements for `calculator_rules`:
-- Store plain calculator-consumable values only.
-- Do not wrap scalar values in objects like `{value: ..., unit: ..., evidence_status: ...}`.
-- Do not include `evidence_status`, `unit`, `status`, or reasoning text inside `calculator_rules`.
-- Put all status, traceability, and reasoning metadata in `field_evidence` only.
-- `penalties`, `hours_pen_rules`, and `weekend_rules` should be plain nested mappings with no embedded evidence fields.
+Evidence rules:
+- `source_rule_ids` must exactly match supplied `rule_id` values.
+- `source_ruleset_keys` should use `overtime_creation`, `overtime_consequence`, and `penalties`.
+- `reasoning_summary` should briefly explain how the answer was derived.
+- `special_case_notes` should record anything important that does not fit the live calculator field cleanly.
 
-Interpretation guidance:
-- `ordinary_hours_limit_*` should represent the general shift-worker ordinary-hours limit when the award distinguishes day workers from other workers.
-- `day_worker_ordinary_hours_*` should represent day-worker ordinary-hours limits where the award distinguishes them.
-- `penalties` should preserve structured penalty rules when the reviewed rules clearly describe them.
-- `weekend_rules` should preserve whether weekend work is overtime or penalty-based, separately for day workers and shift workers where the source supports that distinction.
-- `hours_pen_rules` should only be used where the source clearly creates time-band penalties that apply by hour rather than by whole shift.
-- `two_tier_overtime` and `two_tier_overtime_threshold` should only be set when the source expressly supports a first-band and later-band overtime structure.
-
-Interpretation questions you must answer from the reviewed rules:
-- Do any employees get overtime because they work outside a span or spread of ordinary hours?
-- If yes, which employees and what standard span boundary should be used for the calculator field?
-- Do any employees get penalties because of when in the day they work?
-- If yes, are those penalties shift-based or time-based?
-- Which of those are standard/default cases versus exceptional/special cases?
-
-Standard-case rule:
-- Prefer the standard or default case that would usually be implemented first in a payroll calculator.
-- Do not choose a special variant when a broader standard rule exists.
-- Example: if there is a general afternoon/night shift penalty and also a special permanent night shift penalty, treat the general afternoon/night shift penalty as the standard live rule.
-- Keep exceptional, rarer, or special-case variants in evidence/reasoning unless the calculator clearly has a separate field or structure for them.
-
-Calculator formatting requirements:
-- Use calculator-ready numeric values, not strings like `150%` or `25%`.
-- Overtime rates must be decimal multipliers such as `1.5` and `2.0`.
-- Penalty rates must be decimal loadings above base time such as `0.15`, `0.25`, `0.5`, or `1.0`.
-- `gap_penalty_rate` should be the extra penalty loading, not the total paid rate.
-- The current calculator runtime is strict. Prefer a safe null or empty mapping over a richer structure that the runtime cannot execute.
-- If the reviewed rules clearly say some employees get overtime based on time-of-day boundaries, set `apply_span_overtime` to `true` and provide the best single standard boundary the current calculator can use.
-- If the real award rule is more complex than one single boundary, still provide the best standard live boundary and explain the limitation in evidence.
-- `gap_penalty_hours` must be a single numeric threshold or `null`. If the award has different gap thresholds by worker type, return `null` and explain that in evidence rather than returning a mapping.
-- `two_tier_overtime_threshold` should be a single number when one threshold applies generally. Use a mapping only when the source clearly requires different thresholds by worker type.
-- `weekend_rules` should use this shape where supported:
-  day:
-    Saturday: {is_overtime: true|false, rate: number|null}
-    Sunday: {is_overtime: true|false, rate: number|null}
-  shift:
-    Saturday: {is_overtime: true|false, rate: number|null, penalty_rate: number|null}
-    Sunday: {is_overtime: true|false, rate: number|null, penalty_rate: number|null}
-- For shift-worker weekend rules, use `penalty_rate` when weekend work is penalty-based rather than overtime-based.
-- For day-worker weekend rules, only populate entries that the current runtime can safely represent. If the award creates an ordinary-hours weekend penalty that the runtime cannot safely execute from `WEEKEND_RULES`, leave that entry out and explain it in evidence.
-- `penalties` should use named entries with this shape where supported:
-  some_penalty_name:
-    type: shift_based | time_based
-    start: number
-    end: number
-    rate: number
-    description: string
-    applies_to: [shift, day] or a narrower supported subset
-- For shift penalties, prefer live entries for standard/default penalties that the calculator can apply broadly.
-- Keep rarer variants such as permanent-night-only rules in evidence unless they are the main standard rule being applied.
-- Only include a live `penalties` entry when both `start` and `end` are numeric runtime-safe values. Do not return live penalty entries with `start: null` or `end: null`.
-- `hours_pen_rules` should be a plain mapping of calculator-ready time-band penalties only. If the source does not clearly support such a structure, return `{}`.
-- If the reviewed rules do not clearly support an exact calculator structure for `penalties`, `hours_pen_rules`, or `weekend_rules`, prefer `{}` and mark the evidence as `needs_review` rather than inventing a shape.
-
-Evidence requirements:
-- For every populated top-level field, include source_ruleset_keys, source_rule_ids, and clause_references.
-- source_rule_ids must exactly match the supplied rule_id values.
-- Use `derived` when the answer is supported by the award rules.
-- Use `needs_review` when the answer is incomplete, ambiguous, or only partially supported.
-- Do not use `defaulted` for any field in this model response. Defaults are applied later by the application.
-- Do not wrap the YAML in markdown fences.
+Do not wrap the response in markdown fences.
 """.strip()
 
     return [

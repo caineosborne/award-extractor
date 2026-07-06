@@ -1,4 +1,4 @@
-"""Shared logic for step 6.1 calculator YAML generation."""
+"""Shared logic for step 6.1 calculator Python generation."""
 
 from __future__ import annotations
 
@@ -73,10 +73,24 @@ ALL_RULE_FIELDS = (
     *DEFAULT_BOOLEAN_FIELDS.keys(),
     *OBJECT_RULE_FIELDS,
 )
+WEEKEND_TREATMENT_OPTIONS = (
+    "overtime",
+    "penalty",
+    "not_applicable",
+    "needs_review",
+)
+WORKER_TYPE_OPTIONS = (
+    "day",
+    "shift",
+)
+PENALTY_TYPE_OPTIONS = (
+    "shift_based",
+    "time_based",
+)
 
 
 class CalculatorRulesYamlError(RuntimeError):
-    """Raised when step 6.1 cannot produce a valid calculator YAML artifact."""
+    """Raised when step 6.1 cannot produce a valid calculator Python artifact."""
 
 
 @dataclass(frozen=True)
@@ -95,7 +109,7 @@ class CalculatorYamlInputs:
 
 
 def evidence_schema() -> dict[str, Any]:
-    """Return the strict evidence schema for one calculator field."""
+    """Return the strict evidence schema for one questionnaire answer."""
     return {
         "type": "object",
         "additionalProperties": False,
@@ -117,6 +131,7 @@ def evidence_schema() -> dict[str, Any]:
                 "items": {"type": "string"},
             },
             "reasoning_summary": {"type": "string"},
+            "special_case_notes": {"type": "string"},
         },
         "required": [
             "status",
@@ -124,84 +139,240 @@ def evidence_schema() -> dict[str, Any]:
             "source_rule_ids",
             "clause_references",
             "reasoning_summary",
+            "special_case_notes",
+        ],
+    }
+
+
+def _answer_schema(answer_schema: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "answer": answer_schema,
+            **evidence_schema()["properties"],
+        },
+        "required": [
+            "answer",
+            *evidence_schema()["required"],
         ],
     }
 
 
 def _nullable_number_schema() -> dict[str, Any]:
-    return {
-        "anyOf": [
-            {"type": "number"},
-            {"type": "null"},
-        ]
-    }
+    return {"anyOf": [{"type": "number"}, {"type": "null"}]}
 
 
 def _nullable_boolean_schema() -> dict[str, Any]:
+    return {"anyOf": [{"type": "boolean"}, {"type": "null"}]}
+
+
+def _nullable_string_schema() -> dict[str, Any]:
+    return {"anyOf": [{"type": "string"}, {"type": "null"}]}
+
+
+def _nullable_enum_schema(options: tuple[str, ...]) -> dict[str, Any]:
+    return {"anyOf": [{"type": "string", "enum": list(options)}, {"type": "null"}]}
+
+
+def penalty_rule_schema() -> dict[str, Any]:
+    """Return one weekday penalty rule answer shape."""
     return {
-        "anyOf": [
-            {"type": "boolean"},
-            {"type": "null"},
-        ]
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "code_name": {"type": "string"},
+            "type": {"type": "string", "enum": list(PENALTY_TYPE_OPTIONS)},
+            "start_hour": {"type": "number"},
+            "end_hour": {"type": "number"},
+            "rate": {"type": "number"},
+            "description": {"type": "string"},
+            "applies_to": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(WORKER_TYPE_OPTIONS)},
+            },
+        },
+        "required": [
+            "code_name",
+            "type",
+            "start_hour",
+            "end_hour",
+            "rate",
+            "description",
+            "applies_to",
+        ],
     }
 
 
-def _nullable_object_schema() -> dict[str, Any]:
+def special_case_schema() -> dict[str, Any]:
+    """Return one simple special-case note structure."""
     return {
-        "anyOf": [
-            {"type": "object", "additionalProperties": True},
-            {"type": "null"},
-        ]
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "worker_group": {"type": "string"},
+            "threshold_hours": _nullable_number_schema(),
+            "notes": {"type": "string"},
+        },
+        "required": ["worker_group", "threshold_hours", "notes"],
     }
 
 
 def calculator_rules_response_json_schema() -> dict[str, Any]:
-    """Return the strict JSON schema expected from the step 6.1 model."""
-    calculator_rules_properties: dict[str, Any] = {
-        "ordinary_hours_limit_daily": _nullable_number_schema(),
-        "ordinary_hours_limit_weekly": _nullable_number_schema(),
-        "day_worker_ordinary_hours_daily": _nullable_number_schema(),
-        "day_worker_ordinary_hours_weekly": _nullable_number_schema(),
-        "standard_overtime_rate": _nullable_number_schema(),
-        "extended_overtime_rate": _nullable_number_schema(),
-        "sunday_overtime_rate": _nullable_number_schema(),
-        "saturday_overtime_rate": _nullable_number_schema(),
-        "saturday_penalty_rate": _nullable_number_schema(),
-        "sunday_penalty_rate": _nullable_number_schema(),
-        "apply_span_overtime": _nullable_boolean_schema(),
-        "span_overtime_hour": _nullable_number_schema(),
-        "gap_penalty_hours": _nullable_number_schema(),
-        "gap_penalty_rate": _nullable_number_schema(),
-        "penalties": _nullable_object_schema(),
-        "hours_pen_rules": _nullable_object_schema(),
-        "weekend_rules": _nullable_object_schema(),
-        "two_tier_overtime": _nullable_boolean_schema(),
-        "two_tier_overtime_threshold": _nullable_number_schema(),
+    """Return the strict questionnaire JSON schema expected from step 6.1."""
+    core_hours = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "day_worker_daily_limit_hours": _answer_schema(_nullable_number_schema()),
+            "shift_worker_daily_limit_hours": _answer_schema(_nullable_number_schema()),
+            "day_worker_weekly_limit_hours": _answer_schema(_nullable_number_schema()),
+            "shift_worker_weekly_limit_hours": _answer_schema(_nullable_number_schema()),
+        },
+        "required": [
+            "day_worker_daily_limit_hours",
+            "shift_worker_daily_limit_hours",
+            "day_worker_weekly_limit_hours",
+            "shift_worker_weekly_limit_hours",
+        ],
     }
 
-    field_evidence_properties = {
-        field_name: evidence_schema()
-        for field_name in calculator_rules_properties
+    overtime = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "standard_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "has_two_tier_overtime": _answer_schema(_nullable_boolean_schema()),
+            "extended_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "higher_overtime_starts_after_hours": _answer_schema(_nullable_number_schema()),
+            "saturday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "sunday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+        },
+        "required": [
+            "standard_overtime_multiplier",
+            "has_two_tier_overtime",
+            "extended_overtime_multiplier",
+            "higher_overtime_starts_after_hours",
+            "saturday_overtime_multiplier",
+            "sunday_overtime_multiplier",
+        ],
+    }
+
+    span = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "day_workers_have_span_overtime": _answer_schema(_nullable_boolean_schema()),
+            "live_span_cutoff_hour": _answer_schema(_nullable_number_schema()),
+            "ordinary_span_summary": _answer_schema(_nullable_string_schema()),
+        },
+        "required": [
+            "day_workers_have_span_overtime",
+            "live_span_cutoff_hour",
+            "ordinary_span_summary",
+        ],
+    }
+
+    weekend_treatment = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "day_saturday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "day_sunday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "shift_saturday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "shift_sunday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "day_saturday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "day_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "shift_saturday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "shift_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
+        },
+        "required": [
+            "day_saturday_treatment",
+            "day_sunday_treatment",
+            "shift_saturday_treatment",
+            "shift_sunday_treatment",
+            "day_saturday_penalty_loading",
+            "day_sunday_penalty_loading",
+            "shift_saturday_penalty_loading",
+            "shift_sunday_penalty_loading",
+        ],
+    }
+
+    gap_between_shifts = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "minimum_break_required": _answer_schema(_nullable_boolean_schema()),
+            "standard_minimum_break_hours": _answer_schema(_nullable_number_schema()),
+            "breach_penalty_multiplier": _answer_schema(_nullable_number_schema()),
+            "special_case_thresholds": _answer_schema(
+                {
+                    "type": "array",
+                    "items": special_case_schema(),
+                }
+            ),
+        },
+        "required": [
+            "minimum_break_required",
+            "standard_minimum_break_hours",
+            "breach_penalty_multiplier",
+            "special_case_thresholds",
+        ],
+    }
+
+    weekday_penalties = {
+        "type": "object",
+        "additionalProperties": False,
+        "properties": {
+            "shift_based_penalties": _answer_schema(
+                {"type": "array", "items": penalty_rule_schema()}
+            ),
+            "time_based_penalties": _answer_schema(
+                {"type": "array", "items": penalty_rule_schema()}
+            ),
+            "other_penalty_notes": _answer_schema(_nullable_string_schema()),
+        },
+        "required": [
+            "shift_based_penalties",
+            "time_based_penalties",
+            "other_penalty_notes",
+        ],
     }
 
     return {
         "type": "object",
         "additionalProperties": False,
         "properties": {
-            "calculator_rules": {
+            "questionnaire_answers": {
                 "type": "object",
                 "additionalProperties": False,
-                "properties": calculator_rules_properties,
-                "required": list(calculator_rules_properties),
-            },
-            "field_evidence": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": field_evidence_properties,
-                "required": list(field_evidence_properties),
-            },
+                "properties": {
+                    "core_hours": core_hours,
+                    "overtime": overtime,
+                    "span": span,
+                    "weekend_treatment": weekend_treatment,
+                    "gap_between_shifts": gap_between_shifts,
+                    "weekday_penalties": weekday_penalties,
+                },
+                "required": [
+                    "core_hours",
+                    "overtime",
+                    "span",
+                    "weekend_treatment",
+                    "gap_between_shifts",
+                    "weekday_penalties",
+                ],
+            }
         },
-        "required": ["calculator_rules", "field_evidence"],
+        "required": ["questionnaire_answers"],
     }
 
 
@@ -257,27 +428,258 @@ def default_evidence(reasoning_summary: str, status: str) -> dict[str, Any]:
         "source_rule_ids": [],
         "clause_references": [],
         "reasoning_summary": reasoning_summary,
+        "special_case_notes": "",
     }
 
 
-def unwrap_rule_value(raw_value: Any) -> Any:
-    """Flatten review-oriented calculator field wrappers into plain values."""
-    if not isinstance(raw_value, dict):
-        return raw_value
+def _normalize_evidence_record(
+    raw_record: dict[str, Any],
+    *,
+    known_rule_ids: dict[str, set[str]],
+) -> dict[str, Any]:
+    source_ruleset_keys = [
+        str(value).strip()
+        for value in raw_record.get("source_ruleset_keys", [])
+        if str(value).strip()
+    ]
+    source_rule_ids = [
+        str(value).strip()
+        for value in raw_record.get("source_rule_ids", [])
+        if str(value).strip()
+    ]
+    clause_references = [
+        str(value).strip()
+        for value in raw_record.get("clause_references", [])
+        if str(value).strip()
+    ]
+    reasoning_summary = str(raw_record.get("reasoning_summary") or "").strip()
+    special_case_notes = str(raw_record.get("special_case_notes") or "").strip()
+    status = str(raw_record.get("status") or "").strip() or "needs_review"
 
-    if "value" in raw_value:
-        return raw_value.get("value")
+    resolved_ruleset_keys = set(source_ruleset_keys)
+    for source_rule_id in source_rule_ids:
+        matching_rulesets = {
+            ruleset_key
+            for ruleset_key, valid_rule_ids in known_rule_ids.items()
+            if source_rule_id in valid_rule_ids
+        }
+        if not matching_rulesets:
+            raise CalculatorRulesYamlError(
+                "Step 6.1 model cited unknown rule_id "
+                f"'{source_rule_id}'."
+            )
+        resolved_ruleset_keys.update(matching_rulesets)
 
-    cleaned_mapping = {
-        key: value
-        for key, value in raw_value.items()
-        if key not in {"evidence_status", "unit"}
+    return {
+        "status": status,
+        "source_ruleset_keys": sorted(resolved_ruleset_keys),
+        "source_rule_ids": source_rule_ids,
+        "clause_references": clause_references,
+        "reasoning_summary": reasoning_summary or "No reasoning summary provided.",
+        "special_case_notes": special_case_notes,
     }
 
-    if len(cleaned_mapping) == 1 and "value" in cleaned_mapping:
-        return cleaned_mapping["value"]
 
-    return cleaned_mapping
+def _get_question_record(
+    questionnaire_answers: dict[str, Any],
+    section_name: str,
+    question_name: str,
+) -> dict[str, Any]:
+    section = questionnaire_answers.get(section_name)
+    if not isinstance(section, dict):
+        raise CalculatorRulesYamlError(f"Missing questionnaire section: {section_name}")
+
+    record = section.get(question_name)
+    if not isinstance(record, dict):
+        raise CalculatorRulesYamlError(
+            f"Missing questionnaire answer: {section_name}.{question_name}"
+        )
+
+    return record
+
+
+def _normalize_question_record(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    known_rule_ids: dict[str, set[str]],
+) -> dict[str, Any]:
+    record = _get_question_record(questionnaire_answers, section_name, question_name)
+    normalized = _normalize_evidence_record(record, known_rule_ids=known_rule_ids)
+    normalized["answer"] = record.get("answer")
+    return normalized
+
+
+def _merge_status(statuses: list[str], *, default_status: str = "not_found") -> str:
+    if not statuses:
+        return default_status
+    if "needs_review" in statuses:
+        return "needs_review"
+    if "derived" in statuses:
+        return "derived"
+    if "defaulted" in statuses:
+        return "defaulted"
+    return statuses[0]
+
+
+def _merge_evidence_records(
+    records: list[dict[str, Any]],
+    *,
+    empty_reason: str,
+) -> dict[str, Any]:
+    usable_records = [record for record in records if isinstance(record, dict)]
+    if not usable_records:
+        return default_evidence(empty_reason, "not_found")
+
+    source_ruleset_keys: list[str] = []
+    source_rule_ids: list[str] = []
+    clause_references: list[str] = []
+    reasoning_parts: list[str] = []
+    special_case_parts: list[str] = []
+
+    for record in usable_records:
+        for ruleset_key in record.get("source_ruleset_keys", []):
+            if ruleset_key not in source_ruleset_keys:
+                source_ruleset_keys.append(ruleset_key)
+        for rule_id in record.get("source_rule_ids", []):
+            if rule_id not in source_rule_ids:
+                source_rule_ids.append(rule_id)
+        for clause_reference in record.get("clause_references", []):
+            if clause_reference not in clause_references:
+                clause_references.append(clause_reference)
+
+        reasoning_summary = str(record.get("reasoning_summary") or "").strip()
+        if reasoning_summary and reasoning_summary not in reasoning_parts:
+            reasoning_parts.append(reasoning_summary)
+
+        special_case_notes = str(record.get("special_case_notes") or "").strip()
+        if special_case_notes and special_case_notes not in special_case_parts:
+            special_case_parts.append(special_case_notes)
+
+    return {
+        "status": _merge_status(
+            [str(record.get("status") or "").strip() for record in usable_records]
+        ),
+        "source_ruleset_keys": source_ruleset_keys,
+        "source_rule_ids": source_rule_ids,
+        "clause_references": clause_references,
+        "reasoning_summary": " | ".join(reasoning_parts) or empty_reason,
+        "special_case_notes": " | ".join(special_case_parts),
+    }
+
+
+def _first_non_null(*values: Any) -> Any:
+    for value in values:
+        if value is not None:
+            return value
+    return None
+
+
+def _weekend_day_entry(treatment: str | None, *, overtime_rate: Any, penalty_rate: Any) -> dict[str, Any] | None:
+    if treatment == "overtime":
+        return {"is_overtime": True, "rate": overtime_rate}
+    if treatment == "penalty":
+        return {"is_overtime": False, "rate": penalty_rate}
+    return None
+
+
+def _weekend_shift_entry(
+    treatment: str | None,
+    *,
+    overtime_rate: Any,
+    penalty_rate: Any,
+) -> dict[str, Any] | None:
+    if treatment == "overtime":
+        return {"is_overtime": True, "rate": overtime_rate}
+    if treatment == "penalty":
+        return {"is_overtime": False, "rate": None, "penalty_rate": penalty_rate}
+    return None
+
+
+def _build_live_penalties(
+    shift_based_rules: list[dict[str, Any]],
+    time_based_rules: list[dict[str, Any]],
+) -> dict[str, Any]:
+    penalties: dict[str, Any] = {}
+
+    for raw_rule in [*shift_based_rules, *time_based_rules]:
+        if not isinstance(raw_rule, dict):
+            continue
+
+        code_name = str(raw_rule.get("code_name") or "").strip()
+        if not code_name:
+            continue
+
+        start_hour = raw_rule.get("start_hour")
+        end_hour = raw_rule.get("end_hour")
+        penalty_type = str(raw_rule.get("type") or "").strip()
+
+        if penalty_type not in PENALTY_TYPE_OPTIONS:
+            continue
+        if not isinstance(start_hour, (int, float)):
+            continue
+        if not isinstance(end_hour, (int, float)):
+            continue
+
+        applies_to = [
+            worker_type
+            for worker_type in raw_rule.get("applies_to", [])
+            if worker_type in WORKER_TYPE_OPTIONS
+        ]
+
+        penalties[code_name] = {
+            "type": penalty_type,
+            "start": start_hour,
+            "end": end_hour,
+            "rate": raw_rule.get("rate"),
+            "description": str(raw_rule.get("description") or "").strip(),
+            "applies_to": applies_to,
+        }
+
+    return penalties
+
+
+def validate_calculator_rules_shape(calculator_rules: dict[str, Any]) -> None:
+    """Validate the final runtime shape without changing business values."""
+    if calculator_rules.get("apply_span_overtime") is True:
+        if not isinstance(calculator_rules.get("span_overtime_hour"), (int, float)):
+            raise CalculatorRulesYamlError(
+                "Step 6.1 produced APPLY_SPAN_OVERTIME = True without a numeric SPAN_OVERTIME_HOUR."
+            )
+
+    for field_name in ("gap_penalty_hours", "gap_penalty_rate"):
+        value = calculator_rules.get(field_name)
+        if value is not None and not isinstance(value, (int, float)):
+            raise CalculatorRulesYamlError(
+                f"Step 6.1 produced a non-numeric value for {field_name}."
+            )
+
+    penalties = calculator_rules.get("penalties")
+    if not isinstance(penalties, dict):
+        raise CalculatorRulesYamlError("Step 6.1 penalties must be a mapping.")
+
+    for penalty_name, penalty_rule in penalties.items():
+        if not isinstance(penalty_rule, dict):
+            raise CalculatorRulesYamlError(
+                f"Penalty '{penalty_name}' must be a mapping."
+            )
+        if penalty_rule.get("type") not in PENALTY_TYPE_OPTIONS:
+            raise CalculatorRulesYamlError(
+                f"Penalty '{penalty_name}' has an unsupported type."
+            )
+        if not isinstance(penalty_rule.get("start"), (int, float)):
+            raise CalculatorRulesYamlError(
+                f"Penalty '{penalty_name}' must have a numeric start."
+            )
+        if not isinstance(penalty_rule.get("end"), (int, float)):
+            raise CalculatorRulesYamlError(
+                f"Penalty '{penalty_name}' must have a numeric end."
+            )
+
+    weekend_rules = calculator_rules.get("weekend_rules")
+    if not isinstance(weekend_rules, dict):
+        raise CalculatorRulesYamlError("Step 6.1 weekend_rules must be a mapping.")
 
 
 def normalize_response_data(
@@ -286,25 +688,399 @@ def normalize_response_data(
     award_code: str,
     known_rule_ids: dict[str, set[str]],
 ) -> dict[str, Any]:
-    """Normalize the model response into the persisted calculator structure."""
-    calculator_rules = response_data.get("calculator_rules", {})
-    field_evidence = response_data.get("field_evidence", {})
-
-    if not isinstance(calculator_rules, dict):
-        raise CalculatorRulesYamlError("Step 6.1 model output is missing calculator_rules.")
-    if not isinstance(field_evidence, dict):
-        raise CalculatorRulesYamlError("Step 6.1 model output is missing field_evidence.")
-
-    normalized_rules: dict[str, Any] = {}
-    normalized_evidence: dict[str, dict[str, Any]] = {}
-
-    for field_name in SCALAR_RULE_FIELDS:
-        normalized_rules[field_name] = unwrap_rule_value(
-            calculator_rules.get(field_name)
+    """Map questionnaire answers into the persisted calculator structure."""
+    questionnaire_answers = response_data.get("questionnaire_answers")
+    if not isinstance(questionnaire_answers, dict):
+        raise CalculatorRulesYamlError(
+            "Step 6.1 model output is missing questionnaire_answers."
         )
-    for field_name in OBJECT_RULE_FIELDS:
-        normalized_object_value = unwrap_rule_value(calculator_rules.get(field_name))
-        normalized_rules[field_name] = normalized_object_value or {}
+
+    question_records = {
+        "day_daily_limit": _normalize_question_record(
+            questionnaire_answers,
+            section_name="core_hours",
+            question_name="day_worker_daily_limit_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_daily_limit": _normalize_question_record(
+            questionnaire_answers,
+            section_name="core_hours",
+            question_name="shift_worker_daily_limit_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_weekly_limit": _normalize_question_record(
+            questionnaire_answers,
+            section_name="core_hours",
+            question_name="day_worker_weekly_limit_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_weekly_limit": _normalize_question_record(
+            questionnaire_answers,
+            section_name="core_hours",
+            question_name="shift_worker_weekly_limit_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "standard_overtime_multiplier": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="standard_overtime_multiplier",
+            known_rule_ids=known_rule_ids,
+        ),
+        "has_two_tier_overtime": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="has_two_tier_overtime",
+            known_rule_ids=known_rule_ids,
+        ),
+        "extended_overtime_multiplier": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="extended_overtime_multiplier",
+            known_rule_ids=known_rule_ids,
+        ),
+        "higher_overtime_starts_after_hours": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="higher_overtime_starts_after_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "saturday_overtime_multiplier": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="saturday_overtime_multiplier",
+            known_rule_ids=known_rule_ids,
+        ),
+        "sunday_overtime_multiplier": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="sunday_overtime_multiplier",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_workers_have_span_overtime": _normalize_question_record(
+            questionnaire_answers,
+            section_name="span",
+            question_name="day_workers_have_span_overtime",
+            known_rule_ids=known_rule_ids,
+        ),
+        "live_span_cutoff_hour": _normalize_question_record(
+            questionnaire_answers,
+            section_name="span",
+            question_name="live_span_cutoff_hour",
+            known_rule_ids=known_rule_ids,
+        ),
+        "ordinary_span_summary": _normalize_question_record(
+            questionnaire_answers,
+            section_name="span",
+            question_name="ordinary_span_summary",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_saturday_treatment": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_saturday_treatment",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_sunday_treatment": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_sunday_treatment",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_saturday_treatment": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_saturday_treatment",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_sunday_treatment": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_sunday_treatment",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_saturday_penalty_loading": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_saturday_penalty_loading",
+            known_rule_ids=known_rule_ids,
+        ),
+        "day_sunday_penalty_loading": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_sunday_penalty_loading",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_saturday_penalty_loading": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_saturday_penalty_loading",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_sunday_penalty_loading": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_sunday_penalty_loading",
+            known_rule_ids=known_rule_ids,
+        ),
+        "minimum_break_required": _normalize_question_record(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="minimum_break_required",
+            known_rule_ids=known_rule_ids,
+        ),
+        "standard_minimum_break_hours": _normalize_question_record(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="standard_minimum_break_hours",
+            known_rule_ids=known_rule_ids,
+        ),
+        "breach_penalty_multiplier": _normalize_question_record(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="breach_penalty_multiplier",
+            known_rule_ids=known_rule_ids,
+        ),
+        "special_case_thresholds": _normalize_question_record(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="special_case_thresholds",
+            known_rule_ids=known_rule_ids,
+        ),
+        "shift_based_penalties": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekday_penalties",
+            question_name="shift_based_penalties",
+            known_rule_ids=known_rule_ids,
+        ),
+        "time_based_penalties": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekday_penalties",
+            question_name="time_based_penalties",
+            known_rule_ids=known_rule_ids,
+        ),
+        "other_penalty_notes": _normalize_question_record(
+            questionnaire_answers,
+            section_name="weekday_penalties",
+            question_name="other_penalty_notes",
+            known_rule_ids=known_rule_ids,
+        ),
+    }
+
+    has_two_tier = question_records["has_two_tier_overtime"]["answer"]
+    minimum_break_required = question_records["minimum_break_required"]["answer"]
+
+    shift_based_penalties_answer = question_records["shift_based_penalties"]["answer"] or []
+    time_based_penalties_answer = question_records["time_based_penalties"]["answer"] or []
+
+    weekend_rules: dict[str, Any] = {}
+    day_weekend_rules: dict[str, Any] = {}
+    shift_weekend_rules: dict[str, Any] = {}
+
+    day_saturday_entry = _weekend_day_entry(
+        question_records["day_saturday_treatment"]["answer"],
+        overtime_rate=question_records["saturday_overtime_multiplier"]["answer"],
+        penalty_rate=question_records["day_saturday_penalty_loading"]["answer"],
+    )
+    day_sunday_entry = _weekend_day_entry(
+        question_records["day_sunday_treatment"]["answer"],
+        overtime_rate=question_records["sunday_overtime_multiplier"]["answer"],
+        penalty_rate=question_records["day_sunday_penalty_loading"]["answer"],
+    )
+    shift_saturday_entry = _weekend_shift_entry(
+        question_records["shift_saturday_treatment"]["answer"],
+        overtime_rate=question_records["saturday_overtime_multiplier"]["answer"],
+        penalty_rate=question_records["shift_saturday_penalty_loading"]["answer"],
+    )
+    shift_sunday_entry = _weekend_shift_entry(
+        question_records["shift_sunday_treatment"]["answer"],
+        overtime_rate=question_records["sunday_overtime_multiplier"]["answer"],
+        penalty_rate=question_records["shift_sunday_penalty_loading"]["answer"],
+    )
+
+    if day_saturday_entry is not None:
+        day_weekend_rules["Saturday"] = day_saturday_entry
+    if day_sunday_entry is not None:
+        day_weekend_rules["Sunday"] = day_sunday_entry
+    if shift_saturday_entry is not None:
+        shift_weekend_rules["Saturday"] = shift_saturday_entry
+    if shift_sunday_entry is not None:
+        shift_weekend_rules["Sunday"] = shift_sunday_entry
+    if day_weekend_rules:
+        weekend_rules["day"] = day_weekend_rules
+    if shift_weekend_rules:
+        weekend_rules["shift"] = shift_weekend_rules
+
+    normalized_rules: dict[str, Any] = {
+        "ordinary_hours_limit_daily": question_records["shift_daily_limit"]["answer"],
+        "ordinary_hours_limit_weekly": question_records["shift_weekly_limit"]["answer"],
+        "day_worker_ordinary_hours_daily": question_records["day_daily_limit"]["answer"],
+        "day_worker_ordinary_hours_weekly": question_records["day_weekly_limit"]["answer"],
+        "standard_overtime_rate": question_records["standard_overtime_multiplier"]["answer"],
+        "extended_overtime_rate": (
+            question_records["extended_overtime_multiplier"]["answer"]
+            if has_two_tier is True
+            else None
+        ),
+        "sunday_overtime_rate": question_records["sunday_overtime_multiplier"]["answer"],
+        "saturday_overtime_rate": question_records["saturday_overtime_multiplier"]["answer"],
+        "saturday_penalty_rate": _first_non_null(
+            question_records["day_saturday_penalty_loading"]["answer"],
+            question_records["shift_saturday_penalty_loading"]["answer"],
+        ),
+        "sunday_penalty_rate": _first_non_null(
+            question_records["day_sunday_penalty_loading"]["answer"],
+            question_records["shift_sunday_penalty_loading"]["answer"],
+        ),
+        "apply_span_overtime": question_records["day_workers_have_span_overtime"]["answer"],
+        "span_overtime_hour": (
+            question_records["live_span_cutoff_hour"]["answer"]
+            if question_records["day_workers_have_span_overtime"]["answer"] is True
+            else None
+        ),
+        "gap_penalty_hours": (
+            question_records["standard_minimum_break_hours"]["answer"]
+            if minimum_break_required is True
+            else None
+        ),
+        "gap_penalty_rate": (
+            question_records["breach_penalty_multiplier"]["answer"]
+            if minimum_break_required is True
+            else None
+        ),
+        "penalties": _build_live_penalties(
+            shift_based_penalties_answer,
+            time_based_penalties_answer,
+        ),
+        "hours_pen_rules": {},
+        "weekend_rules": weekend_rules,
+        "two_tier_overtime": has_two_tier,
+        "two_tier_overtime_threshold": (
+            question_records["higher_overtime_starts_after_hours"]["answer"]
+            if has_two_tier is True
+            else None
+        ),
+    }
+
+    validate_calculator_rules_shape(normalized_rules)
+
+    normalized_evidence = {
+        "ordinary_hours_limit_daily": _merge_evidence_records(
+            [question_records["shift_daily_limit"]],
+            empty_reason="No evidence available for shift-worker daily ordinary-hours limit.",
+        ),
+        "ordinary_hours_limit_weekly": _merge_evidence_records(
+            [question_records["shift_weekly_limit"]],
+            empty_reason="No evidence available for shift-worker weekly ordinary-hours limit.",
+        ),
+        "day_worker_ordinary_hours_daily": _merge_evidence_records(
+            [question_records["day_daily_limit"]],
+            empty_reason="No evidence available for day-worker daily ordinary-hours limit.",
+        ),
+        "day_worker_ordinary_hours_weekly": _merge_evidence_records(
+            [question_records["day_weekly_limit"]],
+            empty_reason="No evidence available for day-worker weekly ordinary-hours limit.",
+        ),
+        "standard_overtime_rate": _merge_evidence_records(
+            [question_records["standard_overtime_multiplier"]],
+            empty_reason="No evidence available for standard overtime multiplier.",
+        ),
+        "extended_overtime_rate": _merge_evidence_records(
+            [
+                question_records["has_two_tier_overtime"],
+                question_records["extended_overtime_multiplier"],
+            ],
+            empty_reason="No evidence available for extended overtime multiplier.",
+        ),
+        "sunday_overtime_rate": _merge_evidence_records(
+            [question_records["sunday_overtime_multiplier"]],
+            empty_reason="No evidence available for Sunday overtime multiplier.",
+        ),
+        "saturday_overtime_rate": _merge_evidence_records(
+            [question_records["saturday_overtime_multiplier"]],
+            empty_reason="No evidence available for Saturday overtime multiplier.",
+        ),
+        "saturday_penalty_rate": _merge_evidence_records(
+            [
+                question_records["day_saturday_penalty_loading"],
+                question_records["shift_saturday_penalty_loading"],
+            ],
+            empty_reason="No evidence available for Saturday penalty loading.",
+        ),
+        "sunday_penalty_rate": _merge_evidence_records(
+            [
+                question_records["day_sunday_penalty_loading"],
+                question_records["shift_sunday_penalty_loading"],
+            ],
+            empty_reason="No evidence available for Sunday penalty loading.",
+        ),
+        "apply_span_overtime": _merge_evidence_records(
+            [
+                question_records["day_workers_have_span_overtime"],
+                question_records["ordinary_span_summary"],
+            ],
+            empty_reason="No evidence available for span overtime.",
+        ),
+        "span_overtime_hour": _merge_evidence_records(
+            [
+                question_records["day_workers_have_span_overtime"],
+                question_records["live_span_cutoff_hour"],
+                question_records["ordinary_span_summary"],
+            ],
+            empty_reason="No evidence available for span overtime cutoff hour.",
+        ),
+        "gap_penalty_hours": _merge_evidence_records(
+            [
+                question_records["minimum_break_required"],
+                question_records["standard_minimum_break_hours"],
+                question_records["special_case_thresholds"],
+            ],
+            empty_reason="No evidence available for gap-between-shifts threshold.",
+        ),
+        "gap_penalty_rate": _merge_evidence_records(
+            [
+                question_records["minimum_break_required"],
+                question_records["breach_penalty_multiplier"],
+                question_records["special_case_thresholds"],
+            ],
+            empty_reason="No evidence available for gap-between-shifts penalty multiplier.",
+        ),
+        "penalties": _merge_evidence_records(
+            [
+                question_records["shift_based_penalties"],
+                question_records["time_based_penalties"],
+                question_records["other_penalty_notes"],
+            ],
+            empty_reason="No evidence available for weekday penalties.",
+        ),
+        "hours_pen_rules": default_evidence(
+            "No separate hours_pen_rules mapping is generated in step 6.1 yet.",
+            "defaulted",
+        ),
+        "weekend_rules": _merge_evidence_records(
+            [
+                question_records["day_saturday_treatment"],
+                question_records["day_sunday_treatment"],
+                question_records["shift_saturday_treatment"],
+                question_records["shift_sunday_treatment"],
+                question_records["day_saturday_penalty_loading"],
+                question_records["day_sunday_penalty_loading"],
+                question_records["shift_saturday_penalty_loading"],
+                question_records["shift_sunday_penalty_loading"],
+            ],
+            empty_reason="No evidence available for weekend rules.",
+        ),
+        "two_tier_overtime": _merge_evidence_records(
+            [question_records["has_two_tier_overtime"]],
+            empty_reason="No evidence available for two-tier overtime.",
+        ),
+        "two_tier_overtime_threshold": _merge_evidence_records(
+            [
+                question_records["has_two_tier_overtime"],
+                question_records["higher_overtime_starts_after_hours"],
+            ],
+            empty_reason="No evidence available for the two-tier overtime threshold.",
+        ),
+    }
 
     for field_name, default_value in DEFAULT_BOOLEAN_FIELDS.items():
         normalized_rules[field_name] = default_value
@@ -312,56 +1088,6 @@ def normalize_response_data(
             "Defaulted to True because the source rulesets do not answer this field.",
             "defaulted",
         )
-
-    for field_name in (*SCALAR_RULE_FIELDS, *OBJECT_RULE_FIELDS):
-        raw_evidence = field_evidence.get(field_name)
-        if not isinstance(raw_evidence, dict):
-            status = "not_found" if normalized_rules[field_name] in (None, {}) else "needs_review"
-            normalized_evidence[field_name] = default_evidence(
-                "No field evidence was returned by the model response.",
-                status,
-            )
-            continue
-
-        source_ruleset_keys = [
-            str(value).strip()
-            for value in raw_evidence.get("source_ruleset_keys", [])
-            if str(value).strip()
-        ]
-        source_rule_ids = [
-            str(value).strip()
-            for value in raw_evidence.get("source_rule_ids", [])
-            if str(value).strip()
-        ]
-        clause_references = [
-            str(value).strip()
-            for value in raw_evidence.get("clause_references", [])
-            if str(value).strip()
-        ]
-        reasoning_summary = str(raw_evidence.get("reasoning_summary") or "").strip()
-        status = str(raw_evidence.get("status") or "").strip() or "needs_review"
-
-        resolved_ruleset_keys = set(source_ruleset_keys)
-        for source_rule_id in source_rule_ids:
-            matching_rulesets = {
-                ruleset_key
-                for ruleset_key, valid_rule_ids in known_rule_ids.items()
-                if source_rule_id in valid_rule_ids
-            }
-            if not matching_rulesets:
-                raise CalculatorRulesYamlError(
-                    "Step 6.1 model cited unknown rule_id "
-                    f"'{source_rule_id}'."
-                )
-            resolved_ruleset_keys.update(matching_rulesets)
-
-        normalized_evidence[field_name] = {
-            "status": status,
-            "source_ruleset_keys": sorted(resolved_ruleset_keys),
-            "source_rule_ids": source_rule_ids,
-            "clause_references": clause_references,
-            "reasoning_summary": reasoning_summary or "No reasoning summary provided.",
-        }
 
     return {
         "schema_version": "calculator-rules-python-v1",
@@ -427,7 +1153,10 @@ def render_python_text(data: dict[str, Any]) -> str:
     """Render one calculator rules artifact as a Python module."""
     award_code = str(data["award_code"])
     award_title = data.get("award_title")
-    class_name = class_name_for_award(award_code, award_title if isinstance(award_title, str) else None)
+    class_name = class_name_for_award(
+        award_code,
+        award_title if isinstance(award_title, str) else None,
+    )
     calculator_rules = data["calculator_rules"]
     field_evidence = data["field_evidence"]
     generation_metadata = {
