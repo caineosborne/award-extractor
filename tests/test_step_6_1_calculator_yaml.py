@@ -80,7 +80,7 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     clause_references=["21.4"],
                 ),
                 "saturday_overtime_multiplier": _answer(
-                    1.5,
+                    2.0,
                     source_ruleset_keys=["overtime_consequence"],
                     source_rule_ids=["consequence-rule-2"],
                     clause_references=["21.4"],
@@ -205,21 +205,44 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                         {
                             "code_name": "afternoon_shift",
                             "type": "shift_based",
-                            "start_hour": 13,
-                            "end_hour": 19,
+                            "basis": "end",
+                            "start_hour": 19,
+                            "end_hour": 24,
                             "rate": 0.15,
                             "description": "Standard afternoon shift penalty.",
                             "applies_to": ["shift"],
-                        }
+                        },
+                        {
+                            "code_name": "shiftwork_saturday_sunday_public_holiday",
+                            "type": "shift_based",
+                            "basis": "start",
+                            "start_hour": 0,
+                            "end_hour": 24,
+                            "rate": 0.5,
+                            "description": "Weekend shift penalty that should not be in live weekday penalties.",
+                            "applies_to": ["shift"],
+                        },
                     ],
                     source_ruleset_keys=["penalties"],
                     source_rule_ids=["penalty-rule-7"],
                     clause_references=["31.1"],
                 ),
                 "time_based_penalties": _answer(
-                    [],
-                    status="not_found",
-                    reasoning_summary="No standard weekday time-band penalty was identified.",
+                    [
+                        {
+                            "code_name": "nonshift_saturday_ordinary_hours",
+                            "type": "time_based",
+                            "basis": "start",
+                            "start_hour": 7,
+                            "end_hour": 19,
+                            "rate": 0.25,
+                            "description": "Saturday day rule that should not leak into weekday penalties.",
+                            "applies_to": ["day"],
+                        }
+                    ],
+                    source_ruleset_keys=["penalties"],
+                    source_rule_ids=["penalty-rule-7"],
+                    clause_references=["31.1"],
                 ),
                 "other_penalty_notes": _answer(
                     "Permanent night shift is a special case and is not included as a live rule.",
@@ -273,17 +296,23 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
     assert normalized["calculator_rules"]["penalties"] == {
         "afternoon_shift": {
             "type": "shift_based",
-            "start": 13,
-            "end": 19,
+            "basis": "end",
+            "start": 19,
+            "end": 24,
             "rate": 0.15,
             "description": "Standard afternoon shift penalty.",
             "applies_to": ["shift"],
         }
     }
+    assert normalized["calculator_rules"]["saturday_overtime_rate"] == 2.0
     assert normalized["calculator_rules"]["weekend_rules"]["shift"]["Saturday"] == {
         "is_overtime": False,
         "rate": None,
         "penalty_rate": 0.5,
+    }
+    assert normalized["calculator_rules"]["weekend_rules"]["day"]["Saturday"] == {
+        "is_overtime": True,
+        "rate": 1.25,
     }
     assert normalized["calculator_rules"]["use_contracted_hours_for_pt_overtime"] is True
     assert normalized["field_evidence"]["gap_penalty_hours"]["special_case_notes"] == (
@@ -371,7 +400,7 @@ def test_render_python_text_matches_calculator_class_shape():
             "standard_overtime_rate": 1.5,
             "extended_overtime_rate": 2.0,
             "sunday_overtime_rate": 2.0,
-            "saturday_overtime_rate": 1.5,
+            "saturday_overtime_rate": 2.0,
             "saturday_penalty_rate": 0.25,
             "sunday_penalty_rate": 1.0,
             "apply_span_overtime": True,
@@ -386,8 +415,9 @@ def test_render_python_text_matches_calculator_class_shape():
             "penalties": {
                 "afternoon_shift": {
                     "type": "shift_based",
-                    "start": 13,
-                    "end": 19,
+                    "basis": "end",
+                    "start": 19,
+                    "end": 24,
                     "rate": 0.15,
                     "description": "Standard afternoon shift penalty.",
                     "applies_to": ["shift"],
@@ -395,6 +425,12 @@ def test_render_python_text_matches_calculator_class_shape():
             },
             "hours_pen_rules": {},
             "weekend_rules": {
+                "day": {
+                    "Saturday": {
+                        "is_overtime": True,
+                        "rate": 1.25,
+                    }
+                },
                 "shift": {
                     "Saturday": {
                         "is_overtime": False,
@@ -422,7 +458,7 @@ def test_render_python_text_matches_calculator_class_shape():
     assert "ORDINARY_HOURS_LIMIT_DAILY = 10" in rendered
     assert "USE_CONTRACTED_HOURS_FOR_PT_OVERTIME = True" in rendered
     assert "DEFAULT_BREAK = 0.5" in rendered
-    assert "'start': 13" in rendered
+    assert "'basis': 'end'" in rendered
     assert "'penalty_rate': 0.5" in rendered
     assert "# FIELD_EVIDENCE =" in rendered
     assert "# GENERATION_METADATA =" in rendered

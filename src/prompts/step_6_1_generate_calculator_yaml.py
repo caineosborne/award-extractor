@@ -60,13 +60,24 @@ Business interpretation rules:
 - For the gap breach answer, use the calculator loading above base rather than the total paid rate. Example: if the award says pay 200%, answer `1.0`, not `2.0`.
 - For weekday penalties, include only standard cases that can be represented with numeric start and end hours. Do not include special cases that depend on rotation patterns, permanence, or non-time conditions unless they can be safely expressed in the structured rule shape.
 - Exclude permanent night shift variants from the live weekday penalty list unless the reviewed rules clearly show that permanent night is the standard default case.
+- Treat `weekday_penalties` as weekday extra penalties only. Do not include Saturday, Sunday, public holiday, meal-break, or other calendar/fact-dependent rules in the live weekday penalty lists.
+- If a weekday penalty is based on shift start time, shift finish time, or how long the shift runs, record that explicitly.
+- If a weekday shift penalty is based on shift classification, prefer the real basis:
+  - use `start` when the rule depends on when the shift starts
+  - use `end` when the rule depends on when the shift finishes
+  - use `duration` when the rule depends on how long the shift runs
+- Do not use a `0` to `24` placeholder unless the award truly applies the same weekday shift penalty regardless of timing.
 
 Weekday penalty rule requirements:
 - `code_name` must be a stable snake_case identifier.
 - `type` must be `shift_based` or `time_based`.
+- `basis` must be one of `start`, `end`, or `duration`.
 - `start_hour` and `end_hour` must be numeric 24-hour clock values.
 - `rate` must be the penalty loading above base time, such as `0.15` for 115%.
 - `applies_to` must only use `day` and/or `shift`.
+- `shift_based` can use either `start` or `end`.
+- `time_based` usually uses `duration` only if the rule truly depends on shift length; otherwise use the basis that best reflects the trigger.
+- Do not encode a whole-day `0` to `24` placeholder when the real rule depends on finishing time, permanence, rotation, Saturday/Sunday, or public holidays.
 - If a penalty cannot be expressed with numeric windows, omit it from the live list and explain it in `other_penalty_notes` or `special_case_notes`.
 
 Evidence rules:

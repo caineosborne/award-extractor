@@ -87,6 +87,11 @@ PENALTY_TYPE_OPTIONS = (
     "shift_based",
     "time_based",
 )
+PENALTY_BASIS_OPTIONS = (
+    "start",
+    "end",
+    "duration",
+)
 
 
 class CalculatorRulesYamlError(RuntimeError):
@@ -183,6 +188,7 @@ def penalty_rule_schema() -> dict[str, Any]:
         "properties": {
             "code_name": {"type": "string"},
             "type": {"type": "string", "enum": list(PENALTY_TYPE_OPTIONS)},
+            "basis": {"type": "string", "enum": list(PENALTY_BASIS_OPTIONS)},
             "start_hour": {"type": "number"},
             "end_hour": {"type": "number"},
             "rate": {"type": "number"},
@@ -195,6 +201,7 @@ def penalty_rule_schema() -> dict[str, Any]:
         "required": [
             "code_name",
             "type",
+            "basis",
             "start_hour",
             "end_hour",
             "rate",
@@ -580,7 +587,17 @@ def _weekend_day_entry(treatment: str | None, *, overtime_rate: Any, penalty_rat
     if treatment == "overtime":
         return {"is_overtime": True, "rate": overtime_rate}
     if treatment == "penalty":
-        return {"is_overtime": False, "rate": penalty_rate}
+        # The current calculator runtime does not have a separate day-worker
+        # weekend penalty branch. Use the overtime path so weekend day shifts
+        # still receive the required uplift.
+        return {
+            "is_overtime": True,
+            "rate": _weekend_effective_overtime_rate(
+                treatment=treatment,
+                overtime_rate=overtime_rate,
+                penalty_rate=penalty_rate,
+            ),
+        }
     return None
 
 
@@ -614,8 +631,11 @@ def _build_live_penalties(
         start_hour = raw_rule.get("start_hour")
         end_hour = raw_rule.get("end_hour")
         penalty_type = str(raw_rule.get("type") or "").strip()
+        penalty_basis = str(raw_rule.get("basis") or "").strip()
 
         if penalty_type not in PENALTY_TYPE_OPTIONS:
+            continue
+        if penalty_basis not in PENALTY_BASIS_OPTIONS:
             continue
         if not isinstance(start_hour, (int, float)):
             continue
@@ -627,17 +647,46 @@ def _build_live_penalties(
             for worker_type in raw_rule.get("applies_to", [])
             if worker_type in WORKER_TYPE_OPTIONS
         ]
+        description = str(raw_rule.get("description") or "").strip()
+        lower_description = description.lower()
+        lower_code_name = code_name.lower()
+
+        # The current engine only applies PENALTIES on ordinary weekdays and has
+        # no calendar-aware weekend/public-holiday filtering in this path.
+        # Exclude any calendar-specific live rule here so it does not leak onto
+        # weekday calculations.
+        calendar_specific_terms = (
+            "saturday",
+            "sunday",
+            "weekend",
+            "public holiday",
+            "public_holiday",
+        )
+        if any(term in lower_code_name or term in lower_description for term in calendar_specific_terms):
+            continue
 
         penalties[code_name] = {
             "type": penalty_type,
+            "basis": penalty_basis,
             "start": start_hour,
             "end": end_hour,
             "rate": raw_rule.get("rate"),
-            "description": str(raw_rule.get("description") or "").strip(),
+            "description": description,
             "applies_to": applies_to,
         }
 
     return penalties
+
+
+def _weekend_effective_overtime_rate(
+    *,
+    treatment: str | None,
+    overtime_rate: Any,
+    penalty_rate: Any,
+) -> Any:
+    if treatment == "penalty" and isinstance(penalty_rate, (int, float)):
+        return 1 + penalty_rate
+    return overtime_rate
 
 
 def validate_calculator_rules_shape(calculator_rules: dict[str, Any]) -> None:
