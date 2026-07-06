@@ -268,7 +268,7 @@ def test_run_step_6_1_uses_three_revised_ruleset_json_sources():
         penalties_json_path=PROJECT_ROOT
         / Path("data/processed/MA000018/3_2_Penalties_revised_ruleset.json"),
         output_path=PROJECT_ROOT
-        / Path("data/processed/MA000018/calculator/6_1_calculator_rules.yaml"),
+        / Path("data/processed/MA000018/calculator/6_1_calculator_rules.py"),
     )
 
 

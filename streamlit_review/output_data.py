@@ -15,6 +15,7 @@ from src.common.overtime_rulesets import (
     PENALTIES_RULESET,
 )
 from src.common.output_naming import ruleset_short_label
+from src.common.output_naming import calculator_rules_module_stem_for_output_stem
 from src.common.active_pipeline_paths import (
     ruleset_clause_classification_output_path_for_classification,
 )
@@ -83,8 +84,9 @@ def award_dir_for_output_set(output_set_name: str) -> Path:
     return PROCESSED_ROOT / output_set_name
 
 
-def calculator_yaml_path_for_award(output_set_name: str) -> Path:
-    return award_dir_for_output_set(output_set_name) / "calculator" / "6_1_calculator_rules.yaml"
+def calculator_rules_python_path_for_award(output_set_name: str) -> Path:
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}.py"
 
 
 def canonical_ruleset_paths(

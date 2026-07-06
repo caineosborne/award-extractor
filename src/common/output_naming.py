@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
@@ -258,6 +259,70 @@ def validation_markdown_path_for_pseudocode(pseudocode_path: Path | str) -> Path
     return path.with_name(f"{path.stem}_validation.md")
 
 
-def calculator_yaml_path_for_output_stem(output_stem: str) -> Path:
-    """Return the canonical step 6.1 calculator YAML path for one output set."""
-    return award_dir_for_output_stem(output_stem) / "calculator" / "6_1_calculator_rules.yaml"
+def award_title_from_award_json_path(award_json_path: Path | str) -> str | None:
+    """Return the award title line from one parsed award JSON file when available."""
+    path = Path(award_json_path)
+    if not path.exists():
+        return None
+
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return None
+
+    if not isinstance(loaded, dict):
+        return None
+
+    part_one = loaded.get("Part 1— Application and Operation of this award")
+    if not isinstance(part_one, dict):
+        return None
+
+    clause_one = part_one.get("1")
+    if not isinstance(clause_one, dict):
+        return None
+
+    clause_one_one = clause_one.get("1.1")
+    if not isinstance(clause_one_one, dict):
+        return None
+
+    content = clause_one_one.get("_content")
+    if not isinstance(content, list) or not content:
+        return None
+
+    title = str(content[0]).strip()
+    if not title:
+        return None
+
+    return title
+
+
+def _rules_name_base_from_award_title(award_title: str) -> str:
+    """Return a readable rules-name base derived from one award title."""
+    cleaned_title = award_title.strip().rstrip(".")
+    cleaned_title = re.sub(r"^This is the\s+", "", cleaned_title, flags=re.IGNORECASE)
+    cleaned_title = re.sub(r"\bAward\b.*$", "", cleaned_title, flags=re.IGNORECASE)
+    cleaned_title = cleaned_title.replace("—", " ").replace("-", " ")
+    cleaned_title = re.sub(r"[^A-Za-z0-9]+", "_", cleaned_title)
+    cleaned_title = re.sub(r"_+", "_", cleaned_title).strip("_").lower()
+
+    if not cleaned_title:
+        return "award"
+
+    return cleaned_title
+
+
+def calculator_rules_module_stem_for_output_stem(output_stem: str) -> str:
+    """Return the preferred calculator rules module stem for one output set."""
+    award_json_path = award_json_path_for_output_stem(output_stem)
+    award_title = award_title_from_award_json_path(award_json_path)
+
+    if award_title is None:
+        return "6_1_calculator_rules"
+
+    return f"{_rules_name_base_from_award_title(award_title)}_rules"
+
+
+def calculator_rules_python_path_for_output_stem(output_stem: str) -> Path:
+    """Return the canonical step 6.1 calculator Python path for one output set."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
+    return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}.py"

@@ -44,7 +44,7 @@ from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
 from src.step_5_1_generate_pseudocode.run import generate_core_overtime_pseudocode
 from streamlit_review.output_data import (
     artifact_paths_for_award,
-    calculator_yaml_path_for_award,
+    calculator_rules_python_path_for_award,
     load_json_file,
     ruleset_artifact_paths_for_award,
     source_path_for_ruleset_core_overtime_pseudocode,
@@ -61,7 +61,7 @@ PIPELINE_STEP_LABELS = {
     "3.2": "Review overtime ruleset",
     "4.1": "Format overtime guide",
     "5.1": "Generate pseudocode",
-    "6.1": "Generate calculator YAML",
+    "6.1": "Generate calculator Python",
 }
 
 
@@ -226,7 +226,7 @@ def step_output_exists(
         return artifact_exists(getattr(ruleset_artifacts, "clause_classification", None))
 
     if step_id == "6.1":
-        return artifact_exists(calculator_yaml_path_for_award(award_code))
+        return artifact_exists(calculator_rules_python_path_for_award(award_code))
 
     return False
 

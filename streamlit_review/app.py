@@ -1,3 +1,4 @@
+import ast
 import hashlib
 import json
 import re
@@ -12,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 import streamlit as st
-import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(PROJECT_ROOT) not in sys.path:
@@ -58,7 +58,7 @@ from streamlit_review.pipeline_runs import (
 )
 from streamlit_review.output_data import (
     artifact_paths_for_award,
-    calculator_yaml_path_for_award,
+    calculator_rules_python_path_for_award,
     clamp_index,
     delete_processed_files_matching_prefix,
     discover_award_codes,
@@ -93,7 +93,7 @@ SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
 SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
-SCREEN_CALCULATOR_YAML = "12. Step 6.1 Calculator YAML"
+SCREEN_CALCULATOR_PYTHON = "12. Step 6.1 Calculator Python"
 CLAUSE_REFERENCE_PATTERN = re.compile(
     r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
     re.IGNORECASE,
@@ -119,7 +119,7 @@ SCREEN_OPTIONS = [
     SCREEN_FORMATTED_4A,
     SCREEN_HUMAN_REVIEW,
     SCREEN_CORE_OVERTIME_PSEUDOCODE,
-    SCREEN_CALCULATOR_YAML,
+    SCREEN_CALCULATOR_PYTHON,
 ]
 
 COMPARISON_PRESETS = {
@@ -157,7 +157,7 @@ PIPELINE_STEP_LABELS = {
     "3.2": "Review overtime ruleset",
     "4.1": "Format overtime guide",
     "5.1": "Generate pseudocode",
-    "6.1": "Generate calculator YAML",
+    "6.1": "Generate calculator Python",
 }
 
 
@@ -499,7 +499,7 @@ def render_screen(
         SCREEN_FORMATTED_4A: render_formatted_4a_screen,
         SCREEN_HUMAN_REVIEW: render_manual_ruleset_editor_screen,
         SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
-        SCREEN_CALCULATOR_YAML: render_calculator_yaml_screen,
+        SCREEN_CALCULATOR_PYTHON: render_calculator_python_screen,
     }
 
     renderer = renderers[screen_name]
@@ -1431,7 +1431,7 @@ def manual_ruleset_editor_widget_key(panel_key: str, output_path: Path) -> str:
     return f"{panel_key}_manual_ruleset_editor_{output_path.stem}"
 
 
-def render_calculator_yaml_screen(
+def render_calculator_python_screen(
     artifact_paths: Any,
     panel_key: str,
     ruleset_key: str,
@@ -1440,56 +1440,56 @@ def render_calculator_yaml_screen(
     del ruleset_key
 
     award_code = st.session_state.get("award_code", "")
-    yaml_path = calculator_yaml_path_for_award(award_code)
-    render_file_details(yaml_path)
-    yaml_content = read_text_file(yaml_path)
+    python_path = calculator_rules_python_path_for_award(award_code)
+    render_file_details(python_path)
+    python_content = read_text_file(python_path)
 
-    if not yaml_content.exists:
-        render_missing_file(yaml_path)
-        st.info("Run step 6.1 to create the first calculator YAML draft.")
+    if not python_content.exists:
+        render_missing_file(python_path)
+        st.info("Run step 6.1 to create the first calculator Python draft.")
         return
 
-    editor_key = calculator_yaml_editor_widget_key(panel_key, yaml_path)
-    edited_yaml = st.text_area(
-        "Calculator YAML",
-        value=yaml_content.text,
+    editor_key = calculator_python_editor_widget_key(panel_key, python_path)
+    edited_python = st.text_area(
+        "Calculator Python",
+        value=python_content.text,
         height=610,
         label_visibility="collapsed",
         key=editor_key,
     )
 
-    parsed_yaml: Any | None = None
+    parsed_module: Any | None = None
     parse_error = ""
     try:
-        parsed_yaml = yaml.safe_load(edited_yaml)
-    except yaml.YAMLError as exc:
+        parsed_module = ast.parse(edited_python)
+    except SyntaxError as exc:
         parse_error = str(exc)
 
     if parse_error:
-        st.warning(f"YAML parse warning: {parse_error}")
-    elif isinstance(parsed_yaml, dict):
+        st.warning(f"Python syntax warning: {parse_error}")
+    elif parsed_module is not None:
         render_json_expander(
-            "Parsed calculator YAML",
-            parsed_yaml,
-            key_suffix=f"{panel_key}_{yaml_path.stem}",
+            "Parsed calculator Python AST",
+            ast.dump(parsed_module, indent=2),
+            key_suffix=f"{panel_key}_{python_path.stem}",
         )
 
-    if st.button("Save updated YAML", key=f"{editor_key}_save"):
-        if not edited_yaml.strip():
-            st.error("The calculator YAML is empty. Nothing was saved.")
+    if st.button("Save updated Python", key=f"{editor_key}_save"):
+        if not edited_python.strip():
+            st.error("The calculator Python file is empty. Nothing was saved.")
             return
         try:
-            yaml.safe_load(edited_yaml)
-        except yaml.YAMLError as exc:
-            st.error(f"YAML is invalid and was not saved: {exc}")
+            ast.parse(edited_python)
+        except SyntaxError as exc:
+            st.error(f"Python is invalid and was not saved: {exc}")
             return
 
-        write_text_file(yaml_path, edited_yaml)
-        st.success(f"Saved updated YAML to `{format_path_for_display(yaml_path)}`.")
+        write_text_file(python_path, edited_python)
+        st.success(f"Saved updated Python to `{format_path_for_display(python_path)}`.")
 
 
-def calculator_yaml_editor_widget_key(panel_key: str, output_path: Path) -> str:
-    return f"{panel_key}_calculator_yaml_editor_{output_path.stem}"
+def calculator_python_editor_widget_key(panel_key: str, output_path: Path) -> str:
+    return f"{panel_key}_calculator_python_editor_{output_path.stem}"
 
 
 def render_key_navigation(
@@ -2209,13 +2209,13 @@ def refresh_panel(
         )
         st.session_state.pop(editor_key, None)
 
-    if screen_name == SCREEN_CALCULATOR_YAML:
-        calculator_yaml_path = calculator_yaml_path_for_award(
+    if screen_name == SCREEN_CALCULATOR_PYTHON:
+        calculator_python_path = calculator_rules_python_path_for_award(
             award_code_for_artifact_paths(artifact_paths)
         )
-        editor_key = calculator_yaml_editor_widget_key(
+        editor_key = calculator_python_editor_widget_key(
             panel_key,
-            calculator_yaml_path,
+            calculator_python_path,
         )
         st.session_state.pop(editor_key, None)
 

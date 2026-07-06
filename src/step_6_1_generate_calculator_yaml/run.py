@@ -9,10 +9,11 @@ from typing import Any
 from .core import (
     CalculatorRulesYamlError,
     CalculatorYamlInputs,
+    award_title_from_award_json_path,
     known_rule_ids_by_ruleset,
     normalize_response_data,
     summarized_rules,
-    write_yaml_output,
+    write_python_output,
 )
 from .llm import load_client, request_calculator_rules, selected_model
 
@@ -54,6 +55,9 @@ def load_inputs(
         consequence_json_path=selected_consequence_path,
         penalties_json_path=selected_penalties_path,
         output_path=Path(output_path),
+        award_title=award_title_from_award_json_path(
+            selected_creation_path.parent / "1_2_award.json"
+        ),
         creation_artifact=_load_json_file(
             selected_creation_path,
             "Step 3.2 overtime creation ruleset JSON",
@@ -79,7 +83,7 @@ def generate_calculator_rules_yaml(
     client: Any | None = None,
     model: str | None = None,
 ) -> Path:
-    """Run step 6.1 and write the calculator YAML output."""
+    """Run step 6.1 and write the calculator Python output."""
     print(f"Step 6.1: Loading step 3.2 reviewed JSON sources for {award_code}")
     inputs = load_inputs(
         award_code=award_code,
@@ -90,7 +94,7 @@ def generate_calculator_rules_yaml(
     )
     active_client = client or load_client()
     active_model = selected_model(model)
-    print(f"Step 6.1: Deriving calculator YAML with model {active_model}")
+    print(f"Step 6.1: Deriving calculator Python rules with model {active_model}")
 
     response_data = request_calculator_rules(
         client=active_client,
@@ -109,6 +113,8 @@ def generate_calculator_rules_yaml(
         award_code=award_code,
         known_rule_ids=known_rule_ids_by_ruleset(inputs),
     )
-    write_yaml_output(inputs.output_path, normalized_data)
-    print(f"Step 6.1: Wrote calculator YAML to {inputs.output_path}")
+    if inputs.award_title is not None:
+        normalized_data["award_title"] = inputs.award_title
+    write_python_output(inputs.output_path, normalized_data)
+    print(f"Step 6.1: Wrote calculator Python rules to {inputs.output_path}")
     return inputs.output_path

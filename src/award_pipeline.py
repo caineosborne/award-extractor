@@ -22,7 +22,7 @@ from src.common.overtime_rulesets import (
 from src.common.output_naming import (
     ACTIVE_PIPELINE_STEP_CHOICES,
     DEFAULT_ACTIVE_PIPELINE_STEPS,
-    calculator_yaml_path_for_output_stem,
+    calculator_rules_python_path_for_output_stem,
     normalize_output_suffix,
     output_stem_for_award,
 )
@@ -408,7 +408,7 @@ def run_step_6_1(
     paths: ActivePipelinePaths,
     ruleset_key: str | None = None,
 ) -> None:
-    """Run step 6.1 calculator YAML generation."""
+    """Run step 6.1 calculator Python generation."""
     del ruleset_key
     creation_ruleset_paths = build_ruleset_step_paths(paths, OVERTIME_CREATION_RULESET)
     consequence_ruleset_paths = build_ruleset_step_paths(
@@ -430,7 +430,7 @@ def run_step_6_1(
         creation_json_path=creation_json_path,
         consequence_json_path=consequence_json_path,
         penalties_json_path=penalties_json_path,
-        output_path=calculator_yaml_path_for_output_stem(paths.output_stem),
+        output_path=calculator_rules_python_path_for_output_stem(paths.output_stem),
     )
 
 

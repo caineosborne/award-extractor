@@ -4,10 +4,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+import pprint
+import re
 from typing import Any
 
-import yaml
-
+from src.common.output_naming import award_title_from_award_json_path
 from src.common.output_paths import write_text_output
 
 
@@ -40,6 +41,33 @@ OBJECT_RULE_FIELDS = (
     "hours_pen_rules",
     "weekend_rules",
 )
+CLASS_ATTRIBUTE_BY_RULE_FIELD = {
+    "ordinary_hours_limit_daily": "ORDINARY_HOURS_LIMIT_DAILY",
+    "ordinary_hours_limit_weekly": "ORDINARY_HOURS_LIMIT_WEEKLY",
+    "day_worker_ordinary_hours_daily": "DAY_WORKER_ORDINARY_HOURS_DAILY",
+    "day_worker_ordinary_hours_weekly": "DAY_WORKER_ORDINARY_HOURS_WEEKLY",
+    "use_contracted_hours_for_pt_overtime": "USE_CONTRACTED_HOURS_FOR_PT_OVERTIME",
+    "pt_employees_entitled_to_contracted_topup": "PT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP",
+    "ft_employees_entitled_to_contracted_topup": "FT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP",
+    "standard_overtime_rate": "STANDARD_OVERTIME_RATE",
+    "extended_overtime_rate": "EXTENDED_OVERTIME_RATE",
+    "sunday_overtime_rate": "SUNDAY_OVERTIME_RATE",
+    "saturday_overtime_rate": "SATURDAY_OVERTIME_RATE",
+    "saturday_penalty_rate": "SATURDAY_PENALTY_RATE",
+    "sunday_penalty_rate": "SUNDAY_PENALTY_RATE",
+    "apply_span_overtime": "APPLY_SPAN_OVERTIME",
+    "span_overtime_hour": "SPAN_OVERTIME_HOUR",
+    "gap_penalty_hours": "GAP_PENALTY_HOURS",
+    "gap_penalty_rate": "GAP_PENALTY_RATE",
+    "penalties": "PENALTIES",
+    "hours_pen_rules": "HOURS_PEN_RULES",
+    "weekend_rules": "WEEKEND_RULES",
+    "two_tier_overtime": "TWO_TIER_OVERTIME",
+    "two_tier_overtime_threshold": "TWO_TIER_OVERTIME_THRESHOLD",
+}
+FIXED_CLASS_ATTRIBUTES = (
+    ("DEFAULT_BREAK", 0.5),
+)
 ALL_RULE_FIELDS = (
     *SCALAR_RULE_FIELDS,
     *DEFAULT_BOOLEAN_FIELDS.keys(),
@@ -63,6 +91,7 @@ class CalculatorYamlInputs:
     creation_artifact: dict[str, Any]
     consequence_artifact: dict[str, Any]
     penalties_artifact: dict[str, Any]
+    award_title: str | None
 
 
 def evidence_schema() -> dict[str, Any]:
@@ -257,7 +286,7 @@ def normalize_response_data(
     award_code: str,
     known_rule_ids: dict[str, set[str]],
 ) -> dict[str, Any]:
-    """Normalize the model response into the persisted YAML structure."""
+    """Normalize the model response into the persisted calculator structure."""
     calculator_rules = response_data.get("calculator_rules", {})
     field_evidence = response_data.get("field_evidence", {})
 
@@ -335,23 +364,127 @@ def normalize_response_data(
         }
 
     return {
-        "schema_version": "calculator-rules-yaml-v1",
+        "schema_version": "calculator-rules-python-v1",
         "award_code": award_code,
         "calculator_rules": normalized_rules,
         "field_evidence": normalized_evidence,
     }
 
 
-def render_yaml_text(data: dict[str, Any]) -> str:
-    """Render one calculator rules artifact to YAML text."""
-    return yaml.safe_dump(
-        data,
-        sort_keys=False,
-        allow_unicode=False,
-        width=100,
+def _class_name_base_from_award_title(award_title: str) -> str:
+    cleaned_title = award_title.strip().rstrip(".")
+    cleaned_title = re.sub(r"^This is the\s+", "", cleaned_title, flags=re.IGNORECASE)
+    cleaned_title = re.sub(r"\bAward\b.*$", "", cleaned_title, flags=re.IGNORECASE)
+    cleaned_title = cleaned_title.replace("—", " ").replace("-", " ")
+    words = re.findall(r"[A-Za-z0-9]+", cleaned_title)
+
+    if not words:
+        return "Award"
+
+    return "".join(word.capitalize() for word in words)
+
+
+def class_name_for_award(award_code: str, award_title: str | None = None) -> str:
+    """Return the generated calculator class name for one award."""
+    if award_title:
+        return f"{_class_name_base_from_award_title(award_title)}Rules"
+
+    cleaned = "".join(character for character in award_code if character.isalnum())
+
+    if not cleaned:
+        return "AwardRules"
+
+    return f"{cleaned}Rules"
+
+
+def _python_literal(value: Any) -> str:
+    """Render one value as a stable Python literal."""
+    return pprint.pformat(
+        value,
+        sort_dicts=False,
+        width=88,
     )
 
 
-def write_yaml_output(path: Path, data: dict[str, Any]) -> None:
-    """Write the normalized YAML output."""
-    write_text_output(path, render_yaml_text(data))
+def _commented_python_block(
+    *,
+    indent: str,
+    label: str,
+    value: Any,
+) -> list[str]:
+    """Render one Python literal block as commented lines."""
+    rendered_value = _python_literal(value)
+    rendered_lines = rendered_value.splitlines() or ["None"]
+
+    commented_lines = [f"{indent}# {label} = {rendered_lines[0]}"]
+    for continuation_line in rendered_lines[1:]:
+        commented_lines.append(f"{indent}# {continuation_line}")
+
+    return commented_lines
+
+
+def render_python_text(data: dict[str, Any]) -> str:
+    """Render one calculator rules artifact as a Python module."""
+    award_code = str(data["award_code"])
+    award_title = data.get("award_title")
+    class_name = class_name_for_award(award_code, award_title if isinstance(award_title, str) else None)
+    calculator_rules = data["calculator_rules"]
+    field_evidence = data["field_evidence"]
+    generation_metadata = {
+        "schema_version": data["schema_version"],
+        "award_code": award_code,
+    }
+    if isinstance(award_title, str) and award_title.strip():
+        generation_metadata["award_title"] = award_title.strip()
+
+    lines = [
+        '"""Rule engine for award pay calculations."""',
+        "",
+        "",
+        f"class {class_name}:",
+        f'    """Business rules for award {award_code} pay calculations."""',
+        "",
+    ]
+
+    for field_name in ALL_RULE_FIELDS:
+        class_attribute = CLASS_ATTRIBUTE_BY_RULE_FIELD[field_name]
+        value = calculator_rules[field_name]
+        rendered_value = _python_literal(value)
+        rendered_lines = rendered_value.splitlines() or ["None"]
+
+        if len(rendered_lines) == 1:
+            lines.append(f"    {class_attribute} = {rendered_lines[0]}")
+            continue
+
+        lines.append(f"    {class_attribute} = {rendered_lines[0]}")
+        for continuation_line in rendered_lines[1:]:
+            lines.append(f"    {continuation_line}")
+
+    for class_attribute, value in FIXED_CLASS_ATTRIBUTES:
+        lines.append(f"    {class_attribute} = {_python_literal(value)}")
+
+    lines.append("")
+    lines.extend(
+        _commented_python_block(
+            indent="    ",
+            label="FIELD_EVIDENCE",
+            value=field_evidence,
+        )
+    )
+
+    lines.append("")
+    lines.extend(
+        _commented_python_block(
+            indent="    ",
+            label="GENERATION_METADATA",
+            value=generation_metadata,
+        )
+    )
+
+    lines.append("")
+    return "\n".join(lines)
+
+
+def write_python_output(path: Path, data: dict[str, Any]) -> None:
+    """Write the normalized Python module output."""
+    write_text_output(path, render_python_text(data))
