@@ -313,13 +313,11 @@ def _rules_name_base_from_award_title(award_title: str) -> str:
 
 def calculator_rules_module_stem_for_output_stem(output_stem: str) -> str:
     """Return the preferred calculator rules module stem for one output set."""
-    award_json_path = award_json_path_for_output_stem(output_stem)
-    award_title = award_title_from_award_json_path(award_json_path)
+    normalized_output_stem = str(output_stem).strip()
+    if normalized_output_stem:
+        return f"{normalized_output_stem}_ruleset"
 
-    if award_title is None:
-        return "6_1_calculator_rules"
-
-    return f"{_rules_name_base_from_award_title(award_title)}_rules"
+    return "award_ruleset"
 
 
 def calculator_rules_python_path_for_output_stem(output_stem: str) -> Path:

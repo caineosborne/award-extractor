@@ -89,6 +89,15 @@ def calculator_rules_python_path_for_award(output_set_name: str) -> Path:
     return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}.py"
 
 
+def calculator_rules_questionnaire_path_for_award(output_set_name: str) -> Path:
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return (
+        award_dir_for_output_set(output_set_name)
+        / "calculator"
+        / f"{module_stem}_questionnaire.json"
+    )
+
+
 def canonical_ruleset_paths(
     output_set_name: str,
     ruleset_key: str,

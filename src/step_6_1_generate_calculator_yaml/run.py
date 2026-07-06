@@ -6,6 +6,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+from src.common.output_paths import write_text_output
+
 from .core import (
     CalculatorRulesYamlError,
     CalculatorYamlInputs,
@@ -107,6 +109,10 @@ def generate_calculator_rules_yaml(
         penalties_json_path=inputs.penalties_json_path,
         penalties_rules=summarized_rules(inputs.penalties_artifact),
     )
+    questionnaire_path = inputs.output_path.with_name(
+        f"{inputs.output_path.stem}_questionnaire.json"
+    )
+    write_text_output(questionnaire_path, json.dumps(response_data, indent=2))
 
     normalized_data = normalize_response_data(
         response_data,
@@ -117,4 +123,5 @@ def generate_calculator_rules_yaml(
         normalized_data["award_title"] = inputs.award_title
     write_python_output(inputs.output_path, normalized_data)
     print(f"Step 6.1: Wrote calculator Python rules to {inputs.output_path}")
+    print(f"Step 6.1: Wrote calculator questionnaire JSON to {questionnaire_path}")
     return inputs.output_path

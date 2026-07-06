@@ -312,7 +312,6 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
     }
     assert normalized["calculator_rules"]["weekend_rules"]["day"]["Saturday"] == {
         "is_overtime": True,
-        "rate": 1.25,
     }
     assert normalized["calculator_rules"]["use_contracted_hours_for_pt_overtime"] is True
     assert normalized["field_evidence"]["gap_penalty_hours"]["special_case_notes"] == (
@@ -428,7 +427,6 @@ def test_render_python_text_matches_calculator_class_shape():
                 "day": {
                     "Saturday": {
                         "is_overtime": True,
-                        "rate": 1.25,
                     }
                 },
                 "shift": {

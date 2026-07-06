@@ -585,19 +585,12 @@ def _first_non_null(*values: Any) -> Any:
 
 def _weekend_day_entry(treatment: str | None, *, overtime_rate: Any, penalty_rate: Any) -> dict[str, Any] | None:
     if treatment == "overtime":
-        return {"is_overtime": True, "rate": overtime_rate}
+        return {"is_overtime": True}
     if treatment == "penalty":
         # The current calculator runtime does not have a separate day-worker
         # weekend penalty branch. Use the overtime path so weekend day shifts
         # still receive the required uplift.
-        return {
-            "is_overtime": True,
-            "rate": _weekend_effective_overtime_rate(
-                treatment=treatment,
-                overtime_rate=overtime_rate,
-                penalty_rate=penalty_rate,
-            ),
-        }
+        return {"is_overtime": True}
     return None
 
 
@@ -608,7 +601,7 @@ def _weekend_shift_entry(
     penalty_rate: Any,
 ) -> dict[str, Any] | None:
     if treatment == "overtime":
-        return {"is_overtime": True, "rate": overtime_rate}
+        return {"is_overtime": True}
     if treatment == "penalty":
         return {"is_overtime": False, "rate": None, "penalty_rate": penalty_rate}
     return None

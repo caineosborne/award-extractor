@@ -50,6 +50,12 @@ from src.step_1_2_parse_award.run import (
     write_pdf_step_outputs as write_pdf_outputs,
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
+from src.step_6_1_generate_calculator_yaml.core import (
+    known_rule_ids_by_ruleset,
+    normalize_response_data,
+    write_python_output,
+)
+from src.step_6_1_generate_calculator_yaml.run import load_inputs
 from streamlit_review.pipeline_runs import (
     log_path_for_award,
     normalized_status_for_award,
@@ -58,6 +64,7 @@ from streamlit_review.pipeline_runs import (
 )
 from streamlit_review.output_data import (
     artifact_paths_for_award,
+    calculator_rules_questionnaire_path_for_award,
     calculator_rules_python_path_for_award,
     clamp_index,
     delete_processed_files_matching_prefix,
@@ -93,7 +100,8 @@ SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
 SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
-SCREEN_CALCULATOR_PYTHON = "12. Step 6.1 Calculator Python"
+SCREEN_CALCULATOR_QUESTIONNAIRE = "12. Step 6.1 Calculator Questionnaire"
+SCREEN_CALCULATOR_PYTHON = "13. Step 6.1 Calculator Python"
 CLAUSE_REFERENCE_PATTERN = re.compile(
     r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
     re.IGNORECASE,
@@ -119,6 +127,7 @@ SCREEN_OPTIONS = [
     SCREEN_FORMATTED_4A,
     SCREEN_HUMAN_REVIEW,
     SCREEN_CORE_OVERTIME_PSEUDOCODE,
+    SCREEN_CALCULATOR_QUESTIONNAIRE,
     SCREEN_CALCULATOR_PYTHON,
 ]
 
@@ -499,6 +508,7 @@ def render_screen(
         SCREEN_FORMATTED_4A: render_formatted_4a_screen,
         SCREEN_HUMAN_REVIEW: render_manual_ruleset_editor_screen,
         SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
+        SCREEN_CALCULATOR_QUESTIONNAIRE: render_calculator_questionnaire_screen,
         SCREEN_CALCULATOR_PYTHON: render_calculator_python_screen,
     }
 
@@ -1488,8 +1498,673 @@ def render_calculator_python_screen(
         st.success(f"Saved updated Python to `{format_path_for_display(python_path)}`.")
 
 
+def render_calculator_questionnaire_screen(
+    artifact_paths: Any,
+    panel_key: str,
+    ruleset_key: str,
+) -> None:
+    del artifact_paths
+    del ruleset_key
+
+    award_code = st.session_state.get("award_code", "")
+    questionnaire_path = calculator_rules_questionnaire_path_for_award(award_code)
+    python_path = calculator_rules_python_path_for_award(award_code)
+    render_file_details(
+        questionnaire_path,
+        source_path=python_path if python_path.exists() else None,
+        file_label="Displayed questionnaire JSON",
+        source_label="Current calculator Python",
+    )
+    questionnaire_content = read_text_file(questionnaire_path)
+
+    if not questionnaire_content.exists:
+        render_missing_file(questionnaire_path)
+        st.info(
+            "Run step 6.1 to create the first calculator questionnaire draft before editing it here."
+        )
+        return
+
+    try:
+        loaded_questionnaire = json.loads(questionnaire_content.text)
+    except json.JSONDecodeError as exc:
+        st.error(f"Questionnaire JSON is invalid on disk: {exc}")
+        return
+
+    if not isinstance(loaded_questionnaire, dict):
+        st.error("Questionnaire JSON must be a JSON object.")
+        return
+
+    questionnaire_answers = loaded_questionnaire.get("questionnaire_answers")
+    if not isinstance(questionnaire_answers, dict):
+        st.error("Questionnaire JSON is missing questionnaire_answers.")
+        return
+
+    editor_key = calculator_questionnaire_editor_widget_key(panel_key, questionnaire_path)
+
+    st.caption(
+        "Review the calculator answers field by field. Saving this form updates the questionnaire JSON and rebuilds the Python rules file."
+    )
+
+    updated_answers: dict[tuple[str, str], Any] = {}
+
+    st.subheader("Core Hours")
+    updated_answers[("core_hours", "day_worker_daily_limit_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="core_hours",
+        question_name="day_worker_daily_limit_hours",
+        label="What is the ordinary-hours daily limit before overtime applies for day workers?",
+        widget_key=f"{editor_key}_core_day_daily",
+    )
+    updated_answers[("core_hours", "shift_worker_daily_limit_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="core_hours",
+        question_name="shift_worker_daily_limit_hours",
+        label="What is the ordinary-hours daily limit before overtime applies for shift workers?",
+        widget_key=f"{editor_key}_core_shift_daily",
+    )
+    updated_answers[("core_hours", "day_worker_weekly_limit_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="core_hours",
+        question_name="day_worker_weekly_limit_hours",
+        label="What is the ordinary-hours weekly limit before overtime applies for day workers?",
+        widget_key=f"{editor_key}_core_day_weekly",
+    )
+    updated_answers[("core_hours", "shift_worker_weekly_limit_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="core_hours",
+        question_name="shift_worker_weekly_limit_hours",
+        label="What is the ordinary-hours weekly limit before overtime applies for shift workers?",
+        widget_key=f"{editor_key}_core_shift_weekly",
+    )
+
+    st.subheader("Overtime")
+    updated_answers[("overtime", "standard_overtime_multiplier")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="standard_overtime_multiplier",
+        label="What is the standard overtime multiplier?",
+        widget_key=f"{editor_key}_ot_standard",
+    )
+    updated_answers[("overtime", "has_two_tier_overtime")] = render_calculator_question_boolean(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="has_two_tier_overtime",
+        label="Is there a two-tier overtime structure?",
+        widget_key=f"{editor_key}_ot_two_tier",
+    )
+    updated_answers[("overtime", "extended_overtime_multiplier")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="extended_overtime_multiplier",
+        label="If yes, what is the extended overtime multiplier?",
+        widget_key=f"{editor_key}_ot_extended",
+    )
+    updated_answers[("overtime", "higher_overtime_starts_after_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="higher_overtime_starts_after_hours",
+        label="If yes, after how many overtime hours does it switch?",
+        widget_key=f"{editor_key}_ot_threshold",
+    )
+    updated_answers[("overtime", "saturday_overtime_multiplier")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="saturday_overtime_multiplier",
+        label="What overtime multiplier applies on Saturday?",
+        widget_key=f"{editor_key}_ot_sat",
+    )
+    updated_answers[("overtime", "sunday_overtime_multiplier")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="sunday_overtime_multiplier",
+        label="What overtime multiplier applies on Sunday?",
+        widget_key=f"{editor_key}_ot_sun",
+    )
+
+    st.subheader("Span Overtime")
+    updated_answers[("span", "day_workers_have_span_overtime")] = render_calculator_question_boolean(
+        questionnaire_answers,
+        section_name="span",
+        question_name="day_workers_have_span_overtime",
+        label="Does span overtime apply for day workers?",
+        widget_key=f"{editor_key}_span_applies",
+    )
+    updated_answers[("span", "live_span_cutoff_hour")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="span",
+        question_name="live_span_cutoff_hour",
+        label="If yes, after what hour do day-worker hours become span overtime?",
+        widget_key=f"{editor_key}_span_hour",
+    )
+    updated_answers[("span", "ordinary_span_summary")] = render_calculator_question_text(
+        questionnaire_answers,
+        section_name="span",
+        question_name="ordinary_span_summary",
+        label="Ordinary span summary",
+        widget_key=f"{editor_key}_span_summary",
+        height=100,
+    )
+
+    st.subheader("Penalties")
+    st.caption("Penalty-related fields are split into weekend treatment and weekday penalties.")
+
+    st.markdown("**Weekend Treatment**")
+    weekend_options = ["overtime", "penalty", "not_applicable", "needs_review", ""]
+    updated_answers[("weekend_treatment", "day_saturday_treatment")] = render_calculator_question_select(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="day_saturday_treatment",
+        label="For day workers on Saturday, are hours overtime or penalty-based?",
+        widget_key=f"{editor_key}_weekend_day_sat_treatment",
+        options=weekend_options,
+    )
+    updated_answers[("weekend_treatment", "day_sunday_treatment")] = render_calculator_question_select(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="day_sunday_treatment",
+        label="For day workers on Sunday, are hours overtime or penalty-based?",
+        widget_key=f"{editor_key}_weekend_day_sun_treatment",
+        options=weekend_options,
+    )
+    updated_answers[("weekend_treatment", "shift_saturday_treatment")] = render_calculator_question_select(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="shift_saturday_treatment",
+        label="For shift workers on Saturday, are hours overtime or penalty-based?",
+        widget_key=f"{editor_key}_weekend_shift_sat_treatment",
+        options=weekend_options,
+    )
+    updated_answers[("weekend_treatment", "shift_sunday_treatment")] = render_calculator_question_select(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="shift_sunday_treatment",
+        label="For shift workers on Sunday, are hours overtime or penalty-based?",
+        widget_key=f"{editor_key}_weekend_shift_sun_treatment",
+        options=weekend_options,
+    )
+    updated_answers[("weekend_treatment", "day_saturday_penalty_loading")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="day_saturday_penalty_loading",
+        label="If day-worker Saturday hours are penalty-based, what is the loading above base?",
+        widget_key=f"{editor_key}_weekend_day_sat_rate",
+    )
+    updated_answers[("weekend_treatment", "day_sunday_penalty_loading")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="day_sunday_penalty_loading",
+        label="If day-worker Sunday hours are penalty-based, what is the loading above base?",
+        widget_key=f"{editor_key}_weekend_day_sun_rate",
+    )
+    updated_answers[("weekend_treatment", "shift_saturday_penalty_loading")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="shift_saturday_penalty_loading",
+        label="If shift-worker Saturday hours are penalty-based, what is the loading above base?",
+        widget_key=f"{editor_key}_weekend_shift_sat_rate",
+    )
+    updated_answers[("weekend_treatment", "shift_sunday_penalty_loading")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="weekend_treatment",
+        question_name="shift_sunday_penalty_loading",
+        label="If shift-worker Sunday hours are penalty-based, what is the loading above base?",
+        widget_key=f"{editor_key}_weekend_shift_sun_rate",
+    )
+
+    st.subheader("Gap Between Shifts")
+    updated_answers[("gap_between_shifts", "minimum_break_required")] = render_calculator_question_boolean(
+        questionnaire_answers,
+        section_name="gap_between_shifts",
+        question_name="minimum_break_required",
+        label="Is there a minimum break required between shifts?",
+        widget_key=f"{editor_key}_gap_required",
+    )
+    updated_answers[("gap_between_shifts", "standard_minimum_break_hours")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="gap_between_shifts",
+        question_name="standard_minimum_break_hours",
+        label="If yes, what standard minimum break should be used as the live calculator threshold?",
+        widget_key=f"{editor_key}_gap_hours",
+    )
+    updated_answers[("gap_between_shifts", "breach_penalty_multiplier")] = render_calculator_question_number(
+        questionnaire_answers,
+        section_name="gap_between_shifts",
+        question_name="breach_penalty_multiplier",
+        label="If the minimum break is breached, what penalty multiplier loading above base applies?",
+        widget_key=f"{editor_key}_gap_penalty",
+    )
+    updated_answers[("gap_between_shifts", "special_case_thresholds")] = render_calculator_question_json(
+        questionnaire_answers,
+        section_name="gap_between_shifts",
+        question_name="special_case_thresholds",
+        label="If different worker groups have different minimum breaks, record the special-case thresholds as JSON",
+        widget_key=f"{editor_key}_gap_special_cases",
+        height=160,
+    )
+
+    st.markdown("**Weekday Penalties**")
+    updated_answers[("weekday_penalties", "shift_based_penalties")] = render_calculator_penalty_rules_editor(
+        questionnaire_answers,
+        section_name="weekday_penalties",
+        question_name="shift_based_penalties",
+        label="Shift-based weekday penalties",
+        widget_key_prefix=f"{editor_key}_weekday_shift_penalties",
+    )
+    updated_answers[("weekday_penalties", "time_based_penalties")] = render_calculator_penalty_rules_editor(
+        questionnaire_answers,
+        section_name="weekday_penalties",
+        question_name="time_based_penalties",
+        label="Time-based weekday penalties",
+        widget_key_prefix=f"{editor_key}_weekday_time_penalties",
+    )
+    updated_answers[("weekday_penalties", "other_penalty_notes")] = render_calculator_question_text(
+        questionnaire_answers,
+        section_name="weekday_penalties",
+        question_name="other_penalty_notes",
+        label="Other weekday penalty notes",
+        widget_key=f"{editor_key}_weekday_penalty_notes",
+        height=120,
+    )
+
+    with st.expander("Raw questionnaire JSON", expanded=False):
+        render_json_expander(
+            "Parsed calculator questionnaire JSON",
+            loaded_questionnaire,
+            key_suffix=f"{panel_key}_{questionnaire_path.stem}",
+        )
+
+    if st.button("Save questionnaire and rebuild Python", key=f"{editor_key}_save"):
+        updated_questionnaire = json.loads(json.dumps(loaded_questionnaire))
+
+        try:
+            apply_calculator_questionnaire_answers(
+                updated_questionnaire,
+                updated_answers,
+            )
+        except ValueError as exc:
+            st.error(f"Questionnaire was not saved because one or more fields are invalid: {exc}")
+            return
+
+        creation_ruleset_paths = ruleset_artifact_paths_for_award(
+            award_code,
+            OVERTIME_CREATION_RULESET,
+        )
+        consequence_ruleset_paths = ruleset_artifact_paths_for_award(
+            award_code,
+            OVERTIME_CONSEQUENCE_RULESET,
+        )
+        penalties_ruleset_paths = ruleset_artifact_paths_for_award(
+            award_code,
+            PENALTIES_RULESET,
+        )
+
+        try:
+            inputs = load_inputs(
+                award_code=award_code,
+                creation_json_path=creation_ruleset_paths.revised_json,
+                consequence_json_path=consequence_ruleset_paths.revised_json,
+                penalties_json_path=penalties_ruleset_paths.revised_json,
+                output_path=python_path,
+            )
+            normalized_data = normalize_response_data(
+                updated_questionnaire,
+                award_code=award_code,
+                known_rule_ids=known_rule_ids_by_ruleset(inputs),
+            )
+        except Exception as exc:
+            st.error(f"Questionnaire was not saved because validation failed: {exc}")
+            return
+
+        if inputs.award_title is not None:
+            normalized_data["award_title"] = inputs.award_title
+
+        write_text_file(questionnaire_path, json.dumps(updated_questionnaire, indent=2))
+        write_python_output(python_path, normalized_data)
+        st.success(
+            "Saved questionnaire JSON and rebuilt calculator Python from the edited responses."
+        )
+
+
+def calculator_question_record(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+) -> dict[str, Any]:
+    section = questionnaire_answers.get(section_name)
+    if not isinstance(section, dict):
+        raise ValueError(f"Missing questionnaire section: {section_name}")
+
+    record = section.get(question_name)
+    if not isinstance(record, dict):
+        raise ValueError(f"Missing questionnaire answer: {section_name}.{question_name}")
+
+    return record
+
+
+def render_calculator_question_metadata(record: dict[str, Any]) -> None:
+    status = str(record.get("status") or "").strip() or "unknown"
+    rule_ids = ", ".join(record.get("source_rule_ids", []))
+    clauses = ", ".join(record.get("clause_references", []))
+    reasoning_summary = str(record.get("reasoning_summary") or "").strip()
+    special_case_notes = str(record.get("special_case_notes") or "").strip()
+
+    metadata_parts = [f"Status: {status}"]
+    if rule_ids:
+        metadata_parts.append(f"Rule IDs: {rule_ids}")
+    if clauses:
+        metadata_parts.append(f"Clauses: {clauses}")
+    st.caption(" | ".join(metadata_parts))
+
+    if reasoning_summary:
+        st.caption(f"Reasoning: {reasoning_summary}")
+    if special_case_notes:
+        st.caption(f"Special cases: {special_case_notes}")
+
+
+def render_calculator_question_number(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key: str,
+) -> str:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+    answer = record.get("answer")
+    default_value = "" if answer is None else str(answer)
+    return st.text_input(label, value=default_value, key=widget_key).strip()
+
+
+def render_calculator_question_text(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key: str,
+    height: int,
+) -> str:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+    answer = record.get("answer")
+    default_value = "" if answer is None else str(answer)
+    return st.text_area(label, value=default_value, height=height, key=widget_key)
+
+
+def render_calculator_question_boolean(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key: str,
+) -> str:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+    answer = record.get("answer")
+    option_map = {
+        True: "true",
+        False: "false",
+        None: "",
+    }
+    options = ["", "true", "false"]
+    default_index = options.index(option_map.get(answer, ""))
+    return st.selectbox(label, options, index=default_index, key=widget_key)
+
+
+def render_calculator_question_select(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key: str,
+    options: list[str],
+) -> str:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+    answer = record.get("answer")
+    normalized_options = list(options)
+    if answer not in normalized_options:
+        normalized_options.append(answer or "")
+    default_index = normalized_options.index(answer or "")
+    return st.selectbox(label, normalized_options, index=default_index, key=widget_key)
+
+
+def render_calculator_question_json(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key: str,
+    height: int,
+) -> str:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+    answer = record.get("answer")
+    default_value = json.dumps(answer, indent=2)
+    return st.text_area(label, value=default_value, height=height, key=widget_key)
+
+
+def render_calculator_penalty_rules_editor(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+    label: str,
+    widget_key_prefix: str,
+) -> list[dict[str, Any]]:
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name=section_name,
+        question_name=question_name,
+    )
+    render_calculator_question_metadata(record)
+
+    st.markdown(label)
+
+    raw_answer = record.get("answer")
+    if not isinstance(raw_answer, list):
+        raw_answer = []
+
+    rules_state_key = f"{widget_key_prefix}_rules"
+    source_signature_key = f"{widget_key_prefix}_source_signature"
+    current_source_signature = json.dumps(raw_answer, sort_keys=True)
+
+    if (
+        rules_state_key not in st.session_state
+        or st.session_state.get(source_signature_key) != current_source_signature
+    ):
+        st.session_state[rules_state_key] = [
+            raw_rule for raw_rule in raw_answer if isinstance(raw_rule, dict)
+        ]
+        st.session_state[source_signature_key] = current_source_signature
+
+    if st.button("Add penalty row", key=f"{widget_key_prefix}_add_rule"):
+        st.session_state[rules_state_key].append(blank_calculator_penalty_rule())
+
+    rules_to_render = st.session_state[rules_state_key]
+    edited_rules: list[dict[str, Any]] = []
+
+    if not rules_to_render:
+        st.caption("No live penalty rows were derived for this question.")
+
+    for rule_index, raw_rule in enumerate(rules_to_render, start=1):
+        if not isinstance(raw_rule, dict):
+            continue
+
+        row_key = f"{widget_key_prefix}_{rule_index}"
+        with st.container(border=True):
+            st.markdown(f"Rule {rule_index}")
+            first_column, second_column, third_column = st.columns(3)
+            with first_column:
+                code_name = st.text_input(
+                    "Code name",
+                    value=str(raw_rule.get("code_name") or ""),
+                    key=f"{row_key}_code_name",
+                ).strip()
+            with second_column:
+                penalty_type = st.selectbox(
+                    "Type",
+                    ["shift_based", "time_based"],
+                    index=["shift_based", "time_based"].index(
+                        str(raw_rule.get("type") or "shift_based")
+                    ),
+                    key=f"{row_key}_type",
+                )
+            with third_column:
+                basis_options = ["start", "end", "duration"]
+                raw_basis = str(raw_rule.get("basis") or "start")
+                if raw_basis not in basis_options:
+                    raw_basis = "start"
+                basis = st.selectbox(
+                    "Basis",
+                    basis_options,
+                    index=basis_options.index(raw_basis),
+                    key=f"{row_key}_basis",
+                )
+
+            fourth_column, fifth_column, sixth_column = st.columns(3)
+            with fourth_column:
+                start_hour = st.number_input(
+                    "Start hour",
+                    value=float(raw_rule.get("start_hour") or 0),
+                    step=0.5,
+                    key=f"{row_key}_start_hour",
+                )
+            with fifth_column:
+                end_hour = st.number_input(
+                    "End hour",
+                    value=float(raw_rule.get("end_hour") or 0),
+                    step=0.5,
+                    key=f"{row_key}_end_hour",
+                )
+            with sixth_column:
+                rate = st.number_input(
+                    "Rate",
+                    value=float(raw_rule.get("rate") or 0),
+                    step=0.01,
+                    key=f"{row_key}_rate",
+                )
+
+            applies_to_options = ["day", "shift"]
+            default_applies_to = [
+                value
+                for value in raw_rule.get("applies_to", [])
+                if value in applies_to_options
+            ]
+            applies_to = st.multiselect(
+                "Applies to",
+                applies_to_options,
+                default=default_applies_to,
+                key=f"{row_key}_applies_to",
+            )
+            description = st.text_input(
+                "Description",
+                value=str(raw_rule.get("description") or ""),
+                key=f"{row_key}_description",
+            ).strip()
+
+            edited_rules.append(
+                {
+                    "code_name": code_name,
+                    "type": penalty_type,
+                    "basis": basis,
+                    "start_hour": start_hour,
+                    "end_hour": end_hour,
+                    "rate": rate,
+                    "description": description,
+                    "applies_to": applies_to,
+                }
+            )
+
+    return edited_rules
+
+
+def blank_calculator_penalty_rule() -> dict[str, Any]:
+    return {
+        "code_name": "",
+        "type": "shift_based",
+        "basis": "start",
+        "start_hour": 0.0,
+        "end_hour": 0.0,
+        "rate": 0.0,
+        "description": "",
+        "applies_to": [],
+    }
+
+
+def apply_calculator_questionnaire_answers(
+    questionnaire_data: dict[str, Any],
+    updated_answers: dict[tuple[str, str], Any],
+) -> None:
+    questionnaire_answers = questionnaire_data.get("questionnaire_answers")
+    if not isinstance(questionnaire_answers, dict):
+        raise ValueError("Questionnaire JSON is missing questionnaire_answers.")
+
+    for (section_name, question_name), raw_value in updated_answers.items():
+        record = calculator_question_record(
+            questionnaire_answers,
+            section_name=section_name,
+            question_name=question_name,
+        )
+        record["answer"] = parse_calculator_question_value(raw_value)
+
+
+def parse_calculator_question_value(raw_value: Any) -> Any:
+    if not isinstance(raw_value, str):
+        return raw_value
+
+    stripped_value = raw_value.strip()
+    if stripped_value == "":
+        return None
+    if stripped_value == "true":
+        return True
+    if stripped_value == "false":
+        return False
+    if stripped_value.startswith("[") or stripped_value.startswith("{"):
+        try:
+            return json.loads(stripped_value)
+        except json.JSONDecodeError as exc:
+            raise ValueError(str(exc)) from exc
+
+    try:
+        if "." in stripped_value:
+            return float(stripped_value)
+        return int(stripped_value)
+    except ValueError:
+        return stripped_value
+
+
 def calculator_python_editor_widget_key(panel_key: str, output_path: Path) -> str:
     return f"{panel_key}_calculator_python_editor_{output_path.stem}"
+
+
+def calculator_questionnaire_editor_widget_key(panel_key: str, output_path: Path) -> str:
+    return f"{panel_key}_calculator_questionnaire_editor_{output_path.stem}"
 
 
 def render_key_navigation(

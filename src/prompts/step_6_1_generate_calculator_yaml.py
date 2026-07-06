@@ -67,6 +67,7 @@ Business interpretation rules:
   - use `end` when the rule depends on when the shift finishes
   - use `duration` when the rule depends on how long the shift runs
 - Do not use a `0` to `24` placeholder unless the award truly applies the same weekday shift penalty regardless of timing.
+- Example: if an afternoon or night shift penalty applies because the shift finishes after 7.00 pm and by midnight, use `basis = end`, `start_hour = 19`, `end_hour = 24`.
 
 Weekday penalty rule requirements:
 - `code_name` must be a stable snake_case identifier.

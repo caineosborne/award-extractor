@@ -21,6 +21,7 @@ from src.prompts.step_3_2_review_ruleset import (
 from streamlit_review.app import (
     PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
     RULESET_OPTIONS,
+    apply_calculator_questionnaire_answers,
     award_code_for_artifact_paths,
     award_selection_index,
     candidate_clause_keys,
@@ -39,6 +40,7 @@ from streamlit_review.app import (
     review_decision_concerns,
     run_pipeline_for_award,
     summarize_review_decision_rows,
+    parse_calculator_question_value,
     selected_award_code_from_choice,
     validate_award_code_input,
 )
@@ -51,6 +53,7 @@ from streamlit_review.output_data import (
     ArtifactPaths,
     RulesetArtifactPaths,
     artifact_paths_for_award,
+    calculator_rules_questionnaire_path_for_award,
     clamp_index,
     delete_processed_files_matching_prefix,
     discover_award_codes,
@@ -144,6 +147,80 @@ def test_artifact_paths_for_award():
         paths.core_overtime_validation_markdown.name
         == "5_1_OT_creation_pseudocode_validation.md"
     )
+
+
+def test_calculator_rules_questionnaire_path_for_award():
+    path = calculator_rules_questionnaire_path_for_award("MA000002")
+
+    assert path.name == "MA000002_ruleset_questionnaire.json"
+
+
+def test_parse_calculator_question_value_handles_scalars_and_json():
+    assert parse_calculator_question_value("19") == 19
+    assert parse_calculator_question_value("0.15") == 0.15
+    assert parse_calculator_question_value("true") is True
+    assert parse_calculator_question_value("false") is False
+    assert parse_calculator_question_value("") is None
+    assert parse_calculator_question_value('[{"start_hour": 19}]') == [
+        {"start_hour": 19}
+    ]
+
+
+def test_apply_calculator_questionnaire_answers_updates_answer_values():
+    questionnaire_data = {
+        "questionnaire_answers": {
+            "overtime": {
+                "standard_overtime_multiplier": {
+                    "answer": 1.5,
+                    "status": "derived",
+                    "source_rule_ids": [],
+                    "source_ruleset_keys": [],
+                    "clause_references": [],
+                    "reasoning_summary": "",
+                    "special_case_notes": "",
+                }
+            },
+            "weekday_penalties": {
+                "shift_based_penalties": {
+                    "answer": [],
+                    "status": "derived",
+                    "source_rule_ids": [],
+                    "source_ruleset_keys": [],
+                    "clause_references": [],
+                    "reasoning_summary": "",
+                    "special_case_notes": "",
+                }
+            },
+        }
+    }
+
+    apply_calculator_questionnaire_answers(
+        questionnaire_data,
+        {
+            ("overtime", "standard_overtime_multiplier"): "2",
+            (
+                "weekday_penalties",
+                "shift_based_penalties",
+            ): '[{"code_name": "shiftwork_afternoon_or_night_shift", "basis": "end", "start_hour": 19, "end_hour": 24}]',
+        },
+    )
+
+    assert (
+        questionnaire_data["questionnaire_answers"]["overtime"][
+            "standard_overtime_multiplier"
+        ]["answer"]
+        == 2
+    )
+    assert questionnaire_data["questionnaire_answers"]["weekday_penalties"][
+        "shift_based_penalties"
+    ]["answer"] == [
+        {
+            "code_name": "shiftwork_afternoon_or_night_shift",
+            "basis": "end",
+            "start_hour": 19,
+            "end_hour": 24,
+        }
+    ]
 
 
 def test_award_code_for_artifact_paths_uses_payment_classification_stem():
