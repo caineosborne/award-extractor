@@ -46,7 +46,7 @@ from src.common.pipeline_io import load_json_object, load_text_file as load_text
 from src.common.pipeline_runtime import (
     load_openai_environment as require_openai_environment,
 )
-from src.step_2_2_classify_overtime_clauses.core import load_classification
+from src.common.overtime_clause_classification import load_classification
 from src.prompts.step_3_2_review_ruleset import (
     build_creator_repair_messages,
     build_evaluator_repair_messages,

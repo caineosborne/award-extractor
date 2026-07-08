@@ -31,7 +31,7 @@ from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     infer_overtime_ruleset_key_from_path,
 )
-from src.step_2_2_classify_overtime_clauses.core import load_classification
+from src.common.overtime_clause_classification import load_classification
 
 from .core import (
     OvertimeInterpretationReviewArtifacts,

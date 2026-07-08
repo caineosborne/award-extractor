@@ -3,9 +3,7 @@ import tempfile
 from pathlib import Path
 
 from src.common.overtime_rulesets import PENALTIES_RULESET
-from src.step_2_2_classify_overtime_clauses.llm import (
-    prepare_overtime_clause_classifications,
-)
+from src.step_2_2_classify_overtime_clauses.run import run_step_2_2
 
 
 def test_prepare_penalties_clause_classifications_is_deterministic_and_inclusive():
@@ -38,9 +36,9 @@ def test_prepare_penalties_clause_classifications_is_deterministic_and_inclusive
         output_path = Path(temp_dir) / "2_2_Penalties_clause_classification.json"
         classification_path.write_text(json.dumps(data), encoding="utf-8")
 
-        classifications = prepare_overtime_clause_classifications(
+        classifications = run_step_2_2(
             classification_path=classification_path,
-            classification_output_path=output_path,
+            output_path=output_path,
             ruleset_key=PENALTIES_RULESET,
         )
 
@@ -84,9 +82,9 @@ def test_prepare_penalties_clause_classifications_sets_explicit_employee_cohort_
         output_path = Path(temp_dir) / "2_2_Penalties_clause_classification.json"
         classification_path.write_text(json.dumps(data), encoding="utf-8")
 
-        classifications = prepare_overtime_clause_classifications(
+        classifications = run_step_2_2(
             classification_path=classification_path,
-            classification_output_path=output_path,
+            output_path=output_path,
             ruleset_key=PENALTIES_RULESET,
         )
 

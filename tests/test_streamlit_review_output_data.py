@@ -83,7 +83,7 @@ from src.common.overtime_rulesets import (
     PENALTIES_RULESET,
 )
 from src.common.overtime_rules import OvertimeRule
-from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
+from src.common.overtime_clause_classification import OvertimeClauseClassification
 from src.common.active_pipeline_paths import (
     ruleset_clause_classification_output_path_for_classification,
     ruleset_output_path_for_classification,

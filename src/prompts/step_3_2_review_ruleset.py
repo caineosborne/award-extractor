@@ -28,7 +28,7 @@ from src.prompts.step_2_2_classify_overtime_clauses import (
 from src.prompts.step_3_1_generate_ruleset import (
     build_interpretation_messages as build_ruleset_interpretation_messages,
 )
-from src.step_2_2_classify_overtime_clauses.core import (
+from src.common.overtime_clause_classification import (
     clause_source_text as clause_text,
     select_overtime_creation_clauses,
     select_ruleset_related_clauses,

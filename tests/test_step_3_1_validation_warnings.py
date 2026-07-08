@@ -7,7 +7,7 @@ from src.common.overtime_rules import (
     prepend_validation_warnings,
     review_decision_change_warnings,
 )
-from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
+from src.common.overtime_clause_classification import OvertimeClauseClassification
 from src.step_3_1_generate_ruleset.core import (
     missing_shortlisted_clause_warning,
     scope_validation_warnings_for_rule,

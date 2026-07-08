@@ -40,7 +40,7 @@ from src.prompts.step_3_2_review_ruleset import (
     build_review_creator_messages,
     build_review_evaluator_messages,
 )
-from src.step_2_2_classify_overtime_clauses.core import load_classification
+from src.common.overtime_clause_classification import load_classification
 
 from .core import (
     DEFAULT_CREATOR_MAX_OUTPUT_TOKENS,

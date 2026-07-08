@@ -1,4 +1,4 @@
-"""Shared logic for step 2.2 overtime clause classification."""
+"""Shared overtime clause classification helpers used across pipeline steps."""
 
 from __future__ import annotations
 
@@ -10,23 +10,17 @@ from pathlib import Path
 from typing import Any
 
 from src.common.active_pipeline_paths import (
-    PROJECT_ROOT,
     default_classification_path_for_award,
     ruleset_clause_classification_output_path_for_classification,
 )
-from src.common.llm_io import extract_response_text
 from src.common.overtime_rules import (
     ALLOWED_EMPLOYEE_COHORTS,
     ALLOWED_WORK_ARRANGEMENTS,
 )
 from src.common.overtime_rulesets import (
-    PENALTIES_RULESET,
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
 )
-from src.common.pipeline_runtime import load_openai_environment
-from src.prompts.step_2_2_classify_overtime_clauses import build_clause_classification_messages
-
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
 DEFAULT_MODEL = "gpt-5.4-mini"
@@ -35,20 +29,16 @@ SUPPORTED_SCHEMA_VERSIONS = (
     "overtime-clause-classification-v2",
     SCHEMA_VERSION,
 )
-OVERTIME_CREATION_CLASSIFICATIONS = (
-    "Ordinary Hours Boundary",
-    "Overtime Trigger",
-)
 PENALTIES_CLASSIFICATION = "Penalty Rule"
 
 
 class OvertimeInterpretationError(RuntimeError):
-    """Base exception for step-2.2 overtime interpretation failures."""
+    """Base exception for overtime clause classification failures."""
 
 
 @dataclass(frozen=True)
 class OvertimeClauseClassification:
-    """Store the overtime-role classification for one shortlisted clause."""
+    """Store the classification outcome for one shortlisted clause."""
 
     clause_number: str
     classification: str
@@ -60,18 +50,13 @@ class OvertimeClauseClassification:
     classifications: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
-        """Ensure the primary classification always appears in the full category list."""
+        """Ensure the primary classification appears in the full category list."""
         if not self.classifications:
             object.__setattr__(self, "classifications", (self.classification,))
 
 
-def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
-    """Load and validate the OpenAI environment used by step 2.2."""
-    load_openai_environment(env_path=env_path, error_type=OvertimeInterpretationError)
-
-
 def load_classification(classification_path: Path | str) -> dict[str, Any]:
-    """Load the step-2 payment classification artifact."""
+    """Load the step 2.1 payment classification artifact."""
     path = Path(classification_path)
     if not path.exists():
         raise OvertimeInterpretationError(f"Classification JSON not found: {path}")
@@ -96,11 +81,11 @@ def load_classification(classification_path: Path | str) -> dict[str, Any]:
     return data
 
 
-def overtime_clause_classification_path_for_source(
+def classification_output_path_for_source(
     classification_path: Path | str,
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
+    ruleset_key: str,
 ) -> Path:
-    """Return the default path for the intermediate clause-classification artifact."""
+    """Return the canonical step 2.2 output path for one step 2.1 input."""
     return ruleset_clause_classification_output_path_for_classification(
         classification_path,
         ruleset_key,
@@ -116,7 +101,7 @@ def clause_source_text(clause: Mapping[str, Any]) -> str:
 
 
 def normalized_work_arrangement_from_clause_text(clause_text: str) -> str:
-    """Return an explicit work-arrangement tag supported by the clause text."""
+    """Return the work arrangement explicitly supported by the clause text."""
     normalized_text = clause_text.lower()
 
     if re.search(r"\bday[- ]workers?\b", normalized_text):
@@ -130,7 +115,7 @@ def normalized_work_arrangement_from_clause_text(clause_text: str) -> str:
 
 
 def normalized_employee_cohort_from_clause_text(clause_text: str) -> str:
-    """Return an explicit employee-cohort tag supported by the clause text."""
+    """Return the employee cohort explicitly supported by the clause text."""
     normalized_text = clause_text.lower()
 
     has_full_time = bool(re.search(r"\bfull[- ]time\b", normalized_text))
@@ -151,24 +136,28 @@ def normalized_employee_cohort_from_clause_text(clause_text: str) -> str:
 
 def select_ruleset_related_clauses(
     data: Mapping[str, Any],
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
+    ruleset_or_source_tags: str | Sequence[str] = OVERTIME_CREATION_RULESET,
 ) -> dict[str, Any]:
-    """Keep only step-2 clauses tagged as ordinary-hours or overtime related."""
+    """Keep only clauses tagged as relevant for the requested ruleset."""
     classified_clauses = data.get("classified_clauses", {})
     if not isinstance(classified_clauses, Mapping):
         raise OvertimeInterpretationError("classified_clauses must be an object.")
 
-    config = overtime_ruleset_config(ruleset_key)
-    overtime_related_clauses: dict[str, Any] = {}
+    if isinstance(ruleset_or_source_tags, str):
+        source_tags = overtime_ruleset_config(ruleset_or_source_tags).source_tags
+    else:
+        source_tags = tuple(ruleset_or_source_tags)
+
+    shortlisted_clauses: dict[str, Any] = {}
 
     for clause_id, clause in classified_clauses.items():
         if not isinstance(clause, Mapping):
             continue
 
-        if any(tag in clause.get("tags", []) for tag in config.source_tags):
-            overtime_related_clauses[clause_id] = clause
+        if any(tag in clause.get("tags", []) for tag in source_tags):
+            shortlisted_clauses[clause_id] = clause
 
-    return overtime_related_clauses
+    return shortlisted_clauses
 
 
 def classification_response_json_schema(
@@ -233,7 +222,7 @@ def validate_overtime_clause_classifications(
     overtime_clauses: Mapping[str, Any],
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
-    """Validate the clause-classification output against the shortlisted clauses."""
+    """Validate clause classifications against the shortlisted clause set."""
     config = overtime_ruleset_config(ruleset_key)
     raw_clauses = response_data.get("clauses")
     if not isinstance(raw_clauses, list):
@@ -324,7 +313,10 @@ def validate_overtime_clause_classifications(
         )
         if work_arrangement == "day-worker" and supported_work_arrangement != "day-worker":
             work_arrangement = "all"
-        elif work_arrangement == "shiftworker" and supported_work_arrangement != "shiftworker":
+        elif (
+            work_arrangement == "shiftworker"
+            and supported_work_arrangement != "shiftworker"
+        ):
             work_arrangement = "all"
 
         returned_clause_numbers.add(clause_number)
@@ -386,153 +378,11 @@ def load_overtime_clause_classification_artifact(
     )
 
 
-def parse_response_json(output_text: str) -> dict[str, Any]:
-    """Parse a JSON response body for the step 2.2 classifier."""
-    try:
-        data = json.loads(output_text)
-    except json.JSONDecodeError as exc:
-        raise OvertimeInterpretationError("Clause classification response was not valid JSON.") from exc
-
-    if not isinstance(data, dict):
-        raise OvertimeInterpretationError(
-            "Clause classification response must be a JSON object."
-        )
-
-    return data
-
-
-def deterministic_penalties_explanation(source_tags: Sequence[str]) -> str:
-    """Explain why a clause was shortlisted for the penalties subset."""
-    ordered_tags = [
-        tag
-        for tag in ("Penalty", "Breaks (Between Work Periods)")
-        if tag in source_tags
-    ]
-    if not ordered_tags:
-        return (
-            "Included deterministically in the penalties subset based on the "
-            "step 2.1 payment classification."
-        )
-
-    joined_tags = " and ".join(ordered_tags)
-    return (
-        "Included deterministically in the penalties subset because step 2.1 tagged "
-        f"the clause as {joined_tags}."
-    )
-
-
-def build_deterministic_penalties_classifications(
-    shortlisted_clauses: Mapping[str, Any],
-) -> list[OvertimeClauseClassification]:
-    """Build the penalties subset without calling the LLM."""
-    classifications: list[OvertimeClauseClassification] = []
-
-    for clause_number in sorted(shortlisted_clauses):
-        raw_clause = shortlisted_clauses[clause_number]
-        if not isinstance(raw_clause, Mapping):
-            continue
-
-        source_text = clause_source_text(raw_clause)
-        raw_tags = raw_clause.get("tags", [])
-        source_tags = (
-            tuple(str(tag) for tag in raw_tags)
-            if isinstance(raw_tags, list)
-            else ()
-        )
-
-        classifications.append(
-            OvertimeClauseClassification(
-                clause_number=clause_number,
-                classification=PENALTIES_CLASSIFICATION,
-                clause_text=source_text,
-                explanation=deterministic_penalties_explanation(source_tags),
-                employee_cohort=normalized_employee_cohort_from_clause_text(source_text),
-                work_arrangement=normalized_work_arrangement_from_clause_text(
-                    source_text
-                ),
-                other_scope_notes="",
-                classifications=(PENALTIES_CLASSIFICATION,),
-            )
-        )
-
-    if not classifications:
-        raise OvertimeInterpretationError(
-            "No penalties-related clauses were found in step 2 output."
-        )
-
-    return classifications
-
-
-def classify_overtime_clauses(
-    overtime_clauses: Mapping[str, Any],
-    client: Any,
-    model: str,
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> list[OvertimeClauseClassification]:
-    """Ask the model to classify each shortlisted clause by overtime role."""
-    config = overtime_ruleset_config(ruleset_key)
-    try:
-        response = client.responses.create(
-            model=model,
-            input=build_clause_classification_messages(overtime_clauses, ruleset_key),
-            text={
-                "format": {
-                    "type": "json_schema",
-                    "name": config.clause_classification_schema_name,
-                    "schema": classification_response_json_schema(ruleset_key),
-                    "strict": True,
-                }
-            },
-        )
-    except Exception as exc:
-        raise OvertimeInterpretationError("OpenAI classification request failed.") from exc
-
-    output_text = extract_response_text(response)
-    if not output_text:
-        raise OvertimeInterpretationError(
-            "OpenAI classification response did not include output text."
-        )
-
-    return validate_overtime_clause_classifications(
-        parse_response_json(output_text),
-        overtime_clauses,
-        ruleset_key,
-    )
-
-
-def build_clause_classification_artifact(
-    source_file: Path | str,
-    classifications: Sequence[OvertimeClauseClassification],
-    ruleset_key: str = OVERTIME_CREATION_RULESET,
-) -> dict[str, Any]:
-    """Build the JSON artifact written by step 2.2."""
-    config = overtime_ruleset_config(ruleset_key)
-    return {
-        "schema_version": SCHEMA_VERSION,
-        "ruleset_key": ruleset_key,
-        "source_classification_file": str(source_file),
-        "included_categories_for_interpretation": list(config.generation_classifications),
-        "clauses": [
-            {
-                "clause_number": classification.clause_number,
-                "classification": classification.classification,
-                "classifications": list(classification.classifications),
-                "clause_text": classification.clause_text,
-                "explanation": classification.explanation,
-                "employee_cohort": classification.employee_cohort,
-                "work_arrangement": classification.work_arrangement,
-                "other_scope_notes": classification.other_scope_notes,
-            }
-            for classification in classifications
-        ],
-    }
-
-
 def select_overtime_creation_clauses(
     classifications: Sequence[OvertimeClauseClassification],
     ruleset_key: str = OVERTIME_CREATION_RULESET,
 ) -> list[OvertimeClauseClassification]:
-    """Keep only clause roles that can create overtime entitlement."""
+    """Keep only classifications that feed the downstream ruleset generator."""
     config = overtime_ruleset_config(ruleset_key)
     overtime_creation_clauses: list[OvertimeClauseClassification] = []
 

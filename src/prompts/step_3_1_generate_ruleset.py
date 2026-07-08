@@ -22,7 +22,7 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
-from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
+from src.common.overtime_clause_classification import OvertimeClauseClassification
 
 
 GENERATE_RULESET_GENERIC_SYSTEM_PROMPT = """You are an expert payroll award interpretation assistant.

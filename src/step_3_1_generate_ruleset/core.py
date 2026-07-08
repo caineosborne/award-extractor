@@ -28,6 +28,16 @@ from src.common.overtime_rules import (
     validate_rule_list,
     write_rules_artifact,
 )
+from src.common.overtime_clause_classification import (
+    DEFAULT_MODEL as STEP_2_2_DEFAULT_MODEL,
+    OvertimeClauseClassification,
+    OvertimeInterpretationError,
+    classification_output_path_for_source as overtime_clause_classification_path_for_source,
+    load_classification,
+    load_overtime_clause_classification_artifact,
+    select_overtime_creation_clauses,
+    select_ruleset_related_clauses,
+)
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     OVERTIME_CONSEQUENCE_RULESET,
@@ -40,16 +50,6 @@ from src.common.pipeline_runtime import load_openai_environment
 from src.prompts.step_3_1_generate_ruleset import (
     build_expert_comparison_messages,
     build_interpretation_messages,
-)
-from src.step_2_2_classify_overtime_clauses.core import (
-    DEFAULT_MODEL as STEP_2_2_DEFAULT_MODEL,
-    OvertimeClauseClassification,
-    OvertimeInterpretationError,
-    load_classification,
-    load_overtime_clause_classification_artifact,
-    overtime_clause_classification_path_for_source,
-    select_overtime_creation_clauses,
-    select_ruleset_related_clauses,
 )
 
 

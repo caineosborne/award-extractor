@@ -13,7 +13,7 @@ from src.prompts.step_3_2_review_ruleset import (
     build_step_3_2_evaluator_structured_output_instructions,
 )
 from src.prompts.step_3_2_prompt_config import step_3_2_prompt_subset_config
-from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
+from src.common.overtime_clause_classification import OvertimeClauseClassification
 from src.step_3_2_review_ruleset.core import EVALUATOR_MODEL
 
 
