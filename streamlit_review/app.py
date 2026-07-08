@@ -113,6 +113,12 @@ RULESET_OPTIONS = {
     "Penalties": PENALTIES_RULESET,
 }
 
+STEP3_RUN_RULESET_OPTIONS = {
+    "Overtime creation": OVERTIME_CREATION_RULESET,
+    "Overtime consequence": OVERTIME_CONSEQUENCE_RULESET,
+    "Penalties": PENALTIES_RULESET,
+}
+
 ADD_NEW_AWARD_LABEL = "Add new award"
 
 SCREEN_OPTIONS = [
@@ -270,7 +276,7 @@ def render_sidebar(award_codes: list[str]) -> str:
 
         st.divider()
         selected_label = st.selectbox(
-            "Step 3 ruleset",
+            "Step 3 ruleset to view",
             list(RULESET_OPTIONS),
             key="step3_ruleset_label",
         )
@@ -280,7 +286,6 @@ def render_sidebar(award_codes: list[str]) -> str:
         render_pipeline_run_controls(
             selected_award_code=validated_award_code or selected_award_code,
             controls_disabled=pipeline_controls_disabled,
-            ruleset_key=st.session_state["step3_ruleset"],
         )
 
         st.divider()
@@ -2970,17 +2975,48 @@ def render_processed_file_cleanup_controls() -> None:
 def render_pipeline_run_controls(
     selected_award_code: str,
     controls_disabled: bool,
-    ruleset_key: str,
 ) -> None:
     st.header("Pipeline runs")
     st.caption(
-        "Runs the canonical CLI pipeline for the selected output set in step order."
+        "Run controls live here, while the selector above controls which ruleset you are viewing."
     )
     current_status = normalized_status_for_award(selected_award_code)
     run_is_active = bool(
         current_status and current_status.get("state") in {"starting", "running"}
     )
+
+    select_all_run_rulesets = st.checkbox(
+        "Select all subsets",
+        value=True,
+        key="step3_run_select_all",
+    )
+    run_selection_disabled = controls_disabled or run_is_active or select_all_run_rulesets
+    selected_run_labels = st.multiselect(
+        "Step 3 subsets to run",
+        list(STEP3_RUN_RULESET_OPTIONS),
+        default=(
+            list(STEP3_RUN_RULESET_OPTIONS)
+            if select_all_run_rulesets
+            else st.session_state.get(
+                "step3_run_ruleset_labels",
+                [next(iter(STEP3_RUN_RULESET_OPTIONS))],
+            )
+        ),
+        key="step3_run_ruleset_labels",
+        disabled=run_selection_disabled,
+    )
+    if select_all_run_rulesets:
+        selected_run_labels = list(STEP3_RUN_RULESET_OPTIONS)
+    selected_run_ruleset_keys = [
+        STEP3_RUN_RULESET_OPTIONS[selected_run_label]
+        for selected_run_label in selected_run_labels
+    ]
+    if not selected_run_ruleset_keys:
+        st.warning("Select at least one Step 3 subset to run.")
+
     run_controls_disabled = controls_disabled or run_is_active
+    if not selected_run_ruleset_keys:
+        run_controls_disabled = True
 
     full_run_key = f"run_full_{selected_award_code}"
     if st.button(
@@ -2989,7 +3025,11 @@ def render_pipeline_run_controls(
         use_container_width=True,
         disabled=run_controls_disabled,
     ):
-        execute_pipeline_run(selected_award_code, step=None, ruleset_key=ruleset_key)
+        execute_pipeline_run(
+            selected_award_code,
+            step=None,
+            ruleset_keys=selected_run_ruleset_keys,
+        )
 
     step_one_column, step_two_column = st.columns(2, gap="small")
     step_three_column, step_three_b_column = st.columns(2, gap="small")
@@ -3020,7 +3060,11 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="2.2", ruleset_key=ruleset_key)
+            execute_pipeline_run(
+                selected_award_code,
+                step="2.2",
+                ruleset_keys=selected_run_ruleset_keys,
+            )
 
     with step_three_b_column:
         if st.button(
@@ -3029,7 +3073,11 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3.1", ruleset_key=ruleset_key)
+            execute_pipeline_run(
+                selected_award_code,
+                step="3.1",
+                ruleset_keys=selected_run_ruleset_keys,
+            )
 
     with step_four_column:
         if st.button(
@@ -3038,7 +3086,11 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="3.2", ruleset_key=ruleset_key)
+            execute_pipeline_run(
+                selected_award_code,
+                step="3.2",
+                ruleset_keys=selected_run_ruleset_keys,
+            )
 
     with step_five_b_column:
         if st.button(
@@ -3047,7 +3099,11 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="4.1", ruleset_key=ruleset_key)
+            execute_pipeline_run(
+                selected_award_code,
+                step="4.1",
+                ruleset_keys=selected_run_ruleset_keys,
+            )
 
     extra_column_left, extra_column_right = st.columns(2, gap="small")
 
@@ -3058,7 +3114,11 @@ def render_pipeline_run_controls(
             use_container_width=True,
             disabled=run_controls_disabled,
         ):
-            execute_pipeline_run(selected_award_code, step="5.1", ruleset_key=ruleset_key)
+            execute_pipeline_run(
+                selected_award_code,
+                step="5.1",
+                ruleset_keys=selected_run_ruleset_keys,
+            )
 
     with extra_column_right:
         if st.button(
@@ -3156,10 +3216,14 @@ def render_pipeline_run_status(
 def execute_pipeline_run(
     selected_award_code: str,
     step: str | None,
-    ruleset_key: str | None = None,
+    ruleset_keys: list[str] | None = None,
 ) -> None:
     try:
-        start_background_pipeline_run(selected_award_code, step, ruleset_key=ruleset_key)
+        start_background_pipeline_run(
+            selected_award_code,
+            step,
+            ruleset_keys=ruleset_keys,
+        )
     except RuntimeError as exc:
         st.error(str(exc))
         return

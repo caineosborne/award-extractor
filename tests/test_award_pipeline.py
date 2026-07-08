@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch, sentinel
 
 from src.award_pipeline import (
@@ -118,6 +119,7 @@ def test_main_runs_default_pipeline_through_step_5_1():
     assert passed_ruleset_keys == [
         OVERTIME_CREATION_RULESET,
         OVERTIME_CONSEQUENCE_RULESET,
+        PENALTIES_RULESET,
     ]
 
 
@@ -206,10 +208,9 @@ def test_run_step_2_2_supports_penalties_ruleset_artifact_path():
 
 
 def test_run_step_2_1_uses_step_1_output_and_writes_step_2_1_artifact():
-    paths = build_paths(
-        award_code="MA000018",
-        suffix=None,
-        url="https://awards.fairwork.gov.au/MA000018.html",
+    paths = SimpleNamespace(
+        award_json_path=Path("/tmp/award.json"),
+        classification_path=Path("/tmp/classification.json"),
     )
 
     with patch("src.award_pipeline.require_existing") as require_existing_mock:
@@ -227,6 +228,23 @@ def test_run_step_2_1_uses_step_1_output_and_writes_step_2_1_artifact():
         award_path=paths.award_json_path,
         output_path=paths.classification_path,
     )
+
+
+def test_run_step_2_1_skips_when_classification_already_exists():
+    paths = SimpleNamespace(
+        award_json_path=Path("/tmp/award.json"),
+        classification_path=Path("/tmp/classification.json"),
+    )
+    paths.classification_path.write_text("{}", encoding="utf-8")
+
+    with patch("src.award_pipeline.require_existing") as require_existing_mock:
+        with patch("src.award_pipeline.run_step_2_1_classify") as classify_payments_mock:
+            from src.award_pipeline import run_step_2_1
+
+            run_step_2_1(paths)
+
+    require_existing_mock.assert_not_called()
+    classify_payments_mock.assert_not_called()
 
 
 def test_run_step_6_1_uses_three_revised_ruleset_json_sources():
@@ -556,7 +574,7 @@ def test_run_step_5_1_with_explicit_ruleset_uses_ruleset_specific_outputs():
         "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
-        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
+        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.json"),
         output_path=PROJECT_ROOT / Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )

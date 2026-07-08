@@ -14,6 +14,7 @@ from typing import Any
 
 from src.award_pipeline import (
     AwardPipelineError,
+    deduplicate_preserving_order,
     RULESET_SPECIFIC_STEPS,
     build_paths,
     run_default_pipeline,
@@ -93,10 +94,23 @@ class LiveLogWriter:
         self.log_file.close()
 
 
-def pipeline_run_label(step: str | None, ruleset_key: str | None = None) -> str:
+def pipeline_run_label(
+    step: str | None,
+    ruleset_keys: list[str] | str | None = None,
+) -> str:
     """Return the human-readable label for one pipeline run."""
-    if ruleset_key:
-        ruleset_name = overtime_ruleset_config(ruleset_key).display_name.lower()
+    unique_ruleset_keys = normalize_selected_ruleset_keys(ruleset_keys)
+    if unique_ruleset_keys:
+        ruleset_names = [
+            overtime_ruleset_config(selected_ruleset_key).display_name.lower()
+            for selected_ruleset_key in unique_ruleset_keys
+        ]
+        if len(ruleset_names) == 1:
+            ruleset_name = ruleset_names[0]
+        elif len(ruleset_names) == 2:
+            ruleset_name = f"{ruleset_names[0]} and {ruleset_names[1]}"
+        else:
+            ruleset_name = ", ".join(ruleset_names[:-1]) + f", and {ruleset_names[-1]}"
         if step is None:
             return f"{ruleset_name} pipeline run"
         if step == "3.1":
@@ -204,12 +218,25 @@ def artifact_exists(path: Any) -> bool:
     return isinstance(path, Path) and path.exists()
 
 
+def normalize_selected_ruleset_keys(
+    ruleset_keys: list[str] | str | None,
+) -> list[str] | None:
+    """Normalize one ruleset selection into a deduplicated list."""
+    if ruleset_keys is None:
+        return None
+
+    if isinstance(ruleset_keys, str):
+        return [ruleset_keys]
+
+    return deduplicate_preserving_order(ruleset_keys)
+
+
 def step_output_exists(
     *,
     award_code: str,
     paths: Any,
     step_id: str,
-    ruleset_key: str | None,
+    ruleset_keys: list[str] | None,
 ) -> bool:
     """Return whether the selected full-run step has already produced its output."""
     if step_id == "1":
@@ -219,11 +246,40 @@ def step_output_exists(
         return artifact_exists(getattr(paths, "classification_path", None))
 
     if step_id == "2.2":
-        if ruleset_key is None:
+        if ruleset_keys is None:
             return artifact_exists(getattr(paths, "overtime_clause_classification_path", None))
 
-        ruleset_artifacts = ruleset_artifact_paths_for_award(award_code, ruleset_key)
-        return artifact_exists(getattr(ruleset_artifacts, "clause_classification", None))
+        candidate_paths: list[Path] = []
+        for ruleset_key in deduplicate_preserving_order(ruleset_keys):
+            ruleset_artifacts = ruleset_artifact_paths_for_award(award_code, ruleset_key)
+            candidate_paths.append(getattr(ruleset_artifacts, "clause_classification", None))
+
+        return all(artifact_exists(candidate_path) for candidate_path in candidate_paths)
+
+    if step_id in {"3.1", "3.2", "4.1", "5.1"}:
+        default_step_paths = {
+            "3.1": "interpretation_path",
+            "3.2": "revised_interpretation_path",
+            "4.1": "overtime_entitlements",
+            "5.1": "core_overtime_pseudocode_path",
+        }
+        ruleset_step_paths = {
+            "3.1": "combined_markdown",
+            "3.2": "revised_markdown",
+            "4.1": "formatted_markdown",
+            "5.1": "pseudocode_markdown",
+        }
+
+        if ruleset_keys is None:
+            step_path = getattr(paths, default_step_paths[step_id], None)
+            return artifact_exists(step_path)
+
+        candidate_paths = []
+        for ruleset_key in deduplicate_preserving_order(ruleset_keys):
+            ruleset_artifacts = ruleset_artifact_paths_for_award(award_code, ruleset_key)
+            candidate_paths.append(getattr(ruleset_artifacts, ruleset_step_paths[step_id]))
+
+        return all(artifact_exists(candidate_path) for candidate_path in candidate_paths)
 
     if step_id == "6.1":
         return artifact_exists(calculator_rules_python_path_for_award(award_code))
@@ -270,7 +326,7 @@ def filtered_pipeline_steps_for_run(
     source_type: str,
     step: str | None,
     paths: Any,
-    ruleset_key: str | None,
+    ruleset_keys: list[str] | None,
 ) -> list[PipelinePlannedStep]:
     """Return planned steps, skipping reusable shared artifacts for full app runs."""
     planned_steps = pipeline_steps_for_run(source_type, step)
@@ -284,7 +340,7 @@ def filtered_pipeline_steps_for_run(
             award_code=award_code,
             paths=paths,
             step_id=planned_step.step_id,
-            ruleset_key=ruleset_key,
+            ruleset_keys=ruleset_keys,
         ):
             continue
         filtered_steps.append(planned_step)
@@ -318,7 +374,7 @@ def run_pipeline_for_award(
     award_code: str,
     step: str | None,
     *,
-    ruleset_key: str | None = None,
+    ruleset_keys: list[str] | str | None = None,
     status_callback: Any | None = None,
     log_path: Path | None = None,
 ) -> dict[str, Any]:
@@ -335,8 +391,9 @@ def run_pipeline_for_award(
         source_type=str(source_record["source_type"]),
         step=step,
         paths=paths,
-        ruleset_key=ruleset_key,
+        ruleset_keys=ruleset_keys,
     )
+    selected_ruleset_keys = normalize_selected_ruleset_keys(ruleset_keys)
     output_buffer = StringIO()
     error_buffer = StringIO()
     started_at = time.perf_counter()
@@ -387,19 +444,20 @@ def run_pipeline_for_award(
                 if planned_step.runner_kind == "pdf_step_1":
                     run_pdf_step_1(paths, award_code, source_record)
                 elif planned_step.runner_kind == "formatter_step":
-                    if ruleset_key is not None:
-                        ruleset_artifacts = ruleset_artifact_paths_for_award(
-                            award_code,
-                            ruleset_key,
-                        )
-                        summarize_overtime_entitlements(
-                            interpretation_path=ruleset_artifacts.revised_markdown,
-                            output_path=ruleset_artifacts.formatted_markdown,
-                        )
-                        print(
-                            "Formatted overtime guide saved to "
-                            f"{ruleset_artifacts.formatted_markdown}"
-                        )
+                    if selected_ruleset_keys is not None:
+                        for selected_ruleset_key in selected_ruleset_keys:
+                            ruleset_artifacts = ruleset_artifact_paths_for_award(
+                                award_code,
+                                selected_ruleset_key,
+                            )
+                            summarize_overtime_entitlements(
+                                interpretation_path=ruleset_artifacts.revised_markdown,
+                                output_path=ruleset_artifacts.formatted_markdown,
+                            )
+                            print(
+                                "Formatted overtime guide saved to "
+                                f"{ruleset_artifacts.formatted_markdown}"
+                            )
                     else:
                         summarize_overtime_entitlements(
                             interpretation_path=artifact_paths.revised_overtime_interpretation,
@@ -410,52 +468,54 @@ def run_pipeline_for_award(
                             f"{artifact_paths.overtime_entitlements}"
                         )
                 else:
-                    selected_ruleset_keys = [ruleset_key] if ruleset_key is not None else None
-                    if planned_step.step_id == "3.1" and ruleset_key is not None:
-                        generate_overtime_ruleset(
-                            classification_path=paths.classification_path,
-                            ruleset_key=ruleset_key,
-                        )
-                    elif planned_step.step_id == "3.2" and ruleset_key is not None:
-                        interpretation_path = ruleset_output_path_for_classification(
-                            paths.classification_path,
-                            ruleset_key,
-                        )
-                        review_overtime_interpretation(
-                            interpretation_path=interpretation_path,
-                            classification_path=paths.classification_path,
-                            overtime_clause_classification_path=ruleset_clause_classification_output_path_for_classification(
+                    if planned_step.step_id == "3.1" and selected_ruleset_keys is not None:
+                        for selected_ruleset_key in selected_ruleset_keys:
+                            generate_overtime_ruleset(
+                                classification_path=paths.classification_path,
+                                ruleset_key=selected_ruleset_key,
+                            )
+                    elif planned_step.step_id == "3.2" and selected_ruleset_keys is not None:
+                        for selected_ruleset_key in selected_ruleset_keys:
+                            interpretation_path = ruleset_output_path_for_classification(
                                 paths.classification_path,
-                                ruleset_key,
-                            ),
-                            feedback_output_path=evaluator_feedback_path_for_interpretation(
-                                interpretation_path
-                            ),
-                            creator_response_output_path=creator_response_path_for_interpretation(
-                                interpretation_path
-                            ),
-                            revised_output_path=revised_output_path_for_interpretation(
-                                interpretation_path
-                            ),
-                            ruleset_key=ruleset_key,
-                        )
-                    elif planned_step.step_id == "5.1" and ruleset_key is not None:
-                        ruleset_artifacts = ruleset_artifact_paths_for_award(
-                            award_code,
-                            ruleset_key,
-                        )
-                        generate_core_overtime_pseudocode(
-                            summary_path=source_path_for_ruleset_core_overtime_pseudocode(
-                                ruleset_artifacts
-                            ),
-                            output_path=ruleset_artifacts.pseudocode_markdown,
-                        )
-                        print(
-                            "Core overtime pseudocode saved to "
-                            f"{ruleset_artifacts.pseudocode_markdown}"
-                        )
+                                selected_ruleset_key,
+                            )
+                            review_overtime_interpretation(
+                                interpretation_path=interpretation_path,
+                                classification_path=paths.classification_path,
+                                overtime_clause_classification_path=ruleset_clause_classification_output_path_for_classification(
+                                    paths.classification_path,
+                                    selected_ruleset_key,
+                                ),
+                                feedback_output_path=evaluator_feedback_path_for_interpretation(
+                                    interpretation_path
+                                ),
+                                creator_response_output_path=creator_response_path_for_interpretation(
+                                    interpretation_path
+                                ),
+                                revised_output_path=revised_output_path_for_interpretation(
+                                    interpretation_path
+                                ),
+                                ruleset_key=selected_ruleset_key,
+                            )
+                    elif planned_step.step_id == "5.1" and selected_ruleset_keys is not None:
+                        for selected_ruleset_key in selected_ruleset_keys:
+                            ruleset_artifacts = ruleset_artifact_paths_for_award(
+                                award_code,
+                                selected_ruleset_key,
+                            )
+                            generate_core_overtime_pseudocode(
+                                summary_path=source_path_for_ruleset_core_overtime_pseudocode(
+                                    ruleset_artifacts
+                                ),
+                                output_path=ruleset_artifacts.pseudocode_markdown,
+                            )
+                            print(
+                                "Core overtime pseudocode saved to "
+                                f"{ruleset_artifacts.pseudocode_markdown}"
+                            )
                     elif (
-                        ruleset_key is not None
+                        selected_ruleset_keys is not None
                         and planned_step.step_id in RULESET_SPECIFIC_STEPS
                     ):
                         run_selected_step(
@@ -479,7 +539,9 @@ def run_pipeline_for_award(
                     "progress_fraction": 1.0,
                     "current_step": None,
                     "current_step_label": None,
-                    "message": f"{pipeline_run_label(step, ruleset_key)} finished for {award_code}.",
+                    "message": (
+                        f"{pipeline_run_label(step, selected_ruleset_keys)} finished for {award_code}."
+                    ),
                 }
             )
     except Exception as exc:
@@ -525,11 +587,15 @@ def run_pipeline_for_award(
         if live_error_writer is not None:
             live_error_writer.close()
 
+    validation_summary = load_5b_validation_summary(paths, step)
+    if selected_ruleset_keys is not None and len(selected_ruleset_keys) > 1:
+        validation_summary = None
+
     return {
         "success": True,
         "duration_seconds": time.perf_counter() - started_at,
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
-        "validation_summary": load_5b_validation_summary(paths, step),
+        "validation_summary": validation_summary,
         "completed_steps": len(planned_steps),
         "total_steps": len(planned_steps),
     }
@@ -560,7 +626,7 @@ def start_background_pipeline_run(
     award_code: str,
     step: str | None,
     *,
-    ruleset_key: str | None = None,
+    ruleset_keys: list[str] | str | None = None,
 ) -> dict[str, Any]:
     """Start one background pipeline process for the selected award code."""
     current_status = normalized_status_for_award(award_code)
@@ -569,12 +635,13 @@ def start_background_pipeline_run(
 
     run_id = str(int(time.time() * 1000))
     started_at = time.time()
+    selected_ruleset_keys = normalize_selected_ruleset_keys(ruleset_keys)
     initial_status = {
         "award_code": award_code,
         "step": step,
         "run_id": run_id,
         "state": "starting",
-        "message": f"{pipeline_run_label(step, ruleset_key)} is starting for {award_code}.",
+        "message": f"{pipeline_run_label(step, selected_ruleset_keys)} is starting for {award_code}.",
         "started_at": started_at,
         "finished_at": None,
         "duration_seconds": None,
@@ -586,7 +653,8 @@ def start_background_pipeline_run(
         "progress_fraction": 0.0,
         "current_step": None,
         "current_step_label": None,
-        "ruleset_key": ruleset_key,
+        "ruleset_key": selected_ruleset_keys[0] if selected_ruleset_keys else None,
+        "ruleset_keys": selected_ruleset_keys,
     }
     write_status(initial_status)
     log_path_for_award(award_code).write_text("", encoding="utf-8")
@@ -602,8 +670,8 @@ def start_background_pipeline_run(
     ]
     if step is not None:
         command.extend(["--step", step])
-    if ruleset_key is not None:
-        command.extend(["--ruleset-key", ruleset_key])
+    if selected_ruleset_keys is not None:
+        command.extend(["--ruleset-key", *selected_ruleset_keys])
 
     process = subprocess.Popen(
         command,
@@ -617,7 +685,7 @@ def start_background_pipeline_run(
     initial_status["pid"] = process.pid
     initial_status["state"] = "running"
     initial_status["message"] = (
-        f"{pipeline_run_label(step, ruleset_key)} is running for {award_code}."
+        f"{pipeline_run_label(step, selected_ruleset_keys)} is running for {award_code}."
     )
     write_status(initial_status)
 

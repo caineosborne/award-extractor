@@ -32,34 +32,26 @@ Why it matters:
 - the final screen needs to stay compatible with the reviewed 4.1 and 5.1 artifacts;
 - YAML generation should sit on the same canonical workflow as the rest of the pipeline.
 
-### Streamlit subset selection still only supports one ruleset at a time
+### Streamlit subset selection now supports running one or two subsets at a time
 
 Status:
-- Open
+- Resolved
 
 Area:
 - `streamlit_review/app.py`
+- `streamlit_review/pipeline_runs.py`
 
 Current behaviour:
-- the Streamlit sidebar exposes one `Step 3 ruleset` selector at a time;
-- the selected value controls both:
-  - which ruleset-specific pipeline steps run; and
-  - which ruleset-specific artifacts the review screens display.
-
-Remaining issue:
-- the active CLI supports running multiple ruleset subsets in one invocation;
-- the Streamlit UI does not yet expose that capability through a multi-select control.
-
-Why this still matters:
-- users can run both creation and consequence flows from the CLI;
-- the review UI still requires separate runs and separate screen changes to inspect each branch.
-
-Suggested follow-up:
-- replace the single-select ruleset control with a multi-select or checkbox control for:
+- the Streamlit sidebar now keeps the review ruleset selector separate from the run control;
+- the new `Step 3 subsets to run` multi-select lets the user run:
   - overtime creation;
   - overtime consequence;
-  - or both;
-- decide separately how the review screens should behave when both are selected, because running both and viewing both are different UI decisions.
+  - or both in one invocation;
+- the review screens still use a single selected ruleset, which keeps the viewing decision separate from the run selection.
+
+Why this matters:
+- the Streamlit UI now matches the CLI's multi-subset run capability;
+- users can run one branch or both without changing the review screens at the same time.
 
 ### Step 3.2 evaluator occasionally returns empty or truncated structured output in live runs
 

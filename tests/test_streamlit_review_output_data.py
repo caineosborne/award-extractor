@@ -1246,6 +1246,13 @@ def test_background_pipeline_run_label_includes_ruleset_when_provided():
         background_pipeline_run_label(None, OVERTIME_CONSEQUENCE_RULESET)
         == "overtime consequence pipeline run"
     )
+    assert (
+        background_pipeline_run_label(
+            "3.1",
+            [OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET],
+        )
+        == "Generate overtime creation, overtime consequence, and penalties ruleset"
+    )
 
 
 @pytest.mark.parametrize(
@@ -1262,7 +1269,7 @@ def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
     trigger_key: str,
     expected_step: str | None,
 ):
-    calls: list[tuple[str, str | None, str | None]] = []
+    calls: list[tuple[str, str | None, list[str] | None]] = []
 
     class DummyColumn:
         def __enter__(self):
@@ -1276,8 +1283,16 @@ def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
 
     monkeypatch.setattr("streamlit_review.app.normalized_status_for_award", lambda _award: None)
     monkeypatch.setattr("streamlit_review.app.render_pipeline_run_status", lambda *_args, **_kwargs: None)
-    monkeypatch.setattr("streamlit_review.app.execute_pipeline_run", lambda award_code, step, ruleset_key=None: calls.append((award_code, step, ruleset_key)))
+    monkeypatch.setattr(
+        "streamlit_review.app.execute_pipeline_run",
+        lambda award_code, step, ruleset_keys=None: calls.append((award_code, step, ruleset_keys)),
+    )
     monkeypatch.setattr("streamlit_review.app.st.button", fake_button)
+    monkeypatch.setattr("streamlit_review.app.st.checkbox", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(
+        "streamlit_review.app.st.multiselect",
+        lambda _label, options, default=None, key=None, disabled=False: list(options[:2]),
+    )
     monkeypatch.setattr(
         "streamlit_review.app.st.columns",
         lambda count, gap="small": tuple(DummyColumn() for _ in range(count)),
@@ -1286,10 +1301,77 @@ def test_render_pipeline_run_controls_passes_selected_ruleset_for_ruleset_runs(
     render_pipeline_run_controls(
         selected_award_code="MA000120",
         controls_disabled=False,
-        ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )
 
-    assert calls == [("MA000120", expected_step, OVERTIME_CONSEQUENCE_RULESET)]
+    assert calls == [
+        (
+            "MA000120",
+            expected_step,
+            [OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET],
+        )
+    ]
+
+
+def test_render_pipeline_run_controls_select_all_runs_all_three_subsets(monkeypatch):
+    calls: list[tuple[str, str | None, list[str] | None]] = []
+    multiselect_calls: list[dict[str, object]] = []
+
+    class DummyColumn:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+    monkeypatch.setattr("streamlit_review.app.normalized_status_for_award", lambda _award: None)
+    monkeypatch.setattr("streamlit_review.app.render_pipeline_run_status", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        "streamlit_review.app.execute_pipeline_run",
+        lambda award_code, step, ruleset_keys=None: calls.append((award_code, step, ruleset_keys)),
+    )
+    monkeypatch.setattr("streamlit_review.app.st.button", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr("streamlit_review.app.st.checkbox", lambda *_args, **_kwargs: True)
+    monkeypatch.setattr(
+        "streamlit_review.app.st.multiselect",
+        lambda _label, options, default=None, key=None, disabled=False: (
+            multiselect_calls.append(
+                {
+                    "options": list(options),
+                    "default": list(default or []),
+                    "key": key,
+                    "disabled": disabled,
+                }
+            )
+            or []
+        ),
+    )
+    monkeypatch.setattr(
+        "streamlit_review.app.st.columns",
+        lambda count, gap="small": tuple(DummyColumn() for _ in range(count)),
+    )
+
+    render_pipeline_run_controls(
+        selected_award_code="MA000120",
+        controls_disabled=False,
+    )
+
+    assert calls == []
+    assert multiselect_calls == [
+        {
+            "options": [
+                "Overtime creation",
+                "Overtime consequence",
+                "Penalties",
+            ],
+            "default": [
+                "Overtime creation",
+                "Overtime consequence",
+                "Penalties",
+            ],
+            "key": "step3_run_ruleset_labels",
+            "disabled": True,
+        }
+    ]
 
 
 def test_award_selection_index_prefers_current_selection_when_present():
@@ -1403,7 +1485,7 @@ def test_run_pipeline_for_award_calls_selected_step(monkeypatch):
 
     result = run_pipeline_for_award("MA000002", "3.1")
 
-    assert result["success"] is True
+    assert result["success"] is True, result["log"]
     assert "step output" in result["log"]
     assert calls == [
         ("source_record_for_award", "MA000002"),
@@ -1580,8 +1662,8 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
             overtime_entitlements=sentinel.entitlements_path,
         )
 
-    def fake_run_selected_step(paths, step: str) -> None:
-        calls.append(("run_selected_step", paths, step))
+    def fake_run_selected_step(paths, step: str, ruleset_keys=None) -> None:
+        calls.append(("run_selected_step", paths, step, ruleset_keys))
         print(f"output from {step}")
 
     def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
@@ -1625,17 +1707,17 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
         ("source_record_for_award", "MA000002"),
         ("build_paths", "MA000002", None, "https://example.com/MA000002.html"),
         ("artifact_paths_for_award", "MA000002"),
-        ("run_selected_step", sentinel.paths, "1"),
-        ("run_selected_step", sentinel.paths, "2.1"),
-        ("run_selected_step", sentinel.paths, "2.2"),
-        ("run_selected_step", sentinel.paths, "3.1"),
-        ("run_selected_step", sentinel.paths, "3.2"),
+        ("run_selected_step", sentinel.paths, "1", None),
+        ("run_selected_step", sentinel.paths, "2.1", None),
+        ("run_selected_step", sentinel.paths, "2.2", None),
+        ("run_selected_step", sentinel.paths, "3.1", None),
+        ("run_selected_step", sentinel.paths, "3.2", None),
         (
             "summarize_overtime_entitlements",
             sentinel.revised_path,
             sentinel.entitlements_path,
         ),
-        ("run_selected_step", sentinel.paths, "5.1"),
+        ("run_selected_step", sentinel.paths, "5.1", None),
     ]
 
 
@@ -1672,6 +1754,16 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         manual_ruleset_markdown=manual_ruleset_markdown,
         pseudocode_markdown=pseudocode_markdown,
     )
+
+    planned_steps = [
+        SimpleNamespace(step_id="1", label="Retrieve award", runner_kind="selected_step"),
+        SimpleNamespace(step_id="2.1", label="Classify clauses", runner_kind="selected_step"),
+        SimpleNamespace(step_id="2.2", label="Classify ruleset clauses", runner_kind="selected_step"),
+        SimpleNamespace(step_id="3.1", label="Generate ruleset", runner_kind="selected_step"),
+        SimpleNamespace(step_id="3.2", label="Review overtime ruleset", runner_kind="selected_step"),
+        SimpleNamespace(step_id="4.1", label="Format overtime guide", runner_kind="formatter_step"),
+        SimpleNamespace(step_id="5.1", label="Generate pseudocode", runner_kind="selected_step"),
+    ]
 
     def fake_source_record_for_award(selected_award_code: str) -> dict[str, str]:
         calls.append(("source_record_for_award", selected_award_code))
@@ -1727,6 +1819,10 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         fake_artifact_paths_for_award,
     )
     monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.filtered_pipeline_steps_for_run",
+        lambda **_kwargs: planned_steps,
+    )
+    monkeypatch.setattr(
         "streamlit_review.pipeline_runs.ruleset_artifact_paths_for_award",
         fake_ruleset_artifact_paths_for_award,
     )
@@ -1754,7 +1850,7 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
     result = background_run_pipeline_for_award(
         award_code,
         None,
-        ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
+        ruleset_keys=[OVERTIME_CONSEQUENCE_RULESET],
     )
 
     assert result["success"] is True
@@ -1762,8 +1858,8 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         ("source_record_for_award", award_code),
         ("build_paths", award_code, None, f"https://example.com/{award_code}.html"),
         ("artifact_paths_for_award", award_code),
-        ("ruleset_artifact_paths_for_award", award_code, OVERTIME_CONSEQUENCE_RULESET),
         ("run_selected_step", classification_path, "1", None),
+        ("run_selected_step", classification_path, "2.1", None),
         ("run_selected_step", classification_path, "2.2", [OVERTIME_CONSEQUENCE_RULESET]),
         (
             "generate_overtime_ruleset",
@@ -1798,5 +1894,240 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
             "generate_core_overtime_pseudocode",
             formatted_markdown,
             pseudocode_markdown,
+        ),
+    ]
+
+
+def test_background_run_pipeline_uses_both_selected_rulesets_for_full_ruleset_run(
+    monkeypatch,
+    tmp_path,
+):
+    calls: list[tuple[str, object]] = []
+    award_code = "MA000120"
+    classification_path = tmp_path / award_code / "2_1_payment_classification.json"
+    classification_path.parent.mkdir(parents=True, exist_ok=True)
+    classification_path.write_text("{}", encoding="utf-8")
+
+    creation_markdown = ruleset_output_path_for_classification(
+        classification_path,
+        OVERTIME_CREATION_RULESET,
+    )
+    consequence_markdown = ruleset_output_path_for_classification(
+        classification_path,
+        OVERTIME_CONSEQUENCE_RULESET,
+    )
+    creation_json = creation_markdown.with_suffix(".json")
+    consequence_json = consequence_markdown.with_suffix(".json")
+    creation_revised_markdown = creation_markdown.with_name("3_2_OT_creation_revised_ruleset.md")
+    consequence_revised_markdown = consequence_markdown.with_name("3_2_OT_consequence_revised_ruleset.md")
+    creation_formatted_markdown = creation_markdown.with_name("4_1_OT_creation_formatted_ruleset.md")
+    consequence_formatted_markdown = consequence_markdown.with_name("4_1_OT_consequence_formatted_ruleset.md")
+    creation_pseudocode_markdown = creation_markdown.with_name("5_1_OT_creation_pseudocode.md")
+    consequence_pseudocode_markdown = consequence_markdown.with_name("5_1_OT_consequence_pseudocode.md")
+    creation_markdown.parent.mkdir(parents=True, exist_ok=True)
+    creation_markdown.write_text("# Creation", encoding="utf-8")
+    consequence_markdown.write_text("# Consequence", encoding="utf-8")
+    creation_json.write_text("{}", encoding="utf-8")
+    consequence_json.write_text("{}", encoding="utf-8")
+
+    planned_steps = [
+        SimpleNamespace(step_id="1", label="Retrieve award", runner_kind="selected_step"),
+        SimpleNamespace(step_id="2.1", label="Classify clauses", runner_kind="selected_step"),
+        SimpleNamespace(step_id="2.2", label="Classify ruleset clauses", runner_kind="selected_step"),
+        SimpleNamespace(step_id="3.1", label="Generate ruleset", runner_kind="selected_step"),
+        SimpleNamespace(step_id="3.2", label="Review overtime ruleset", runner_kind="selected_step"),
+        SimpleNamespace(step_id="4.1", label="Format overtime guide", runner_kind="formatter_step"),
+        SimpleNamespace(step_id="5.1", label="Generate pseudocode", runner_kind="selected_step"),
+    ]
+
+    def fake_source_record_for_award(selected_award_code: str) -> dict[str, str]:
+        calls.append(("source_record_for_award", selected_award_code))
+        return {
+            "source_type": "fair_work_html",
+            "source_url": f"https://example.com/{selected_award_code}.html",
+        }
+
+    def fake_build_paths(selected_award_code: str, suffix, url: str):
+        calls.append(("build_paths", selected_award_code, suffix, url))
+        return SimpleNamespace(classification_path=classification_path)
+
+    def fake_artifact_paths_for_award(selected_award_code: str):
+        calls.append(("artifact_paths_for_award", selected_award_code))
+        return sentinel.legacy_artifacts
+
+    def fake_ruleset_artifact_paths_for_award(selected_award_code: str, ruleset_key: str):
+        calls.append(("ruleset_artifact_paths_for_award", selected_award_code, ruleset_key))
+        if ruleset_key == OVERTIME_CREATION_RULESET:
+            return SimpleNamespace(
+                revised_markdown=creation_revised_markdown,
+                combined_markdown=creation_markdown,
+                combined_json=creation_json,
+                formatted_markdown=creation_formatted_markdown,
+                manual_ruleset_markdown=creation_revised_markdown.with_name(
+                    "3_2_OT_creation_revised_ruleset_manual.md"
+                ),
+                pseudocode_markdown=creation_pseudocode_markdown,
+            )
+
+        return SimpleNamespace(
+            revised_markdown=consequence_revised_markdown,
+            combined_markdown=consequence_markdown,
+            combined_json=consequence_json,
+            formatted_markdown=consequence_formatted_markdown,
+            manual_ruleset_markdown=consequence_revised_markdown.with_name(
+                "3_2_OT_consequence_revised_ruleset_manual.md"
+            ),
+            pseudocode_markdown=consequence_pseudocode_markdown,
+        )
+
+    def fake_run_selected_step(paths, step: str, ruleset_keys=None) -> None:
+        calls.append(("run_selected_step", paths.classification_path, step, ruleset_keys))
+
+    def fake_generate_overtime_ruleset(*, classification_path: Path, ruleset_key: str) -> None:
+        calls.append(("generate_overtime_ruleset", classification_path, ruleset_key))
+
+    def fake_review_overtime_interpretation(**kwargs) -> None:
+        calls.append(
+            (
+                "review_overtime_interpretation",
+                kwargs["interpretation_path"],
+                kwargs["overtime_clause_classification_path"],
+                kwargs["ruleset_key"],
+            )
+        )
+        kwargs["revised_output_path"].parent.mkdir(parents=True, exist_ok=True)
+        kwargs["revised_output_path"].write_text("# Revised", encoding="utf-8")
+
+    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+        calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
+        output_path.write_text("# Formatted", encoding="utf-8")
+
+    def fake_generate_core_overtime_pseudocode(*, summary_path, output_path) -> None:
+        calls.append(("generate_core_overtime_pseudocode", summary_path, output_path))
+
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.source_record_for_award",
+        fake_source_record_for_award,
+    )
+    monkeypatch.setattr("streamlit_review.pipeline_runs.build_paths", fake_build_paths)
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.artifact_paths_for_award",
+        fake_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.filtered_pipeline_steps_for_run",
+        lambda **_kwargs: planned_steps,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.ruleset_artifact_paths_for_award",
+        fake_ruleset_artifact_paths_for_award,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.run_selected_step",
+        fake_run_selected_step,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.generate_overtime_ruleset",
+        fake_generate_overtime_ruleset,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.review_overtime_interpretation",
+        fake_review_overtime_interpretation,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.summarize_overtime_entitlements",
+        fake_summarize_overtime_entitlements,
+    )
+    monkeypatch.setattr(
+        "streamlit_review.pipeline_runs.generate_core_overtime_pseudocode",
+        fake_generate_core_overtime_pseudocode,
+    )
+
+    result = background_run_pipeline_for_award(
+        award_code,
+        None,
+        ruleset_keys=[OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET],
+    )
+
+    assert result["success"] is True
+    assert calls == [
+        ("source_record_for_award", award_code),
+        ("build_paths", award_code, None, f"https://example.com/{award_code}.html"),
+        ("artifact_paths_for_award", award_code),
+        ("run_selected_step", classification_path, "1", None),
+        ("run_selected_step", classification_path, "2.1", None),
+        (
+            "run_selected_step",
+            classification_path,
+            "2.2",
+            [OVERTIME_CREATION_RULESET, OVERTIME_CONSEQUENCE_RULESET],
+        ),
+        (
+            "generate_overtime_ruleset",
+            classification_path,
+            OVERTIME_CREATION_RULESET,
+        ),
+        (
+            "generate_overtime_ruleset",
+            classification_path,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "review_overtime_interpretation",
+            creation_markdown,
+            ruleset_clause_classification_output_path_for_classification(
+                classification_path,
+                OVERTIME_CREATION_RULESET,
+            ),
+            OVERTIME_CREATION_RULESET,
+        ),
+        (
+            "review_overtime_interpretation",
+            consequence_markdown,
+            ruleset_clause_classification_output_path_for_classification(
+                classification_path,
+                OVERTIME_CONSEQUENCE_RULESET,
+            ),
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CREATION_RULESET,
+        ),
+        (
+            "summarize_overtime_entitlements",
+            creation_revised_markdown,
+            creation_formatted_markdown,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "summarize_overtime_entitlements",
+            consequence_revised_markdown,
+            consequence_formatted_markdown,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CREATION_RULESET,
+        ),
+        (
+            "generate_core_overtime_pseudocode",
+            creation_formatted_markdown,
+            creation_pseudocode_markdown,
+        ),
+        (
+            "ruleset_artifact_paths_for_award",
+            award_code,
+            OVERTIME_CONSEQUENCE_RULESET,
+        ),
+        (
+            "generate_core_overtime_pseudocode",
+            consequence_formatted_markdown,
+            consequence_pseudocode_markdown,
         ),
     ]

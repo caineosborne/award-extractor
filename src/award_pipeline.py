@@ -68,6 +68,7 @@ RULESET_SUBSET_CHOICES = tuple(RULESET_SUBSET_TO_KEY.keys())
 CLI_DEFAULT_RULESET_KEYS = (
     OVERTIME_CREATION_RULESET,
     OVERTIME_CONSEQUENCE_RULESET,
+    PENALTIES_RULESET,
 )
 
 
@@ -224,6 +225,12 @@ def run_step_1(paths: ActivePipelinePaths) -> None:
 
 def run_step_2_1(paths: ActivePipelinePaths) -> None:
     """Run step 2.1 payment clause classification."""
+    if paths.classification_path.exists():
+        print(
+            "Step 2.1: Existing payment classification found, skipping rerun."
+        )
+        return
+
     require_existing(paths.award_json_path, "2.1", "1")
     run_step_2_1_classify(
         award_path=paths.award_json_path,
@@ -546,7 +553,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "Optional ruleset subset ids to run. "
             "Use 1 for overtime creation, 2 for overtime consequence, "
             "3 for penalties. "
-            "If omitted, the CLI runs all configured rulesets."
+            "If omitted, the CLI runs all three rulesets."
         ),
     )
     return parser.parse_args(argv)

@@ -1,4 +1,4 @@
-"""LLM helpers for step 2.1 payment classification."""
+"""Step 2.1 stage 3: classify clause groups with the LLM."""
 
 from __future__ import annotations
 
@@ -15,20 +15,14 @@ from src.prompts.step_2_1_classify_payments import (
     PAYMENT_CLASSIFICATION_ALLOWED_TAGS,
     build_messages,
 )
-from src.step_2_1_classify_payments.deterministic import (
-    apply_deterministic_tag_repairs,
+
+from .step_4_validate_classification import (
     has_substantive_l1_content,
     title_only_top_level_result,
-    unique_items,
-    direct_l2_reference_for,
-    map_relative_reference_to_direct_l2,
+    validate_group_classification,
 )
-from src.step_2_1_classify_payments.schema import (
-    DEFAULT_MODEL,
-    PROJECT_ROOT,
-    PaymentClauseClassifierError,
-    TopLevelGroup,
-)
+from .step_5_apply_repairs import apply_deterministic_tag_repairs
+from .schema import DEFAULT_MODEL, PROJECT_ROOT, PaymentClauseClassifierError, TopLevelGroup
 
 
 def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
@@ -108,99 +102,12 @@ def response_json_schema() -> dict[str, Any]:
     }
 
 
-def validate_group_classification(
-    group: TopLevelGroup,
-    classification: Mapping[str, Any],
-) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
-    """Check model references and attach the results back to source clause text."""
-    top = classification.get("top_level_clause")
-    if top.get("reference") != group.reference:
-        raise PaymentClauseClassifierError(
-            f"Expected top-level reference {group.reference}, got {top.get('reference')}."
-        )
-
-    payment_relevant = bool(top.get("payment_relevant"))
-    definition_relevant = bool(top.get("definition_relevant"))
-    requires_l2_classification = payment_relevant or definition_relevant
-
-    top_result = {
-        "title": str(top.get("title") or group.title),
-        "payment_relevant": payment_relevant,
-        "definition_relevant": definition_relevant,
-        "requires_l2_classification": requires_l2_classification,
-        "reason": str(top.get("reason") or ""),
-    }
-
-    descendants_by_reference = {item.reference: item for item in group.descendants}
-    direct_references = set(descendants_by_reference)
-    classified_raw = classification["classified_clauses"]
-
-    if not payment_relevant and not definition_relevant and classified_raw:
-        raise PaymentClauseClassifierError(
-            f"Clause {group.reference} is not payment or definition relevant but returned classified clauses."
-        )
-
-    classified: OrderedDict[str, dict[str, Any]] = OrderedDict()
-
-    for item in classified_raw:
-        returned_reference = item["reference"]
-        reference = direct_l2_reference_for(returned_reference, direct_references)
-
-        if reference is None:
-            reference = map_relative_reference_to_direct_l2(
-                group.reference,
-                returned_reference,
-                direct_references,
-            )
-
-        if (
-            reference is None
-            and returned_reference == group.reference
-            and has_substantive_l1_content(group)
-        ):
-            reference = group.reference
-
-        if reference is None:
-            raise PaymentClauseClassifierError(
-                f"Unknown classified clause reference: {returned_reference}"
-            )
-
-        if reference == group.reference:
-            source_text = group.text
-        else:
-            source_text = descendants_by_reference[reference].text
-
-        reason = str(item.get("reason") or "")
-        if returned_reference != reference:
-            reason = (
-                f"{reason} Returned nested reference {returned_reference}; "
-                f"classified under {reference}."
-            ).strip()
-
-        if reference in classified:
-            classified[reference]["tags"] = unique_items(
-                [*classified[reference]["tags"], *item["tags"]]
-            )
-            if reason and reason not in classified[reference]["reason"]:
-                existing_reason = classified[reference]["reason"]
-                classified[reference]["reason"] = f"{existing_reason} {reason}".strip()
-            continue
-
-        classified[reference] = {
-            "text": source_text,
-            "tags": unique_items(item["tags"]),
-            "reason": reason,
-        }
-
-    return top_result, classified
-
-
 def classify_group(
     group: TopLevelGroup,
     client: Any,
     model: str,
-) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
-    """Send one top-level group to the model and validate the result."""
+) -> Mapping[str, Any]:
+    """Send one top-level group to the model and parse the result."""
     response = client.responses.create(
         model=model,
         input=build_messages(group),
@@ -220,12 +127,7 @@ def classify_group(
             f"OpenAI response for clause {group.reference} did not include output text."
         )
 
-    top_result, classified = validate_group_classification(
-        group,
-        parse_response_json(output_text),
-    )
-    apply_deterministic_tag_repairs(group, top_result, classified)
-    return top_result, classified
+    return parse_response_json(output_text)
 
 
 def classify_groups(
@@ -243,7 +145,12 @@ def classify_groups(
             top_result = title_only_top_level_result(group)
             descendant_results = OrderedDict()
         else:
-            top_result, descendant_results = classify_group(group, client, model)
+            classification = classify_group(group, client, model)
+            top_result, descendant_results = validate_group_classification(
+                group,
+                classification,
+            )
+            apply_deterministic_tag_repairs(group, top_result, descendant_results)
 
         top_level_clauses[group.reference] = top_result
         classified_clauses.update(descendant_results)

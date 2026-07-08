@@ -25,7 +25,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--award-code", required=True)
     parser.add_argument("--run-id", required=True)
     parser.add_argument("--step", default=None)
-    parser.add_argument("--ruleset-key", default=None)
+    parser.add_argument("--ruleset-key", nargs="+", default=None)
     return parser.parse_args()
 
 
@@ -51,7 +51,8 @@ def main() -> None:
         "progress_fraction": 0.0,
         "current_step": None,
         "current_step_label": None,
-        "ruleset_key": args.ruleset_key,
+        "ruleset_key": args.ruleset_key[0] if args.ruleset_key else None,
+        "ruleset_keys": args.ruleset_key,
     }
     write_status(running_status)
 
@@ -70,7 +71,7 @@ def main() -> None:
         result = run_pipeline_for_award(
             args.award_code,
             args.step,
-            ruleset_key=args.ruleset_key,
+            ruleset_keys=args.ruleset_key,
             status_callback=write_progress_status,
             log_path=log_path_for_award(args.award_code),
         )

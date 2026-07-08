@@ -7,14 +7,10 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
+from .step_1_load_award import resolve_classification_inputs
+from .step_3_classify_groups import classify_groups, load_openai_client, selected_model
+from .step_6_write_artifact import build_result_artifact, write_result
 from .schema import DEFAULT_AWARD_PATH
-
-from .deterministic import (
-    build_result_artifact,
-    resolve_classification_inputs,
-    write_result,
-)
-from .llm import classify_groups, load_openai_client, selected_model
 
 
 def classify_payments(
@@ -88,7 +84,7 @@ def main() -> None:
     )
     destination = Path(args.output_path) if args.output_path else None
     if destination is None:
-        from .deterministic import output_path_for_award
+        from src.common.output_naming import classification_path_for_award_json
 
-        destination = output_path_for_award(args.award_path)
+        destination = classification_path_for_award_json(args.award_path)
     print(f"Payment classification saved to {destination}")
