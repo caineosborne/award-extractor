@@ -1095,7 +1095,7 @@ def test_default_second_screen_for_uses_the_next_available_screen():
         "7. Step 3.1 Combined ruleset"
     )
     assert default_second_screen_for("13. Step 6.1 Calculator Python") == (
-        "12. Step 6.1 Calculator Questionnaire"
+        "12. Step 6.1 Calculator Ruleset"
     )
 
 

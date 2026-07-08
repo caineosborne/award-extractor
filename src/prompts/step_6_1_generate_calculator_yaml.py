@@ -54,18 +54,22 @@ Important:
 Business interpretation rules:
 - For core-hours limits, separate day workers and shift workers where the source supports that distinction.
 - For two-tier overtime, answer whether there is a standard higher overtime tier, the higher multiplier, and the threshold in hours.
+- For overtime multipliers, return the total paid rate, not the loading above base. Example: return `1.5` for 150% and `2.0` for 200%.
 - For span overtime, answer only for day workers. If the award has a more complex span than one live cutoff, choose the best single live cutoff and explain the limitation in `special_case_notes`.
 - For weekend treatment, answer whether weekend hours are overtime or penalty-based for each worker group and weekend day.
+- If the reviewed creation rules say day-worker ordinary hours are confined to Monday to Friday or otherwise exclude Saturday/Sunday ordinary hours, do not classify day-worker weekend hours as penalty-based unless the reviewed rules also clearly provide a day-worker ordinary-weekend penalty regime. In that situation, prefer `overtime` for day workers and reserve `penalty` for worker groups such as shiftworkers whose ordinary hours can validly fall on the weekend.
 - For gap between shifts, the calculator can only use one live threshold. Choose the standard live threshold and record differing worker-group thresholds in `special_case_notes`.
 - For the gap breach answer, use the calculator loading above base rather than the total paid rate. Example: if the award says pay 200%, answer `1.0`, not `2.0`.
 - For weekday penalties, include only standard cases that can be represented with numeric start and end hours. Do not include special cases that depend on rotation patterns, permanence, or non-time conditions unless they can be safely expressed in the structured rule shape.
 - Exclude permanent night shift variants from the live weekday penalty list unless the reviewed rules clearly show that permanent night is the standard default case.
 - Treat `weekday_penalties` as weekday extra penalties only. Do not include Saturday, Sunday, public holiday, meal-break, or other calendar/fact-dependent rules in the live weekday penalty lists.
+- Do not treat casual loading as a penalty rule. Casual loading is part of the employee classification rate, not a separate live weekday penalty.
 - If a weekday penalty is based on shift start time, shift finish time, or how long the shift runs, record that explicitly.
 - If a weekday shift penalty is based on shift classification, prefer the real basis:
   - use `start` when the rule depends on when the shift starts
   - use `end` when the rule depends on when the shift finishes
   - use `duration` when the rule depends on how long the shift runs
+- If a weekday penalty window crosses midnight, encode it with `end_hour < start_hour`. Example: 4.00 pm to before 4.00 am must be `start_hour = 16`, `end_hour = 4`.
 - Do not use a `0` to `24` placeholder unless the award truly applies the same weekday shift penalty regardless of timing.
 - Example: if an afternoon or night shift penalty applies because the shift finishes after 7.00 pm and by midnight, use `basis = end`, `start_hour = 19`, `end_hour = 24`.
 

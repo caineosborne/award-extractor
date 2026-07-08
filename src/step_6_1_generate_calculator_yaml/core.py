@@ -27,8 +27,6 @@ SCALAR_RULE_FIELDS = (
     "extended_overtime_rate",
     "sunday_overtime_rate",
     "saturday_overtime_rate",
-    "saturday_penalty_rate",
-    "sunday_penalty_rate",
     "apply_span_overtime",
     "span_overtime_hour",
     "gap_penalty_hours",
@@ -53,8 +51,6 @@ CLASS_ATTRIBUTE_BY_RULE_FIELD = {
     "extended_overtime_rate": "EXTENDED_OVERTIME_RATE",
     "sunday_overtime_rate": "SUNDAY_OVERTIME_RATE",
     "saturday_overtime_rate": "SATURDAY_OVERTIME_RATE",
-    "saturday_penalty_rate": "SATURDAY_PENALTY_RATE",
-    "sunday_penalty_rate": "SUNDAY_PENALTY_RATE",
     "apply_span_overtime": "APPLY_SPAN_OVERTIME",
     "span_overtime_hour": "SPAN_OVERTIME_HOUR",
     "gap_penalty_hours": "GAP_PENALTY_HOURS",
@@ -92,6 +88,16 @@ PENALTY_BASIS_OPTIONS = (
     "end",
     "duration",
 )
+TIME_CONNECTOR_TOKENS = {
+    "to",
+    "until",
+    "till",
+    "through",
+    "thru",
+    "before",
+    "after",
+    "from",
+}
 
 
 class CalculatorRulesYamlError(RuntimeError):
@@ -583,6 +589,126 @@ def _first_non_null(*values: Any) -> Any:
     return None
 
 
+def _format_hour_for_identifier(value: int | float) -> str:
+    numeric_value = float(value)
+    whole_hours = int(numeric_value)
+
+    if numeric_value == whole_hours:
+        return str(whole_hours)
+
+    minutes = int(round((numeric_value - whole_hours) * 60))
+    return f"{whole_hours}_{minutes:02d}"
+
+
+def _extract_explicit_hours_from_text(text: str) -> list[float]:
+    extracted_hours: list[float] = []
+    normalized_text = text.lower().replace("_", " ")
+
+    for match in re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", normalized_text):
+        hour = int(match.group(1))
+        minute = int(match.group(2) or "0")
+        meridiem = match.group(3)
+
+        if hour == 12:
+            hour = 0
+        if meridiem == "pm":
+            hour += 12
+
+        extracted_hours.append(hour + (minute / 60))
+
+    for match in re.finditer(r"\b(\d{1,2}):(\d{2})\b", normalized_text):
+        hour = int(match.group(1))
+        minute = int(match.group(2))
+        extracted_hours.append(hour + (minute / 60))
+
+    if re.search(r"\bmidnight\b", normalized_text):
+        extracted_hours.append(0.0)
+    if re.search(r"\bnoon\b", normalized_text):
+        extracted_hours.append(12.0)
+
+    return extracted_hours
+
+
+def _strip_trailing_time_tokens(code_name: str) -> str:
+    parts = [part for part in code_name.lower().split("_") if part]
+    if not parts:
+        return ""
+
+    time_pattern = re.compile(r"^\d{1,2}(?:am|pm)$|^\d{1,2}$")
+    trailing_index = len(parts)
+    saw_time_token = False
+
+    while trailing_index > 0:
+        current_part = parts[trailing_index - 1]
+        if current_part in TIME_CONNECTOR_TOKENS or current_part in {"midnight", "noon"}:
+            saw_time_token = True
+            trailing_index -= 1
+            continue
+        if time_pattern.match(current_part):
+            saw_time_token = True
+            trailing_index -= 1
+            continue
+        break
+
+    if not saw_time_token:
+        return "_".join(parts)
+
+    stripped_parts = parts[:trailing_index]
+    return "_".join(stripped_parts).strip("_")
+
+
+def _canonical_penalty_code_name(
+    raw_code_name: str,
+    *,
+    penalty_basis: str,
+    start_hour: int | float,
+    end_hour: int | float,
+) -> str:
+    base_name = _strip_trailing_time_tokens(raw_code_name) or "penalty_window"
+    start_text = _format_hour_for_identifier(start_hour)
+    end_text = _format_hour_for_identifier(end_hour)
+    return f"{base_name}_{penalty_basis}_{start_text}_to_{end_text}"
+
+
+def _validate_penalty_time_text(
+    *,
+    description: str,
+    start_hour: int | float,
+    end_hour: int | float,
+) -> None:
+    explicit_hours = _extract_explicit_hours_from_text(description)
+    if len(explicit_hours) < 2:
+        return
+
+    expected_start = float(start_hour)
+    expected_end = float(end_hour)
+    stated_start = explicit_hours[0]
+    stated_end = explicit_hours[1]
+
+    if stated_start != expected_start or stated_end != expected_end:
+        raise CalculatorRulesYamlError(
+            "Step 6.1 produced a weekday penalty whose structured hours do not match its "
+            f"description: '{description}' implies {stated_start} to {stated_end}, "
+            f"but the structured window is {expected_start} to {expected_end}."
+        )
+
+
+def _penalty_code_name_has_explicit_times(code_name: str) -> bool:
+    normalized_name = code_name.lower().replace("_", " ")
+    explicit_hours = _extract_explicit_hours_from_text(normalized_name)
+    return len(explicit_hours) >= 2
+
+
+def _unique_penalty_name(base_name: str, existing_penalties: dict[str, Any]) -> str:
+    if base_name not in existing_penalties:
+        return base_name
+
+    suffix = 2
+    while f"{base_name}_{suffix}" in existing_penalties:
+        suffix += 1
+    return f"{base_name}_{suffix}"
+
+
 def _weekend_day_entry(treatment: str | None, *, overtime_rate: Any, penalty_rate: Any) -> dict[str, Any] | None:
     if treatment == "overtime":
         return {"is_overtime": True}
@@ -644,6 +770,12 @@ def _build_live_penalties(
         lower_description = description.lower()
         lower_code_name = code_name.lower()
 
+        _validate_penalty_time_text(
+            description=description,
+            start_hour=start_hour,
+            end_hour=end_hour,
+        )
+
         # The current engine only applies PENALTIES on ordinary weekdays and has
         # no calendar-aware weekend/public-holiday filtering in this path.
         # Exclude any calendar-specific live rule here so it does not leak onto
@@ -658,7 +790,18 @@ def _build_live_penalties(
         if any(term in lower_code_name or term in lower_description for term in calendar_specific_terms):
             continue
 
-        penalties[code_name] = {
+        normalized_code_name = code_name
+        if _penalty_code_name_has_explicit_times(code_name):
+            normalized_code_name = _canonical_penalty_code_name(
+                code_name,
+                penalty_basis=penalty_basis,
+                start_hour=start_hour,
+                end_hour=end_hour,
+            )
+
+        normalized_code_name = _unique_penalty_name(normalized_code_name, penalties)
+
+        penalties[normalized_code_name] = {
             "type": penalty_type,
             "basis": penalty_basis,
             "start": start_hour,
@@ -965,14 +1108,6 @@ def normalize_response_data(
         ),
         "sunday_overtime_rate": question_records["sunday_overtime_multiplier"]["answer"],
         "saturday_overtime_rate": question_records["saturday_overtime_multiplier"]["answer"],
-        "saturday_penalty_rate": _first_non_null(
-            question_records["day_saturday_penalty_loading"]["answer"],
-            question_records["shift_saturday_penalty_loading"]["answer"],
-        ),
-        "sunday_penalty_rate": _first_non_null(
-            question_records["day_sunday_penalty_loading"]["answer"],
-            question_records["shift_sunday_penalty_loading"]["answer"],
-        ),
         "apply_span_overtime": question_records["day_workers_have_span_overtime"]["answer"],
         "span_overtime_hour": (
             question_records["live_span_cutoff_hour"]["answer"]
@@ -1040,20 +1175,6 @@ def normalize_response_data(
         "saturday_overtime_rate": _merge_evidence_records(
             [question_records["saturday_overtime_multiplier"]],
             empty_reason="No evidence available for Saturday overtime multiplier.",
-        ),
-        "saturday_penalty_rate": _merge_evidence_records(
-            [
-                question_records["day_saturday_penalty_loading"],
-                question_records["shift_saturday_penalty_loading"],
-            ],
-            empty_reason="No evidence available for Saturday penalty loading.",
-        ),
-        "sunday_penalty_rate": _merge_evidence_records(
-            [
-                question_records["day_sunday_penalty_loading"],
-                question_records["shift_sunday_penalty_loading"],
-            ],
-            empty_reason="No evidence available for Sunday penalty loading.",
         ),
         "apply_span_overtime": _merge_evidence_records(
             [

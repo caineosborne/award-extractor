@@ -386,6 +386,159 @@ def test_normalize_response_data_rejects_unknown_rule_ids():
         raise AssertionError("Expected unknown rule ids to fail validation")
 
 
+def test_normalize_response_data_canonicalizes_time_labelled_penalty_names():
+    response_data = {
+        "questionnaire_answers": {
+            "core_hours": {
+                "day_worker_daily_limit_hours": _answer(None),
+                "shift_worker_daily_limit_hours": _answer(None),
+                "day_worker_weekly_limit_hours": _answer(None),
+                "shift_worker_weekly_limit_hours": _answer(None),
+            },
+            "overtime": {
+                "standard_overtime_multiplier": _answer(None),
+                "has_two_tier_overtime": _answer(False),
+                "extended_overtime_multiplier": _answer(None),
+                "higher_overtime_starts_after_hours": _answer(None),
+                "saturday_overtime_multiplier": _answer(None),
+                "sunday_overtime_multiplier": _answer(None),
+            },
+            "span": {
+                "day_workers_have_span_overtime": _answer(False),
+                "live_span_cutoff_hour": _answer(None),
+                "ordinary_span_summary": _answer(None),
+            },
+            "weekend_treatment": {
+                "day_saturday_treatment": _answer(None),
+                "day_sunday_treatment": _answer(None),
+                "shift_saturday_treatment": _answer(None),
+                "shift_sunday_treatment": _answer(None),
+                "day_saturday_penalty_loading": _answer(None),
+                "day_sunday_penalty_loading": _answer(None),
+                "shift_saturday_penalty_loading": _answer(None),
+                "shift_sunday_penalty_loading": _answer(None),
+            },
+            "gap_between_shifts": {
+                "minimum_break_required": _answer(False),
+                "standard_minimum_break_hours": _answer(None),
+                "breach_penalty_multiplier": _answer(None),
+                "special_case_thresholds": _answer([], status="not_found"),
+            },
+            "weekday_penalties": {
+                "shift_based_penalties": _answer(
+                        [
+                            {
+                                "code_name": "shift_allowance_10_percent_10am_to_1pm",
+                                "type": "shift_based",
+                                "basis": "start",
+                                "start_hour": 10,
+                                "end_hour": 13,
+                            "rate": 0.1,
+                            "description": "10% shift allowance for shifts starting from 10:00 to 13:00.",
+                            "applies_to": ["shift"],
+                        }
+                    ],
+                    source_ruleset_keys=["penalties"],
+                    source_rule_ids=["penalty-rule-1"],
+                    clause_references=["31.1"],
+                ),
+                "time_based_penalties": _answer([], status="not_found"),
+                "other_penalty_notes": _answer(None, status="not_found"),
+            },
+        }
+    }
+
+    normalized = normalize_response_data(
+        response_data,
+        award_code="MA000018",
+        known_rule_ids={
+            "overtime_creation": set(),
+            "overtime_consequence": set(),
+            "penalties": {"penalty-rule-1"},
+        },
+    )
+
+    assert "shift_allowance_10_percent_start_10_to_13" in normalized["calculator_rules"]["penalties"]
+
+
+def test_normalize_response_data_rejects_penalty_time_text_mismatch():
+    response_data = {
+        "questionnaire_answers": {
+            "core_hours": {
+                "day_worker_daily_limit_hours": _answer(None),
+                "shift_worker_daily_limit_hours": _answer(None),
+                "day_worker_weekly_limit_hours": _answer(None),
+                "shift_worker_weekly_limit_hours": _answer(None),
+            },
+            "overtime": {
+                "standard_overtime_multiplier": _answer(None),
+                "has_two_tier_overtime": _answer(False),
+                "extended_overtime_multiplier": _answer(None),
+                "higher_overtime_starts_after_hours": _answer(None),
+                "saturday_overtime_multiplier": _answer(None),
+                "sunday_overtime_multiplier": _answer(None),
+            },
+            "span": {
+                "day_workers_have_span_overtime": _answer(False),
+                "live_span_cutoff_hour": _answer(None),
+                "ordinary_span_summary": _answer(None),
+            },
+            "weekend_treatment": {
+                "day_saturday_treatment": _answer(None),
+                "day_sunday_treatment": _answer(None),
+                "shift_saturday_treatment": _answer(None),
+                "shift_sunday_treatment": _answer(None),
+                "day_saturday_penalty_loading": _answer(None),
+                "day_sunday_penalty_loading": _answer(None),
+                "shift_saturday_penalty_loading": _answer(None),
+                "shift_sunday_penalty_loading": _answer(None),
+            },
+            "gap_between_shifts": {
+                "minimum_break_required": _answer(False),
+                "standard_minimum_break_hours": _answer(None),
+                "breach_penalty_multiplier": _answer(None),
+                "special_case_thresholds": _answer([], status="not_found"),
+            },
+            "weekday_penalties": {
+                "shift_based_penalties": _answer(
+                    [
+                        {
+                            "code_name": "shift_allowance_15_percent_4pm_to_4am",
+                            "type": "shift_based",
+                            "basis": "start",
+                            "start_hour": 16,
+                            "end_hour": 24,
+                            "rate": 0.15,
+                            "description": "Applies to shifts commencing 16:00 to before 04:00.",
+                            "applies_to": ["shift"],
+                        }
+                    ],
+                    source_ruleset_keys=["penalties"],
+                    source_rule_ids=["penalty-rule-1"],
+                    clause_references=["31.1"],
+                ),
+                "time_based_penalties": _answer([], status="not_found"),
+                "other_penalty_notes": _answer(None, status="not_found"),
+            },
+        }
+    }
+
+    try:
+        normalize_response_data(
+            response_data,
+            award_code="MA000018",
+            known_rule_ids={
+                "overtime_creation": set(),
+                "overtime_consequence": set(),
+                "penalties": {"penalty-rule-1"},
+            },
+        )
+    except Exception as exc:
+        assert "structured hours do not match" in str(exc)
+    else:
+        raise AssertionError("Expected mismatched penalty times to fail validation")
+
+
 def test_render_python_text_matches_calculator_class_shape():
     normalized_data = {
         "schema_version": "calculator-rules-python-v1",
@@ -400,8 +553,6 @@ def test_render_python_text_matches_calculator_class_shape():
             "extended_overtime_rate": 2.0,
             "sunday_overtime_rate": 2.0,
             "saturday_overtime_rate": 2.0,
-            "saturday_penalty_rate": 0.25,
-            "sunday_penalty_rate": 1.0,
             "apply_span_overtime": True,
             "span_overtime_hour": 19,
             "gap_penalty_hours": 10,

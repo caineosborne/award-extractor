@@ -100,7 +100,7 @@ SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
 SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
 SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
-SCREEN_CALCULATOR_QUESTIONNAIRE = "12. Step 6.1 Calculator Questionnaire"
+SCREEN_CALCULATOR_QUESTIONNAIRE = "12. Step 6.1 Calculator Ruleset"
 SCREEN_CALCULATOR_PYTHON = "13. Step 6.1 Calculator Python"
 CLAUSE_REFERENCE_PATTERN = re.compile(
     r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
@@ -1547,6 +1547,10 @@ def render_calculator_questionnaire_screen(
     editor_key = calculator_questionnaire_editor_widget_key(panel_key, questionnaire_path)
 
     st.caption(
+        "This ruleset is the structured calculator input derived from the reviewed step 3.2 rulesets. "
+        "Use it to confirm the live calculator settings before generating or regenerating the Python rules file."
+    )
+    st.caption(
         "Review the calculator answers field by field. Saving this form updates the questionnaire JSON and rebuilds the Python rules file."
     )
 
@@ -1587,21 +1591,21 @@ def render_calculator_questionnaire_screen(
         questionnaire_answers,
         section_name="overtime",
         question_name="standard_overtime_multiplier",
-        label="What is the standard overtime multiplier?",
+        label="What is the standard overtime multiplier? (Enter the total paid rate, for example 1.5 for 150%.)",
         widget_key=f"{editor_key}_ot_standard",
     )
     updated_answers[("overtime", "has_two_tier_overtime")] = render_calculator_question_boolean(
         questionnaire_answers,
         section_name="overtime",
         question_name="has_two_tier_overtime",
-        label="Is there a two-tier overtime structure?",
+        label="Is there a two-tier overtime structure? (Overtime hours are paid at different multipliers depending on how many overtime hours are worked.)",
         widget_key=f"{editor_key}_ot_two_tier",
     )
     updated_answers[("overtime", "extended_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="overtime",
         question_name="extended_overtime_multiplier",
-        label="If yes, what is the extended overtime multiplier?",
+        label="If yes, what is the extended overtime multiplier? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_extended",
     )
     updated_answers[("overtime", "higher_overtime_starts_after_hours")] = render_calculator_question_number(
@@ -1615,18 +1619,22 @@ def render_calculator_questionnaire_screen(
         questionnaire_answers,
         section_name="overtime",
         question_name="saturday_overtime_multiplier",
-        label="What overtime multiplier applies on Saturday?",
+        label="What overtime multiplier applies on Saturday? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_sat",
     )
     updated_answers[("overtime", "sunday_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="overtime",
         question_name="sunday_overtime_multiplier",
-        label="What overtime multiplier applies on Sunday?",
+        label="What overtime multiplier applies on Sunday? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_sun",
     )
 
     st.subheader("Span Overtime")
+    st.caption(
+        "This calculator currently supports one day-worker span overtime cutoff only. "
+        "There is no separate morning span overtime field."
+    )
     updated_answers[("span", "day_workers_have_span_overtime")] = render_calculator_question_boolean(
         questionnaire_answers,
         section_name="span",
@@ -1778,56 +1786,94 @@ def render_calculator_questionnaire_screen(
             key_suffix=f"{panel_key}_{questionnaire_path.stem}",
         )
 
-    if st.button("Save questionnaire and rebuild Python", key=f"{editor_key}_save"):
-        updated_questionnaire = json.loads(json.dumps(loaded_questionnaire))
+    save_column, rebuild_column = st.columns(2)
+    with save_column:
+        if st.button("Save questionnaire and rebuild Python", key=f"{editor_key}_save"):
+            updated_questionnaire = json.loads(json.dumps(loaded_questionnaire))
 
-        try:
-            apply_calculator_questionnaire_answers(
-                updated_questionnaire,
-                updated_answers,
-            )
-        except ValueError as exc:
-            st.error(f"Questionnaire was not saved because one or more fields are invalid: {exc}")
-            return
+            try:
+                apply_calculator_questionnaire_answers(
+                    updated_questionnaire,
+                    updated_answers,
+                )
+            except ValueError as exc:
+                st.error(
+                    f"Questionnaire was not saved because one or more fields are invalid: {exc}"
+                )
+                return
 
-        creation_ruleset_paths = ruleset_artifact_paths_for_award(
-            award_code,
-            OVERTIME_CREATION_RULESET,
-        )
-        consequence_ruleset_paths = ruleset_artifact_paths_for_award(
-            award_code,
-            OVERTIME_CONSEQUENCE_RULESET,
-        )
-        penalties_ruleset_paths = ruleset_artifact_paths_for_award(
-            award_code,
-            PENALTIES_RULESET,
-        )
-
-        try:
-            inputs = load_inputs(
+            rebuild_calculator_python_from_questionnaire(
                 award_code=award_code,
-                creation_json_path=creation_ruleset_paths.revised_json,
-                consequence_json_path=consequence_ruleset_paths.revised_json,
-                penalties_json_path=penalties_ruleset_paths.revised_json,
-                output_path=python_path,
+                questionnaire_data=updated_questionnaire,
+                questionnaire_path=questionnaire_path,
+                python_path=python_path,
+                save_questionnaire=True,
             )
-            normalized_data = normalize_response_data(
-                updated_questionnaire,
+
+    with rebuild_column:
+        if st.button("Rebuild Python from saved questionnaire", key=f"{editor_key}_rebuild"):
+            rebuild_calculator_python_from_questionnaire(
                 award_code=award_code,
-                known_rule_ids=known_rule_ids_by_ruleset(inputs),
+                questionnaire_data=loaded_questionnaire,
+                questionnaire_path=questionnaire_path,
+                python_path=python_path,
+                save_questionnaire=False,
             )
-        except Exception as exc:
-            st.error(f"Questionnaire was not saved because validation failed: {exc}")
-            return
 
-        if inputs.award_title is not None:
-            normalized_data["award_title"] = inputs.award_title
 
-        write_text_file(questionnaire_path, json.dumps(updated_questionnaire, indent=2))
-        write_python_output(python_path, normalized_data)
+def rebuild_calculator_python_from_questionnaire(
+    *,
+    award_code: str,
+    questionnaire_data: dict[str, Any],
+    questionnaire_path: Path,
+    python_path: Path,
+    save_questionnaire: bool,
+) -> None:
+    creation_ruleset_paths = ruleset_artifact_paths_for_award(
+        award_code,
+        OVERTIME_CREATION_RULESET,
+    )
+    consequence_ruleset_paths = ruleset_artifact_paths_for_award(
+        award_code,
+        OVERTIME_CONSEQUENCE_RULESET,
+    )
+    penalties_ruleset_paths = ruleset_artifact_paths_for_award(
+        award_code,
+        PENALTIES_RULESET,
+    )
+
+    try:
+        inputs = load_inputs(
+            award_code=award_code,
+            creation_json_path=creation_ruleset_paths.revised_json,
+            consequence_json_path=consequence_ruleset_paths.revised_json,
+            penalties_json_path=penalties_ruleset_paths.revised_json,
+            output_path=python_path,
+        )
+        normalized_data = normalize_response_data(
+            questionnaire_data,
+            award_code=award_code,
+            known_rule_ids=known_rule_ids_by_ruleset(inputs),
+        )
+    except Exception as exc:
+        action = "saved" if save_questionnaire else "rebuilt"
+        st.error(f"Calculator Python was not {action} because validation failed: {exc}")
+        return
+
+    if inputs.award_title is not None:
+        normalized_data["award_title"] = inputs.award_title
+
+    if save_questionnaire:
+        write_text_file(questionnaire_path, json.dumps(questionnaire_data, indent=2))
+
+    write_python_output(python_path, normalized_data)
+
+    if save_questionnaire:
         st.success(
             "Saved questionnaire JSON and rebuilt calculator Python from the edited responses."
         )
+    else:
+        st.success("Rebuilt calculator Python from the saved questionnaire JSON.")
 
 
 def calculator_question_record(
@@ -2023,7 +2069,13 @@ def render_calculator_penalty_rules_editor(
 
         row_key = f"{widget_key_prefix}_{rule_index}"
         with st.container(border=True):
-            st.markdown(f"Rule {rule_index}")
+            title_column, action_column = st.columns([5, 1])
+            with title_column:
+                st.markdown(f"Rule {rule_index}")
+            with action_column:
+                if st.button("Delete", key=f"{row_key}_delete"):
+                    st.session_state[rules_state_key].pop(rule_index - 1)
+                    st.rerun()
             first_column, second_column, third_column = st.columns(3)
             with first_column:
                 code_name = st.text_input(
