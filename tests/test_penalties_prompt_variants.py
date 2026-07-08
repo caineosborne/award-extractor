@@ -8,8 +8,13 @@ from src.prompts.step_3_1_generate_ruleset import (
     build_expert_comparison_messages,
     build_interpretation_messages,
 )
+from src.prompts.step_3_2_review_ruleset import build_step_3_2_evaluator_user_prompt
+from src.prompts.step_3_2_review_ruleset import (
+    build_step_3_2_evaluator_structured_output_instructions,
+)
 from src.prompts.step_3_2_prompt_config import step_3_2_prompt_subset_config
 from src.step_2_2_classify_overtime_clauses.core import OvertimeClauseClassification
+from src.step_3_2_review_ruleset.core import EVALUATOR_MODEL
 
 
 def test_penalties_common_question_block_includes_agreed_examples():
@@ -77,6 +82,37 @@ def test_step_3_1_penalties_prompt_uses_penalties_specific_scope():
     assert "A single operational rule may rely on multiple clauses" in messages[1]["content"]
 
 
+def test_step_3_1_creation_prompt_checks_subclauses_separately():
+    messages = build_interpretation_messages(
+        "overtime_creation",
+        "classification.json",
+        [
+            OvertimeClauseClassification(
+                clause_number="22.1",
+                classification="Ordinary Hours Boundary",
+                classifications=["Ordinary Hours Boundary"],
+                clause_text=(
+                    "22.1: Ordinary hours of work. The ordinary hours will be 38 hours "
+                    "per week and will be worked either: (a) in not more than 20 work "
+                    "days in a roster cycle; (b) in not more than 19 work days in a "
+                    "roster cycle, with the twentieth day as an ADO; or (c) eight hours "
+                    "on a day shift or 10 hours on a night shift."
+                ),
+                explanation="Contains multiple implementable ordinary-hours thresholds.",
+                employee_cohort="all",
+                work_arrangement="all",
+                other_scope_notes="",
+            )
+        ],
+    )
+
+    user_prompt = messages[1]["content"]
+
+    assert "review each subclause separately in context" in user_prompt
+    assert "A parent clause reference is not enough" in user_prompt
+    assert "numeric daily, weekly, fortnightly, span-of-hours, roster-cycle, or shift-length limit" in user_prompt
+
+
 def test_step_3_1_penalties_merge_prompt_preserves_supporting_rules():
     clause = OvertimeClauseClassification(
         clause_number="27.1",
@@ -118,3 +154,56 @@ def test_step_3_1_penalties_merge_prompt_preserves_supporting_rules():
         "Distinguish rules that apply to an entire shift from rules that apply only to qualifying hours."
         in messages[1]["content"]
     )
+
+
+def test_step_3_2_review_prompt_flags_subclause_threshold_coverage():
+    user_prompt = build_step_3_2_evaluator_user_prompt(
+        interpretation_path=Path("interpretation.md"),
+        interpretation_markdown=(
+            "# Validation notes\n\n"
+            "## Action required\n\n"
+            "- Clause 22.2 was identified as relevant to overtime, but it is not present in the draft ruleset before review.\n"
+        ),
+        original_rules_artifact=None,
+        classification_path=Path("classification.json"),
+        payment_classification={
+            "classified_clauses": {
+                "22.1": {
+                    "tags": ["Ordinary Hours & Overtime"],
+                    "text": "22.1: Ordinary hours of work ... 22.1(c): eight hours on a day shift or 10 hours on a night shift.",
+                }
+            }
+        },
+        overtime_clause_classification_path=Path("overtime_clause_classification.json"),
+        overtime_clause_classification={
+            "ruleset_key": "overtime_creation",
+            "clauses": [
+                {
+                    "clause_number": "22.1",
+                    "classification": "Ordinary Hours Boundary",
+                    "classifications": ["Ordinary Hours Boundary"],
+                    "clause_text": "22.1: Ordinary hours of work ... 22.1(c): eight hours on a day shift or 10 hours on a night shift.",
+                    "explanation": "Contains a day and night shift limit.",
+                }
+            ],
+        },
+        ruleset_key="overtime_creation",
+    )
+
+    assert "checked subclause by subclause" in user_prompt
+    assert "span-of-hours, roster-cycle, or shift-length limit" in user_prompt
+    assert "# Reviewer-oriented shortlisted clause summary" in user_prompt
+    assert "These are the subset clauses the creator was expected to turn into overtime creation rules." in user_prompt
+    assert "Reconstructed step 3.2 creator context" not in user_prompt
+
+
+def test_step_3_2_evaluator_model_defaults_to_gpt_5_4():
+    assert EVALUATOR_MODEL == "gpt-5.4"
+
+
+def test_step_3_2_evaluator_instructions_allow_brief_incomplete_areas_section():
+    instructions = build_step_3_2_evaluator_structured_output_instructions()
+
+    assert "## Potentially incomplete areas" in instructions
+    assert "later human pickup" in instructions
+    assert "not use that section as a second full findings dump" in instructions

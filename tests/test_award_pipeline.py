@@ -556,7 +556,7 @@ def test_run_step_5_1_with_explicit_ruleset_uses_ruleset_specific_outputs():
         "3.2",
     )
     generate_core_overtime_pseudocode_mock.assert_called_once_with(
-        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/4_1_OT_consequence_formatted_ruleset.md"),
+        summary_path=PROJECT_ROOT / Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
         output_path=PROJECT_ROOT / Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         ruleset_key=OVERTIME_CONSEQUENCE_RULESET,
     )

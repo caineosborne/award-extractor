@@ -37,7 +37,7 @@ from src.step_3_1_generate_ruleset.run import (
 )
 from src.step_3_2_review_ruleset.run import review_ruleset as review_overtime_interpretation
 from src.step_1_2_parse_award.run import (
-    extract_pdf_award_source as extract_pdf_to_award,
+    extract_pdf_to_award,
     write_pdf_step_outputs as write_pdf_outputs,
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements

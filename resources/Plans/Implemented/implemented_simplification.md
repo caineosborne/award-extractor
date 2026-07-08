@@ -772,7 +772,7 @@ Scope:
 - review `src/step_1_1_fetch/` and `src/step_1_2_parse_award/`
 - keep all active step-`1` files inside their step folders, `src/common/`, or `src/prompts/`
 - move any remaining visible orchestration out of `core.py` into `run.py`
-- keep fetch-specific network and source-resolution logic in `deterministic.py`
+- keep fetch-specific network and source-resolution logic in `fetch_award.py`
 - keep parsing and artifact-writing logic in `deterministic.py` or `llm.py` only where a model call is actually involved
 - keep the Fair Work HTML path logic in the step `1.1` area
 - keep the PDF path logic in a separate step-`1` file rather than folding it into the HTML file

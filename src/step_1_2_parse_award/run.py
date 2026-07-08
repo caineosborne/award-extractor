@@ -4,15 +4,15 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .deterministic import (
-    extract_pdf_award_source as _extract_pdf_award_source,
-    output_stem,
-    write_html_outputs_for_paths as _write_html_outputs_for_paths,
-    write_pdf_outputs as _write_pdf_outputs,
+from .step_2_build_tree import extract_pdf_to_award
+from .step_3_write_outputs import (
+    write_html_outputs_for_paths,
+    write_html_step_outputs,
+    write_pdf_step_outputs,
 )
 
 
-def write_html_step_outputs(
+def review_l1_clauses(
     *,
     url: str,
     main_content,
@@ -20,46 +20,17 @@ def write_html_step_outputs(
     raw_dir: Path,
     processed_dir: Path,
 ) -> None:
-    """Write the maintained HTML-based step 1 outputs."""
-    output_stem_value = output_stem(url)
-    raw_html_path = raw_dir / f"{output_stem_value}.html"
-    award_json_path = processed_dir / output_stem_value / f"{output_stem_value}.json"
-    _write_html_outputs_for_paths(
+    """Stub for the L1 clause review flow."""
+    write_html_step_outputs(
+        url=url,
         main_content=main_content,
         award=award,
-        raw_html_path=raw_html_path,
-        award_json_path=award_json_path,
+        raw_dir=raw_dir,
+        processed_dir=processed_dir,
     )
 
 
-def write_html_outputs_for_paths(
-    *,
-    main_content,
-    award,
-    raw_html_path: Path,
-    award_json_path: Path,
-) -> None:
-    """Write HTML-based step 1 outputs using explicit pipeline paths."""
-    print(
-        "Step 1.2: Writing parsed award outputs to "
-        f"{award_json_path.parent}"
-    )
-    _write_html_outputs_for_paths(
-        main_content=main_content,
-        award=award,
-        raw_html_path=raw_html_path,
-        award_json_path=award_json_path,
-    )
-    print(f"Step 1.2: Wrote raw HTML to {raw_html_path}")
-    print(f"Step 1.2: Wrote parsed award JSON to {award_json_path}")
-
-
-def extract_pdf_award_source(pdf_path: Path):
-    """Extract the maintained PDF-based step 1 source artifacts."""
-    return _extract_pdf_award_source(pdf_path)
-
-
-def write_pdf_step_outputs(
+def review_l2_clauses(
     *,
     pdf_path: Path,
     markdown_text: str,
@@ -70,8 +41,8 @@ def write_pdf_step_outputs(
     raw_dir: Path,
     processed_dir: Path,
 ) -> None:
-    """Write the maintained PDF-based step 1 outputs."""
-    _write_pdf_outputs(
+    """Stub for the L2 clause review flow."""
+    write_pdf_step_outputs(
         pdf_path=pdf_path,
         markdown_text=markdown_text,
         award=award,

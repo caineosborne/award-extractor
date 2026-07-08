@@ -41,7 +41,9 @@ from streamlit_review.app import (
     run_pipeline_for_award,
     summarize_review_decision_rows,
     parse_calculator_question_value,
+    default_second_screen_for,
     selected_award_code_from_choice,
+    restore_side_by_side_view,
     validate_award_code_input,
 )
 from streamlit_review.pipeline_runs import (
@@ -1086,6 +1088,32 @@ def test_index_navigation_wraps_and_clamps():
     assert clamp_index(8, 3) == 2
     assert previous_index(0, 3) == 2
     assert next_index(2, 3) == 0
+
+
+def test_default_second_screen_for_uses_the_next_available_screen():
+    assert default_second_screen_for("6. Comparison of expert outputs") == (
+        "7. Step 3.1 Combined ruleset"
+    )
+    assert default_second_screen_for("13. Step 6.1 Calculator Python") == (
+        "12. Step 6.1 Calculator Questionnaire"
+    )
+
+
+def test_restore_side_by_side_view_keeps_the_current_full_screen_selection(monkeypatch):
+    session_state = {
+        "screen_one": "6. Comparison of expert outputs",
+        "screen_two": "None",
+        "layout_mode": "Single expanded",
+        "last_side_by_side_screen_one": "4. Step 3.1 Expert A ruleset draft",
+        "last_side_by_side_screen_two": "8. Step 3.2 Review and revised ruleset",
+    }
+    monkeypatch.setattr("streamlit_review.app.st.session_state", session_state)
+
+    restore_side_by_side_view()
+
+    assert session_state["screen_one"] == "6. Comparison of expert outputs"
+    assert session_state["screen_two"] == "7. Step 3.1 Combined ruleset"
+    assert session_state["layout_mode"] == "Side by side"
 
 
 def test_format_last_modified_for_display_returns_exact_timestamp(tmp_path):

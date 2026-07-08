@@ -46,7 +46,7 @@ from src.common.overtime_rules import (
     categorize_validation_warnings,
 )
 from src.step_1_2_parse_award.run import (
-    extract_pdf_award_source as extract_pdf_to_award,
+    extract_pdf_to_award,
     write_pdf_step_outputs as write_pdf_outputs,
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
@@ -2852,19 +2852,39 @@ def expand_panel_to_single_view(panel_key: str) -> None:
 
 
 def restore_side_by_side_view() -> None:
-    saved_screen_one = st.session_state.get("last_side_by_side_screen_one")
-    saved_screen_two = st.session_state.get("last_side_by_side_screen_two")
+    current_screen = st.session_state.get("screen_one")
 
-    if saved_screen_one in SCREEN_OPTIONS:
-        st.session_state["screen_one"] = saved_screen_one
+    if current_screen in SCREEN_OPTIONS:
+        st.session_state["screen_one"] = current_screen
+        st.session_state["screen_two"] = default_second_screen_for(current_screen)
+    else:
+        saved_screen_one = st.session_state.get("last_side_by_side_screen_one")
+        saved_screen_two = st.session_state.get("last_side_by_side_screen_two")
 
-    if saved_screen_two in SCREEN_OPTIONS:
-        st.session_state["screen_two"] = saved_screen_two
-    elif st.session_state.get("screen_two") == "None":
-        st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
+        if saved_screen_one in SCREEN_OPTIONS:
+            st.session_state["screen_one"] = saved_screen_one
+
+        if saved_screen_two in SCREEN_OPTIONS:
+            st.session_state["screen_two"] = saved_screen_two
+        elif st.session_state.get("screen_two") == "None":
+            st.session_state["screen_two"] = SCREEN_ORIGINAL_OVERTIME
 
     st.session_state["layout_mode"] = "Side by side"
     sync_layout_widgets_from_state()
+
+
+def default_second_screen_for(screen_name: str) -> str:
+    current_index = SCREEN_OPTIONS.index(screen_name)
+
+    next_index_value = current_index + 1
+    if next_index_value < len(SCREEN_OPTIONS):
+        return SCREEN_OPTIONS[next_index_value]
+
+    previous_index_value = current_index - 1
+    if previous_index_value >= 0:
+        return SCREEN_OPTIONS[previous_index_value]
+
+    return SCREEN_ORIGINAL_OVERTIME
 
 
 def refresh_panel(

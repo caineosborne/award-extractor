@@ -54,7 +54,7 @@ from src.prompts.step_3_2_review_ruleset import (
 
 
 DEFAULT_INTERPRETATION_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018" / "MA000018_overtime_interpretation.md"
-EVALUATOR_MODEL = "gpt-5-mini"
+EVALUATOR_MODEL = "gpt-5.4"
 DEFAULT_CREATOR_MODEL = "gpt-5-mini"
 DEFAULT_EVALUATOR_MAX_OUTPUT_TOKENS = 8000
 DEFAULT_CREATOR_MAX_OUTPUT_TOKENS = 8000

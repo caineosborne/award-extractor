@@ -7,6 +7,7 @@ STEP_3_1_GENERIC_RULESET_LANGUAGE = """Generic interpretation rules:
 - The source clauses are evidence. The output ruleset is the operational payroll logic that payroll would implement from that evidence.
 - A clause and a ruleset item are not the same thing. A single clause may support multiple ruleset items, and a single ruleset item may be supported by multiple clauses. Think in terms of rulesets that payroll would implement, rather than in clauses.
 - A single clause may contain multiple distinct operational rules. Extract each one separately when payroll would configure it separately.
+- When a shortlisted overtime trigger or ordinary-hours boundary clause contains multiple subclauses, review each subclause separately in context. For every numeric daily, weekly, fortnightly, span-of-hours, roster-cycle, or shift-length limit, either create an explicit operational rule or explain why that limit does not create an overtime boundary for this ruleset. A parent clause reference is not enough if a subclause contains a separate implementable threshold.
 - A single operational rule may rely on multiple clauses when those clauses work together to describe one implementable rule.
 - Preserve every operative threshold, span, limit, boundary, exception, condition, and qualification supported by the cited clause text.
 - Do not collapse multiple operative rules from one clause into one vague summary.

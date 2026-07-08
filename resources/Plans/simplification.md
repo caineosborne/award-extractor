@@ -111,7 +111,7 @@ Impact: Medium to High
 
 Why it may be worth doing:
 
-- moves each step closer to the business workflow rather than the current technical `run.py` / `llm.py` / `deterministic.py` shape;
+  - moves each step closer to the business workflow rather than the current technical `run.py` / `llm.py` / helper-file shape;
 - makes the code easier for a reviewer to read top-to-bottom in one pass;
 - reduces helper-hopping inside a step where the logic is really one sequential flow.
 

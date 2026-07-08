@@ -121,23 +121,38 @@ Use these applicability phrases:
 ## Step 1. Fetch And Structure Award
 
 Owner:
+- `src/step_1_1_fetch/fetch_award.py`
 - `src/step_1_1_fetch/run.py`
+- `src/step_1_2_parse_award/step_1_parse_markdown.py`
+- `src/step_1_2_parse_award/step_2_build_tree.py`
+- `src/step_1_2_parse_award/step_3_write_outputs.py`
 - `src/step_1_2_parse_award/run.py`
 
 LLM calls:
 - none
 
-Deterministic inputs:
+Step 1.1 inputs:
 - Fair Work award URL
 
-Deterministic processing:
+Step 1.1 processing:
 - fetch HTML;
 - isolate award `mainContent`;
-- normalise headings, bullets, paragraphs, and tables;
-- build nested award JSON;
-- build supporting section-index and heading-summary outputs.
+- build the structured award tree for later step 1.2 writing.
 
-Deterministic validations:
+Step 1.2 processing:
+- parse markdown into events;
+- build the nested award tree from those events;
+- write the raw HTML snapshot and structured award JSON;
+- build supporting section-index and heading-summary outputs;
+- provide explicit `review_l1_clauses(...)` and `review_l2_clauses(...)` stubs for the two review paths.
+
+Step 1.2 file responsibilities:
+- `step_1_parse_markdown.py` owns markdown event parsing and table helpers.
+- `step_2_build_tree.py` owns tree construction and clause-heading interpretation.
+- `step_3_write_outputs.py` owns raw, processed, and supporting file writing.
+- `run.py` keeps the public stubs and orchestration entry points only.
+
+Step 1 validations:
 - source file must be reachable;
 - parsed structure must be serialisable to output artifacts.
 

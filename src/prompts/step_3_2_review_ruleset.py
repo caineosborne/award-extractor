@@ -81,6 +81,61 @@ def build_step_3_2_creator_prompt_context(
     }
 
 
+def build_reviewer_shortlisted_clause_summary_markdown(
+    payment_classification: Mapping[str, Any],
+    overtime_clause_classification: Mapping[str, Any],
+    ruleset_key: str | None = None,
+) -> str:
+    """Summarize only the generation-ready shortlisted clauses for the evaluator."""
+    selected_ruleset_key = ruleset_key or str(
+        overtime_clause_classification.get("ruleset_key") or OVERTIME_CREATION_RULESET
+    )
+    config = step_3_2_prompt_subset_config(selected_ruleset_key)
+    overtime_clauses = select_ruleset_related_clauses(
+        payment_classification,
+        selected_ruleset_key,
+    )
+    clause_classifications = validate_overtime_clause_classifications(
+        overtime_clause_classification,
+        overtime_clauses,
+        selected_ruleset_key,
+    )
+    generation_ready_clauses = select_overtime_creation_clauses(
+        clause_classifications,
+        selected_ruleset_key,
+    )
+
+    sections = [
+        "# Reviewer-oriented shortlisted clause summary",
+        "",
+        (
+            "These are the subset clauses the creator was expected to turn into "
+            f"{config.display_name.lower()} rules."
+        ),
+    ]
+
+    if not generation_ready_clauses:
+        sections.extend(["", "No generation-ready shortlisted clauses were identified."])
+        return "\n".join(sections).strip()
+
+    for clause in generation_ready_clauses:
+        sections.extend(
+            [
+                "",
+                f"## Clause {clause.clause_number}",
+                "",
+                f"- Primary classification: {clause.classification}",
+                f"- All classifications: {', '.join(clause.classifications)}",
+                f"- Employee cohort: {clause.employee_cohort}",
+                f"- Work arrangement: {clause.work_arrangement}",
+                f"- Other scope notes: {clause.other_scope_notes or '(none)'}",
+                f"- Explanation: {clause.explanation}",
+            ]
+        )
+
+    return "\n".join(sections).strip()
+
+
 def clause_reference_sort_key(clause_reference: str) -> tuple[int, ...]:
     """Sort clause references numerically by their dotted parts."""
     sort_parts = re.findall(r"\d+", clause_reference)
@@ -386,15 +441,12 @@ def build_step_3_2_evaluator_user_prompt(
         indent=2,
         ensure_ascii=False,
     )
-    step_3_2_creator_prompt_context_json = json.dumps(
-        build_step_3_2_creator_prompt_context(
-            classification_path,
+    reviewer_shortlisted_clause_summary_markdown = (
+        build_reviewer_shortlisted_clause_summary_markdown(
             payment_classification,
             overtime_clause_classification,
             ruleset_key,
-        ),
-        indent=2,
-        ensure_ascii=False,
+        )
     )
 
     subset_scope_notes = ""
@@ -428,12 +480,16 @@ Subset-specific scope notes:
 Check:
 - whether step 2.2 selected the right clauses for this subset and avoided materially out-of-scope clauses;
 - whether the step 3.1 ruleset includes only rules supported by the cited clauses and relevant to this subset;
+- whether a shortlisted clause with multiple subclauses has been checked subclause by subclause, especially for any numeric daily, weekly, fortnightly, span-of-hours, roster-cycle, or shift-length limit;
 - whether any supported rule appears to have been removed, weakened, or left unclear without justification;
 - whether the ruleset is easy for a payroll reviewer to check and easy for an implementation team to convert into payroll logic.
 
 Flag duplicate points, unclear employee scope, unclear work-arrangement scope, missing thresholds, missing clause references, and bullets that combine materially different payroll tests.
 If you are substantively uncertain whether a plausible clause-supported rule should be excluded, prefer recommending narrower wording, clearer scope, or clearer clause support rather than immediate removal.
 At this stage, overlap is generally less harmful than omission.
+If a plausible clause-supported issue remains ambiguous or potentially incomplete rather than clearly wrong, include it under a short `## Potentially incomplete areas` section in `summary_markdown`.
+Use that section only for unresolved reviewer decision points that may need later human pickup.
+Keep that section brief. It is not a second full findings dump.
 
 This will be passed back to the creator for review and feedback. 
 
@@ -462,11 +518,7 @@ Step 2.2 subset clause classification source - this is the classification of cla
 {overtime_clause_classification_json}
 ```
 
-Reconstructed step 3.2 creator context:
-
-```json
-{step_3_2_creator_prompt_context_json}
-```
+{reviewer_shortlisted_clause_summary_markdown}
 """
 
 
@@ -792,6 +844,9 @@ def build_step_3_2_evaluator_structured_output_instructions() -> str:
         "- summary_markdown\n"
         "- rule_reviews\n"
         "- new_rules\n\n"
+        "In summary_markdown, keep the review concise.\n"
+        "If needed, include a short `## Potentially incomplete areas` section for unresolved ambiguity or plausible clause-supported gaps that may need later human pickup.\n"
+        "Do not use that section as a second full findings dump.\n\n"
         "For every original rule_id, include one rule_reviews item with:\n"
         "- rule_id\n"
         "- recommendation: keep, modify, or remove\n"

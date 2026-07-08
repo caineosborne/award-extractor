@@ -1,4 +1,4 @@
-"""Deterministic helpers for step 1.1 award fetch."""
+"""Fetch and parse the award source for step 1.1."""
 
 from __future__ import annotations
 
@@ -111,7 +111,9 @@ def target_class(classes: list[str]) -> tuple[str, str] | tuple[None, None]:
 def normalize_text(text: str) -> str:
     """Clean extracted text before it is written to JSON."""
     text = text.translate(BULLET_TRANSLATION)
-    text = "".join(" " if "\ue000" <= character <= "\uf8ff" else character for character in text)
+    text = "".join(
+        " " if "\ue000" <= character <= "\uf8ff" else character for character in text
+    )
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -120,6 +122,7 @@ def split_section_heading(text: str) -> tuple[str, str]:
     match = SECTION_PATTERN.match(text)
     if match is None:
         return text, ""
+
     section = match.group(1).strip().removesuffix(".")
     if section.startswith("(") and section.endswith(")"):
         section = section[1:-1].strip()
@@ -284,15 +287,15 @@ def fetch(url: str) -> BeautifulSoup:
     return BeautifulSoup(response.content, "html.parser", from_encoding="utf-8")
 
 
-def fetch_main_content(url: str) -> object:
-    """Fetch the award HTML and return the main content element."""
+def fetch_award_source(url: str) -> Step1FetchResult:
+    """Fetch one Fair Work award URL and parse its main content."""
+    print(f"Step 1.1: Fetching award source from {url}")
     soup = fetch(url)
     main_content = soup.find(id="mainContent")
     if main_content is None:
         raise SystemExit("Could not find element with id='mainContent'.")
-    return main_content
 
-
-def parse_main_content(main_content: object) -> object:
-    """Parse the main content HTML into the nested award tree."""
-    return extract_award(main_content)
+    print("Step 1.1: Parsing fetched HTML into the step 1 source structure")
+    award = extract_award(main_content)
+    print("Step 1.1: Fetch complete")
+    return Step1FetchResult(main_content=main_content, award=award)

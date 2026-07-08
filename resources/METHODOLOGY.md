@@ -65,7 +65,11 @@ This matters for penalties because the penalties ruleset now runs in parallel wi
 ## Step 1. Fetch and structure the award
 
 Files:
+- `src/step_1_1_fetch/fetch_award.py`
 - `src/step_1_1_fetch/run.py`
+- `src/step_1_2_parse_award/step_1_parse_markdown.py`
+- `src/step_1_2_parse_award/step_2_build_tree.py`
+- `src/step_1_2_parse_award/step_3_write_outputs.py`
 - `src/step_1_2_parse_award/run.py`
 
 This step is deterministic.
@@ -73,13 +77,23 @@ This step is deterministic.
 Input:
 - a Fair Work award URL such as `https://awards.fairwork.gov.au/MA000018.html`
 
-Process:
+Step 1.1 process:
 - fetch the award HTML;
 - isolate the `mainContent` section;
-- normalise headings, text blocks, bullets, and tables;
-- build a nested JSON representation of the award;
+- build the structured award tree used by later steps.
+
+Step 1.2 process:
+- parse markdown into events;
+- build the nested award tree;
+- write the raw HTML snapshot and structured award JSON;
 - build a section index JSON;
-- build a flat heading CSV for human review.
+- build a flat heading CSV for human review;
+- expose explicit review stubs for L1 clause review and L2 clause review.
+
+The 1.2 code path is intentionally split into three linear files:
+- `step_1_parse_markdown.py` for markdown event parsing and table handling;
+- `step_2_build_tree.py` for building the nested award structure;
+- `step_3_write_outputs.py` for writing raw, processed, and supporting files.
 
 Outputs:
 - raw HTML snapshot;
@@ -231,6 +245,24 @@ Files:
 This step reviews the drafted ruleset using structured evaluator and creator outputs.
 
 The goal is not to silently replace the earlier ruleset. The goal is to make the changes explicit, keep the rule-by-rule record visible, and rebuild the revised artifact from structured decisions.
+
+The evaluator receives only the evidence needed to critique the drafted ruleset:
+- the step `3.1` ruleset markdown, including any validation-warning notes already written into that draft;
+- the canonical step `3.1` rules JSON artifact for the same draft;
+- the full step `2.1` payment classification JSON;
+- the full step `2.2` subset clause-classification JSON; and
+- a compact reviewer-oriented summary of the generation-ready shortlisted clauses.
+
+The evaluator no longer receives the full reconstructed creator prompt context. That earlier payload repeated prompt scaffolding rather than adding new reviewer evidence.
+
+The creator then receives a narrower revision package:
+- the original ruleset system framing reused from step `3.1`;
+- the original drafted ruleset markdown;
+- the authoritative evaluator review action pack JSON;
+- the evaluator summary markdown; and
+- focused clause excerpts selected from step `2.1` and step `2.2` based on the evaluator feedback.
+
+The creator does not receive the full step `2.1` payment classification JSON or full step `2.2` subset classification JSON directly in the revision prompt. Instead, the relevant clause excerpts are reconstructed for the creator from those earlier artifacts.
 
 For penalties, the review step should:
 - keep valid premium-pay rules;
