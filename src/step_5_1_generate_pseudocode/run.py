@@ -3,23 +3,23 @@
 from __future__ import annotations
 
 import argparse
-from typing import Any
 from pathlib import Path
+from typing import Any
 
-from .core import (
+from .schema import (
     DEFAULT_OVERTIME_SUMMARY_PATH,
     MAX_VALIDATION_REPAIR_ATTEMPTS,
     RULESET_CHOICES,
 )
-
-from .deterministic import resolve_generation_inputs, validate_and_write_outputs
-from .llm import (
+from .step_1_load_inputs import resolve_generation_inputs
+from .step_2_generate_pseudocode import (
     load_openai_client,
     request_initial_pseudocode,
     request_repaired_pseudocode,
-    selected_model,
+    resolve_model,
 )
-from .verification import (
+from .step_3_validate_pseudocode import (
+    validate_and_write_outputs,
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
 )
@@ -40,7 +40,7 @@ def generate_core_overtime_pseudocode(
         ruleset_key=ruleset_key,
     )
     active_client = client or load_openai_client()
-    active_model = selected_model(model)
+    active_model = resolve_model(model)
     print(f"Step 5.1: Generating pseudocode with model {active_model}")
 
     output_text = request_initial_pseudocode(

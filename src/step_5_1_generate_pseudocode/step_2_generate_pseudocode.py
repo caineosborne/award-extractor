@@ -1,28 +1,30 @@
-"""LLM helpers for step 5.1 pseudocode generation."""
+"""Step 5.1 stage 2: request initial and repaired pseudocode drafts."""
 
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
+from src.common.pipeline_runtime import load_openai_environment
 from src.prompts.step_5_1_generate_pseudocode import build_messages, build_repair_messages
-from src.step_5_1_generate_pseudocode.core import (
-    DEFAULT_MODEL,
-    CoreOvertimePseudocodeError,
-    load_environment,
-)
+
+from .schema import DEFAULT_MODEL, CoreOvertimePseudocodeError
 
 
 def load_openai_client() -> OpenAI:
     """Load the OpenAI environment and return the step 5.1 client."""
-    load_environment()
+    load_openai_environment(
+        env_path=Path(__file__).resolve().parents[2] / ".env",
+        error_type=CoreOvertimePseudocodeError,
+    )
     return OpenAI()
 
 
-def selected_model(model: str | None) -> str:
+def resolve_model(model: str | None) -> str:
     """Resolve the configured step 5.1 model."""
     return model or os.getenv("CORE_OVERTIME_PSEUDOCODE_MODEL", DEFAULT_MODEL)
 

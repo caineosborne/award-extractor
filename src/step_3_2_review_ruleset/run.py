@@ -4,118 +4,22 @@ from __future__ import annotations
 
 from typing import Any
 
-from src.prompts.step_3_2_review_ruleset import (
-    build_review_creator_messages,
-    build_review_evaluator_messages,
+from .schema import (
+    DEFAULT_INTER_CALL_DELAY_SECONDS,
+    OvertimeInterpretationReviewArtifacts,
 )
-
-from .core import DEFAULT_INTER_CALL_DELAY_SECONDS, OvertimeInterpretationReviewArtifacts
-from .deterministic import load_review_inputs, write_review_outputs
-from .llm import (
+from .step_1_load_inputs import load_review_inputs
+from .step_2_run_reviewer import (
     load_client,
-    request_creator_revision,
-    request_evaluator_feedback,
-    selected_review_models,
+    resolve_review_models,
+    run_evaluator_review,
 )
+from .step_3_run_creator import run_creator_review
+from .step_4_write_outputs import write_review_outputs
 
 
 def _print_status(message: str) -> None:
     print(f"Step 3.2: {message}")
-
-
-def run_evaluator_review(
-    *,
-    inputs,
-    evaluator_client: Any,
-    evaluator_model: str,
-    evaluator_max_output_tokens: int,
-    status_callback=None,
-) -> tuple[dict[str, Any], str]:
-    """Run the evaluator review step for step 3.2."""
-    evaluator_messages = build_review_evaluator_messages(
-        interpretation_path=inputs.selected_interpretation_path,
-        original_rules_artifact=inputs.original_rules_artifact,
-        interpretation_markdown=inputs.interpretation_markdown,
-        classification_path=inputs.selected_classification_path,
-        payment_classification=inputs.classification_data,
-        overtime_clause_classification_path=inputs.selected_overtime_clause_classification_path,
-        overtime_clause_classification=inputs.overtime_clause_classification,
-        ruleset_key=inputs.selected_ruleset_key,
-    )
-    return request_evaluator_feedback(
-        evaluator_client=evaluator_client,
-        evaluator_model=evaluator_model,
-        evaluator_max_output_tokens=evaluator_max_output_tokens,
-        evaluator_messages=evaluator_messages,
-        original_rules=inputs.original_rules_artifact["rules"],
-        status_callback=status_callback,
-        ruleset_key=inputs.selected_ruleset_key,
-    )
-
-
-def run_creator_review(
-    *,
-    inputs,
-    evaluator_feedback_data: dict[str, Any],
-    evaluator_feedback_markdown: str,
-    creator_client: Any,
-    creator_model: str,
-    creator_max_output_tokens: int,
-    status_callback=None,
-    inter_call_delay_seconds: float = DEFAULT_INTER_CALL_DELAY_SECONDS,
-) -> tuple[dict[str, Any], dict[str, Any], str, str, str]:
-    """Run the creator revision step for step 3.2."""
-    creator_messages = build_review_creator_messages(
-        interpretation_path=inputs.selected_interpretation_path,
-        original_rules_artifact=inputs.original_rules_artifact,
-        interpretation_markdown=inputs.interpretation_markdown,
-        classification_path=inputs.selected_classification_path,
-        payment_classification=inputs.classification_data,
-        overtime_clause_classification_path=inputs.selected_overtime_clause_classification_path,
-        overtime_clause_classification=inputs.overtime_clause_classification,
-        evaluator_feedback_markdown=evaluator_feedback_markdown,
-        evaluator_feedback_data=evaluator_feedback_data,
-        ruleset_key=inputs.selected_ruleset_key,
-    )
-    return request_creator_revision(
-        creator_client=creator_client,
-        creator_model=creator_model,
-        creator_max_output_tokens=creator_max_output_tokens,
-        creator_messages=creator_messages,
-        original_rules=inputs.original_rules_artifact["rules"],
-        original_rendered_markdown=inputs.interpretation_markdown,
-        evaluator_feedback_data=evaluator_feedback_data,
-        status_callback=status_callback,
-        inter_call_delay_seconds=inter_call_delay_seconds,
-    )
-
-
-def recreate_revised_ruleset(
-    *,
-    inputs,
-    evaluator_feedback_data: dict[str, Any],
-    evaluator_feedback_markdown: str,
-    creator_response_data: dict[str, Any],
-    creator_response_markdown: str,
-    revised_interpretation_markdown: str,
-    reviewed_rules_artifact: dict[str, Any],
-    feedback_output_path=None,
-    creator_response_output_path=None,
-    revised_output_path=None,
-) -> OvertimeInterpretationReviewArtifacts:
-    """Write the final revised ruleset artifacts for step 3.2."""
-    return write_review_outputs(
-        inputs=inputs,
-        evaluator_feedback_data=evaluator_feedback_data,
-        evaluator_feedback_markdown=evaluator_feedback_markdown,
-        creator_response_data=creator_response_data,
-        creator_response_markdown=creator_response_markdown,
-        revised_interpretation_markdown=revised_interpretation_markdown,
-        reviewed_rules_artifact=reviewed_rules_artifact,
-        feedback_output_path=feedback_output_path,
-        creator_response_output_path=creator_response_output_path,
-        revised_output_path=revised_output_path,
-    )
 
 
 def review_ruleset(
@@ -147,7 +51,7 @@ def review_ruleset(
         selected_creator_model,
         selected_evaluator_max_output_tokens,
         selected_creator_max_output_tokens,
-    ) = selected_review_models(
+    ) = resolve_review_models(
         evaluator_model=evaluator_model,
         creator_model=creator_model,
     )
@@ -193,7 +97,7 @@ def review_ruleset(
     else:
         active_status_callback("Writing feedback, creator response, and revised interpretation")
 
-    artifacts = recreate_revised_ruleset(
+    artifacts = write_review_outputs(
         inputs=inputs,
         evaluator_feedback_data=evaluator_feedback_data,
         evaluator_feedback_markdown=evaluator_feedback_markdown,

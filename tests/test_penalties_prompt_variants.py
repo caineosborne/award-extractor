@@ -14,7 +14,7 @@ from src.prompts.step_3_2_review_ruleset import (
 )
 from src.prompts.step_3_2_prompt_config import step_3_2_prompt_subset_config
 from src.common.overtime_clause_classification import OvertimeClauseClassification
-from src.step_3_2_review_ruleset.core import EVALUATOR_MODEL
+from src.step_3_2_review_ruleset.schema import EVALUATOR_MODEL
 
 
 def test_penalties_common_question_block_includes_agreed_examples():

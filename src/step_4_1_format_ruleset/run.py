@@ -4,8 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from .deterministic import DEFAULT_TEMPLATE_PATH, resolve_formatting_inputs, write_formatted_output
-from .llm import load_openai_client, request_formatted_ruleset, selected_model
+from .schema import DEFAULT_TEMPLATE_PATH
+from .step_1_load_inputs import resolve_formatting_inputs
+from .step_2_format_ruleset import (
+    load_openai_client,
+    request_formatted_ruleset,
+    resolve_model,
+    write_formatted_output,
+)
 
 
 def summarize_overtime_entitlements(
@@ -25,7 +31,7 @@ def summarize_overtime_entitlements(
         ruleset_key=ruleset_key,
     )
     active_client = client or load_openai_client()
-    selected_format_model = selected_model(model)
+    selected_format_model = resolve_model(model)
     print(f"Step 4.1: Formatting ruleset with model {selected_format_model}")
     output_text = request_formatted_ruleset(
         client=active_client,

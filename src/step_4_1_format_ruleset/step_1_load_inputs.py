@@ -1,4 +1,4 @@
-"""Deterministic helpers for step 4.1 ruleset formatting."""
+"""Step 4.1 stage 1: load interpretation and template inputs."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from src.common.output_naming import formatted_ruleset_path_for_ruleset
-from src.common.output_paths import award_output_dir, write_text_output
+from src.common.output_paths import award_output_dir
 from src.common.overtime_rules import VALIDATION_SECTION_TITLES
 from src.common.overtime_rulesets import (
     OVERTIME_CONSEQUENCE_RULESET,
@@ -16,17 +16,13 @@ from src.common.overtime_rulesets import (
 )
 from src.common.pipeline_io import load_text_file as load_required_text_file
 
-
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-DEFAULT_AWARD_CODE = "MA000018"
-DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Templates" / "Template.md"
-DEFAULT_CONSEQUENCE_TEMPLATE_PATH = (
-    PROJECT_ROOT / "resources" / "Templates" / "overtime_consequence_template.md"
+from .schema import (
+    DEFAULT_AWARD_CODE,
+    DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
+    DEFAULT_TEMPLATE_PATH,
+    OvertimeEntitlementSummaryError,
+    PROJECT_ROOT,
 )
-
-
-class OvertimeEntitlementSummaryError(RuntimeError):
-    """Raised when the overtime formatter cannot complete its work."""
 
 
 @dataclass(frozen=True)
@@ -129,26 +125,6 @@ def resolve_interpretation_path(
     return default_interpretation_path_for_award(value, ruleset_key)
 
 
-def output_path_for_interpretation(interpretation_path: Path | str) -> Path:
-    """Build the canonical formatted output path for one interpretation."""
-    path = Path(interpretation_path)
-    stem = path.stem
-
-    if stem == "3_2_OT_creation_revised_ruleset":
-        return formatted_ruleset_path_for_ruleset(path, OVERTIME_CREATION_RULESET)
-
-    if stem == "3_2_OT_consequence_revised_ruleset":
-        return formatted_ruleset_path_for_ruleset(path, OVERTIME_CONSEQUENCE_RULESET)
-    if stem == "3_2_Penalties_revised_ruleset":
-        return formatted_ruleset_path_for_ruleset(path, PENALTIES_RULESET)
-    raise OvertimeEntitlementSummaryError(
-        "Step 4.1 expects a canonical revised ruleset path such as "
-        "`3_2_OT_creation_revised_ruleset.md` or "
-        "`3_2_OT_consequence_revised_ruleset.md`. "
-        "Penalties canonical paths are also supported."
-    )
-
-
 def resolve_formatting_inputs(
     *,
     interpretation_path: Path | str = DEFAULT_AWARD_CODE,
@@ -188,7 +164,10 @@ def resolve_formatting_inputs(
     destination = (
         Path(output_path)
         if output_path is not None
-        else output_path_for_interpretation(selected_interpretation_path)
+        else formatted_ruleset_path_for_ruleset(
+            selected_interpretation_path,
+            effective_ruleset_key,
+        )
     )
     return Step4FormattingInputs(
         interpretation_path=selected_interpretation_path,
@@ -198,10 +177,3 @@ def resolve_formatting_inputs(
         interpretation_markdown=interpretation_markdown,
         template_markdown=template_markdown,
     )
-
-
-def write_formatted_output(destination: Path, output_text: str) -> str:
-    """Clean and write the formatted ruleset output."""
-    cleaned_output = strip_wrapping_markdown_fence(output_text)
-    write_text_output(destination, cleaned_output)
-    return cleaned_output

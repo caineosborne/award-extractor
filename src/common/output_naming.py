@@ -240,6 +240,15 @@ def core_overtime_pseudocode_path_for_interpretation(
     if stem in ("3_2_Penalties_revised_ruleset", "4_1_Penalties_formatted_ruleset"):
         return pseudocode_path_for_ruleset(path, "penalties")
 
+    if stem == "3_2_OT_creation_revised_ruleset_manual":
+        return pseudocode_path_for_ruleset(path, "overtime_creation")
+
+    if stem == "3_2_OT_consequence_revised_ruleset_manual":
+        return pseudocode_path_for_ruleset(path, "overtime_consequence")
+
+    if stem == "3_2_Penalties_revised_ruleset_manual":
+        return pseudocode_path_for_ruleset(path, "penalties")
+
     if stem.endswith("_overtime_interpretation_revised"):
         base_stem = stem.removesuffix("_overtime_interpretation_revised")
         return path.with_name(f"{base_stem}_core_overtime_pseudocode.md")

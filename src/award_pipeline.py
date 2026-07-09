@@ -23,6 +23,8 @@ from src.common.output_naming import (
     ACTIVE_PIPELINE_STEP_CHOICES,
     DEFAULT_ACTIVE_PIPELINE_STEPS,
     calculator_rules_python_path_for_output_stem,
+    core_overtime_pseudocode_path_for_interpretation,
+    formatted_ruleset_path_for_ruleset,
     normalize_output_suffix,
     output_stem_for_award,
 )
@@ -38,16 +40,14 @@ from src.step_2_1_classify_payments.run import classify_payments as run_step_2_1
 from src.step_2_2_classify_overtime_clauses.run import (
     run_step_2_2 as run_step_2_2_classify_overtime_clauses,
 )
-from src.step_3_1_generate_ruleset.core import DEFAULT_EXPERT_RUN_COUNT
+from src.step_3_1_generate_ruleset.schema import DEFAULT_EXPERT_RUN_COUNT
 from src.step_3_1_generate_ruleset.run import (
     generate_ruleset_from_clause_classification as run_step_3_1_generate_ruleset,
 )
 from src.step_3_2_review_ruleset.run import review_ruleset as run_step_3_2_review_ruleset
-from src.step_4_1_format_ruleset import output_path_for_interpretation
 from src.step_4_1_format_ruleset.run import (
     summarize_overtime_entitlements as run_step_4_1_format_ruleset,
 )
-from src.step_5_1_generate_pseudocode.deterministic import output_path_for_summary
 from src.step_5_1_generate_pseudocode.run import (
     generate_core_overtime_pseudocode as run_step_5_1_generate_pseudocode,
 )
@@ -141,7 +141,9 @@ def build_ruleset_step_paths(
     revised_interpretation_path = revised_output_path_for_interpretation(
         interpretation_path
     )
-    core_overtime_pseudocode_path = output_path_for_summary(revised_interpretation_path)
+    core_overtime_pseudocode_path = core_overtime_pseudocode_path_for_interpretation(
+        revised_interpretation_path
+    )
 
     return RulesetStepPaths(
         clause_classification_path=ruleset_clause_classification_output_path_for_classification(
@@ -156,8 +158,9 @@ def build_ruleset_step_paths(
             interpretation_path
         ),
         revised_interpretation_path=revised_interpretation_path,
-        formatted_ruleset_path=output_path_for_interpretation(
-            revised_interpretation_path
+        formatted_ruleset_path=formatted_ruleset_path_for_ruleset(
+            revised_interpretation_path,
+            ruleset_key,
         ),
         core_overtime_pseudocode_path=core_overtime_pseudocode_path,
         core_overtime_validation_json_path=core_overtime_pseudocode_path.with_name(

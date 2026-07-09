@@ -3,19 +3,21 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from src.common.output_naming import formatted_ruleset_path_for_ruleset
 from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
 from src.prompts.step_4_1_format_ruleset import build_messages
-from src.step_4_1_format_ruleset import (
+from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
+from src.step_4_1_format_ruleset.schema import (
     DEFAULT_MODEL,
     DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
     DEFAULT_TEMPLATE_PATH,
+)
+from src.step_4_1_format_ruleset.step_1_load_inputs import (
     load_text_file,
-    output_path_for_interpretation,
     resolve_interpretation_path,
     resolve_formatting_inputs,
     strip_validation_notes_preamble,
     strip_wrapping_markdown_fence,
-    summarize_overtime_entitlements,
 )
 
 
@@ -35,9 +37,10 @@ class FakeClient:
 
 
 class OvertimeEntitlementSummaryTests(unittest.TestCase):
-    def test_output_path_for_revised_interpretation_uses_canonical_creation_name(self):
-        result = output_path_for_interpretation(
-            Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md")
+    def test_formatted_ruleset_path_for_creation_ruleset_uses_canonical_name(self):
+        result = formatted_ruleset_path_for_ruleset(
+            Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md"),
+            "overtime_creation",
         )
 
         self.assertEqual(
@@ -45,9 +48,10 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             Path("data/processed/MA000018/4_1_OT_creation_formatted_ruleset.md"),
         )
 
-    def test_output_path_for_ruleset_revised_interpretation_keeps_canonical_ruleset_isolation(self):
-        result = output_path_for_interpretation(
-            Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md")
+    def test_formatted_ruleset_path_for_consequence_ruleset_keeps_canonical_isolation(self):
+        result = formatted_ruleset_path_for_ruleset(
+            Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md"),
+            OVERTIME_CONSEQUENCE_RULESET,
         )
 
         self.assertEqual(
@@ -65,7 +69,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
 
             from unittest.mock import patch
 
-            with patch("src.step_4_1_format_ruleset.deterministic.PROJECT_ROOT", project_root):
+            with patch("src.step_4_1_format_ruleset.step_1_load_inputs.PROJECT_ROOT", project_root):
                 result = resolve_interpretation_path(
                     "MA000999",
                     OVERTIME_CONSEQUENCE_RULESET,

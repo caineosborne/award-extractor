@@ -3,6 +3,11 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
+from src.common.output_naming import (
+    core_overtime_pseudocode_path_for_interpretation,
+    validation_json_path_for_pseudocode,
+    validation_markdown_path_for_pseudocode,
+)
 from src.prompts.step_5_1_generate_pseudocode import (
     PSEUDOCODE_FIELDS,
     build_messages,
@@ -10,21 +15,19 @@ from src.prompts.step_5_1_generate_pseudocode import (
     first_top_level_bullets,
     overtime_rule_bullets,
 )
-from src.step_5_1_generate_pseudocode.core import DEFAULT_MODEL, DEFAULT_OVERTIME_SUMMARY_PATH
-from src.step_5_1_generate_pseudocode.deterministic import (
-    default_overtime_interpretation_path,
-    load_overtime_interpretation,
-    output_path_for_summary,
-    select_overtime_interpretation_path,
-)
 from src.step_5_1_generate_pseudocode.run import (
     generate_core_overtime_pseudocode,
 )
-from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
-from src.step_5_1_generate_pseudocode.verification import (
-    validation_json_path_for_pseudocode,
-    validation_markdown_path_for_pseudocode,
+from src.step_5_1_generate_pseudocode.schema import (
+    DEFAULT_MODEL,
+    DEFAULT_OVERTIME_SUMMARY_PATH,
 )
+from src.step_5_1_generate_pseudocode.step_1_load_inputs import (
+    default_overtime_interpretation_path,
+    load_overtime_interpretation,
+    select_overtime_interpretation_path,
+)
+from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
 
 
 class FakeResponses:
@@ -67,53 +70,53 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("- Fifth bullet.", selected)
         self.assertNotIn("- Sixth bullet.", selected)
 
-    def test_output_path_for_summary(self):
+    def test_core_overtime_pseudocode_path_for_summary(self):
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_uses_canonical_manual_ruleset_source_when_present(self):
+    def test_core_overtime_pseudocode_path_uses_canonical_manual_ruleset_source_when_present(self):
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset_manual.md")
             ),
             Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_keeps_canonical_ruleset_isolation(self):
+    def test_core_overtime_pseudocode_path_keeps_canonical_ruleset_isolation(self):
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/4_1_OT_consequence_formatted_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_uses_canonical_step_numbered_names(self):
+    def test_core_overtime_pseudocode_path_uses_canonical_step_numbered_names(self):
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/4_1_OT_creation_formatted_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_OT_creation_pseudocode.md"),
         )
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/3_2_OT_consequence_revised_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_OT_consequence_pseudocode.md"),
         )
 
-    def test_output_path_for_summary_supports_penalties_canonical_names(self):
+    def test_core_overtime_pseudocode_path_supports_penalties_canonical_names(self):
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/3_2_Penalties_revised_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_Penalties_pseudocode.md"),
         )
         self.assertEqual(
-            output_path_for_summary(
+            core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/4_1_Penalties_formatted_ruleset.md")
             ),
             Path("data/processed/MA000018/5_1_Penalties_pseudocode.md"),
@@ -310,7 +313,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             from unittest.mock import patch
 
             with patch(
-                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.step_1_load_inputs.PROJECT_ROOT",
                 project_root,
             ):
                 selected_path = select_overtime_interpretation_path("MA000003")
@@ -328,7 +331,7 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             from unittest.mock import patch
 
             with patch(
-                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.step_1_load_inputs.PROJECT_ROOT",
                 project_root,
             ):
                 selected_path = select_overtime_interpretation_path(
@@ -471,7 +474,7 @@ None
             from unittest.mock import patch
 
             with patch(
-                "src.step_5_1_generate_pseudocode.deterministic.PROJECT_ROOT",
+                "src.step_5_1_generate_pseudocode.step_1_load_inputs.PROJECT_ROOT",
                 project_root,
             ):
                 self.assertEqual(

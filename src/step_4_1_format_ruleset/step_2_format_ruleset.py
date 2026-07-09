@@ -1,4 +1,4 @@
-"""LLM helpers for step 4.1 ruleset formatting."""
+"""Step 4.1 stage 2: request and write the formatted ruleset."""
 
 from __future__ import annotations
 
@@ -8,40 +8,27 @@ from typing import Any
 
 from openai import OpenAI
 
-from src.common.llm_io import extract_response_text as extract_llm_response_text
+from src.common.llm_io import extract_response_text
+from src.common.output_paths import write_text_output
+from src.common.pipeline_runtime import load_openai_environment
 from src.prompts.step_4_1_format_ruleset import build_messages
-from .deterministic import OvertimeEntitlementSummaryError
 
-
-DEFAULT_MODEL = "gpt-5.4-mini"
-
-
-def load_environment() -> None:
-    """Load the OpenAI environment required by the formatter."""
-    from dotenv import load_dotenv
-
-    project_root = Path(__file__).resolve().parents[2]
-    load_dotenv(project_root / ".env")
-    if not os.getenv("OPENAI_API_KEY"):
-        raise OvertimeEntitlementSummaryError(
-            "OPENAI_API_KEY is not set. Add it to the root .env file or export it."
-        )
+from .schema import DEFAULT_MODEL, OvertimeEntitlementSummaryError
+from .step_1_load_inputs import strip_wrapping_markdown_fence
 
 
 def load_openai_client() -> OpenAI:
     """Load the OpenAI environment and return the step 4.1 client."""
-    load_environment()
+    load_openai_environment(
+        env_path=Path(__file__).resolve().parents[2] / ".env",
+        error_type=OvertimeEntitlementSummaryError,
+    )
     return OpenAI()
 
 
-def selected_model(model: str | None) -> str:
+def resolve_model(model: str | None) -> str:
     """Resolve the configured step 4.1 model."""
     return model or os.getenv("OVERTIME_ENTITLEMENT_SUMMARY_MODEL", DEFAULT_MODEL)
-
-
-def extract_response_text(response: Any) -> str:
-    """Extract plain text from the OpenAI response object."""
-    return extract_llm_response_text(response)
 
 
 def request_formatted_ruleset(
@@ -69,3 +56,10 @@ def request_formatted_ruleset(
     if not output_text:
         raise OvertimeEntitlementSummaryError("OpenAI response did not include output text.")
     return output_text
+
+
+def write_formatted_output(destination: Path, output_text: str) -> str:
+    """Clean and write the formatted ruleset output."""
+    cleaned_output = strip_wrapping_markdown_fence(output_text)
+    write_text_output(destination, cleaned_output)
+    return cleaned_output

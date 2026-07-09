@@ -1,19 +1,21 @@
 """Step 4.1 ruleset formatting."""
 
-from .deterministic import (
+from .schema import (
     DEFAULT_AWARD_CODE,
     DEFAULT_CONSEQUENCE_TEMPLATE_PATH,
+    DEFAULT_MODEL,
     DEFAULT_TEMPLATE_PATH,
+)
+from .step_1_load_inputs import (
     Step4FormattingInputs,
     default_interpretation_path_for_award,
     load_text_file,
-    output_path_for_interpretation,
     resolve_formatting_inputs,
     resolve_interpretation_path,
     strip_validation_notes_preamble,
     strip_wrapping_markdown_fence,
 )
-from .llm import DEFAULT_MODEL, extract_response_text, selected_model
+from .step_2_format_ruleset import resolve_model
 from .run import summarize_overtime_entitlements
 
 __all__ = [
@@ -23,12 +25,10 @@ __all__ = [
     "DEFAULT_TEMPLATE_PATH",
     "Step4FormattingInputs",
     "default_interpretation_path_for_award",
-    "extract_response_text",
     "load_text_file",
-    "output_path_for_interpretation",
     "resolve_formatting_inputs",
     "resolve_interpretation_path",
-    "selected_model",
+    "resolve_model",
     "strip_validation_notes_preamble",
     "strip_wrapping_markdown_fence",
     "summarize_overtime_entitlements",

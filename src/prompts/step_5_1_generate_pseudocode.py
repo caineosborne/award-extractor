@@ -1,7 +1,7 @@
 """Prompt content for step 5.1 overtime pseudocode generation.
 
 Used by:
-- `src/step_5_1_generate_pseudocode/llm.py`
+- `src/step_5_1_generate_pseudocode/step_2_generate_pseudocode.py`
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
-from src.step_5_1_generate_pseudocode.core import CoreOvertimePseudocodeError
+from src.step_5_1_generate_pseudocode.schema import CoreOvertimePseudocodeError
 
 
 PSEUDOCODE_FIELDS = {

@@ -437,7 +437,7 @@ def test_step_3_1_final_warnings_use_merged_comparison_only(monkeypatch, tmp_pat
         fake_resolve_generation_inputs,
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.selected_models",
+        "src.step_3_1_generate_ruleset.run.resolve_models",
         lambda **_kwargs: ("draft-model", "merge-model"),
     )
     monkeypatch.setattr(
@@ -445,19 +445,19 @@ def test_step_3_1_final_warnings_use_merged_comparison_only(monkeypatch, tmp_pat
         lambda: sentinel.client,
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.draft_expert_a",
-        lambda **_kwargs: ([expert_rule], ["expert a warning"]),
+        "src.step_3_1_generate_ruleset.run.request_structured_interpretation_run",
+        lambda **_kwargs: "{\"rules\": []}",
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.draft_expert_b",
-        lambda **_kwargs: ([expert_rule], ["expert b warning"]),
+        "src.step_3_1_generate_ruleset.run.validate_interpretation_rules",
+        lambda *args, **_kwargs: ([expert_rule], ["expert warning"]),
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.write_expert_draft",
+        "src.step_3_1_generate_ruleset.run.write_expert_draft_artifact",
         lambda **_kwargs: {"label": "expert", "json_path": "a.json", "markdown_path": "a.md"},
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.merge_expert_drafts",
+        "src.step_3_1_generate_ruleset.run.combine_expert_rulesets",
         lambda **_kwargs: (
             [expert_rule],
             {"comparison_summary_markdown": "", "merge_explanations": []},
@@ -465,7 +465,7 @@ def test_step_3_1_final_warnings_use_merged_comparison_only(monkeypatch, tmp_pat
         ),
     )
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.write_merged_comparison",
+        "src.step_3_1_generate_ruleset.run.write_combination_artifact",
         lambda **_kwargs: None,
     )
 
@@ -474,7 +474,7 @@ def test_step_3_1_final_warnings_use_merged_comparison_only(monkeypatch, tmp_pat
         return "rendered markdown"
 
     monkeypatch.setattr(
-        "src.step_3_1_generate_ruleset.run.write_merged_ruleset",
+        "src.step_3_1_generate_ruleset.run.write_final_ruleset_artifact",
         fake_write_merged_ruleset,
     )
 

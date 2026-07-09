@@ -4,20 +4,23 @@ from __future__ import annotations
 
 from typing import Any
 
-from .core import DEFAULT_EXPERT_RUN_COUNT, EXPERT_RUN_LABELS, OvertimeInterpretationError
-from .deterministic import (
+from src.common.overtime_clause_classification import OvertimeInterpretationError
+
+from .schema import DEFAULT_EXPERT_RUN_COUNT, EXPERT_A_LABEL, EXPERT_B_LABEL
+from .step_1_load_inputs import (
     resolve_generation_inputs,
-    write_expert_draft,
-    write_merged_comparison,
-    write_merged_ruleset,
 )
-from .llm import (
-    draft_additional_expert,
-    draft_expert_a,
-    draft_expert_b,
+from .step_2_generate_expert_rules import (
     load_openai_client,
-    merge_expert_drafts,
-    selected_models,
+    request_structured_interpretation_run,
+    resolve_models,
+)
+from .step_3_apply_deterministic_checks import validate_interpretation_rules
+from .step_4_combine_expert_rules import combine_expert_rulesets
+from .step_5_write_artifacts import (
+    write_combination_artifact,
+    write_expert_draft_artifact,
+    write_final_ruleset_artifact,
 )
 
 
@@ -33,8 +36,10 @@ def generate_ruleset_from_clause_classification(
     ruleset_key: str,
 ) -> str:
     """Run step 3.1 from an existing step 2.2 artifact."""
-    if expert_run_count < 1:
-        raise OvertimeInterpretationError("expert_run_count must be at least 1.")
+    if expert_run_count != DEFAULT_EXPERT_RUN_COUNT:
+        raise OvertimeInterpretationError(
+            "step 3.1 currently supports exactly two expert runs: expert A and expert B."
+        )
 
     print(
         "Step 3.1: Loading step 2 inputs from "
@@ -46,116 +51,86 @@ def generate_ruleset_from_clause_classification(
         output_path=output_path,
         ruleset_key=ruleset_key,
     )
-    selected_model, selected_comparison_model = selected_models(
+    selected_model, selected_comparison_model = resolve_models(
         model=model,
         comparison_model=comparison_model,
     )
     active_client = client or load_openai_client()
     print(
-        "Step 3.1: Drafting ruleset with "
-        f"{expert_run_count} expert run(s) using model {selected_model}"
+        "Step 3.1: Drafting expert A and expert B with model "
+        f"{selected_model}"
     )
 
-    effective_expert_run_count = min(expert_run_count, len(EXPERT_RUN_LABELS))
-    expert_rulesets: list[list[Any]] = []
-    expert_validation_warnings: list[list[str]] = []
-    expert_output_paths: list[dict[str, str]] = []
-
-    expert_a_rules, expert_a_warnings = draft_expert_a(
+    expert_a_output_text = request_structured_interpretation_run(
         client=active_client,
         model=selected_model,
         source_path=inputs.source_path,
         overtime_creation_clauses=inputs.overtime_creation_clauses,
         ruleset_key=inputs.ruleset_key,
     )
-    expert_rulesets.append(expert_a_rules)
-    expert_validation_warnings.append(expert_a_warnings)
+    expert_a_rules, expert_a_warnings = validate_interpretation_rules(
+        expert_a_output_text,
+        source_path=inputs.source_path,
+        overtime_creation_clauses=inputs.overtime_creation_clauses,
+        ruleset_key=inputs.ruleset_key,
+    )
+    expert_a_output_paths = write_expert_draft_artifact(
+        base_markdown_path=inputs.destination,
+        label=EXPERT_A_LABEL,
+        source_path=inputs.source_path,
+        clause_classification_path=inputs.clause_classification_path,
+        rules=expert_a_rules,
+        validation_warnings=expert_a_warnings,
+    )
 
-    if effective_expert_run_count > 1:
-        expert_output_paths.append(
-            write_expert_draft(
-                base_markdown_path=inputs.destination,
-                label=EXPERT_RUN_LABELS[0],
-                source_path=inputs.source_path,
-                clause_classification_path=inputs.clause_classification_path,
-                rules=expert_a_rules,
-                validation_warnings=expert_a_warnings,
-            )
-        )
+    expert_b_output_text = request_structured_interpretation_run(
+        client=active_client,
+        model=selected_model,
+        source_path=inputs.source_path,
+        overtime_creation_clauses=inputs.overtime_creation_clauses,
+        ruleset_key=inputs.ruleset_key,
+    )
+    expert_b_rules, expert_b_warnings = validate_interpretation_rules(
+        expert_b_output_text,
+        source_path=inputs.source_path,
+        overtime_creation_clauses=inputs.overtime_creation_clauses,
+        ruleset_key=inputs.ruleset_key,
+    )
+    expert_b_output_paths = write_expert_draft_artifact(
+        base_markdown_path=inputs.destination,
+        label=EXPERT_B_LABEL,
+        source_path=inputs.source_path,
+        clause_classification_path=inputs.clause_classification_path,
+        rules=expert_b_rules,
+        validation_warnings=expert_b_warnings,
+    )
 
-        expert_b_rules, expert_b_warnings = draft_expert_b(
-            client=active_client,
-            model=selected_model,
-            source_path=inputs.source_path,
-            overtime_creation_clauses=inputs.overtime_creation_clauses,
-            ruleset_key=inputs.ruleset_key,
-        )
-        expert_rulesets.append(expert_b_rules)
-        expert_validation_warnings.append(expert_b_warnings)
-        expert_output_paths.append(
-            write_expert_draft(
-                base_markdown_path=inputs.destination,
-                label=EXPERT_RUN_LABELS[1],
-                source_path=inputs.source_path,
-                clause_classification_path=inputs.clause_classification_path,
-                rules=expert_b_rules,
-                validation_warnings=expert_b_warnings,
-            )
-        )
+    expert_output_paths = [expert_a_output_paths, expert_b_output_paths]
 
-    for run_index in range(2, effective_expert_run_count):
-        expert_rules, expert_warnings = draft_additional_expert(
-            client=active_client,
-            model=selected_model,
-            source_path=inputs.source_path,
-            overtime_creation_clauses=inputs.overtime_creation_clauses,
-            ruleset_key=inputs.ruleset_key,
-        )
-        expert_rulesets.append(expert_rules)
-        expert_validation_warnings.append(expert_warnings)
-        expert_output_paths.append(
-            write_expert_draft(
-                base_markdown_path=inputs.destination,
-                label=EXPERT_RUN_LABELS[run_index],
-                source_path=inputs.source_path,
-                clause_classification_path=inputs.clause_classification_path,
-                rules=expert_rules,
-                validation_warnings=expert_warnings,
-            )
-        )
+    print(
+        "Step 3.1: Combining expert drafts with comparison model "
+        f"{selected_comparison_model}"
+    )
+    merged_rules, comparison_metadata, validation_warnings = combine_expert_rulesets(
+        client=active_client,
+        model=selected_comparison_model,
+        source_path=inputs.source_path,
+        overtime_creation_clauses=inputs.overtime_creation_clauses,
+        expert_a_rules=expert_a_rules,
+        expert_b_rules=expert_b_rules,
+        ruleset_key=inputs.ruleset_key,
+    )
+    write_combination_artifact(
+        markdown_destination=inputs.destination,
+        source_path=inputs.source_path,
+        clause_classification_path=inputs.clause_classification_path,
+        expert_output_paths=expert_output_paths,
+        comparison_metadata=comparison_metadata,
+        validation_warnings=validation_warnings,
+        rules=merged_rules,
+    )
 
-    if effective_expert_run_count == 1:
-        merged_rules = expert_rulesets[0]
-        validation_warnings = expert_validation_warnings[0]
-        comparison_metadata: dict[str, Any] = {}
-    else:
-        print(
-            "Step 3.1: Merging expert drafts with comparison model "
-            f"{selected_comparison_model}"
-        )
-        merged_rules, comparison_metadata, comparison_validation_warnings = (
-            merge_expert_drafts(
-                client=active_client,
-                model=selected_comparison_model,
-                source_path=inputs.source_path,
-                overtime_creation_clauses=inputs.overtime_creation_clauses,
-                run_a_rules=expert_rulesets[0],
-                run_b_rules=expert_rulesets[1],
-                ruleset_key=inputs.ruleset_key,
-            )
-        )
-        validation_warnings = comparison_validation_warnings
-        write_merged_comparison(
-            markdown_destination=inputs.destination,
-            source_path=inputs.source_path,
-            clause_classification_path=inputs.clause_classification_path,
-            expert_output_paths=expert_output_paths,
-            comparison_metadata=comparison_metadata,
-            validation_warnings=validation_warnings,
-            rules=merged_rules,
-        )
-
-    rendered_markdown = write_merged_ruleset(
+    rendered_markdown = write_final_ruleset_artifact(
         json_destination=inputs.json_destination,
         markdown_destination=inputs.destination,
         source_path=inputs.source_path,
