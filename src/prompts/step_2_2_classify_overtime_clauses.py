@@ -23,6 +23,10 @@ from src.prompts.step_2_1_classify_payments import (
     PAYMENT_CLASSIFICATION_GENERIC_DEFINITIONS,
     PAYMENT_CLASSIFICATION_GENERIC_TAG_DEFINITIONS,
 )
+from src.prompts.ruleset_subset_prompt_blocks import (
+    ruleset_prompt_family,
+    subset_shared_prompt_block,
+)
 
 
 CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT = """You classify Australian modern award clauses for payroll implementation.
@@ -70,23 +74,21 @@ Primary classification rules:
 """
 
 
-CLAUSE_CLASSIFICATION_TOPIC_LANGUAGE = {
-    OVERTIME_CREATION_RULESET: """Overtime creation clause-classification rules:
-- Classify the shortlisted clauses for what causes overtime, not how overtime is ultimately paid.
+CLAUSE_CLASSIFICATION_STEP_FAMILY_INSTRUCTIONS = {
+    "overtime": """Step 2.2 family instructions for overtime subsets:
+- Classify the shortlisted clauses for the selected overtime subset rather than for the entire award.
 - Keep the language definitive, concrete, and implementation-oriented.
+- Expect mixed clauses and classify the operative part conservatively rather than excluding plausible supported scope too early.
 """,
-    OVERTIME_CONSEQUENCE_RULESET: """Overtime consequence clause-classification rules:
-- Classify the shortlisted clauses for what happens after overtime already exists.
+    "penalties": """Step 2.2 family instructions for penalties subsets:
+- Classify the shortlisted clauses for the penalties subset rather than for the entire award.
 - Keep the language definitive, concrete, and implementation-oriented.
-""",
-    PENALTIES_RULESET: """Penalties clause-classification rules:
-- Classify the shortlisted clauses for penalty rates, shift allowances, and break-between-work-period rules in the penalties subset.
-- Keep the language definitive, concrete, and implementation-oriented.
+- Preserve supporting penalties-domain operational conditions even where they do not create a separate premium outcome.
 """,
 }
 
 
-CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS = {
+CLAUSE_CLASSIFICATION_STEP_SUBSET_INSTRUCTIONS = {
     OVERTIME_CREATION_RULESET: """Important:
 - Ordinary Hours Boundary clauses matter because work outside ordinary hours limits may create overtime even if the clause does not use the word overtime.
 - Overtime Trigger clauses matter because this ruleset is identifying what causes overtime, not how overtime is paid.
@@ -125,21 +127,23 @@ CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS = {
 def _build_clause_classification_user_prompt(
     *,
     variant_prompt: str,
-    topic_language: str,
+    subset_shared_instructions: str,
+    step_family_instructions: str,
     ruleset_question_block: str,
     clauses_text: str,
-    variant_instructions: str,
+    step_subset_instructions: str,
 ) -> str:
     return (
         f"{variant_prompt}\n\n"
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE}\n\n"
-        f"{topic_language}\n\n"
+        f"{subset_shared_instructions}\n\n"
+        f"{step_family_instructions}\n\n"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
-        "Prompt-specific ruleset instructions:\n\n"
-        f"{variant_instructions}\n\n"
+        "Step 2.2 subset-specific instructions:\n\n"
+        f"{step_subset_instructions}\n\n"
         "Clauses:\n\n"
         f"{clauses_text}"
     )
@@ -184,6 +188,7 @@ def build_clause_classification_messages(
     """Build the prompt messages for step 2.2 clause classification."""
     config = overtime_ruleset_config(ruleset_key)
     clauses_text = format_clauses_for_prompt(overtime_clauses)
+    family_key = ruleset_prompt_family(ruleset_key)
     return [
         {"role": "system", "content": CLAUSE_CLASSIFICATION_GENERIC_SYSTEM_PROMPT},
         {
@@ -196,10 +201,15 @@ def build_clause_classification_messages(
                     + "\n\n"
                     + CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT
                 ),
-                topic_language=CLAUSE_CLASSIFICATION_TOPIC_LANGUAGE[ruleset_key],
+                subset_shared_instructions=subset_shared_prompt_block(ruleset_key),
+                step_family_instructions=CLAUSE_CLASSIFICATION_STEP_FAMILY_INSTRUCTIONS[
+                    family_key
+                ],
                 ruleset_question_block=common_overtime_question_block(ruleset_key),
                 clauses_text=clauses_text,
-                variant_instructions=CLAUSE_CLASSIFICATION_VARIANT_INSTRUCTIONS[ruleset_key],
+                step_subset_instructions=CLAUSE_CLASSIFICATION_STEP_SUBSET_INSTRUCTIONS[
+                    ruleset_key
+                ],
             ),
         },
     ]

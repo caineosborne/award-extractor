@@ -20,9 +20,9 @@ Historical script-era names are retained only in archived notes and legacy folde
 | 3.2 | `src/step_3_2_review_ruleset/run.py` | Creator response markdown and structured JSON | `data/processed/MAxxxxx/feedback/3_2_OT_creation_creator_response.md`; `data/processed/MAxxxxx/feedback/3_2_OT_creation_creator_response.json` |
 | 3.2 | `src/step_3_2_review_ruleset/run.py` | Revised overtime interpretation markdown and JSON | `data/processed/MAxxxxx/3_2_OT_creation_revised_ruleset.md`; `data/processed/MAxxxxx/3_2_OT_creation_revised_ruleset.json`; archives in `data/processed/MAxxxxx/archive/` |
 | 4.1 | `src/step_4_1_format_ruleset/run.py` | Final formatted ruleset | `data/processed/MAxxxxx/4_1_OT_creation_formatted_ruleset.md`; archive: `data/processed/MAxxxxx/archive/4_1_OT_creation_formatted_ruleset_YYYYMMDD_HHMMSS.md` |
-| 4.9 | Streamlit human review utility | Manual human-reviewed ruleset working file | `data/processed/MAxxxxx/3_2_OT_creation_revised_ruleset_manual.md` |
+| 4.9 | Streamlit human review utility | Optional manual human-reviewed ruleset working file | `data/processed/MAxxxxx/3_2_OT_creation_revised_ruleset_manual.md` |
 | 5.1 | `src/step_5_1_generate_pseudocode/run.py` | Core overtime pseudocode markdown | `data/processed/MAxxxxx/5_1_OT_creation_pseudocode.md`; archive: `data/processed/MAxxxxx/archive/5_1_OT_creation_pseudocode_YYYYMMDD_HHMMSS.md` |
-| 5.1 validation | `src/step_5_1_generate_pseudocode/verification.py` | Validation JSON and validation markdown | `data/processed/MAxxxxx/5_1_OT_creation_pseudocode_validation.json`; `data/processed/MAxxxxx/5_1_OT_creation_pseudocode_validation.md` |
+| 5.1 validation | `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py` | Validation JSON and validation markdown | `data/processed/MAxxxxx/5_1_OT_creation_pseudocode_validation.json`; `data/processed/MAxxxxx/5_1_OT_creation_pseudocode_validation.md` |
 
 ## Prompt Sources
 
@@ -37,5 +37,5 @@ Historical script-era names are retained only in archived notes and legacy folde
 
 ## Notes
 
-- `4.9` is the active human review utility that sits between the formatted ruleset and the step `5.1` pseudocode source selection order.
+- `4.9` is the optional human review utility that sits between the formatted ruleset and the step `5.1` pseudocode source selection order.
 - The parked agentic review path is no longer part of the active Streamlit surface or the active output inventory.

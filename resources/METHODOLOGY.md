@@ -52,15 +52,17 @@ From step `2.2` onward, the pipeline is ruleset-aware rather than overtime-only.
 
 ## Prompt construction pattern
 
-The active LLM-backed steps use a layered prompt pattern so the shared business framing is reused consistently while the step-specific task stays narrow.
+The active LLM-backed steps use a layered prompt pattern so shared business framing is reused consistently while the step-specific task stays narrow.
 
 Where a step uses an LLM, the prompt is split into:
 - generic prompt instructions used for that kind of payroll configuration task;
+- subset-wide instructions reused across all relevant steps for the same subset;
+- step-family instructions reused within one step family for that subset context;
 - reusable ruleset checks shared by all prompts for the same ruleset;
-- prompt-specific instructions for the current step;
+- step-and-subset-specific instructions for the current step;
 - the current step payload, such as shortlisted clauses, a reviewed ruleset, or a rule inventory.
 
-This matters for penalties because the penalties ruleset now runs in parallel with the two overtime rulesets, but should not inherit overtime-only framing. The reusable penalties layer carries the shared penalties scope into every relevant downstream prompt.
+This matters for penalties because the penalties ruleset now runs in parallel with the two overtime rulesets, but should not inherit overtime-only framing. The reusable subset layer carries the shared penalties scope into every relevant downstream prompt.
 
 ## Step 1. Fetch and structure the award
 
@@ -291,13 +293,13 @@ This is a presentation step. The template is not source evidence.
 
 For penalties, the formatter keeps supporting non-financial break-gap rules representable and uses penalties-specific headings instead of overtime headings.
 
-## Step 4.9. Human review ruleset
+## Step 4.9. Human review ruleset utility
 
 Files:
 - `streamlit_review/app.py`
 - `streamlit_review/output_data.py`
 
-This step is part of the active operator flow.
+This is part of the active operator flow, but not part of the default automated pipeline sequence.
 
 Purpose:
 - allow a reviewer to save a human-reviewed ruleset working file after step `4.1`;
@@ -308,7 +310,7 @@ Purpose:
 
 Files:
 - `src/step_5_1_generate_pseudocode/run.py`
-- `src/step_5_1_generate_pseudocode/verification.py`
+- `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py`
 
 Purpose:
 - generate implementation-oriented pseudocode from the latest available interpretation source for the selected ruleset;
@@ -349,7 +351,7 @@ Its role is:
 - discover existing award output sets;
 - run the active pipeline or selected steps for an award code;
 - compare intermediate and final artifacts side by side;
-- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, the step `4.1` formatted guide, the step `4.9` human-review ruleset, and step `5.1` pseudocode.
+- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, the step `4.1` formatted guide, the optional step `4.9` human-review ruleset utility, and step `5.1` pseudocode.
 
 The parked agentic review conversation is no longer part of the active Streamlit surface.
 
@@ -363,7 +365,7 @@ The easiest way to understand the system is:
 4. Step `3.1` drafts the selected ruleset.
 5. Step `3.2` critiques and revises that draft with explicit rule-level decisions.
 6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
-7. Step `4.9` allows a human-reviewed ruleset working file to be saved when needed.
+7. Optional step `4.9` allows a human-reviewed ruleset working file to be saved when needed.
 8. Step `5.1` generates implementation-oriented pseudocode from the best available reviewed artifact.
 
 So the method is not "one model reads the award and answers."

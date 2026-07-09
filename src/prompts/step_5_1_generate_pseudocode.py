@@ -16,6 +16,10 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
+from src.prompts.ruleset_subset_prompt_blocks import (
+    ruleset_prompt_family,
+    subset_shared_prompt_block,
+)
 from src.step_5_1_generate_pseudocode.schema import CoreOvertimePseudocodeError
 
 
@@ -76,6 +80,12 @@ Shared configuration approach:
 Reusable ruleset checks:
 {ruleset_question_block}
 
+Subset-wide instructions:
+{subset_shared_instructions}
+
+Step family constraints:
+{step_family_constraints}
+
 Ruleset-specific constraints:
 {ruleset_constraints}
 
@@ -85,6 +95,16 @@ Required markdown structure:
 
 {required_markdown_structure}
 """
+
+
+PSEUDOCODE_STEP_FAMILY_CONSTRAINTS = {
+    "overtime": """- Keep the pseudocode focused on the selected overtime subset rather than the entire payroll domain.
+- Where source rules mix creation and consequence concepts, keep only the part needed for the selected overtime mode.
+- Prefer explicit operational conditions and outputs over explanatory prose.""",
+    "penalties": """- Keep the pseudocode focused on penalties-domain outcomes and supporting operational conditions.
+- Preserve the distinction between whole-shift, qualifying-hours, and supporting break-gap rules when payroll would configure them separately.
+- Prefer explicit operational conditions and outputs over explanatory prose.""",
+}
 
 
 PSEUDOCODE_VARIANT_PROMPT_CONFIG = {
@@ -216,9 +236,12 @@ def _system_prompt_for_ruleset(ruleset_key: str, fields: str) -> str:
         ruleset_key,
         PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
+    family_key = ruleset_prompt_family(ruleset_key)
     return PSEUDOCODE_GENERIC_SYSTEM_PROMPT_TEMPLATE.format(
         goal=ruleset_variant["goal"],
         fields=fields,
+        subset_shared_instructions=subset_shared_prompt_block(ruleset_key),
+        step_family_constraints=PSEUDOCODE_STEP_FAMILY_CONSTRAINTS[family_key],
         ruleset_constraints=ruleset_variant["ruleset_constraints"],
         generic_prompt=GENERIC_PAYROLL_CONFIGURATION_PROMPT,
         ruleset_question_block=common_overtime_question_block(ruleset_key),

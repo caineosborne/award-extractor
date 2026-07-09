@@ -22,6 +22,10 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
+from src.prompts.ruleset_subset_prompt_blocks import (
+    ruleset_prompt_family,
+    subset_shared_prompt_block,
+)
 from src.prompts.step_2_2_classify_overtime_clauses import (
     build_clause_classification_messages,
 )
@@ -42,6 +46,17 @@ from src.common.overtime_rules import (
 
 
 CLAUSE_REFERENCE_PATTERN = re.compile(r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b", re.IGNORECASE)
+
+STEP_3_2_STEP_FAMILY_SCOPE_NOTES = {
+    "overtime": (
+        "Treat mixed overtime clauses carefully. Keep the selected subset in scope and prefer narrowing or clarifying a plausible rule rather than deleting it too aggressively.",
+        "Where a clause contains both creation and consequence language, review whether the current draft kept the right operative part for the selected overtime subset.",
+    ),
+    "penalties": (
+        "Keep direct premium rules and supporting break-gap rules separate when reviewing this subset.",
+        "Where a clause mixes penalties with overtime context, keep the penalties-domain outcome and remove overtime drift unless it is genuinely necessary to explain the penalties rule.",
+    ),
+}
 
 
 def build_step_3_2_creator_prompt_context(
@@ -454,6 +469,12 @@ def build_step_3_2_evaluator_user_prompt(
         subset_scope_notes = "\n".join(
             f"- {scope_note}" for scope_note in config.subset_scope_notes
         )
+    family_scope_notes = "\n".join(
+        f"- {scope_note}"
+        for scope_note in STEP_3_2_STEP_FAMILY_SCOPE_NOTES[
+            ruleset_prompt_family(ruleset_key)
+        ]
+    )
     ruleset_question_block = common_overtime_question_block(ruleset_key)
 
     return f"""Review this {config.display_name.lower()} working document.
@@ -471,10 +492,16 @@ Key review question - these are very common clauses which are present in many aw
 Shared configuration approach:
 {GENERIC_PAYROLL_CONFIGURATION_PROMPT}
 
+Subset-wide instructions:
+{subset_shared_prompt_block(ruleset_key)}
+
+Step 3.2 family instructions:
+{family_scope_notes}
+
 Reusable ruleset checks:
 {ruleset_question_block}
 
-Subset-specific scope notes:
+Step 3.2 subset-specific scope notes:
 {subset_scope_notes or "- No extra subset-specific scope note was defined."}
 
 Check:
@@ -548,6 +575,12 @@ Prior creator decision record:
         subset_scope_notes = "\n".join(
             f"- {scope_note}" for scope_note in config.subset_scope_notes
         )
+    family_scope_notes = "\n".join(
+        f"- {scope_note}"
+        for scope_note in STEP_3_2_STEP_FAMILY_SCOPE_NOTES[
+            ruleset_prompt_family(ruleset_key)
+        ]
+    )
     ruleset_question_block = common_overtime_question_block(ruleset_key)
 
     return f""" You have had the work of a colleague subsitted to a evaulator, who has reviewed the work against the source files to ensure the information produced aligns to the source material. 
@@ -565,10 +598,16 @@ Keep the revised ruleset simple. Include only rules that answer this question:
 Shared configuration approach:
 {GENERIC_PAYROLL_CONFIGURATION_PROMPT}
 
+Subset-wide instructions:
+{subset_shared_prompt_block(ruleset_key)}
+
+Step 3.2 family instructions:
+{family_scope_notes}
+
 Reusable ruleset checks:
 {ruleset_question_block}
 
-Subset-specific scope notes:
+Step 3.2 subset-specific scope notes:
 {subset_scope_notes or "- No extra subset-specific scope note was defined."}
 
 Apply accepted feedback about both:

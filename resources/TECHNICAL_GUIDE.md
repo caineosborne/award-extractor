@@ -25,8 +25,10 @@ Active default pipeline:
 - Step `3.1`
 - Step `3.2`
 - Step `4.1`
-- Step `4.9`
 - Step `5.1`
+
+Optional review utility between step `4.1` and step `5.1`:
+- Step `4.9`
 
 Primary orchestrator:
 - `src/award_pipeline.py`
@@ -52,9 +54,9 @@ Primary shared helpers:
 | 3.1 | `src/step_3_1_generate_ruleset/run.py` | Yes | Expert rule-set JSON/MD and comparison JSON |
 | 3.2 | `src/step_3_2_review_ruleset/run.py` | Yes | Evaluator feedback JSON/MD, creator response JSON/MD, revised interpretation JSON/MD |
 | 4.1 | `src/step_4_1_format_ruleset/run.py` | Yes | Formatted ruleset guide MD |
-| 4.9 | `streamlit_review/app.py`, `streamlit_review/output_data.py` | No | Human-reviewed ruleset MD |
+| 4.9 | `streamlit_review/app.py`, `streamlit_review/output_data.py` | No | Optional human-reviewed ruleset MD |
 | 5.1 | `src/step_5_1_generate_pseudocode/run.py` | Yes | Pseudocode MD |
-| 5.1 validation | `src/step_5_1_generate_pseudocode/verification.py` | No | Validation JSON/MD |
+| 5.1 validation | `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py` | No | Validation JSON/MD |
 
 ## Prompt Construction Pattern
 
@@ -72,10 +74,10 @@ Use this legend when reading the tables below:
 | --- | --- | --- | --- |
 | System prompt | step prompt module | That step's LLM call | Usually one Step or one Ruleset |
 | `GENERIC_PAYROLL_CONFIGURATION_PROMPT` | `src/prompts/overtime_common_prompt_blocks.py` | Steps `2.2`, `3.1`, `3.2`, `4.1`, `5.1` | All prompt steps |
-| Step-specific generic ruleset language | step prompt module or shared step file | That step's LLM call | All runs within one step |
-| `topic_language` | step prompt module or shared step file | Step `2.2` and Step `3.1` | All runs for one Ruleset |
+| Subset-wide instructions | `src/prompts/ruleset_subset_prompt_blocks.py` | Steps `2.2`, `3.1`, `3.2`, `4.1`, `5.1` | All runs for one subset |
+| Step-family instructions | step prompt module or shared step file | That step family | All runs within one step family for the same subset context |
 | `ruleset_question_block` | `src/prompts/overtime_common_prompt_blocks.py` | Steps `2.2`, `3.1`, `3.2`, `4.1`, `5.1` | All runs for one Ruleset |
-| Ruleset-specific instructions | step prompt module | That step's LLM call | All runs for one Ruleset |
+| Step-and-subset-specific instructions | step prompt module | That step's LLM call | All runs for one ruleset in one step |
 | Working paper / reviewed content | runtime builder in the step prompt module | That specific call | One specific run |
 | Output contract / required markdown structure | step prompt module | That step's LLM call | All runs within one step |
 
@@ -83,19 +85,20 @@ Use this legend when reading the tables below:
 
 | Step | Script or module that calls the prompt | Prompt modules used | What is injected |
 | --- | --- | --- | --- |
-| 2.2 | `src/step_2_2_classify_overtime_clauses/run.py` and `src/step_2_2_classify_overtime_clauses/llm.py` | `src/prompts/step_2_2_classify_overtime_clauses.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_2_1_classify_payments.py`, `src/prompts/shared_overtime_clause_classification.py` | System prompt, generic payroll configuration, shared glossary, Step 2.2 ruleset language, ruleset question block, ruleset-specific instructions, clause payload, output contract |
-| 3.1 | `src/step_3_1_generate_ruleset/run.py` and `src/step_3_1_generate_ruleset/llm.py` | `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_3_1_shared.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, shared interpretation language, Step 3.1 ruleset language, ruleset question block, ruleset-specific system and user instructions, working paper content |
-| 3.2 | `src/step_3_2_review_ruleset/run.py` and `src/step_3_2_review_ruleset/llm.py` | `src/prompts/step_3_2_review_ruleset.py`, `src/prompts/step_3_2_prompt_config.py`, `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_2_2_classify_overtime_clauses.py`, `src/prompts/overtime_common_prompt_blocks.py` | Review prompt, generic payroll configuration, ruleset question block, subset scope notes, Step 2.1 and Step 2.2 context, canonical Step 3.1 output, evaluator feedback, creator revision instructions |
-| 4.1 | `src/step_4_1_format_ruleset/run.py` and `src/step_4_1_format_ruleset/llm.py` | `src/prompts/step_4_1_format_ruleset.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, template markdown, reviewed ruleset markdown, ruleset question block, subset-specific formatting instructions |
-| 5.1 | `src/step_5_1_generate_pseudocode/run.py` and `src/step_5_1_generate_pseudocode/llm.py` | `src/prompts/step_5_1_generate_pseudocode.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/common/rule_inventory.py` | System prompt template, generic payroll configuration, ruleset question block, ruleset-specific goal and constraints, required markdown structure, rule inventory, reviewed ruleset markdown |
+| 2.2 | `src/step_2_2_classify_overtime_clauses/run.py` and `src/step_2_2_classify_overtime_clauses/step_3_run_llm.py` | `src/prompts/step_2_2_classify_overtime_clauses.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_2_1_classify_payments.py`, `src/prompts/shared_overtime_clause_classification.py` | System prompt, generic payroll configuration, shared glossary, subset-wide instructions, Step 2.2 family instructions, ruleset question block, Step 2.2 subset instructions, clause payload, output contract |
+| 3.1 | `src/step_3_1_generate_ruleset/run.py` and `src/step_3_1_generate_ruleset/step_2_generate_expert_rules.py` | `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_3_1_shared.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, shared interpretation language, subset-wide instructions, Step 3.1 family instructions, ruleset question block, Step 3.1 subset instructions, working paper content |
+| 3.2 | `src/step_3_2_review_ruleset/run.py`, `src/step_3_2_review_ruleset/step_2_run_reviewer.py`, `src/step_3_2_review_ruleset/step_3_run_creator.py` | `src/prompts/step_3_2_review_ruleset.py`, `src/prompts/step_3_2_prompt_config.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_2_2_classify_overtime_clauses.py` | Review prompt, generic payroll configuration, subset-wide instructions, Step 3.2 family instructions, ruleset question block, Step 3.2 subset scope notes, Step 2.1 and Step 2.2 context, canonical Step 3.1 output, evaluator feedback, creator revision instructions |
+| 4.1 | `src/step_4_1_format_ruleset/run.py` and `src/step_4_1_format_ruleset/step_2_format_ruleset.py` | `src/prompts/step_4_1_format_ruleset.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, subset-wide instructions, Step 4.1 family instructions, template markdown, reviewed ruleset markdown, ruleset question block, Step 4.1 subset formatting instructions |
+| 5.1 | `src/step_5_1_generate_pseudocode/run.py` and `src/step_5_1_generate_pseudocode/step_2_generate_pseudocode.py` | `src/prompts/step_5_1_generate_pseudocode.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/common/rule_inventory.py` | System prompt template, generic payroll configuration, subset-wide instructions, Step 5.1 family constraints, ruleset question block, Step 5.1 subset goal and constraints, required markdown structure, rule inventory, reviewed ruleset markdown |
 
 ### Practical Reading Guide
 
 If you want to understand whether a prompt fragment is:
 - generic for the whole pipeline, check `GENERIC_PAYROLL_CONFIGURATION_PROMPT`;
-- generic for one step, check the step's shared language block such as `STEP_3_1_GENERIC_RULESET_LANGUAGE`;
-- shared across all runs for one ruleset, check `topic_language` and `ruleset_question_block`;
-- specific to one ruleset, check the variant instruction dictionaries in the step prompt module;
+- shared across all relevant steps for one subset, check `src/prompts/ruleset_subset_prompt_blocks.py`;
+- generic for one step family, check the step's shared language block such as `STEP_3_1_GENERIC_RULESET_LANGUAGE` or the step-family instruction block inside the step prompt module;
+- shared across all runs for one ruleset, check `ruleset_question_block`;
+- specific to one step and one ruleset, check the variant instruction dictionaries in the step prompt module;
 - specific to one invocation, check the runtime content builder such as `working_paper_input`, `interpretation_markdown`, or `template_markdown`.
 
 This is the main mechanism that keeps penalties prompt content parallel to the overtime rulesets while preventing silent fallback to overtime semantics.
@@ -105,12 +108,12 @@ This is the main mechanism that keeps penalties prompt content parallel to the o
 Use these terms consistently in the guide:
 - `Step`: the pipeline stage, such as `2.2`, `3.1`, `3.2`, `4.1`, or `5.1`.
 - `Ruleset`: the top-level family, such as `overtime_creation`, `overtime_consequence`, or `penalties`.
-- `Subset`: the narrower prompt mode inside a ruleset, such as `creation` or `consequence` for overtime, or `penalties` for the penalties ruleset.
+- `Subset`: the business subset carried through the prompt layer and downstream ruleset flow, such as `overtime_creation`, `overtime_consequence`, or `penalties`.
 
-Use these step/ruleset/subset combinations:
-- `Overtime / Creation`
-- `Overtime / Consequences`
-- `Penalties / Penalties`
+Use these subset labels:
+- `overtime_creation`
+- `overtime_consequence`
+- `penalties`
 
 Use these applicability phrases:
 - `Run for every step`: shared across all active steps, regardless of step, ruleset, or subset.
@@ -367,7 +370,7 @@ Purpose:
 - validate the generated pseudocode deterministically against a rule inventory built from the source interpretation.
 
 Validation files:
-- `src/step_5_1_generate_pseudocode/verification.py`
+- `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py`
 
 Ruleset-specific mode handling:
 - `overtime_creation` classifies ordinary versus overtime hours;

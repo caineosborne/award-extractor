@@ -18,6 +18,10 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
+from src.prompts.ruleset_subset_prompt_blocks import (
+    ruleset_prompt_family,
+    subset_shared_prompt_block,
+)
 
 
 FORMAT_RULESET_GENERIC_SYSTEM_PROMPT = f"""You convert a reviewed payroll ruleset into a polished
@@ -160,6 +164,18 @@ Additional rules:
 }
 
 
+FORMAT_RULESET_STEP_FAMILY_INSTRUCTIONS = {
+    "overtime": """Step 4.1 family instructions for overtime subsets:
+- Keep the guide operational and audit-friendly.
+- Preserve concrete thresholds, clause references, scope limits, and exceptions in the bullet text itself.
+- Do not rewrite the formatted guide into a calculator outcome document or a high-level summary.""",
+    "penalties": """Step 4.1 family instructions for penalties subsets:
+- Keep the guide operational and audit-friendly.
+- Preserve concrete multipliers, fixed add-ons, qualifying tests, scope limits, and clause references in the bullet text itself.
+- Do not rewrite the formatted guide into a high-level narrative or into overtime-only commentary.""",
+}
+
+
 def build_messages(
     interpretation_path: Path | str,
     interpretation_markdown: str,
@@ -168,6 +184,7 @@ def build_messages(
     ruleset_key: str,
 ) -> list[dict[str, str]]:
     config = overtime_ruleset_config(ruleset_key)
+    family_key = ruleset_prompt_family(ruleset_key)
     user_prompt = f"""Format the supplied reviewed {config.display_name.lower()} into the required heading structure.
 
 Reviewed ruleset source: {interpretation_path}
@@ -184,13 +201,21 @@ Reusable ruleset checks:
 
 {common_overtime_question_block(ruleset_key)}
 
+Subset-wide instructions:
+
+{subset_shared_prompt_block(ruleset_key)}
+
+Step 4.1 family instructions:
+
+{FORMAT_RULESET_STEP_FAMILY_INSTRUCTIONS[family_key]}
+
 Reviewed ruleset:
 
 ```markdown
 {interpretation_markdown}
 ```
 
-Subset-specific instructions:
+Step 4.1 subset-specific instructions:
 
 {FORMAT_RULESET_VARIANT_INSTRUCTIONS[ruleset_key]}
 """

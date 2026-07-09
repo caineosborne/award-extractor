@@ -22,6 +22,10 @@ from src.prompts.overtime_common_prompt_blocks import (
     GENERIC_PAYROLL_CONFIGURATION_PROMPT,
     common_overtime_question_block,
 )
+from src.prompts.ruleset_subset_prompt_blocks import (
+    ruleset_prompt_family,
+    subset_shared_prompt_block,
+)
 from src.common.overtime_clause_classification import OvertimeClauseClassification
 
 
@@ -71,7 +75,7 @@ GENERATE_RULESET_VARIANT_SYSTEM_PROMPTS = {
 }
 
 
-GENERATE_RULESET_VARIANT_USER_PROMPTS = {
+GENERATE_RULESET_STEP_SUBSET_USER_PROMPTS = {
     OVERTIME_CREATION_RULESET: """Source classification file: {source_file}
 
 The clauses below have already been identified as relevant to determining when overtime is created.
@@ -211,8 +215,9 @@ Important:
 
 def _build_generate_ruleset_user_prompt(
     *,
-    variant_prompt: str,
-    topic_language: str,
+    step_subset_prompt: str,
+    subset_shared_instructions: str,
+    step_family_instructions: str,
     ruleset_question_block: str,
     working_paper_input: str,
 ) -> str:
@@ -220,11 +225,12 @@ def _build_generate_ruleset_user_prompt(
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
-        f"{topic_language}\n\n"
+        f"{subset_shared_instructions}\n\n"
+        f"{step_family_instructions}\n\n"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
-        "Prompt-specific ruleset instructions:\n\n"
-        f"{variant_prompt}\n\n"
+        "Step 3.1 subset-specific instructions:\n\n"
+        f"{step_subset_prompt}\n\n"
         "Clauses:\n\n"
         f"{working_paper_input}"
     )
@@ -271,6 +277,7 @@ def build_interpretation_messages(
     overtime_creation_clauses: Sequence[OvertimeClauseClassification],
 ) -> list[dict[str, str]]:
     """Build the prompt messages for the structured ruleset draft."""
+    family_key = ruleset_prompt_family(ruleset_key)
     return [
         {
             "role": "system",
@@ -279,13 +286,16 @@ def build_interpretation_messages(
         {
             "role": "user",
             "content": _build_generate_ruleset_user_prompt(
-                variant_prompt=GENERATE_RULESET_VARIANT_USER_PROMPTS[ruleset_key].format(
+                step_subset_prompt=GENERATE_RULESET_STEP_SUBSET_USER_PROMPTS[
+                    ruleset_key
+                ].format(
                     source_file=source_file,
                     working_paper_input="{working_paper_input}",
                 ),
-                topic_language=(
+                subset_shared_instructions=subset_shared_prompt_block(ruleset_key),
+                step_family_instructions=(
                     STEP_3_1_PENALTIES_RULESET_TOPIC_LANGUAGE
-                    if ruleset_key == PENALTIES_RULESET
+                    if family_key == "penalties"
                     else STEP_3_1_OVERTIME_RULESET_TOPIC_LANGUAGE
                 ),
                 ruleset_question_block=common_overtime_question_block(ruleset_key),
@@ -327,6 +337,16 @@ def build_expert_comparison_messages(
     variant_system_instructions = ""
     variant_user_instructions = ""
     ruleset_question_block = common_overtime_question_block(ruleset_key)
+    subset_shared_instructions = subset_shared_prompt_block(ruleset_key)
+    family_key = ruleset_prompt_family(ruleset_key)
+    step_family_merge_instructions = (
+        "Step 3.1 family merge instructions for penalties:\n\n"
+        "Preserve supporting operational penalties rules as well as direct premium rules.\n"
+        "Keep separate rule shapes where payroll would configure them separately.\n\n"
+        if family_key == "penalties"
+        else "Step 3.1 family merge instructions for overtime subsets:\n\n"
+        "Preserve distinct overtime rules where the operational test or outcome is materially different.\n\n"
+    )
 
     if ruleset_key == OVERTIME_CONSEQUENCE_RULESET:
         variant_system_instructions = (
@@ -364,9 +384,11 @@ def build_expert_comparison_messages(
         "Your role is to reconcile Expert A and Expert B, not to perform a fresh extraction.\n\n"
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
+        f"{subset_shared_instructions}\n\n"
+        f"{step_family_merge_instructions}"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
-        "Prompt-specific merge instructions:\n\n"
+        "Step 3.1 subset-specific merge instructions:\n\n"
         "Preserve the business meaning of the rules. Do not drop a rule merely because "
         "it is named differently. Treat the same rule with different wording as a merge "
         "candidate. If one run split a rule and the other combined it, prefer preserving "
