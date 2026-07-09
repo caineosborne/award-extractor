@@ -247,6 +247,8 @@ def load_overtime_rules(source_path: Path | str) -> dict[str, Any]:
     """Load the reviewed ruleset artifact, falling back to markdown parsing when needed."""
     path = select_overtime_interpretation_path(source_path)
     json_path = json_output_path_for_markdown(path)
+    markdown_text = load_overtime_interpretation(path)
+
     if not json_path.exists():
         markdown_text = load_overtime_interpretation(path)
         return {
@@ -260,9 +262,11 @@ def load_overtime_rules(source_path: Path | str) -> dict[str, Any]:
             expected_schema_version=OVERTIME_RULE_SCHEMA_VERSION,
         )
     except ValueError as exc:
-        raise CoreOvertimePseudocodeError(
-            f"Overtime interpretation rules JSON is invalid: {json_path}"
-        ) from exc
+        return {
+            "schema_version": OVERTIME_RULE_SCHEMA_VERSION,
+            "rendered_markdown": markdown_text,
+            "rules": rules_from_markdown_fallback(markdown_text, source_path=path),
+        }
 
 
 def resolve_generation_inputs(

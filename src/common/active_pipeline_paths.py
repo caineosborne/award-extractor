@@ -132,21 +132,7 @@ def resolve_overtime_clause_classification_path(
 ) -> Path:
     """Resolve the step-3 clause classification path for review steps."""
     if overtime_clause_classification_path:
-        selected_path = Path(overtime_clause_classification_path)
-        if selected_path.exists():
-            return selected_path
-
-        canonical_path = overtime_clause_classification_output_path_for_classification(
-            classification_path
-        )
-        legacy_overtime_filenames = {
-            "2_2_OT_creation_clause_classification.json",
-            "2_2_OT_consequence_clause_classification.json",
-        }
-        if selected_path.name in legacy_overtime_filenames and canonical_path.exists():
-            return canonical_path
-
-        return selected_path
+        return Path(overtime_clause_classification_path)
     del interpretation_path
     return overtime_clause_classification_output_path_for_classification(
         classification_path

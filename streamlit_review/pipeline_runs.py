@@ -398,6 +398,7 @@ def run_pipeline_for_award(
     error_buffer = StringIO()
     started_at = time.perf_counter()
     active_step: PipelinePlannedStep | None = None
+    pipeline_warnings: list[str] = []
 
     output_writer: Any = output_buffer
     error_writer: Any = error_buffer
@@ -453,6 +454,7 @@ def run_pipeline_for_award(
                             summarize_overtime_entitlements(
                                 interpretation_path=ruleset_artifacts.revised_markdown,
                                 output_path=ruleset_artifacts.formatted_markdown,
+                                validation_warnings_output=pipeline_warnings,
                             )
                             print(
                                 "Formatted overtime guide saved to "
@@ -462,6 +464,7 @@ def run_pipeline_for_award(
                         summarize_overtime_entitlements(
                             interpretation_path=artifact_paths.revised_overtime_interpretation,
                             output_path=artifact_paths.overtime_entitlements,
+                            validation_warnings_output=pipeline_warnings,
                         )
                         print(
                             "Formatted overtime guide saved to "
@@ -598,6 +601,7 @@ def run_pipeline_for_award(
         "validation_summary": validation_summary,
         "completed_steps": len(planned_steps),
         "total_steps": len(planned_steps),
+        "warnings": pipeline_warnings,
     }
 
 

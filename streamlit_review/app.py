@@ -51,7 +51,6 @@ from src.step_1_2_parse_award.run import (
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
 from src.step_6_1_generate_calculator_yaml.core import (
-    known_rule_ids_by_ruleset,
     normalize_response_data,
     write_python_output,
 )
@@ -112,6 +111,12 @@ RULESET_OPTIONS = {
     "Overtime consequence": OVERTIME_CONSEQUENCE_RULESET,
     "Penalties": PENALTIES_RULESET,
 }
+
+RULESET_SEQUENCE = (
+    OVERTIME_CREATION_RULESET,
+    OVERTIME_CONSEQUENCE_RULESET,
+    PENALTIES_RULESET,
+)
 
 STEP3_RUN_RULESET_OPTIONS = {
     "Overtime creation": OVERTIME_CREATION_RULESET,
@@ -1379,10 +1384,21 @@ def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key:
         award_code_for_artifact_paths(artifact_paths),
         ruleset_key,
     )
+    formatted_json_path = ruleset_artifacts.formatted_markdown.with_name(
+        f"{ruleset_artifacts.formatted_markdown.stem}_metadata.json"
+    )
+    formatted_data = load_optional_json_file(formatted_json_path) or {}
+    validation_warnings = formatted_data.get("validation_warnings", [])
+
     render_markdown_file(
         ruleset_artifacts.formatted_markdown,
         source_path=ruleset_artifacts.revised_markdown,
     )
+
+    if isinstance(validation_warnings, list) and validation_warnings:
+        with st.expander("Formatting warnings", expanded=True):
+            for warning in validation_warnings:
+                st.write(f"- {warning}")
 
 
 def render_manual_ruleset_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
@@ -1587,6 +1603,13 @@ def render_calculator_questionnaire_screen(
     )
 
     st.subheader("Overtime")
+    st.caption(
+        "If two-tier overtime applies on a listed day, the calculator uses the standard "
+        "overtime rate up to the threshold and the extended overtime rate only after "
+        "overtime hours are greater than the threshold. On those listed days, Saturday "
+        "and Sunday overtime multipliers do not control overtime-rate selection, but "
+        "weekend penalty logic remains separate."
+    )
     updated_answers[("overtime", "standard_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="overtime",
@@ -1612,8 +1635,16 @@ def render_calculator_questionnaire_screen(
         questionnaire_answers,
         section_name="overtime",
         question_name="higher_overtime_starts_after_hours",
-        label="If yes, after how many overtime hours does it switch?",
+        label="If yes, after how many overtime hours does it switch? (The extended rate starts only when overtime hours are greater than this threshold, not when they are equal to it.)",
         widget_key=f"{editor_key}_ot_threshold",
+    )
+    updated_answers[("overtime", "extended_overtime_days")] = render_calculator_question_json(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="extended_overtime_days",
+        label='If yes, which named days use the extended overtime structure? Enter a JSON list such as ["Monday", "Tuesday"]. Include Saturday or Sunday only when the two-tier overtime rule overrides the weekend overtime multipliers on those days.',
+        widget_key=f"{editor_key}_ot_extended_days",
+        height=120,
     )
     updated_answers[("overtime", "saturday_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
@@ -1853,7 +1884,6 @@ def rebuild_calculator_python_from_questionnaire(
         normalized_data = normalize_response_data(
             questionnaire_data,
             award_code=award_code,
-            known_rule_ids=known_rule_ids_by_ruleset(inputs),
         )
     except Exception as exc:
         action = "saved" if save_questionnaire else "rebuilt"
@@ -2843,7 +2873,13 @@ def render_panel_heading(
 ) -> None:
     st.markdown(f"### {heading}")
 
-    previous_column, next_column, layout_column, button_column = st.columns(4)
+    supports_ruleset_cycle = ruleset_key in RULESET_SEQUENCE
+    if supports_ruleset_cycle:
+        previous_column, next_column, subset_column, layout_column, button_column = st.columns(
+            5
+        )
+    else:
+        previous_column, next_column, layout_column, button_column = st.columns(4)
 
     with previous_column:
         st.button(
@@ -2862,6 +2898,19 @@ def render_panel_heading(
             args=(panel_key, 1),
             use_container_width=True,
         )
+
+    if supports_ruleset_cycle:
+        with subset_column:
+            next_ruleset = next_ruleset_key(ruleset_key)
+            next_ruleset_label = RULESET_OPTIONS_BY_KEY[next_ruleset]
+            if st.button(
+                f"Next subset: {next_ruleset_label}",
+                key=f"{panel_key}_ruleset_next",
+                on_click=move_ruleset_selection,
+                args=(next_ruleset,),
+                use_container_width=True,
+            ):
+                pass
 
     with layout_column:
         if st.session_state.get("layout_mode") == "Side by side":
@@ -2896,6 +2945,25 @@ def move_screen_selection(panel_key: str, direction: int) -> None:
 
     st.session_state[panel_key] = SCREEN_OPTIONS[updated_index]
     sync_layout_widgets_from_state()
+
+
+RULESET_OPTIONS_BY_KEY = {
+    value: key for key, value in RULESET_OPTIONS.items()
+}
+
+
+def next_ruleset_key(current_ruleset_key: str) -> str:
+    current_index = RULESET_SEQUENCE.index(current_ruleset_key)
+    next_index_value = current_index + 1
+    if next_index_value >= len(RULESET_SEQUENCE):
+        return RULESET_SEQUENCE[0]
+    return RULESET_SEQUENCE[next_index_value]
+
+
+def move_ruleset_selection(next_ruleset_key_value: str) -> None:
+    next_ruleset_label = RULESET_OPTIONS_BY_KEY[next_ruleset_key_value]
+    st.session_state["step3_ruleset"] = next_ruleset_key_value
+    st.session_state["step3_ruleset_label"] = next_ruleset_label
 
 
 def expand_panel_to_single_view(panel_key: str) -> None:
@@ -3222,6 +3290,12 @@ def render_pipeline_run_status(
             progress_caption += f" Current step: {current_step_label}."
         st.caption(progress_caption)
 
+    warnings = current_status.get("warnings", [])
+    if isinstance(warnings, list) and warnings:
+        with st.expander("Pipeline warnings", expanded=True):
+            for warning in warnings:
+                st.write(f"- {warning}")
+
     if state in {"starting", "running"}:
         st.caption(
             "This run is continuing in the background. This panel refreshes automatically every 5 seconds."
@@ -3349,6 +3423,7 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
     output_buffer = StringIO()
     error_buffer = StringIO()
     started_at = time.perf_counter()
+    pipeline_warnings: list[str] = []
 
     try:
         with redirect_stdout(output_buffer), redirect_stderr(error_buffer):
@@ -3365,6 +3440,7 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
                 summarize_overtime_entitlements(
                     interpretation_path=artifact_paths.revised_overtime_interpretation,
                     output_path=artifact_paths.overtime_entitlements,
+                    validation_warnings_output=pipeline_warnings,
                 )
                 print(
                     f"Formatted overtime guide saved to {artifact_paths.overtime_entitlements}"
@@ -3395,6 +3471,7 @@ def run_pipeline_for_award(award_code: str, step: str | None) -> dict[str, Any]:
         "duration_seconds": time.perf_counter() - started_at,
         "log": combine_pipeline_logs(output_buffer.getvalue(), error_buffer.getvalue()),
         "validation_summary": load_5b_validation_summary(paths, step),
+        "warnings": pipeline_warnings,
     }
 
 

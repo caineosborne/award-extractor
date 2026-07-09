@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -25,6 +26,7 @@ from src.step_5_1_generate_pseudocode.schema import (
 from src.step_5_1_generate_pseudocode.step_1_load_inputs import (
     default_overtime_interpretation_path,
     load_overtime_interpretation,
+    load_overtime_rules,
     select_overtime_interpretation_path,
 )
 from src.common.overtime_rulesets import OVERTIME_CONSEQUENCE_RULESET, PENALTIES_RULESET
@@ -115,6 +117,33 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
             ),
             Path("data/processed/MA000018/5_1_Penalties_pseudocode.md"),
         )
+
+    def test_load_overtime_rules_falls_back_when_neighbor_json_is_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            formatted_markdown_path = temp_path / "4_1_OT_creation_formatted_ruleset.md"
+            formatted_markdown_path.write_text(
+                "# Overtime Triggers\n\n"
+                "## All Employees\n"
+                "- Ordinary hours under clause 22.1 may be worked as eight hours on a day shift or 10 hours on a night shift. [22.1(c)]\n",
+                encoding="utf-8",
+            )
+            formatted_json_path = formatted_markdown_path.with_suffix(".json")
+            formatted_json_path.write_text(
+                json.dumps(
+                    {
+                        "rendered_markdown": "# Overtime Triggers",
+                        "validation_warnings": ["warning only"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            rules_artifact = load_overtime_rules(formatted_markdown_path)
+
+        self.assertEqual(rules_artifact["schema_version"], "overtime-rules-v1")
+        self.assertIn("eight hours on a day shift", rules_artifact["rendered_markdown"])
+        self.assertGreaterEqual(len(rules_artifact["rules"]), 1)
         self.assertEqual(
             core_overtime_pseudocode_path_for_interpretation(
                 Path("data/processed/MA000018/4_1_Penalties_formatted_ruleset.md")
@@ -183,6 +212,14 @@ class CoreOvertimePseudocodeTests(unittest.TestCase):
         self.assertIn("explicit data points, conditions, and outputs", messages[0]["content"])
         self.assertIn(
             "Is overtime created by working outside a defined span of hours?",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "What is the maximum amount of hours workable in a day before hours become overtime?",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "What is the allowed span of hours within which ordinary hours may be worked before hours become overtime?",
             messages[0]["content"],
         )
         self.assertIn("day workers and shift workers", messages[0]["content"])

@@ -1,6 +1,9 @@
 from pathlib import Path
 
-from src.common.rule_inventory import parse_rule_inventory_from_markdown
+from src.common.rule_inventory import (
+    extract_clause_references,
+    parse_rule_inventory_from_markdown,
+)
 from src.step_5_1_generate_pseudocode.step_3_validate_pseudocode import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
@@ -155,6 +158,27 @@ None
 
     assert report.overall_status == "passed"
     assert report.passed_rule_count == 1
+
+
+def test_extract_clause_references_supports_step_5_1_inline_comment_style():
+    rule_text = (
+        "- **Emergency roster change outside employer control** "
+        "`// 21.7(b)(ii), 21.7(b)(iv), 10.4(d)(iii), 10.4(d)(iv), 23.2(c)`"
+    )
+
+    assert extract_clause_references(rule_text) == (
+        "21.7(b)(ii)",
+        "21.7(b)(iv)",
+        "10.4(d)(iii)",
+        "10.4(d)(iv)",
+        "23.2(c)",
+    )
+
+
+def test_extract_clause_references_does_not_treat_plain_times_as_clause_references():
+    rule_text = "- Treat ordinary hours as Monday-Friday within 6:00 am to 6:30 pm."
+
+    assert extract_clause_references(rule_text) == ()
 
 
 def test_validate_overtime_pseudocode_treats_explicit_exclusion_as_unresolved():

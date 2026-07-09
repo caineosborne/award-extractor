@@ -1516,7 +1516,12 @@ def test_run_pipeline_for_award_calls_step_4_formatter(monkeypatch):
         calls.append(("artifact_paths_for_award", award_code))
         return artifact_paths
 
-    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+    def fake_summarize_overtime_entitlements(
+        *,
+        interpretation_path,
+        output_path,
+        validation_warnings_output=None,
+    ) -> None:
         calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
         print("step 4 output")
 
@@ -1666,7 +1671,12 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
         calls.append(("run_selected_step", paths, step, ruleset_keys))
         print(f"output from {step}")
 
-    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+    def fake_summarize_overtime_entitlements(
+        *,
+        interpretation_path,
+        output_path,
+        validation_warnings_output=None,
+    ) -> None:
         calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
         print("output from 4")
 
@@ -1802,7 +1812,12 @@ def test_background_run_pipeline_uses_selected_ruleset_for_full_ruleset_run(
         kwargs["revised_output_path"].parent.mkdir(parents=True, exist_ok=True)
         kwargs["revised_output_path"].write_text("# Revised", encoding="utf-8")
 
-    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+    def fake_summarize_overtime_entitlements(
+        *,
+        interpretation_path,
+        output_path,
+        validation_warnings_output=None,
+    ) -> None:
         calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
         output_path.write_text("# Formatted", encoding="utf-8")
 
@@ -1998,7 +2013,12 @@ def test_background_run_pipeline_uses_both_selected_rulesets_for_full_ruleset_ru
         kwargs["revised_output_path"].parent.mkdir(parents=True, exist_ok=True)
         kwargs["revised_output_path"].write_text("# Revised", encoding="utf-8")
 
-    def fake_summarize_overtime_entitlements(*, interpretation_path, output_path) -> None:
+    def fake_summarize_overtime_entitlements(
+        *,
+        interpretation_path,
+        output_path,
+        validation_warnings_output=None,
+    ) -> None:
         calls.append(("summarize_overtime_entitlements", interpretation_path, output_path))
         output_path.write_text("# Formatted", encoding="utf-8")
 

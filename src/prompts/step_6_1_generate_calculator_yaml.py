@@ -53,7 +53,11 @@ Important:
 
 Business interpretation rules:
 - For core-hours limits, separate day workers and shift workers where the source supports that distinction.
-- For two-tier overtime, answer whether there is a standard higher overtime tier, the higher multiplier, and the threshold in hours.
+- For two-tier overtime, answer whether there is a standard higher overtime tier, the higher multiplier, the threshold in hours, and which named days use the extended overtime structure.
+- `extended_overtime_days` must list the exact day names where the standard overtime rate applies up to the threshold and the extended overtime rate applies only after the threshold.
+- On a day listed in `extended_overtime_days`, if `has_two_tier_overtime` is true, weekend overtime multipliers such as Saturday or Sunday overtime do not control overtime-rate selection for that day.
+- That override is limited to overtime-rate selection. Weekend penalty logic is separate.
+- The extended overtime rate starts only when overtime hours are greater than the threshold, not when they are equal to the threshold.
 - For overtime multipliers, return the total paid rate, not the loading above base. Example: return `1.5` for 150% and `2.0` for 200%.
 - For span overtime, answer only for day workers. If the award has a more complex span than one live cutoff, choose the best single live cutoff and explain the limitation in `special_case_notes`.
 - For weekend treatment, answer whether weekend hours are overtime or penalty-based for each worker group and weekend day.
@@ -86,7 +90,7 @@ Weekday penalty rule requirements:
 - If a penalty cannot be expressed with numeric windows, omit it from the live list and explain it in `other_penalty_notes` or `special_case_notes`.
 
 Evidence rules:
-- `source_rule_ids` must exactly match supplied `rule_id` values.
+- `source_rule_ids` are optional evidence breadcrumbs only. Include them when helpful, but do not block an answer on exact rule-id matching.
 - `source_ruleset_keys` should use `overtime_creation`, `overtime_consequence`, and `penalties`.
 - `reasoning_summary` should briefly explain how the answer was derived.
 - `special_case_notes` should record anything important that does not fit the live calculator field cleanly.

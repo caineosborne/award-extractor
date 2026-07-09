@@ -321,6 +321,20 @@ This step mixes free-text generation with hard deterministic post-generation che
 
 For penalties, the pseudocode is not an ordinary-versus-overtime classifier. It instead produces explicit penalty-oriented outputs such as penalty category, multiplier, fixed add-on, whole-shift application, and supporting break-gap requirements where the reviewed rules support them.
 
+## Step 6.1. Calculator questionnaire and Python draft
+
+Files:
+- `src/step_6_1_generate_calculator_yaml/run.py`
+- `src/step_6_1_generate_calculator_yaml/core.py`
+- `src/prompts/step_6_1_generate_calculator_yaml.py`
+
+Purpose:
+- combine the reviewed step `3.2` JSON rulesets for overtime creation, overtime consequence, and penalties;
+- answer a fixed calculator questionnaire with evidence fields;
+- generate a calculator Python draft from that questionnaire.
+
+This is the first calculator-facing output layer. Its prompt and data shape are expected to change as the calculator contract becomes clearer.
+
 ## Technical detail boundary
 
 This methodology document deliberately stops short of:
@@ -351,9 +365,7 @@ Its role is:
 - discover existing award output sets;
 - run the active pipeline or selected steps for an award code;
 - compare intermediate and final artifacts side by side;
-- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, the step `4.1` formatted guide, the optional step `4.9` human-review ruleset utility, and step `5.1` pseudocode.
-
-The parked agentic review conversation is no longer part of the active Streamlit surface.
+- expose reviewer-facing screens for payment clauses, payment clause categories, ruleset clause classification, expert drafts, comparison output, combined ruleset, reviewer commentary, the step `4.1` formatted guide, the optional step `4.9` human-review ruleset utility, step `5.1` pseudocode, and step `6.1` calculator artifacts.
 
 ## End-to-end interpretation
 
@@ -367,6 +379,7 @@ The easiest way to understand the system is:
 6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
 7. Optional step `4.9` allows a human-reviewed ruleset working file to be saved when needed.
 8. Step `5.1` generates implementation-oriented pseudocode from the best available reviewed artifact.
+9. Step `6.1` turns the reviewed rulesets into a calculator questionnaire and Python draft.
 
 So the method is not "one model reads the award and answers."
 

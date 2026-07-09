@@ -4,54 +4,52 @@ This document records the current known gaps that still deserve follow-up in the
 
 ## Active items
 
-
-## Add Penalties
-
-Current in progress
-
-Once completed need to 
-
-1 - User testing for prompt optimisation - Instruct it to remove Overitme clauses. 
-
-Also to consider - a lot of information is being sent to the evulator - can this be simplified. 
-
-### Make expert and review count able to be adjusted 
-
-
-### Final screen and YAML output
+### Version 1.1 human intervention points
 
 Status:
-- In progress
+- Open
+
+What to add:
+- allow user intervention at more stages than the current manual ruleset and calculator questionnaire editors;
+- make edited artifacts explicit in the source-selection order for later steps;
+- preserve clear evidence of which artifact was machine-generated and which artifact was human-edited.
+
+### Version 1.1 prompt review and editing
+
+Status:
+- Open
+
+What to add:
+- surface the active system and user prompt text in the review app;
+- allow a user to save reviewed prompt variants;
+- make prompt version or prompt source visible in run outputs.
+
+### Step 6.1 calculator output shape will continue changing
+
+Status:
+- Open
 
 What to review:
-- the final review screen that will generate the YAML file
-- the output shape used by that screen
-- the award-first / ruleset-specific path flow that feeds it
+- the fixed questionnaire fields;
+- the generated calculator Python shape;
+- the evidence fields carried from reviewed rulesets into calculator answers.
 
 Why it matters:
-- the final screen needs to stay compatible with the reviewed 4.1 and 5.1 artifacts;
-- YAML generation should sit on the same canonical workflow as the rest of the pipeline.
+- step `6.1` is the first calculator-facing contract and is expected to evolve as integration requirements become clearer.
 
-### Streamlit subset selection now supports running one or two subsets at a time
+### Make expert and review count configurable
 
 Status:
-- Resolved
+- Open
 
-Area:
-- `streamlit_review/app.py`
-- `streamlit_review/pipeline_runs.py`
+What to add:
+- allow the operator to choose the step `3.1` expert run count where the workflow supports it;
+- allow the operator to choose review/repair attempt counts for LLM-backed review steps;
+- keep the default path conservative and audit-friendly.
 
-Current behaviour:
-- the Streamlit sidebar now keeps the review ruleset selector separate from the run control;
-- the new `Step 3 subsets to run` multi-select lets the user run:
-  - overtime creation;
-  - overtime consequence;
-  - or both in one invocation;
-- the review screens still use a single selected ruleset, which keeps the viewing decision separate from the run selection.
-
-Why this matters:
-- the Streamlit UI now matches the CLI's multi-subset run capability;
-- users can run one branch or both without changing the review screens at the same time.
+Why it matters:
+- v1 uses a fixed two-expert workflow, which is clear and reviewable;
+- later experimentation should not require code edits just to compare model/run-count behaviour.
 
 ### Step 3.2 evaluator occasionally returns empty or truncated structured output in live runs
 
@@ -59,7 +57,7 @@ Status:
 - Open
 
 Area:
-- `src/step_3_2_review_ruleset/llm.py`
+- `src/step_3_2_review_ruleset/step_2_run_reviewer.py`
 - `src/step_3_2_review_ruleset/run.py`
 - `src/common/llm_io.py`
 
@@ -82,21 +80,34 @@ Why this still matters:
 
 Suggested follow-up:
 - inspect whether the evaluator prompt should be shortened further;
-- replace the full reconstructed creator-context JSON in the evaluator prompt with a smaller reviewer-oriented shortlisted-clause summary, so the evaluator sees the evidence it needs without repeated prompt-message scaffolding;
 - consider splitting long evaluator summaries from the structured rule-by-rule record if output size remains unstable;
-- consider increasing retry observability by saving the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
+- save the final failed evaluator raw payload to a dedicated exception artifact rather than only surfacing the exception message.
+
+### V1 smoke-test evidence
+
+Status:
+- Open
+
+What to add:
+- record a clean smoke-test run for at least one representative award through step `6.1`;
+- include overtime creation, overtime consequence, and penalties in the same review record;
+- note any manual interventions or reruns needed during the smoke test.
+
+Why it matters:
+- the code and docs are now v1-shaped;
+- a short run record gives a reviewer confidence that the current workflow is not just unit-test green.
 
 ## Resolved items
 
 These earlier items are no longer outstanding in their original form.
 
-### Step 3 completeness validation gap between 3.2 and 3.4
+### Step 3 completeness validation gap
 
 Status:
 - Resolved as warning-based validation
 
 Current state:
-- `src/step_3_1_generate_ruleset/run.py` now records warning-level completeness issues when shortlisted overtime-creation clauses from step `2.2` are not represented in:
+- `src/step_3_1_generate_ruleset/run.py` now records warning-level completeness issues when shortlisted clauses from step `2.2` are not represented in:
   - the expert rulesets; and
   - the merged comparison ruleset.
 - The same warning path is carried into the saved step-3 artifacts and prepended to the markdown working paper.
@@ -130,7 +141,7 @@ Current state:
   - `employee_cohort`
   - `work_arrangement`
   - `other_scope_notes`
-- step `3.4` validates generated rule scope against the clause-classification scope and emits warnings when scope drifts.
+- step `3.1` validates generated rule scope against the clause-classification scope and emits warnings when scope drifts.
 - `work_arrangement` is also deterministically normalised back to `all` unless the clause text expressly supports a narrower arrangement.
 
 Why it is no longer listed as active:
@@ -189,11 +200,29 @@ Status:
 - Resolved
 
 Current state:
-- the consequence review path now falls back to the shared canonical clause-classification artifact when the consequence-specific file is missing.
-- the shared creation-named artifact remains the canonical file for both ruleset branches.
+- the current canonical overtime clause-classification artifact is shared by overtime creation and overtime consequence.
+- the old consequence-specific filename fallback has been removed from the active path.
 
 Why it is no longer listed as active:
-- the review path now resolves the correct source artifact before the E2E run.
+- the active workflow now uses the canonical filename directly.
+
+### Streamlit subset selection supports selected ruleset runs
+
+Status:
+- Resolved
+
+Area:
+- `streamlit_review/app.py`
+- `streamlit_review/pipeline_runs.py`
+
+Current behaviour:
+- the Streamlit sidebar keeps the review ruleset selector separate from the run control;
+- the `Step 3 subsets to run` multi-select lets the user run overtime creation, overtime consequence, penalties, or a selected combination;
+- the review screens still use a single selected ruleset, which keeps the viewing decision separate from the run selection.
+
+Why this matters:
+- the Streamlit UI now matches the CLI's multi-subset run capability;
+- users can run selected ruleset branches without changing the review screens at the same time.
 
 ### Fix Streamlit duplicate element key issue
 
@@ -292,7 +321,8 @@ Why it is no longer listed as active:
 
 The active priority should be:
 
-1. run the end-to-end creation and consequence smoke test;
-2. review the consequence outputs for misplaced creation rules and missing multipliers;
-3. review the Streamlit path and final YAML screen;
-4. keep the Streamlit review screen aligned with the structured artifact contracts as step `3.2` evolves.
+1. record a clean v1 smoke test through step `6.1` for a representative award;
+2. review the step `6.1` questionnaire and Python output shape against calculator needs;
+3. implement v1.1 human intervention points across more stages;
+4. surface active prompts in the review app and make prompt variants traceable;
+5. keep the Streamlit review screens aligned with structured artifact contracts as step `3.2` and step `6.1` evolve.

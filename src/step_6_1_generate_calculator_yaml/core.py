@@ -33,6 +33,7 @@ SCALAR_RULE_FIELDS = (
     "gap_penalty_rate",
     "two_tier_overtime",
     "two_tier_overtime_threshold",
+    "extended_overtime_days",
 )
 OBJECT_RULE_FIELDS = (
     "penalties",
@@ -60,6 +61,7 @@ CLASS_ATTRIBUTE_BY_RULE_FIELD = {
     "weekend_rules": "WEEKEND_RULES",
     "two_tier_overtime": "TWO_TIER_OVERTIME",
     "two_tier_overtime_threshold": "TWO_TIER_OVERTIME_THRESHOLD",
+    "extended_overtime_days": "EXTENDED_OVERTIME_DAYS",
 }
 FIXED_CLASS_ATTRIBUTES = (
     ("DEFAULT_BREAK", 0.5),
@@ -78,6 +80,15 @@ WEEKEND_TREATMENT_OPTIONS = (
 WORKER_TYPE_OPTIONS = (
     "day",
     "shift",
+)
+DAY_NAME_OPTIONS = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
 )
 PENALTY_TYPE_OPTIONS = (
     "shift_based",
@@ -258,6 +269,12 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "has_two_tier_overtime": _answer_schema(_nullable_boolean_schema()),
             "extended_overtime_multiplier": _answer_schema(_nullable_number_schema()),
             "higher_overtime_starts_after_hours": _answer_schema(_nullable_number_schema()),
+            "extended_overtime_days": _answer_schema(
+                {
+                    "type": "array",
+                    "items": {"type": "string", "enum": list(DAY_NAME_OPTIONS)},
+                }
+            ),
             "saturday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
             "sunday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
         },
@@ -266,6 +283,7 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "has_two_tier_overtime",
             "extended_overtime_multiplier",
             "higher_overtime_starts_after_hours",
+            "extended_overtime_days",
             "saturday_overtime_multiplier",
             "sunday_overtime_multiplier",
         ],
@@ -412,27 +430,6 @@ def summarized_rules(artifact: dict[str, Any]) -> list[dict[str, Any]]:
     return summarized
 
 
-def known_rule_ids_by_ruleset(inputs: CalculatorYamlInputs) -> dict[str, set[str]]:
-    """Collect the known rule ids from the three step 3.2 source artifacts."""
-    return {
-        "overtime_creation": {
-            str(rule.get("rule_id")).strip()
-            for rule in inputs.creation_artifact.get("rules", [])
-            if isinstance(rule, dict) and str(rule.get("rule_id")).strip()
-        },
-        "overtime_consequence": {
-            str(rule.get("rule_id")).strip()
-            for rule in inputs.consequence_artifact.get("rules", [])
-            if isinstance(rule, dict) and str(rule.get("rule_id")).strip()
-        },
-        "penalties": {
-            str(rule.get("rule_id")).strip()
-            for rule in inputs.penalties_artifact.get("rules", [])
-            if isinstance(rule, dict) and str(rule.get("rule_id")).strip()
-        },
-    }
-
-
 def default_evidence(reasoning_summary: str, status: str) -> dict[str, Any]:
     """Build one evidence record with empty sources."""
     return {
@@ -447,19 +444,21 @@ def default_evidence(reasoning_summary: str, status: str) -> dict[str, Any]:
 
 def _normalize_evidence_record(
     raw_record: dict[str, Any],
-    *,
-    known_rule_ids: dict[str, set[str]],
 ) -> dict[str, Any]:
     source_ruleset_keys = [
         str(value).strip()
         for value in raw_record.get("source_ruleset_keys", [])
         if str(value).strip()
     ]
-    source_rule_ids = [
-        str(value).strip()
-        for value in raw_record.get("source_rule_ids", [])
-        if str(value).strip()
-    ]
+    source_rule_ids: list[str] = []
+
+    for value in raw_record.get("source_rule_ids", []):
+        raw_rule_id = str(value).strip()
+        if not raw_rule_id:
+            continue
+
+        if raw_rule_id not in source_rule_ids:
+            source_rule_ids.append(raw_rule_id)
     clause_references = [
         str(value).strip()
         for value in raw_record.get("clause_references", [])
@@ -469,23 +468,9 @@ def _normalize_evidence_record(
     special_case_notes = str(raw_record.get("special_case_notes") or "").strip()
     status = str(raw_record.get("status") or "").strip() or "needs_review"
 
-    resolved_ruleset_keys = set(source_ruleset_keys)
-    for source_rule_id in source_rule_ids:
-        matching_rulesets = {
-            ruleset_key
-            for ruleset_key, valid_rule_ids in known_rule_ids.items()
-            if source_rule_id in valid_rule_ids
-        }
-        if not matching_rulesets:
-            raise CalculatorRulesYamlError(
-                "Step 6.1 model cited unknown rule_id "
-                f"'{source_rule_id}'."
-            )
-        resolved_ruleset_keys.update(matching_rulesets)
-
     return {
         "status": status,
-        "source_ruleset_keys": sorted(resolved_ruleset_keys),
+        "source_ruleset_keys": sorted(set(source_ruleset_keys)),
         "source_rule_ids": source_rule_ids,
         "clause_references": clause_references,
         "reasoning_summary": reasoning_summary or "No reasoning summary provided.",
@@ -516,10 +501,9 @@ def _normalize_question_record(
     *,
     section_name: str,
     question_name: str,
-    known_rule_ids: dict[str, set[str]],
 ) -> dict[str, Any]:
     record = _get_question_record(questionnaire_answers, section_name, question_name)
-    normalized = _normalize_evidence_record(record, known_rule_ids=known_rule_ids)
+    normalized = _normalize_evidence_record(record)
     normalized["answer"] = record.get("answer")
     return normalized
 
@@ -604,7 +588,10 @@ def _extract_explicit_hours_from_text(text: str) -> list[float]:
     extracted_hours: list[float] = []
     normalized_text = text.lower().replace("_", " ")
 
-    for match in re.finditer(r"\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b", normalized_text):
+    for match in re.finditer(
+        r"\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm)\b",
+        normalized_text,
+    ):
         hour = int(match.group(1))
         minute = int(match.group(2) or "0")
         meridiem = match.group(3)
@@ -657,6 +644,50 @@ def _strip_trailing_time_tokens(code_name: str) -> str:
     return "_".join(stripped_parts).strip("_")
 
 
+def _strip_trailing_rate_tokens(code_name: str) -> str:
+    parts = [part for part in code_name.lower().split("_") if part]
+    if not parts:
+        return ""
+
+    trailing_index = len(parts)
+
+    while trailing_index > 0:
+        current_part = parts[trailing_index - 1]
+
+        if current_part in {"allowance", "allowances", "loading", "loadings"}:
+            trailing_index -= 1
+            continue
+
+        if re.match(r"^\d+(?:pct|percent)$", current_part):
+            trailing_index -= 1
+            continue
+
+        if current_part in {"pct", "percent"} and trailing_index > 1:
+            numeric_index = trailing_index - 1
+            while numeric_index > 0 and re.match(r"^\d+$", parts[numeric_index - 1]):
+                numeric_index -= 1
+
+            if numeric_index < trailing_index - 1:
+                trailing_index = numeric_index
+                continue
+
+        break
+
+    stripped_parts = parts[:trailing_index]
+    return "_".join(stripped_parts).strip("_")
+
+
+def _simplified_penalty_code_name(raw_code_name: str) -> str:
+    without_times = _strip_trailing_time_tokens(raw_code_name)
+    without_rates = _strip_trailing_rate_tokens(without_times)
+
+    if without_rates:
+        return without_rates
+    if without_times:
+        return without_times
+    return raw_code_name.lower().strip("_")
+
+
 def _canonical_penalty_code_name(
     raw_code_name: str,
     *,
@@ -664,10 +695,26 @@ def _canonical_penalty_code_name(
     start_hour: int | float,
     end_hour: int | float,
 ) -> str:
-    base_name = _strip_trailing_time_tokens(raw_code_name) or "penalty_window"
+    base_name = _simplified_penalty_code_name(raw_code_name) or "penalty_window"
     start_text = _format_hour_for_identifier(start_hour)
     end_text = _format_hour_for_identifier(end_hour)
     return f"{base_name}_{penalty_basis}_{start_text}_to_{end_text}"
+
+
+def _normalize_midnight_hour(value: int | float) -> float:
+    """Treat midnight as the end of day when comparing live rule windows."""
+    numeric_value = float(value)
+    if numeric_value == 0.0:
+        return 24.0
+    return numeric_value
+
+
+def _round_live_penalty_hour(value: int | float) -> int:
+    """Round a rule window to the whole-hour precision supported by the calculator."""
+    numeric_value = float(value)
+    if numeric_value == 24.0:
+        return 24
+    return int(numeric_value + 0.5)
 
 
 def _validate_penalty_time_text(
@@ -680,16 +727,25 @@ def _validate_penalty_time_text(
     if len(explicit_hours) < 2:
         return
 
-    expected_start = float(start_hour)
-    expected_end = float(end_hour)
-    stated_start = explicit_hours[0]
-    stated_end = explicit_hours[1]
+    expected_start = _normalize_midnight_hour(start_hour)
+    expected_end = _normalize_midnight_hour(end_hour)
+    stated_start = _normalize_midnight_hour(explicit_hours[0])
+    stated_end = _normalize_midnight_hour(explicit_hours[1])
 
-    if stated_start != expected_start or stated_end != expected_end:
+    rounded_expected_start = _round_live_penalty_hour(expected_start)
+    rounded_expected_end = _round_live_penalty_hour(expected_end)
+    rounded_stated_start = _round_live_penalty_hour(stated_start)
+    rounded_stated_end = _round_live_penalty_hour(stated_end)
+
+    if (
+        rounded_stated_start != rounded_expected_start
+        or rounded_stated_end != rounded_expected_end
+    ):
         raise CalculatorRulesYamlError(
             "Step 6.1 produced a weekday penalty whose structured hours do not match its "
-            f"description: '{description}' implies {stated_start} to {stated_end}, "
-            f"but the structured window is {expected_start} to {expected_end}."
+            f"description: '{description}' implies {rounded_stated_start} to "
+            f"{rounded_stated_end}, but the structured window is "
+            f"{rounded_expected_start} to {rounded_expected_end}."
         )
 
 
@@ -761,6 +817,9 @@ def _build_live_penalties(
         if not isinstance(end_hour, (int, float)):
             continue
 
+        start_hour = _round_live_penalty_hour(_normalize_midnight_hour(start_hour))
+        end_hour = _round_live_penalty_hour(_normalize_midnight_hour(end_hour))
+
         applies_to = [
             worker_type
             for worker_type in raw_rule.get("applies_to", [])
@@ -790,8 +849,8 @@ def _build_live_penalties(
         if any(term in lower_code_name or term in lower_description for term in calendar_specific_terms):
             continue
 
-        normalized_code_name = code_name
-        if _penalty_code_name_has_explicit_times(code_name):
+        normalized_code_name = _simplified_penalty_code_name(code_name) or code_name
+        if normalized_code_name in penalties and _penalty_code_name_has_explicit_times(code_name):
             normalized_code_name = _canonical_penalty_code_name(
                 code_name,
                 penalty_basis=penalty_basis,
@@ -840,6 +899,17 @@ def validate_calculator_rules_shape(calculator_rules: dict[str, Any]) -> None:
                 f"Step 6.1 produced a non-numeric value for {field_name}."
             )
 
+    extended_overtime_days = calculator_rules.get("extended_overtime_days")
+    if not isinstance(extended_overtime_days, list):
+        raise CalculatorRulesYamlError(
+            "Step 6.1 extended_overtime_days must be a list."
+        )
+    for day_name in extended_overtime_days:
+        if day_name not in DAY_NAME_OPTIONS:
+            raise CalculatorRulesYamlError(
+                f"Step 6.1 produced an unsupported extended overtime day: {day_name!r}."
+            )
+
     penalties = calculator_rules.get("penalties")
     if not isinstance(penalties, dict):
         raise CalculatorRulesYamlError("Step 6.1 penalties must be a mapping.")
@@ -871,7 +941,6 @@ def normalize_response_data(
     response_data: dict[str, Any],
     *,
     award_code: str,
-    known_rule_ids: dict[str, set[str]],
 ) -> dict[str, Any]:
     """Map questionnaire answers into the persisted calculator structure."""
     questionnaire_answers = response_data.get("questionnaire_answers")
@@ -885,169 +954,146 @@ def normalize_response_data(
             questionnaire_answers,
             section_name="core_hours",
             question_name="day_worker_daily_limit_hours",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_daily_limit": _normalize_question_record(
             questionnaire_answers,
             section_name="core_hours",
             question_name="shift_worker_daily_limit_hours",
-            known_rule_ids=known_rule_ids,
         ),
         "day_weekly_limit": _normalize_question_record(
             questionnaire_answers,
             section_name="core_hours",
             question_name="day_worker_weekly_limit_hours",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_weekly_limit": _normalize_question_record(
             questionnaire_answers,
             section_name="core_hours",
             question_name="shift_worker_weekly_limit_hours",
-            known_rule_ids=known_rule_ids,
         ),
         "standard_overtime_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="standard_overtime_multiplier",
-            known_rule_ids=known_rule_ids,
         ),
         "has_two_tier_overtime": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="has_two_tier_overtime",
-            known_rule_ids=known_rule_ids,
         ),
         "extended_overtime_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="extended_overtime_multiplier",
-            known_rule_ids=known_rule_ids,
         ),
         "higher_overtime_starts_after_hours": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="higher_overtime_starts_after_hours",
-            known_rule_ids=known_rule_ids,
+        ),
+        "extended_overtime_days": _normalize_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="extended_overtime_days",
         ),
         "saturday_overtime_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="saturday_overtime_multiplier",
-            known_rule_ids=known_rule_ids,
         ),
         "sunday_overtime_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="sunday_overtime_multiplier",
-            known_rule_ids=known_rule_ids,
         ),
         "day_workers_have_span_overtime": _normalize_question_record(
             questionnaire_answers,
             section_name="span",
             question_name="day_workers_have_span_overtime",
-            known_rule_ids=known_rule_ids,
         ),
         "live_span_cutoff_hour": _normalize_question_record(
             questionnaire_answers,
             section_name="span",
             question_name="live_span_cutoff_hour",
-            known_rule_ids=known_rule_ids,
         ),
         "ordinary_span_summary": _normalize_question_record(
             questionnaire_answers,
             section_name="span",
             question_name="ordinary_span_summary",
-            known_rule_ids=known_rule_ids,
         ),
         "day_saturday_treatment": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="day_saturday_treatment",
-            known_rule_ids=known_rule_ids,
         ),
         "day_sunday_treatment": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="day_sunday_treatment",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_saturday_treatment": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="shift_saturday_treatment",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_sunday_treatment": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="shift_sunday_treatment",
-            known_rule_ids=known_rule_ids,
         ),
         "day_saturday_penalty_loading": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="day_saturday_penalty_loading",
-            known_rule_ids=known_rule_ids,
         ),
         "day_sunday_penalty_loading": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="day_sunday_penalty_loading",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_saturday_penalty_loading": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="shift_saturday_penalty_loading",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_sunday_penalty_loading": _normalize_question_record(
             questionnaire_answers,
             section_name="weekend_treatment",
             question_name="shift_sunday_penalty_loading",
-            known_rule_ids=known_rule_ids,
         ),
         "minimum_break_required": _normalize_question_record(
             questionnaire_answers,
             section_name="gap_between_shifts",
             question_name="minimum_break_required",
-            known_rule_ids=known_rule_ids,
         ),
         "standard_minimum_break_hours": _normalize_question_record(
             questionnaire_answers,
             section_name="gap_between_shifts",
             question_name="standard_minimum_break_hours",
-            known_rule_ids=known_rule_ids,
         ),
         "breach_penalty_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="gap_between_shifts",
             question_name="breach_penalty_multiplier",
-            known_rule_ids=known_rule_ids,
         ),
         "special_case_thresholds": _normalize_question_record(
             questionnaire_answers,
             section_name="gap_between_shifts",
             question_name="special_case_thresholds",
-            known_rule_ids=known_rule_ids,
         ),
         "shift_based_penalties": _normalize_question_record(
             questionnaire_answers,
             section_name="weekday_penalties",
             question_name="shift_based_penalties",
-            known_rule_ids=known_rule_ids,
         ),
         "time_based_penalties": _normalize_question_record(
             questionnaire_answers,
             section_name="weekday_penalties",
             question_name="time_based_penalties",
-            known_rule_ids=known_rule_ids,
         ),
         "other_penalty_notes": _normalize_question_record(
             questionnaire_answers,
             section_name="weekday_penalties",
             question_name="other_penalty_notes",
-            known_rule_ids=known_rule_ids,
         ),
     }
 
@@ -1135,6 +1181,11 @@ def normalize_response_data(
             question_records["higher_overtime_starts_after_hours"]["answer"]
             if has_two_tier is True
             else None
+        ),
+        "extended_overtime_days": (
+            question_records["extended_overtime_days"]["answer"]
+            if has_two_tier is True
+            else []
         ),
     }
 
@@ -1242,6 +1293,13 @@ def normalize_response_data(
                 question_records["higher_overtime_starts_after_hours"],
             ],
             empty_reason="No evidence available for the two-tier overtime threshold.",
+        ),
+        "extended_overtime_days": _merge_evidence_records(
+            [
+                question_records["has_two_tier_overtime"],
+                question_records["extended_overtime_days"],
+            ],
+            empty_reason="No evidence available for extended overtime day selection.",
         ),
     }
 

@@ -77,20 +77,6 @@ def test_resolve_clause_classification_path_uses_ruleset_when_interpretation_is_
     ) == Path("data/processed/MA000018/2_2_OT_clause_classification.json")
 
 
-def test_resolve_clause_classification_path_falls_back_from_missing_consequence_file(tmp_path):
-    classification_path = tmp_path / "2_1_payment_classification.json"
-    consequence_path = tmp_path / "2_2_OT_consequence_clause_classification.json"
-    canonical_path = tmp_path / "2_2_OT_clause_classification.json"
-
-    canonical_path.write_text("{}", encoding="utf-8")
-
-    assert resolve_overtime_clause_classification_path(
-        classification_path,
-        consequence_path,
-        None,
-    ) == canonical_path
-
-
 def test_resolve_paths_support_award_codes_and_explicit_inputs():
     explicit_interpretation = Path("custom/interpretation.md")
     explicit_classification = Path("custom/classification.json")

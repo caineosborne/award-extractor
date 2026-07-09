@@ -33,7 +33,9 @@ COMMON_OVERTIME_RULES_PREAMBLE = """Common overtime rules:
 OVERTIME_CREATION_COMMON_QUESTIONS = """Reusable overtime creation checks:
 
 - Is overtime created by working more than a number of hours in a day?
+- What is the maximum amount of hours workable in a day before hours become overtime?
 - Is overtime created by working outside a defined span of hours? This often, but not always, varies for day workers and shift workers.
+- What is the allowed span of hours within which ordinary hours may be worked before hours become overtime?
 - Is overtime created by working more than a number of hours in a week or pay period?
 
 For each supported creation rule, answer:

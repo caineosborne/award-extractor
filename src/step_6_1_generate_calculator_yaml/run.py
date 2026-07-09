@@ -1,4 +1,4 @@
-"""Run step 6.1 calculator YAML generation."""
+"""Run step 6.1 calculator questionnaire and Python generation."""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from .core import (
     CalculatorRulesYamlError,
     CalculatorYamlInputs,
     award_title_from_award_json_path,
-    known_rule_ids_by_ruleset,
     normalize_response_data,
     summarized_rules,
     write_python_output,
@@ -117,7 +116,6 @@ def generate_calculator_rules_yaml(
     normalized_data = normalize_response_data(
         response_data,
         award_code=award_code,
-        known_rule_ids=known_rule_ids_by_ruleset(inputs),
     )
     if inputs.award_title is not None:
         normalized_data["award_title"] = inputs.award_title

@@ -98,6 +98,7 @@ def main() -> None:
         "finished_at": finished_at,
         "duration_seconds": finished_at - started_at,
         "validation_summary": result.get("validation_summary"),
+        "warnings": result.get("warnings", []),
         "completed_steps": result.get("completed_steps"),
         "total_steps": result.get("total_steps"),
         "progress_fraction": (
@@ -109,7 +110,14 @@ def main() -> None:
 
     if result["success"]:
         validation_summary = result.get("validation_summary")
-        if validation_summary and validation_summary["overall_status"] != "passed":
+        warnings = result.get("warnings", [])
+        if warnings:
+            final_status["state"] = "warning"
+            final_status["message"] = (
+                f"{pipeline_run_label(args.step, args.ruleset_key)} completed for {args.award_code} in "
+                f"{final_status['duration_seconds']:.1f}s with formatting coverage warnings."
+            )
+        elif validation_summary and validation_summary["overall_status"] != "passed":
             final_status["state"] = "warning"
             final_status["message"] = (
                 f"{pipeline_run_label(args.step, args.ruleset_key)} completed for {args.award_code} in "

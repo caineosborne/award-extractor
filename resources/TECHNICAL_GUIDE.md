@@ -27,6 +27,9 @@ Active default pipeline:
 - Step `4.1`
 - Step `5.1`
 
+Maintained final calculator step:
+- Step `6.1`
+
 Optional review utility between step `4.1` and step `5.1`:
 - Step `4.9`
 
@@ -57,6 +60,7 @@ Primary shared helpers:
 | 4.9 | `streamlit_review/app.py`, `streamlit_review/output_data.py` | No | Optional human-reviewed ruleset MD |
 | 5.1 | `src/step_5_1_generate_pseudocode/run.py` | Yes | Pseudocode MD |
 | 5.1 validation | `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py` | No | Validation JSON/MD |
+| 6.1 | `src/step_6_1_generate_calculator_yaml/run.py` | Yes | Calculator questionnaire JSON and calculator Python |
 
 ## Prompt Construction Pattern
 
@@ -90,6 +94,7 @@ Use this legend when reading the tables below:
 | 3.2 | `src/step_3_2_review_ruleset/run.py`, `src/step_3_2_review_ruleset/step_2_run_reviewer.py`, `src/step_3_2_review_ruleset/step_3_run_creator.py` | `src/prompts/step_3_2_review_ruleset.py`, `src/prompts/step_3_2_prompt_config.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_2_2_classify_overtime_clauses.py` | Review prompt, generic payroll configuration, subset-wide instructions, Step 3.2 family instructions, ruleset question block, Step 3.2 subset scope notes, Step 2.1 and Step 2.2 context, canonical Step 3.1 output, evaluator feedback, creator revision instructions |
 | 4.1 | `src/step_4_1_format_ruleset/run.py` and `src/step_4_1_format_ruleset/step_2_format_ruleset.py` | `src/prompts/step_4_1_format_ruleset.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, subset-wide instructions, Step 4.1 family instructions, template markdown, reviewed ruleset markdown, ruleset question block, Step 4.1 subset formatting instructions |
 | 5.1 | `src/step_5_1_generate_pseudocode/run.py` and `src/step_5_1_generate_pseudocode/step_2_generate_pseudocode.py` | `src/prompts/step_5_1_generate_pseudocode.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/common/rule_inventory.py` | System prompt template, generic payroll configuration, subset-wide instructions, Step 5.1 family constraints, ruleset question block, Step 5.1 subset goal and constraints, required markdown structure, rule inventory, reviewed ruleset markdown |
+| 6.1 | `src/step_6_1_generate_calculator_yaml/run.py` and `src/step_6_1_generate_calculator_yaml/llm.py` | `src/prompts/step_6_1_generate_calculator_yaml.py` | Fixed calculator questionnaire prompt, reviewed step `3.2` JSON rules for overtime creation, overtime consequence, and penalties |
 
 ### Practical Reading Guide
 
@@ -377,6 +382,29 @@ Ruleset-specific mode handling:
 - `overtime_consequence` applies consequence outputs after overtime already exists;
 - `penalties` applies explicit penalty outputs and may include supporting break-gap checks or implementation notes without forcing a premium outcome.
 
+## Step 6.1. Calculator Questionnaire And Python Draft
+
+Owner:
+- `src/step_6_1_generate_calculator_yaml/run.py`
+- `src/step_6_1_generate_calculator_yaml/core.py`
+- `src/step_6_1_generate_calculator_yaml/llm.py`
+
+Prompt:
+- `src/prompts/step_6_1_generate_calculator_yaml.py`
+
+Purpose:
+- answer a fixed calculator questionnaire from the reviewed step `3.2` JSON rulesets;
+- combine the reviewed overtime creation, overtime consequence, and penalties rulesets;
+- preserve evidence fields for each answer;
+- generate a Python calculator rules draft from the structured questionnaire.
+
+Primary artifacts:
+- `calculator/6_1_calculator_questionnaire.json`
+- `calculator/6_1_calculator_rules.py`
+
+Important limitation:
+- step `6.1` is a first-pass calculator configuration surface. The questionnaire and Python output format are expected to keep changing as calculator integration needs become clearer.
+
 ## Step 4.9. Human Review Ruleset
 
 Owner:
@@ -406,4 +434,4 @@ Current behaviour:
 - compare intermediate and final artifacts side by side;
 - expose reviewer-facing screens for the canonical active outputs only;
 - support ruleset-specific artifact loading for overtime creation, overtime consequence, and penalties;
-- do not expose the parked agentic review conversation as part of the active surface.
+- expose step `6.1` questionnaire and calculator Python review screens.

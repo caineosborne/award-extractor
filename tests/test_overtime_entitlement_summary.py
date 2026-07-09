@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -276,6 +277,50 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertIn("award_overtime_interpretation_revised.md", fake_client.responses.calls[0]["input"][1]["content"])
         self.assertNotIn("Clause 19.2 was not represented.", fake_client.responses.calls[0]["input"][1]["content"])
+
+    def test_summarize_overtime_entitlements_records_warning_for_dropped_reviewed_rule(self):
+        interpretation = (
+            "## Full-time employees\n\n"
+            "- For a full-time employee, any work performed in addition to the employee's rostered ordinary hours on any day is overtime. [25.1(a)(i)]\n\n"
+            "## Ordinary hours daily limits\n\n"
+            "- Ordinary hours under clause 22.1 may be worked as eight hours on a day shift or 10 hours on a night shift. Please test whether hours beyond those daily ordinary-hours limits should be treated as overtime for the relevant cohort and roster arrangement. [22.1(c)]\n"
+        )
+        fake_client = FakeClient(
+            "# Overtime Triggers\n\n"
+            "## Full-Time Employees Only\n"
+            "- For a full-time employee, any work performed in addition to the employee's rostered ordinary hours on any day is overtime. [25.1(a)(i)]\n"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            interpretation_path = temp_path / "3_2_OT_creation_revised_ruleset.md"
+            output_path = temp_path / "4_1_OT_creation_formatted_ruleset.md"
+            interpretation_path.write_text(interpretation, encoding="utf-8")
+            validation_warnings: list[str] = []
+
+            result = summarize_overtime_entitlements(
+                interpretation_path=interpretation_path,
+                output_path=output_path,
+                client=fake_client,
+                validation_warnings_output=validation_warnings,
+            )
+
+            written_output = output_path.read_text(encoding="utf-8")
+            metadata_path = output_path.with_name(f"{output_path.stem}_metadata.json")
+            written_metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result, written_output)
+        self.assertEqual(len(validation_warnings), 1)
+        self.assertIn(
+            "Step 4.1 formatted output may have dropped this reviewed rule",
+            validation_warnings[0],
+        )
+        self.assertIn(
+            "eight hours on a day shift or 10 hours on a night shift",
+            validation_warnings[0],
+        )
+        self.assertEqual(written_metadata["rendered_markdown"], written_output)
+        self.assertEqual(written_metadata["validation_warnings"], validation_warnings)
 
 
 if __name__ == "__main__":
