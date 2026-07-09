@@ -37,6 +37,8 @@ OVERTIME_CREATION_COMMON_QUESTIONS = """Reusable overtime creation checks:
 - Is overtime created by working outside a defined span of hours? This often, but not always, varies for day workers and shift workers.
 - What is the allowed span of hours within which ordinary hours may be worked before hours become overtime?
 - Is overtime created by working more than a number of hours in a week or pay period?
+- If the clause states ordinary hours may be worked between times or within a span, treat that as an all-employees ordinary-hours boundary unless the clause expressly narrows the cohort.
+- If the clause mentions broken shifts or spread of hours alongside the span, keep that boundary rule with the same all-employees scope unless the clause says otherwise.
 
 For each supported creation rule, answer:
 - which employee cohorts it applies to, including full-time, part-time, casual, shift workers, and day workers where relevant;

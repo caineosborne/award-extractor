@@ -10,61 +10,6 @@ Notation:
 - `bespoke` means the text is specific to one step and one ruleset combination, or to one run-time call.
 - Angle-bracket placeholders mark runtime values, template slots, or example payloads.
 
-## Prompt Wiring Map
-
-This section shows the main flow of prompt inputs into outputs. The same reusable blocks may appear more than once, but the chain below is the simplest way to see what feeds what.
-
-### Overtime Creation Flow
-
-- Step 2.2 clause classification:
-  - `Generic Payroll Configuration Prompt`
-  - `Common Overtime Rules Preamble`
-  - `Overtime Creation Questions`
-  - `Ruleset Subset Prompt Blocks` for `overtime_creation`
-  - step 2.2 family instructions
-  - clause text
-- Step 3.1 expert draft generation:
-  - the same shared blocks as step 2.2
-  - `Generic interpretation rules`
-  - `Step 3.1 overtime ruleset drafting rules`
-  - step 3.1 overtime subset instructions
-  - shortlisted clause working paper
-- Step 3.1 expert merge:
-  - the same shared blocks as step 3.1 draft generation
-  - run A structured rules
-  - run B structured rules
-  - shortlisted clause JSON
-- Step 3.2 review:
-  - `Generic Payroll Configuration Prompt`
-  - `Ruleset Subset Prompt Blocks`
-  - step 3.2 family instructions
-  - `Overtime Creation Questions`
-  - reviewed ruleset markdown
-  - payment classification JSON
-  - clause classification JSON
-- Step 3.2 creator revision:
-  - the same shared blocks as step 3.2 review
-  - evaluator feedback JSON
-  - original rules JSON
-  - relevant clause excerpts
-- Step 4.1 ruleset formatting:
-  - `Generic Payroll Configuration Prompt`
-  - `Ruleset Subset Prompt Blocks`
-  - `Overtime Creation Questions`
-  - reviewed interpretation markdown
-  - template markdown
-- Step 5.1 pseudocode generation and repair:
-  - `Generic Payroll Configuration Prompt`
-  - `Ruleset Subset Prompt Blocks`
-  - `Overtime Creation Questions`
-  - reviewed source markdown
-  - rule inventory where available
-
-### Other Subsets
-
-- `Overtime Consequence Questions` feeds the same step 2.2, step 3.1, step 3.2, step 4.1, and step 5.1 structure when `ruleset_key` is `overtime_consequence`.
-- `Penalties Questions` feeds the same step 2.2, step 3.1, step 3.2, step 4.1, and step 5.1 structure when `ruleset_key` is `penalties`.
-
 ## Shared Prompt Blocks
 
 The blocks below are the reusable prompt fragments that later step sections refer to. They are included here in full so the document is self-contained.
@@ -100,6 +45,8 @@ Reusable overtime creation checks:
 - Is overtime created by working outside a defined span of hours? This often, but not always, varies for day workers and shift workers.
 - What is the allowed span of hours within which ordinary hours may be worked before hours become overtime?
 - Is overtime created by working more than a number of hours in a week or pay period?
+- If the clause states ordinary hours may be worked between times or within a span, treat that as an all-employees ordinary-hours boundary unless the clause expressly narrows the cohort.
+- If the clause mentions broken shifts or spread of hours alongside the span, keep that boundary rule with the same all-employees scope unless the clause says otherwise.
 
 For each supported creation rule, answer:
 - which employee cohorts it applies to, including full-time, part-time, casual, shift workers, and day workers where relevant;

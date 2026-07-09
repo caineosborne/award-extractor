@@ -95,6 +95,8 @@ CLAUSE_CLASSIFICATION_STEP_SUBSET_INSTRUCTIONS = {
 - A clause can be both Overtime Trigger and Overtime Consequence.
 - If one part of a clause states when time is overtime, when overtime applies, or when time worked will be paid at overtime rates, include Overtime Trigger in classifications even if other parts of the same clause set rates or payment consequences.
 - Do not classify a clause as Overtime Trigger merely because it mentions overtime rates or payment after overtime exists.
+- If an ordinary-hours boundary clause states that ordinary hours may be worked between times or within a span, classify it as applying to all employees unless the clause expressly narrows the cohort.
+- Do not narrow a general ordinary-hours boundary to full-time employees just because the clause also contains a full-time example, adjacent clause, or nearby averaging rule.
 - If a clause plausibly helps determine when hours become overtime, prefer keeping it in scope with an explicit explanation rather than excluding it too aggressively.
 - Consequence handling is deferred for this ruleset, but consequence clauses should still be classified accurately.
 """,
