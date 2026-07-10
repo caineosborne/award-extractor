@@ -71,14 +71,8 @@ PSEUDOCODE_GENERIC_SYSTEM_PROMPT_TEMPLATE = """You write implementation-oriented
 Goal:
 {goal}
 
-Available fields:
-{fields}
-
 Shared configuration approach:
 {generic_prompt}
-
-Reusable ruleset checks:
-{ruleset_question_block}
 
 Subset-wide instructions:
 {subset_shared_instructions}
@@ -88,6 +82,12 @@ Step family constraints:
 
 Ruleset-specific constraints:
 {ruleset_constraints}
+
+Available fields:
+{fields}
+
+Reusable ruleset checks:
+{ruleset_question_block}
 
 {common_constraints}
 
@@ -271,8 +271,8 @@ def build_messages(
         PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
     user_prompt = (
-        f"Reviewed source markdown: {source_file}\n\n"
         f"Ruleset mode instruction: {ruleset_variant['user_instructions']}\n\n"
+        f"Reviewed source markdown: {source_file}\n\n"
         f"{inventory_text}"
         "Complete reviewed source markdown to convert:\n"
         f"{overtime_summary_markdown}"
@@ -301,9 +301,9 @@ def build_repair_messages(
         PSEUDOCODE_VARIANT_PROMPT_CONFIG[OVERTIME_CREATION_RULESET],
     )
     user_prompt = (
-        f"Reviewed source markdown: {source_file}\n\n"
         f"Ruleset mode instruction: {ruleset_variant['repair_instructions']}\n\n"
         "The first pseudocode draft failed deterministic validation.\n\n"
+        f"Reviewed source markdown: {source_file}\n\n"
         "Required rule inventory derived from the reviewed source markdown:\n"
         f"{render_inventory_for_prompt(source_inventory)}\n\n"
         "Reviewed source markdown:\n"

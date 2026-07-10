@@ -10,6 +10,7 @@ from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
 from src.common.pipeline_runtime import load_openai_environment
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_5_1_generate_pseudocode import build_messages, build_repair_messages
 
 from .schema import DEFAULT_MODEL, CoreOvertimePseudocodeError
@@ -39,15 +40,14 @@ def request_initial_pseudocode(
     ruleset_key: str,
 ) -> str:
     """Request the first pseudocode draft."""
+    messages = build_messages(
+        str(source_path), summary_text, source_inventory, ruleset_key
+    )
+    log_llm_prompt(f"5.1 {ruleset_key} Pseudocode Creation", messages)
     try:
         response = client.responses.create(
             model=model,
-            input=build_messages(
-                str(source_path),
-                summary_text,
-                source_inventory,
-                ruleset_key,
-            ),
+            input=messages,
         )
     except Exception as exc:
         raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc
@@ -73,17 +73,19 @@ def request_repaired_pseudocode(
     ruleset_key: str,
 ) -> str:
     """Request one repaired pseudocode draft after deterministic validation fails."""
+    messages = build_repair_messages(
+        source_file=str(source_path),
+        overtime_summary_markdown=summary_text,
+        source_inventory=source_inventory,
+        initial_pseudocode_markdown=initial_pseudocode_markdown,
+        validation_report_markdown=validation_report_markdown,
+        ruleset_key=ruleset_key,
+    )
+    log_llm_prompt(f"5.1 {ruleset_key} Pseudocode Repair", messages)
     try:
         response = client.responses.create(
             model=model,
-            input=build_repair_messages(
-                source_file=str(source_path),
-                overtime_summary_markdown=summary_text,
-                source_inventory=source_inventory,
-                initial_pseudocode_markdown=initial_pseudocode_markdown,
-                validation_report_markdown=validation_report_markdown,
-                ruleset_key=ruleset_key,
-            ),
+            input=messages,
         )
     except Exception as exc:
         raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc

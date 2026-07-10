@@ -11,6 +11,7 @@ from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
 from src.common.pipeline_runtime import load_openai_environment
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_6_1_generate_calculator_yaml import build_messages
 
 from .core import (
@@ -49,18 +50,20 @@ def request_calculator_rules(
     penalties_rules: list[dict[str, Any]],
 ) -> dict[str, Any]:
     """Request the structured questionnaire answers from the model."""
+    messages = build_messages(
+        award_code=award_code,
+        creation_json_path=creation_json_path,
+        creation_rules=creation_rules,
+        consequence_json_path=consequence_json_path,
+        consequence_rules=consequence_rules,
+        penalties_json_path=penalties_json_path,
+        penalties_rules=penalties_rules,
+    )
+    log_llm_prompt(f"6.1 Calculator Rules Questionnaire - {award_code}", messages)
     try:
         response = client.responses.create(
             model=model,
-            input=build_messages(
-                award_code=award_code,
-                creation_json_path=creation_json_path,
-                creation_rules=creation_rules,
-                consequence_json_path=consequence_json_path,
-                consequence_rules=consequence_rules,
-                penalties_json_path=penalties_json_path,
-                penalties_rules=penalties_rules,
-            ),
+            input=messages,
             text={
                 "format": {
                     "type": "json_schema",

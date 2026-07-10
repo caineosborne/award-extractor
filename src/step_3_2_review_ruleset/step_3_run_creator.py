@@ -9,6 +9,7 @@ from typing import Any
 
 from src.common.llm_io import extract_response_text
 from src.common.model_call_budget import log_model_call_budget
+from src.common.prompt_logging import log_llm_prompt
 from src.common.overtime_rules import apply_review_decisions, make_json_serializable
 from src.prompts.step_3_2_review_ruleset import (
     build_creator_repair_messages,
@@ -172,6 +173,7 @@ def request_creator_revision(
     last_validation_error = ""
 
     for attempt_number in range(MAX_CREATOR_REPAIR_ATTEMPTS + 1):
+        log_llm_prompt("3.2 Creator Review", current_creator_messages)
         creator_response = creator_client.responses.create(
             model=creator_model,
             input=current_creator_messages,

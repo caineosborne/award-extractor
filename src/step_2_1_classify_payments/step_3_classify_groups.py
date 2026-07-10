@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_2_1_classify_payments import (
     PAYMENT_CLASSIFICATION_ALLOWED_TAGS,
     build_messages,
@@ -108,9 +109,11 @@ def classify_group(
     model: str,
 ) -> Mapping[str, Any]:
     """Send one top-level group to the model and parse the result."""
+    messages = build_messages(group)
+    log_llm_prompt(f"2.1 Payment Classification - {group.reference}", messages)
     response = client.responses.create(
         model=model,
-        input=build_messages(group),
+        input=messages,
         text={
             "format": {
                 "type": "json_schema",

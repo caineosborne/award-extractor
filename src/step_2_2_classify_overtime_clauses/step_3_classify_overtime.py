@@ -18,6 +18,7 @@ from src.common.overtime_clause_classification import (
     select_overtime_creation_clauses,
     validate_overtime_clause_classifications,
 )
+from src.common.prompt_logging import log_llm_prompt
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
@@ -65,9 +66,11 @@ def classify_overtime_clauses(
 ) -> list[OvertimeClauseClassification]:
     """Ask the model to classify each shortlisted clause by overtime role."""
     config = overtime_ruleset_config(ruleset_key)
+    messages = build_clause_classification_messages(overtime_clauses, ruleset_key)
+    log_llm_prompt(f"2.2 {config.display_name} Clause Classification", messages)
     response = client.responses.create(
         model=model,
-        input=build_clause_classification_messages(overtime_clauses, ruleset_key),
+        input=messages,
         text={
             "format": {
                 "type": "json_schema",

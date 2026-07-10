@@ -22,7 +22,7 @@ GENERIC_PAYROLL_CONFIGURATION_PROMPT = """Shared payroll configuration approach:
 """
 
 
-COMMON_OVERTIME_RULES_PREAMBLE = """Common overtime rules:
+COMMON_OVERTIME_RULES_PREAMBLE = """Common rulesets that may apply are:
 - The following rules may appear across multiple awards.
 - If the source supports a rule, include it in the ruleset.
 - If the source does not support a rule, do not invent it.

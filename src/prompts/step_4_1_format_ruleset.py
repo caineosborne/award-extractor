@@ -187,19 +187,15 @@ def build_messages(
     family_key = ruleset_prompt_family(ruleset_key)
     user_prompt = f"""Format the supplied reviewed {config.display_name.lower()} into the required heading structure.
 
-Reviewed ruleset source: {interpretation_path}
+Common clauses that may appear:
 
-Template source: {template_path}
-
-{FORMAT_RULESET_GENERIC_TEMPLATE_GUIDANCE}
-
-```markdown
-{template_markdown}
-```
-
-Reusable ruleset checks:
+The following common clauses or rules may appear in an award. If they are supported by the supplied reviewed ruleset, place them near the top of the formatted ruleset. Do not add them when they are not supported by the reviewed ruleset.
 
 {common_overtime_question_block(ruleset_key)}
+
+Step 4.1 subset-specific formatting instructions:
+
+{FORMAT_RULESET_VARIANT_INSTRUCTIONS[ruleset_key]}
 
 Subset-wide instructions:
 
@@ -209,15 +205,23 @@ Step 4.1 family instructions:
 
 {FORMAT_RULESET_STEP_FAMILY_INSTRUCTIONS[family_key]}
 
+Template and required structure:
+
+Template source: {template_path}
+
+{FORMAT_RULESET_GENERIC_TEMPLATE_GUIDANCE}
+
+```markdown
+{template_markdown}
+```
+
 Reviewed ruleset:
+
+Reviewed ruleset source: {interpretation_path}
 
 ```markdown
 {interpretation_markdown}
 ```
-
-Step 4.1 subset-specific instructions:
-
-{FORMAT_RULESET_VARIANT_INSTRUCTIONS[ruleset_key]}
 """
     return [
         {"role": "system", "content": FORMAT_RULESET_GENERIC_SYSTEM_PROMPT},

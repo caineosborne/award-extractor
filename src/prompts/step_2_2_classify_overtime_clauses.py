@@ -137,15 +137,17 @@ def _build_clause_classification_user_prompt(
 ) -> str:
     return (
         f"{variant_prompt}\n\n"
+        "Step 2.2 scope and classification instructions:\n\n"
+        f"{subset_shared_instructions}\n\n"
+        f"{step_family_instructions}\n\n"
+        f"{step_subset_instructions}\n\n"
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE}\n\n"
-        f"{subset_shared_instructions}\n\n"
-        f"{step_family_instructions}\n\n"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
-        "Step 2.2 subset-specific instructions:\n\n"
-        f"{step_subset_instructions}\n\n"
+        "Required output for every clause:\n\n"
+        f"{CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT}\n\n"
         "Clauses:\n\n"
         f"{clauses_text}"
     )
@@ -196,13 +198,9 @@ def build_clause_classification_messages(
         {
             "role": "user",
             "content": _build_clause_classification_user_prompt(
-                variant_prompt=(
-                    CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS[ruleset_key].format(
-                        ruleset_label=config.display_name.lower()
-                    )
-                    + "\n\n"
-                    + CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT
-                ),
+                variant_prompt=CLAUSE_CLASSIFICATION_VARIANT_USER_PROMPTS[
+                    ruleset_key
+                ].format(ruleset_label=config.display_name.lower()),
                 subset_shared_instructions=subset_shared_prompt_block(ruleset_key),
                 step_family_instructions=CLAUSE_CLASSIFICATION_STEP_FAMILY_INSTRUCTIONS[
                     family_key

@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from src.common.llm_io import extract_response_text
+from src.common.prompt_logging import log_llm_prompt
 from src.common.overtime_clause_classification import (
     OvertimeClauseClassification,
     OvertimeInterpretationError,
@@ -194,6 +195,7 @@ def combine_expert_rulesets(
         run_a_rules=expert_a_rules,
         run_b_rules=expert_b_rules,
     )
+    log_llm_prompt(f"3.1 {config.display_name} Expert Comparison", messages)
     try:
         response = client.responses.create(
             model=model,

@@ -32,6 +32,7 @@ from src.common.pipeline_context import (
     ActivePipelineContext,
     build_active_pipeline_context,
 )
+from src.common.prompt_logging import configure_prompt_log
 from src.step_1_1_fetch.run import fetch_award_source as run_step_1_1_fetch
 from src.step_1_2_parse_award.run import (
     write_html_outputs_for_paths as run_step_1_2_parse_award,
@@ -461,6 +462,7 @@ def run_default_pipeline(
     ruleset_keys: list[str] | None = None,
 ) -> None:
     """Run the active pipeline end to end through step 5.1."""
+    configure_prompt_log(paths.award_json_path.parent / f"{paths.output_stem}.log")
     if ruleset_keys is None:
         for step in DEFAULT_PIPELINE_STEPS:
             STEP_RUNNERS[step](paths)
@@ -509,6 +511,7 @@ def run_selected_step(
     ruleset_keys: list[str] | None = None,
 ) -> None:
     """Run one selected active pipeline step."""
+    configure_prompt_log(paths.award_json_path.parent / f"{paths.output_stem}.log")
     if step in RULESET_SPECIFIC_STEPS and ruleset_keys is not None:
         run_selected_ruleset_steps(paths, step, ruleset_keys)
         return

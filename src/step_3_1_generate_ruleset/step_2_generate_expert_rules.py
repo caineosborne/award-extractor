@@ -15,6 +15,7 @@ from src.common.overtime_clause_classification import (
 )
 from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET, overtime_ruleset_config
 from src.common.pipeline_runtime import load_openai_environment
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_3_1_generate_ruleset import build_interpretation_messages
 
 from .schema import DEFAULT_MODEL
@@ -126,14 +127,16 @@ def request_structured_interpretation_run(
 ) -> str:
     """Run one expert interpretation pass and return the raw model output text."""
     config = overtime_ruleset_config(ruleset_key)
+    messages = build_interpretation_messages(
+        ruleset_key,
+        str(source_path),
+        overtime_creation_clauses,
+    )
+    log_llm_prompt(f"3.1 {config.display_name} Expert Interpretation", messages)
     try:
         response = client.responses.create(
             model=model,
-            input=build_interpretation_messages(
-                ruleset_key,
-                str(source_path),
-                overtime_creation_clauses,
-            ),
+            input=messages,
             text={
                 "format": {
                     "type": "json_schema",

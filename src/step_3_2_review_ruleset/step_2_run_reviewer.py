@@ -15,6 +15,7 @@ from src.common.llm_io import extract_response_text
 from src.common.model_call_budget import log_model_call_budget
 from src.common.overtime_rules import ALLOWED_REVIEW_RECOMMENDATIONS, validate_review_feedback_artifact
 from src.common.pipeline_runtime import load_openai_environment
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_3_2_review_ruleset import (
     build_evaluator_repair_messages,
     build_review_evaluator_messages,
@@ -201,6 +202,7 @@ def request_evaluator_feedback(
             payload=current_evaluator_messages,
             max_output_tokens=evaluator_max_output_tokens,
         )
+        log_llm_prompt("3.2 Evaluator Review", current_evaluator_messages)
         evaluator_response = evaluator_client.responses.create(
             model=evaluator_model,
             input=current_evaluator_messages,

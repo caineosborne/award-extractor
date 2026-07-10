@@ -215,6 +215,7 @@ Important:
 
 def _build_generate_ruleset_user_prompt(
     *,
+    ruleset_display_name: str,
     step_subset_prompt: str,
     subset_shared_instructions: str,
     step_family_instructions: str,
@@ -222,6 +223,10 @@ def _build_generate_ruleset_user_prompt(
     working_paper_input: str,
 ) -> str:
     return (
+        f"Task: Build the {ruleset_display_name.lower()} payroll ruleset from the "
+        "source clauses below.\n\n"
+        "Step 3.1 subset-specific instructions:\n\n"
+        f"{step_subset_prompt}\n\n"
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
@@ -229,8 +234,6 @@ def _build_generate_ruleset_user_prompt(
         f"{step_family_instructions}\n\n"
         "Reusable ruleset checks:\n\n"
         f"{ruleset_question_block}\n\n"
-        "Step 3.1 subset-specific instructions:\n\n"
-        f"{step_subset_prompt}\n\n"
         "Clauses:\n\n"
         f"{working_paper_input}"
     )
@@ -286,6 +289,7 @@ def build_interpretation_messages(
         {
             "role": "user",
             "content": _build_generate_ruleset_user_prompt(
+                ruleset_display_name=overtime_ruleset_config(ruleset_key).display_name,
                 step_subset_prompt=GENERATE_RULESET_STEP_SUBSET_USER_PROMPTS[
                     ruleset_key
                 ].format(

@@ -44,6 +44,15 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
             "treat that as an all-employees ordinary-hours boundary",
             messages[1]["content"],
         )
+        user_prompt = messages[1]["content"]
+        self.assertLess(
+            user_prompt.index("Step 2.2 scope and classification instructions:"),
+            user_prompt.index("Required output for every clause:"),
+        )
+        self.assertLess(
+            user_prompt.index("Required output for every clause:"),
+            user_prompt.index("Clauses:"),
+        )
 
     def test_step_3_1_generation_includes_creation_questions(self):
         messages = build_interpretation_messages(
@@ -64,6 +73,17 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         )
 
         self.assertTrue(message_contains_expected_block(messages))
+        user_prompt = messages[1]["content"]
+        self.assertIn(
+            "Task: Build the overtime creation payroll ruleset from the source clauses below.",
+            user_prompt,
+        )
+        self.assertIn("Step 3.1 subset-specific instructions:", user_prompt)
+        self.assertIn("Common rulesets that may apply are:", user_prompt)
+        self.assertLess(
+            user_prompt.index("Task: Build"),
+            user_prompt.index("Step 3.1 subset-specific instructions:"),
+        )
 
     def test_step_3_1_merge_includes_creation_questions(self):
         rule = OvertimeRule(
@@ -158,6 +178,15 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         )
 
         self.assertTrue(message_contains_expected_block(messages))
+        user_prompt = messages[1]["content"]
+        self.assertLess(
+            user_prompt.index("Common clauses that may appear:"),
+            user_prompt.index("Reviewed ruleset:"),
+        )
+        self.assertLess(
+            user_prompt.index("Step 4.1 subset-specific formatting instructions:"),
+            user_prompt.index("Reviewed ruleset:"),
+        )
 
     def test_step_5_1_pseudocode_includes_creation_questions(self):
         messages = build_pseudocode_messages(

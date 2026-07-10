@@ -28,6 +28,40 @@ The active path is:
 5. Generate implementation-oriented pseudocode.
 
 In code, those are steps `1`, `2.1`, `2.2`, `3.1`, `3.2`, `4.1`, and `5.1`.
+Step `6.1` is a separate calculator-questionnaire and calculator-draft stage
+that can be run after the reviewed rulesets are available.
+
+## Human review expectations
+
+The pipeline is not intended to make every final payroll interpretation decision
+without human oversight. Human review is expected at the following points:
+
+- Step `3.1`: the expert drafts, comparison artifact, and combined ruleset are
+  working interpretation outputs. They are evidence for review, not a final
+  approved ruleset.
+- Step `3.2`: the evaluator identifies issues and the creator decides whether to
+  keep, modify, or remove each rule. The evaluator feedback, creator decision
+  record, and revised ruleset are all retained so a human reviewer can trace the
+  decision from recommendation to final rule.
+- Step `4.1`: the formatted guide is a presentation layer for human review. It
+  must not replace the reviewed step `3.2` ruleset as the authoritative source.
+  Formatting coverage warnings are surfaced for manual review rather than being
+  silently treated as resolved.
+- Optional step `4.9`: a reviewer may save a manually reviewed ruleset working
+  file after step `4.1`. When present, this file becomes the preferred source for
+  step `5.1` pseudocode generation.
+
+Human review should confirm, at minimum:
+
+- the rule is supported by the cited award clauses;
+- employee scope and work arrangement are correct;
+- distinct payroll tests have not been merged incorrectly;
+- evaluator recommendations rejected by the creator have a recorded reason;
+- any formatting or pseudocode coverage warnings have been considered.
+
+Step `6.1` does not replace this review. It projects the reviewed rules into a
+narrow calculator questionnaire and calculator-code format. It is not intended
+to reproduce every rule in the reviewed ruleset.
 
 ## Design principles
 
@@ -238,6 +272,12 @@ The outputs are:
 - comparison summary;
 - canonical combined ruleset.
 
+These are reviewable working outputs, not human-approved final interpretations.
+The combined ruleset is the input to step `3.2`, where evaluator feedback and
+creator decisions are recorded. A reviewer should use the expert drafts and
+comparison artifact to understand disagreement or possible omissions, then use
+the step `3.2` decision record and revised ruleset as the next review checkpoint.
+
 ## Step 3.2. Review and revise the drafted ruleset
 
 Files:
@@ -276,6 +316,22 @@ The outputs are:
 - creator response markdown and JSON;
 - revised ruleset markdown and JSON.
 
+### Human review checkpoint
+
+Step `3.2` uses the following active sequence:
+
+1. The evaluator reviews the step `3.1` draft and records structured findings.
+2. The creator considers those findings and decides which rules to keep, modify,
+   or remove.
+3. The creator produces the revised ruleset and a decision record.
+4. A human reviewer reviews the evaluator findings, the creator's accepted and
+   rejected decisions, and the revised ruleset.
+
+The creator's decision is the model-generated implementation decision for this
+stage, but it is not a substitute for human oversight. Rejected evaluator
+recommendations must remain visible with the creator's reason so that a reviewer
+can challenge the decision if necessary.
+
 ## Step 4.1. Formatted ruleset guide
 
 Files:
@@ -290,6 +346,18 @@ Purpose:
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
+
+### Human review checkpoint
+
+Step `4.1` produces a reviewer-facing formatted guide. A human reviewer is
+expected to check that the formatted guide has preserved the operative rules,
+thresholds, employee scope, exceptions, and clause references from the reviewed
+step `3.2` ruleset. The formatter's coverage warnings are review prompts; they do
+not mean that the output has been automatically repaired or approved.
+
+If the formatted guide is edited or corrected by a human, the resulting file is
+handled through the optional step `4.9` human-review utility and becomes the
+preferred step `5.1` source.
 
 For penalties, the formatter keeps supporting non-financial break-gap rules representable and uses penalties-specific headings instead of overtime headings.
 
@@ -333,7 +401,12 @@ Purpose:
 - answer a fixed calculator questionnaire with evidence fields;
 - generate a calculator Python draft from that questionnaire.
 
-This is the first calculator-facing output layer. Its prompt and data shape are expected to change as the calculator contract becomes clearer.
+This is the first calculator-facing output layer. It is a deliberate projection
+of the reviewed rulesets into the narrower calculator contract. Its output is not
+the complete award interpretation and must not be treated as a replacement for
+the reviewed step `3.2` rulesets or any human-reviewed step `4.9` source.
+Its prompt, schema, and data shape are expected to change as the calculator
+contract becomes clearer.
 
 ## Technical detail boundary
 
@@ -374,12 +447,12 @@ The easiest way to understand the system is:
 1. Step `1` creates a deterministic source record.
 2. Step `2.1` narrows the award to payment-relevant material.
 3. Step `2.2` builds the selected ruleset clause subset.
-4. Step `3.1` drafts the selected ruleset.
-5. Step `3.2` critiques and revises that draft with explicit rule-level decisions.
-6. Step `4.1` formats the reviewed ruleset for reviewer-facing use.
+4. Step `3.1` drafts the selected ruleset for review.
+5. Step `3.2` runs evaluator review, creator decisions, and creator rewrite, while retaining the decision trail for human review.
+6. Step `4.1` formats the reviewed ruleset for human-facing review.
 7. Optional step `4.9` allows a human-reviewed ruleset working file to be saved when needed.
 8. Step `5.1` generates implementation-oriented pseudocode from the best available reviewed artifact.
-9. Step `6.1` turns the reviewed rulesets into a calculator questionnaire and Python draft.
+9. Optional/separately selected step `6.1` turns the reviewed rulesets into a narrower calculator questionnaire and Python draft.
 
 So the method is not "one model reads the award and answers."
 

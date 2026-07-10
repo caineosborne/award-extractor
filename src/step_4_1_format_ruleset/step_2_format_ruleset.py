@@ -13,6 +13,7 @@ from openai import OpenAI
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import write_text_output
 from src.common.pipeline_runtime import load_openai_environment
+from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_4_1_format_ruleset import build_messages
 
 from .schema import DEFAULT_MODEL, OvertimeEntitlementSummaryError
@@ -44,15 +45,18 @@ def request_formatted_ruleset(
     ruleset_key: str,
 ) -> str:
     """Request the formatted overtime guide from the model."""
+    messages = build_messages(
+        interpretation_path,
+        interpretation_markdown,
+        template_path,
+        template_markdown,
+        ruleset_key,
+    )
+    log_llm_prompt(f"4.1 {ruleset_key} Ruleset Formatting", messages)
     response = client.responses.create(
         model=model,
-        input=build_messages(
-            interpretation_path,
-            interpretation_markdown,
-            template_path,
-            template_markdown,
-            ruleset_key,
-        ),
+        input=messages,
+        reasoning={"effort": "low"},
     )
     output_text = extract_response_text(response)
     if not output_text:
