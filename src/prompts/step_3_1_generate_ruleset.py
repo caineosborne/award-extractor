@@ -76,9 +76,7 @@ GENERATE_RULESET_VARIANT_SYSTEM_PROMPTS = {
 
 
 GENERATE_RULESET_STEP_SUBSET_USER_PROMPTS = {
-    OVERTIME_CREATION_RULESET: """Source classification file: {source_file}
-
-The clauses below have already been identified as relevant to determining when overtime is created.
+    OVERTIME_CREATION_RULESET: """The shortlisted clauses below have already been identified as relevant to determining when overtime is created.
 
 Your task is to turn them into a payroll implementation working paper. This will be a plain english document to be used by the payroll management team to configure their payroll system.
 
@@ -125,9 +123,7 @@ Important:
 - If the choice is between omitting a plausible supported overtime-creation rule or keeping a partly overlapping rule, prefer keeping it.
 - Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
-    OVERTIME_CONSEQUENCE_RULESET: """Source classification file: {source_file}
-
-The clauses below have already been identified as relevant to determining the consequences once overtime already exists.
+    OVERTIME_CONSEQUENCE_RULESET: """The shortlisted clauses below have already been identified as relevant to determining the consequences once overtime already exists.
 
 Your task is to turn them into a payroll implementation working paper. This will be a plain english document to be used by the payroll management team to configure their payroll system.
 
@@ -166,9 +162,7 @@ Important:
 - Do not assume that a full-time or part-time multiplier rule automatically covers casual employees. State the casual overtime rate rule separately when the clauses do so.
 - Do not over-merge just to remove repetition. Some overlap is acceptable at this stage if later aggregation may consolidate related rules.
 """.strip(),
-    PENALTIES_RULESET: """Source classification file: {source_file}
-
-The clauses below have already been identified as relevant to determining penalty outcomes and supporting break-between-work-period rules.
+    PENALTIES_RULESET: """The shortlisted clauses below have already been identified as relevant to determining penalty outcomes and supporting break-between-work-period rules.
 
 Your task is to turn them into a payroll implementation working paper. This will be a plain english document to be used by the payroll management team to configure their payroll system.
 
@@ -232,7 +226,7 @@ def _build_generate_ruleset_user_prompt(
         f"{STEP_3_1_GENERIC_RULESET_LANGUAGE}\n\n"
         f"{subset_shared_instructions}\n\n"
         f"{step_family_instructions}\n\n"
-        "Reusable ruleset checks:\n\n"
+        "Common rules and checks:\n\n"
         f"{ruleset_question_block}\n\n"
         "Clauses:\n\n"
         f"{working_paper_input}"
@@ -390,7 +384,7 @@ def build_expert_comparison_messages(
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{subset_shared_instructions}\n\n"
         f"{step_family_merge_instructions}"
-        "Reusable ruleset checks:\n\n"
+        "Common rules and checks:\n\n"
         f"{ruleset_question_block}\n\n"
         "Step 3.1 subset-specific merge instructions:\n\n"
         "Preserve the business meaning of the rules. Do not drop a rule merely because "
@@ -419,7 +413,6 @@ def build_expert_comparison_messages(
         f"{variant_system_instructions}"
     )
     user_prompt = (
-        f"Source classification file: {source_path}\n\n"
         f"Shortlisted source clauses from the {config.display_name.lower()} clause classification step:\n```json\n"
         f"{json.dumps(shortlisted_clauses, indent=2, ensure_ascii=False)}\n```\n\n"
         "Run A structured rules:\n```json\n"

@@ -207,17 +207,13 @@ Step 4.1 family instructions:
 
 Template and required structure:
 
-Template source: {template_path}
-
 {FORMAT_RULESET_GENERIC_TEMPLATE_GUIDANCE}
 
 ```markdown
 {template_markdown}
 ```
 
-Reviewed ruleset:
-
-Reviewed ruleset source: {interpretation_path}
+Reviewed ruleset content:
 
 ```markdown
 {interpretation_markdown}

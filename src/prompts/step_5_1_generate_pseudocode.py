@@ -86,7 +86,7 @@ Ruleset-specific constraints:
 Available fields:
 {fields}
 
-Reusable ruleset checks:
+Common rules and checks:
 {ruleset_question_block}
 
 {common_constraints}
@@ -272,7 +272,7 @@ def build_messages(
     )
     user_prompt = (
         f"Ruleset mode instruction: {ruleset_variant['user_instructions']}\n\n"
-        f"Reviewed source markdown: {source_file}\n\n"
+        "Reviewed ruleset content:\n\n"
         f"{inventory_text}"
         "Complete reviewed source markdown to convert:\n"
         f"{overtime_summary_markdown}"
@@ -303,7 +303,7 @@ def build_repair_messages(
     user_prompt = (
         f"Ruleset mode instruction: {ruleset_variant['repair_instructions']}\n\n"
         "The first pseudocode draft failed deterministic validation.\n\n"
-        f"Reviewed source markdown: {source_file}\n\n"
+        "Reviewed ruleset content:\n\n"
         "Required rule inventory derived from the reviewed source markdown:\n"
         f"{render_inventory_for_prompt(source_inventory)}\n\n"
         "Reviewed source markdown:\n"

@@ -14,6 +14,7 @@ from src.common.overtime_rulesets import (
 
 
 GENERIC_PAYROLL_CONFIGURATION_PROMPT = """Shared payroll configuration approach:
+- Terminology: a ruleset is the collection of payroll rules for one selected question; a ruleset subset is the selected subject area, such as overtime creation, overtime consequence, or penalties; a working paper is the draft rules document produced for review; a source clause is the award text supporting a rule.
 - Write for a system that will configure code or payroll logic, not for a payroll expert reading a policy note.
 - Prefer structured English or pseudocode (as requested), with explicit data points, clear conditions, and concrete outputs.
 - Treat the questions below as expected checks for common award rules in the selected ruleset, not as the complete universe of possible rules.
@@ -22,10 +23,10 @@ GENERIC_PAYROLL_CONFIGURATION_PROMPT = """Shared payroll configuration approach:
 """
 
 
-COMMON_OVERTIME_RULES_PREAMBLE = """Common rulesets that may apply are:
-- The following rules may appear across multiple awards.
-- If the source supports a rule, include it in the ruleset.
-- If the source does not support a rule, do not invent it.
+COMMON_OVERTIME_RULES_PREAMBLE = """General guidance for the reusable checks below:
+- These checks cover common rules that may appear across multiple awards.
+- Apply a check only when the source supports the rule.
+- Do not invent a rule where the source does not support it.
 - Include any other material rules supported by the source, even if they are not listed below.
 """
 
@@ -40,6 +41,9 @@ OVERTIME_CREATION_COMMON_QUESTIONS = """Reusable overtime creation checks:
 - If the clause states ordinary hours may be worked between times or within a span, treat that as an all-employees ordinary-hours boundary unless the clause expressly narrows the cohort.
 - If the clause mentions broken shifts or spread of hours alongside the span, keep that boundary rule with the same all-employees scope unless the clause says otherwise.
 
+These rules may be different for different employee cohorts, including full-time, part-time, casual, shift workers, and day workers.
+Please ensure you look through all clauses to find any cohort-specific variations, and include them in the ruleset if supported by the source.
+
 For each supported creation rule, answer:
 - which employee cohorts it applies to, including full-time, part-time, casual, shift workers, and day workers where relevant;
 - the triggering condition;
@@ -47,7 +51,7 @@ For each supported creation rule, answer:
 """
 
 
-OVERTIME_CONSEQUENCE_COMMON_QUESTIONS = """Reusable overtime consequence checks:
+OVERTIME_CONSEQUENCE_COMMON_QUESTIONS = """Common scenarios for overtime consequence checks:
 - What multiplier is paid when overtime is worked? eg is it 150% or 200%? Does it vary on the day of the week, the time of day, or the number of hours worked?
 - Does the multiplier vary by employee cohort, including full-time, part-time, and casual employees?
 - What other consequences apply once overtime exists, such as additional breaks, meal allowances, time off instead of payment, rest or release entitlements, minimum payments, or other post-overtime entitlements?
@@ -65,7 +69,7 @@ Only include creation context when it is strictly necessary to identify which co
 """
 
 
-PENALTIES_COMMON_QUESTIONS = """Reusable penalties checks:
+PENALTIES_COMMON_QUESTIONS = """Common scenarios for penalties checks:
 - Penalties includes anything other than overtime that can increase pay for worked hours.
 - Do not include anything related to overtime creation or overtime consequences, unless the clause expressly makes it part of a penalties-domain rule.
 - This includes shift allowances, shift penalties, weekend penalties, public holiday penalties, afternoon penalties, evening penalties, night penalties, and similar higher-paid time-based rules.

@@ -144,7 +144,7 @@ def _build_clause_classification_user_prompt(
         "Generic prompt instructions:\n\n"
         f"{GENERIC_PAYROLL_CONFIGURATION_PROMPT}\n\n"
         f"{CLAUSE_CLASSIFICATION_GENERIC_RULESET_LANGUAGE}\n\n"
-        "Reusable ruleset checks:\n\n"
+        "Common rules and checks:\n\n"
         f"{ruleset_question_block}\n\n"
         "Required output for every clause:\n\n"
         f"{CLAUSE_CLASSIFICATION_OUTPUT_CONTRACT}\n\n"

@@ -22,15 +22,12 @@ def build_messages(
         "award_code": award_code,
         "source_artifacts": {
             "overtime_creation": {
-                "path": str(creation_json_path),
                 "rules": creation_rules,
             },
             "overtime_consequence": {
-                "path": str(consequence_json_path),
                 "rules": consequence_rules,
             },
             "penalties": {
-                "path": str(penalties_json_path),
                 "rules": penalties_rules,
             },
         },

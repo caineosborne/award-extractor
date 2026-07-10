@@ -128,8 +128,9 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "Keep clause references visible in every rule bullet",
             messages[0]["content"],
         )
-        self.assertIn("Reviewed ruleset source: interpretation.md", messages[1]["content"])
-        self.assertIn("Template source: Templates/Template.md", messages[1]["content"])
+        self.assertIn("Reviewed ruleset content:", messages[1]["content"])
+        self.assertNotIn("interpretation.md", messages[1]["content"])
+        self.assertNotIn("Template source:", messages[1]["content"])
         self.assertIn("Core template structure", messages[1]["content"])
         self.assertIn("After 38 hours in a week. [20.1]", messages[1]["content"])
         self.assertIn("# Overtime Triggers", messages[1]["content"])
@@ -162,7 +163,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             OVERTIME_CONSEQUENCE_RULESET,
         )
 
-        self.assertIn("Template source: Templates/Template.md", messages[1]["content"])
+        self.assertNotIn("Template source:", messages[1]["content"])
         self.assertIn("# Overtime Consequences", messages[1]["content"])
         self.assertIn("## Full-Time And Part-Time Employees", messages[1]["content"])
         self.assertIn(
@@ -279,7 +280,10 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             fake_client.responses.calls[0]["reasoning"],
             {"effort": "low"},
         )
-        self.assertIn("award_overtime_interpretation_revised.md", fake_client.responses.calls[0]["input"][1]["content"])
+        self.assertNotIn(
+            "award_overtime_interpretation_revised.md",
+            fake_client.responses.calls[0]["input"][1]["content"],
+        )
         self.assertNotIn("Clause 19.2 was not represented.", fake_client.responses.calls[0]["input"][1]["content"])
 
     def test_summarize_overtime_entitlements_records_warning_for_dropped_reviewed_rule(self):

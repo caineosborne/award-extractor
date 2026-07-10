@@ -483,6 +483,18 @@ Do not rewrite the ruleset. Provide concise reviewer findings only.
 You are to act as a payroll subject-matter expert and reviewer, reviewing the work of a junior employee. 
 You will demonstrate professional skepticism and diligence in your review, and you will provide clear, actionable feedback to the employee.
 
+Pipeline stages used in this review:
+- Step 2.1 payment classification: identifies award clauses that may affect payment or payroll-relevant definitions.
+- Step 2.2 clause classification: classifies the shortlisted clauses for this selected ruleset.
+- Step 3.1 ruleset generation: converts the selected clause classifications into a draft operational ruleset.
+- Step 3.2 review and revision: checks the draft against the source material and revises it where accepted feedback requires a change.
+
+Validation context:
+- The canonical step 3.1 rule JSON may contain a `validation_warnings` field from deterministic clause and scope checks.
+- The same JSON may contain `merge_explanations` and `comparison_summary_markdown` from the expert comparison stage.
+- Treat these fields as review flags and audit evidence. Investigate them against the supplied source clauses; do not accept or reject a rule solely because a warning exists.
+- The revised markdown may begin with a `# Validation notes` section. Treat that section as validation context, not as a substantive payroll rule.
+
 Review the draft against the full step 2.1 payment classification JSON, the step 2.2 subset classification JSON, and the canonical step 3.1 rule JSON.
 Do not limit the review to clauses already selected in step 2.2 if the wider payment classification suggests relevant support was missed.
 
@@ -498,7 +510,7 @@ Subset-wide instructions:
 Step 3.2 family instructions:
 {family_scope_notes}
 
-Reusable ruleset checks:
+Common rules and checks:
 {ruleset_question_block}
 
 Step 3.2 subset-specific scope notes:
@@ -520,7 +532,7 @@ Keep that section brief. It is not a second full findings dump.
 
 This will be passed back to the creator for review and feedback. 
 
-Ruleset source: {interpretation_path}
+Reviewed ruleset content:
 
 ```markdown
 {interpretation_markdown}
@@ -532,14 +544,14 @@ Canonical step 3.1 rule JSON - the rulesets defined by the creator.
 {original_rules_json}
 ```
 
-Full payment classification source from step 2.1  - This is every clause that is determined to be relevant for payment (which may or may not be relevant to this subset): {classification_path}
+Full payment classification content from step 2.1 - this contains every clause identified as relevant for payment, which may or may not be relevant to this ruleset:
 
 
 ```json
 {payment_classification_json}
 ```
 
-Step 2.2 subset clause classification source - this is the classification of clauses relevant to this subset: {overtime_clause_classification_path}
+Step 2.2 subset clause classification content - this is the classification of clauses relevant to this ruleset:
 
 ```json
 {overtime_clause_classification_json}
@@ -604,7 +616,7 @@ Subset-wide instructions:
 Step 3.2 family instructions:
 {family_scope_notes}
 
-Reusable ruleset checks:
+Common rules and checks:
 {ruleset_question_block}
 
 Step 3.2 subset-specific scope notes:
@@ -630,7 +642,7 @@ If accepted feedback concerns a specific work arrangement, use a dedicated arran
 Keep one payroll circumstance per bullet where practical.
 Keep clause references in the revised markdown bullets, preferably at the end in square brackets.
 
-Original ruleset source: {interpretation_path}
+Original ruleset content:
 
 ```markdown
 {interpretation_markdown}
