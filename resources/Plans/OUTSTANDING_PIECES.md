@@ -317,12 +317,251 @@ Current state:
 Why it is no longer listed as active:
 - the prompt layer now has the requested shared configuration surface and a consistent generic-plus-specific layout.
 
+## Recommended next work
+
+The next phase should focus on making the interpretation contract more precise
+before adding significant configurability. The pipeline is now sufficiently
+complete to test the full business workflow rather than only individual steps.
+
+### V1 end-to-end evidence pack
+
+Status:
+- Open
+
+What to add:
+- run one representative award cleanly through step `6.1`;
+- include overtime creation, overtime consequence, and penalties in the same review record;
+- record all human interventions, reruns, rejected recommendations, and unresolved questions;
+- record whether the questionnaire and calculator draft are sufficient for the intended business use.
+
+Why it matters:
+- a clean run demonstrates that the workflow is operationally useful, not only unit-test green;
+- the evidence pack will identify which improvements are genuinely needed before broader rollout.
+
+### Canonical rule contract
+
+Status:
+- Open
+
+What to add:
+- define a flexible, repeatable rule record rather than a fixed set of award-specific fields;
+- give each rule a stable identifier, rule type, scope, trigger, qualification conditions, measurement period, outcome, precedence, exceptions, source clauses, and review status;
+- carry the same rule identity from the reviewed ruleset into pseudocode and calculator outputs;
+- preserve a clear distinction between source wording, human interpretation, generated implementation logic, and unresolved issues.
+
+Why it matters:
+- the number of rules can change from award to award without weakening the structure;
+- reviewers can trace one business rule through every downstream artifact;
+- step `6.1` can report which rules are implemented, partially implemented, or outside its scope.
+
+### Payroll-relevant definition register
+
+Status:
+- Open
+
+What to add:
+- extract and retain payroll-relevant definitions as a dedicated artifact;
+- record the defined term, source clause, definition text, normalized interpretation, rules that use it, and any unresolved ambiguity;
+- require downstream rules to identify the definitions on which they depend.
+
+Priority examples:
+- `day`;
+- `ordinary hours`;
+- `shiftworker`;
+- `rostered hours`;
+- `week`, `pay period`, or `roster cycle`;
+- `continuous shift` or `work period`.
+
+Why it matters:
+- a phrase such as “10 hours in a day” is not operationally precise unless the relevant day or measurement period is identified;
+- the system should expose ambiguity for human decision rather than silently selecting a meaning.
+
+### Clause-to-rule lineage and completion tracking
+
+Status:
+- Open
+
+Recommendation:
+- add a source-clause lineage layer that starts from the classified clause population and follows each relevant clause through every downstream stage;
+- treat this as a coverage and traceability contract, not as a requirement for every clause to become a standalone rule.
+
+What to add:
+- assign stable source identifiers to the most granular operative clause available, for example `3.2.1(a)(i)`;
+- retain the parent hierarchy for each granular clause, including the relationship to `3.2.1`, `3.2`, and the relevant higher-level clause;
+- allow one granular clause to map to zero, one, or multiple rulesets and downstream rules;
+- record an explicit disposition where a clause is not carried forward, such as:
+  - operative rule;
+  - supporting context;
+  - definition or scope condition;
+  - duplicate or superseded text;
+  - not relevant to the selected ruleset;
+  - unresolved;
+  - explicitly excluded with a reason;
+- carry the clause identifiers and dispositions through steps `2.2`, `3.1`, `3.2`, `4.1`, `5.1`, and `6.1` where applicable;
+- show whether a clause was present in the source, classified, included in a ruleset, retained after review, represented in formatted output, represented in pseudocode, and covered by calculator logic;
+- distinguish a parent clause being represented through its child clauses from the parent clause itself being silently omitted.
+
+Suggested record:
+
+```text
+Source clause
+Parent clause path
+Source text
+Ruleset relevance
+Employee type / work arrangement
+Definition dependencies
+Disposition at each step
+Downstream rule IDs
+Explicit exclusion reason
+Unresolved question
+Human review status
+```
+
+Important design constraint:
+- the ledger should not require every leaf clause to become a rule;
+- it should require every relevant leaf clause to have an explainable treatment;
+- a parent-level heading or L2 summary must not be treated as sufficient coverage where an operative rule exists only in a more granular child such as `3.2.1(a)(i)`.
+
+Why it matters:
+- the current workflow can validate whether a selected L2 clause appears downstream while still allowing a more granular operative provision to fall through the process;
+- leaf-level lineage would make omissions visible even when the model-generated prose is plausible;
+- the same mechanism would identify whether employee type, work arrangement, definitions, exceptions, and other scope conditions were retained;
+- it provides a common audit spine while allowing each pipeline phase to use its own language and artifact shape.
+
+Implementation questions to resolve:
+- whether step `1.2` should emit a canonical clause tree with stable leaf identifiers;
+- whether step `2.2` should classify leaf clauses directly or classify L2 groups while returning leaf-level dispositions;
+- how to represent a rule that combines several leaf clauses;
+- how to represent a leaf clause that supports a rule but does not independently create an entitlement;
+- how to validate parent/child coverage without double-counting a clause represented by a more granular descendant.
+
+### Pseudocode v2 as an implementation specification
+
+Status:
+- Open
+
+What to add:
+- make each pseudocode rule identify its inputs, derived values, measurement window, condition, output, priority, exclusions, and source clauses;
+- require every reviewed rule to appear in executable pseudocode, implementation notes, or an explicitly justified exclusion;
+- add scenario examples for daily, weekly, span-of-hours, roster-cycle, day-worker, shiftworker, weekend, public-holiday, casual, part-time, and exception cases;
+- use the scenarios as deterministic acceptance tests where practical.
+
+Why it matters:
+- pseudocode becomes a reviewable implementation specification rather than a narrative summary;
+- a payroll or implementation reviewer can identify what the rule actually does without reconstructing the interpretation from prose.
+
+### Client-specific implementation field mapping
+
+Status:
+- Open
+
+Recommendation:
+- add a human-editable implementation input configuration between steps `4.1` and `5.1`;
+- keep the award interpretation expressed in stable semantic terms while allowing the implementation field names and availability to vary by client.
+
+Examples:
+- map the semantic field `work_start` to a client field called `start_work`;
+- map the semantic field `work_end` to a client field called `finish_time`;
+- identify that the client does not currently provide a reliable `shiftworker_status` field;
+- identify whether roster start and finish times are available, derived, or unavailable.
+
+What to add:
+- a field mapping artifact with stable semantic field name, client field name, data type, source system, availability status, derivation rule, and reviewer notes;
+- explicit availability statuses such as `available`, `derivable`, `missing`, `uncertain`, and `not applicable`;
+- a human review surface for editing field names and confirming the meaning of client fields;
+- a clear distinction between a renamed field and a genuinely different or insufficient data point;
+- injection of the approved field mapping into step `5.1` pseudocode generation and later calculator generation;
+- pseudocode that names missing inputs as required operational inputs and explains which rules cannot be applied without them.
+
+Important design constraint:
+- client field names should be aliases for stable semantic concepts, not replacements for the concepts themselves;
+- a mapping such as `start_work` -> `work_start` is safe only after the reviewer confirms that both fields have the same meaning, timing basis, and granularity;
+- if the client does not know who is a shiftworker, the system should not infer that status from a vague field or silently treat everyone as a day worker.
+
+Expected output when information is missing:
+
+```text
+Missing input: shiftworker_status
+Affected rules: OT-CONSEQUENCE-004, PENALTY-002
+Current treatment: cannot determine whether the shiftworker-specific rule applies
+Required action: obtain a reliable employee classification or agree a documented fallback
+Pseudocode treatment: branch explicitly on shiftworker_status and mark the result for review when unavailable
+```
+
+Why it matters:
+- the same reviewed ruleset may need to be implemented against different client data models;
+- this creates a controlled hand-off from award interpretation to implementation design;
+- missing client data becomes a visible business requirement rather than an implicit model assumption;
+- reviewers can distinguish an award ambiguity from a client data deficiency.
+
+### Step 6.1 calculator contract and coverage status
+
+Status:
+- Open
+
+What to review:
+- confirm whether step `6.1` is a review aid, a configuration generator, a test calculator, or a payroll-engine prototype;
+- define the intended calculator inputs and outputs from representative scenarios;
+- add explicit coverage fields for implemented, partially implemented, not implemented, and manual-decision rules;
+- keep generated Python clearly labelled as a draft unless it has passed the relevant rule and scenario tests.
+
+Why it matters:
+- the current calculator output is a projection of the reviewed rules, not a complete reproduction of every rule;
+- explicit coverage prevents a structured output from appearing more complete than it is.
+
+### “Talk to an Award” reviewer assistant
+
+Status:
+- Proposed
+
+Recommendation:
+- pursue this as a reviewer-facing question-and-answer assistant, not as an authoritative payroll decision-maker.
+
+Useful first-release questions:
+- “What does this award say about overtime on Sunday?”
+- “Which clauses support the ordinary-hours boundary?”
+- “What does ‘day’ mean in the clauses used by this rule?”
+- “Which rules apply to casual shiftworkers?”
+- “Show me the unresolved interpretation questions.”
+- “Compare the reviewed rule with the source clauses.”
+
+Minimum behaviour:
+- answer only from the selected award and its saved artifacts;
+- cite the relevant clause references and link back to the source text;
+- distinguish source wording, generated interpretation, human-edited content, and inference;
+- say when the award is silent or ambiguous;
+- show the relevant rule IDs, definitions, and review status;
+- never silently change a ruleset or calculator configuration through chat.
+
+Recommended implementation order:
+1. build retrieval over the structured award, definition register, reviewed rules, pseudocode, and validation artifacts;
+2. support cited answers and “show evidence” responses;
+3. add comparison and unresolved-question views;
+4. only later consider controlled actions such as creating a review note or proposing an edit.
+
+Why it could be valuable:
+- it would make the project useful between pipeline runs, when a reviewer wants to investigate a clause or interpretation quickly;
+- it could expose gaps in definitions and rule coverage through real user questions;
+- it provides a natural human interface without requiring the user to navigate every intermediate artifact.
+
+Main risks:
+- a confident but unsupported answer would be more dangerous than no answer;
+- retrieval must preserve award version and clause context;
+- the assistant must not blur the distinction between “what the award says” and “how this project interpreted it.”
+
+The chatbot should therefore follow the canonical rule and definition work,
+but a small read-only prototype could be useful during that work as a way to
+test whether the artifacts are understandable to reviewers.
+
 ## Current recommendation
 
 The active priority should be:
 
-1. record a clean v1 smoke test through step `6.1` for a representative award;
-2. review the step `6.1` questionnaire and Python output shape against calculator needs;
-3. implement v1.1 human intervention points across more stages;
-4. surface active prompts in the review app and make prompt variants traceable;
-5. keep the Streamlit review screens aligned with structured artifact contracts as step `3.2` and step `6.1` evolve.
+1. complete the V1 end-to-end evidence pack;
+2. define clause-to-rule lineage at granular clause level, alongside the definition register;
+3. use that lineage to measure clause completion through every pipeline step;
+4. add client-specific implementation field mapping between steps `4.1` and `5.1`;
+5. raise pseudocode to an implementation-specification standard with scenario tests;
+6. review the step `6.1` contract and add rule-coverage status;
+7. prototype a read-only, citation-first “Talk to an Award” reviewer assistant;
+8. then implement broader human intervention points, prompt provenance, and configurable expert/reviewer counts.
