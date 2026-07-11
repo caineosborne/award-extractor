@@ -64,6 +64,11 @@ uv run streamlit run review_outputs.py
 ```
 
 The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual ruleset markdown, inspect the step `5.1` pseudocode outputs, and review/edit the step `6.1` calculator questionnaire and Python draft.
+
+To start a local PDF workflow, choose **Add new award** in the sidebar. Enter an
+MA-style code, or upload a PDF without a code. When no code is entered, the PDF
+filename stem (without `.pdf`) is used as the local output set name.
+
 The main review screens are now reviewer-facing:
 - payment clauses
 - payment clause categories
@@ -78,6 +83,34 @@ The main review screens are now reviewer-facing:
 - calculator questionnaire
 - calculator Python
 - step-3 ruleset selector for overtime creation, overtime consequence, and penalties
+
+## Rule traceability
+
+The `rule-trace` tool works backwards from a Python ruleset to check whether each
+included rule survives across named phase artifacts. It reports whether a rule is
+`missing`, `present_accurate`, or `present_inaccurate`, with the matching file and
+line as evidence. Python and JSON phase outputs are compared structurally when
+possible; Markdown and pseudocode text are checked by rule name and value.
+
+For example:
+
+```bash
+uv run rule-trace rules.py \
+  --ignore-name PT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP \
+  --ignore-name FT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP \
+  --phase "Expert A=expert_a.md" \
+  --phase "Expert B=expert_b.md" \
+  --phase "Combined Expert=combined.md" \
+  --phase "Post Review=post_review.md" \
+  --phase "Formatted=formatted.md" \
+  --phase "Pseudocode=pseudocode.md" \
+  --phase "Python Output=calculator.py" \
+  --output rule_traceability.md
+```
+
+`present_accurate` means accurate relative to the supplied ruleset source of
+truth. It does not independently determine whether the rule is legally correct
+against the award; that remains an award-clause review question.
 
 For step `3.2`, the review screen shows both:
 - the readable evaluator and creator markdown summaries; and

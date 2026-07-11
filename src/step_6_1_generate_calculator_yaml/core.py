@@ -12,7 +12,7 @@ from src.common.output_naming import award_title_from_award_json_path
 from src.common.output_paths import write_text_output
 
 
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_BOOLEAN_FIELDS = {
     "use_contracted_hours_for_pt_overtime": True,
     "pt_employees_entitled_to_contracted_topup": True,
@@ -603,7 +603,13 @@ def _extract_explicit_hours_from_text(text: str) -> list[float]:
 
         extracted_hours.append(hour + (minute / 60))
 
-    for match in re.finditer(r"\b(\d{1,2}):(\d{2})\b", normalized_text):
+    # Do not extract the clock portion a second time when it already has an
+    # am/pm suffix. Otherwise "6:30 pm" becomes both 18.5 and 6.5, shifting
+    # the apparent end time and causing a false hard validation failure.
+    for match in re.finditer(
+        r"\b(\d{1,2}):(\d{2})\b(?!\s*(?:am|pm)\b)",
+        normalized_text,
+    ):
         hour = int(match.group(1))
         minute = int(match.group(2))
         extracted_hours.append(hour + (minute / 60))
@@ -722,10 +728,10 @@ def _validate_penalty_time_text(
     description: str,
     start_hour: int | float,
     end_hour: int | float,
-) -> None:
+) -> str | None:
     explicit_hours = _extract_explicit_hours_from_text(description)
     if len(explicit_hours) < 2:
-        return
+        return None
 
     expected_start = _normalize_midnight_hour(start_hour)
     expected_end = _normalize_midnight_hour(end_hour)
@@ -741,12 +747,14 @@ def _validate_penalty_time_text(
         rounded_stated_start != rounded_expected_start
         or rounded_stated_end != rounded_expected_end
     ):
-        raise CalculatorRulesYamlError(
+        return (
             "Step 6.1 produced a weekday penalty whose structured hours do not match its "
             f"description: '{description}' implies {rounded_stated_start} to "
             f"{rounded_stated_end}, but the structured window is "
             f"{rounded_expected_start} to {rounded_expected_end}."
         )
+
+    return None
 
 
 def _penalty_code_name_has_explicit_times(code_name: str) -> bool:
@@ -792,6 +800,7 @@ def _weekend_shift_entry(
 def _build_live_penalties(
     shift_based_rules: list[dict[str, Any]],
     time_based_rules: list[dict[str, Any]],
+    validation_warnings: list[str],
 ) -> dict[str, Any]:
     penalties: dict[str, Any] = {}
 
@@ -829,11 +838,13 @@ def _build_live_penalties(
         lower_description = description.lower()
         lower_code_name = code_name.lower()
 
-        _validate_penalty_time_text(
+        penalty_time_warning = _validate_penalty_time_text(
             description=description,
             start_hour=start_hour,
             end_hour=end_hour,
         )
+        if penalty_time_warning is not None:
+            validation_warnings.append(penalty_time_warning)
 
         # The current engine only applies PENALTIES on ordinary weekdays and has
         # no calendar-aware weekend/public-holiday filtering in this path.
@@ -1097,6 +1108,8 @@ def normalize_response_data(
         ),
     }
 
+    validation_warnings: list[str] = []
+
     has_two_tier = question_records["has_two_tier_overtime"]["answer"]
     minimum_break_required = question_records["minimum_break_required"]["answer"]
 
@@ -1141,6 +1154,19 @@ def normalize_response_data(
     if shift_weekend_rules:
         weekend_rules["shift"] = shift_weekend_rules
 
+    span_overtime_is_supported = (
+        question_records["day_workers_have_span_overtime"]["answer"] is True
+    )
+    span_overtime_cutoff = question_records["live_span_cutoff_hour"]["answer"]
+    has_numeric_span_overtime_cutoff = isinstance(span_overtime_cutoff, (int, float))
+
+    if span_overtime_is_supported and not has_numeric_span_overtime_cutoff:
+        validation_warnings.append(
+            "Span overtime is supported by the reviewed rules, but no single numeric "
+            "span cutoff is available. The live span-overtime calculation has been "
+            "disabled and requires review before it can be enabled."
+        )
+
     normalized_rules: dict[str, Any] = {
         "ordinary_hours_limit_daily": question_records["shift_daily_limit"]["answer"],
         "ordinary_hours_limit_weekly": question_records["shift_weekly_limit"]["answer"],
@@ -1154,10 +1180,12 @@ def normalize_response_data(
         ),
         "sunday_overtime_rate": question_records["sunday_overtime_multiplier"]["answer"],
         "saturday_overtime_rate": question_records["saturday_overtime_multiplier"]["answer"],
-        "apply_span_overtime": question_records["day_workers_have_span_overtime"]["answer"],
+        "apply_span_overtime": (
+            span_overtime_is_supported and has_numeric_span_overtime_cutoff
+        ),
         "span_overtime_hour": (
-            question_records["live_span_cutoff_hour"]["answer"]
-            if question_records["day_workers_have_span_overtime"]["answer"] is True
+            span_overtime_cutoff
+            if span_overtime_is_supported and has_numeric_span_overtime_cutoff
             else None
         ),
         "gap_penalty_hours": (
@@ -1173,6 +1201,7 @@ def normalize_response_data(
         "penalties": _build_live_penalties(
             shift_based_penalties_answer,
             time_based_penalties_answer,
+            validation_warnings,
         ),
         "hours_pen_rules": {},
         "weekend_rules": weekend_rules,
@@ -1315,6 +1344,7 @@ def normalize_response_data(
         "award_code": award_code,
         "calculator_rules": normalized_rules,
         "field_evidence": normalized_evidence,
+        "validation_warnings": validation_warnings,
     }
 
 
@@ -1386,6 +1416,8 @@ def render_python_text(data: dict[str, Any]) -> str:
     }
     if isinstance(award_title, str) and award_title.strip():
         generation_metadata["award_title"] = award_title.strip()
+    if data.get("validation_warnings"):
+        generation_metadata["validation_warnings"] = data["validation_warnings"]
 
     lines = [
         '"""Rule engine for award pay calculations."""',

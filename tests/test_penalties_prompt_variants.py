@@ -198,7 +198,7 @@ def test_step_3_2_review_prompt_flags_subclause_threshold_coverage():
 
 
 def test_step_3_2_evaluator_model_defaults_to_gpt_5_4():
-    assert EVALUATOR_MODEL == "gpt-5.4"
+    assert EVALUATOR_MODEL == "gpt-5.6-luna"
 
 
 def test_step_3_2_evaluator_instructions_allow_brief_incomplete_areas_section():

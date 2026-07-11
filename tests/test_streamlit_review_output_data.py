@@ -35,6 +35,7 @@ from streamlit_review.app import (
     pipeline_run_label,
     recommendation_not_implemented,
     render_pipeline_run_controls,
+    register_uploaded_pdf,
     render_creator_commentary_panel,
     render_evaluator_feedback_panel,
     review_decision_concerns,
@@ -115,6 +116,27 @@ def test_discover_award_codes_from_payment_classification_files(tmp_path):
     )
 
     assert discover_award_codes(tmp_path) == ["MA000002", "MA000018"]
+
+
+def test_discover_award_codes_includes_registered_local_pdf_sources(monkeypatch, tmp_path):
+    pdf_path = tmp_path / "ColesRetailEnterpriseAgreement2024.pdf"
+    pdf_path.write_bytes(b"%PDF-test")
+
+    processed_root = tmp_path / "processed"
+    processed_root.mkdir()
+    (processed_root / "ColesRetailEnterpriseAgreement2024").mkdir()
+    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
+    monkeypatch.setattr(
+        "streamlit_review.output_data.load_source_registry",
+        lambda path: {
+            "ColesRetailEnterpriseAgreement2024": {
+                "source_type": "local_pdf",
+                "source_path": str(pdf_path),
+            }
+        },
+    )
+
+    assert discover_award_codes(processed_root) == ["ColesRetailEnterpriseAgreement2024"]
 
 
 def test_artifact_paths_for_award():
@@ -1409,6 +1431,38 @@ def test_validate_award_code_input_accepts_existing_output_sets_or_standard_code
         existing_output_sets=existing_output_sets,
     ) == (None, "Select an existing output set or enter an award code like `MA000002`.")
 
+    assert validate_award_code_input(
+        "ColesRetailEnterpriseAgreement2024",
+        local_pdf_codes=["ColesRetailEnterpriseAgreement2024"],
+    ) == ("ColesRetailEnterpriseAgreement2024", None)
+
+
+def test_register_uploaded_pdf_keeps_original_filename_and_uses_its_stem(monkeypatch, tmp_path):
+    registered: dict[str, str] = {}
+
+    monkeypatch.setattr("streamlit_review.app.DOCUMENTS_DIR", tmp_path)
+    monkeypatch.setattr(
+        "streamlit_review.app.register_local_pdf_source",
+        lambda award_code, pdf_path, display_name: registered.update(
+            award_code=award_code,
+            pdf_path=str(pdf_path),
+            display_name=display_name,
+        ),
+    )
+
+    class UploadedPdf:
+        name = "ColesRetailEnterpriseAgreement2024.pdf"
+
+        @staticmethod
+        def getvalue():
+            return b"%PDF-test"
+
+    output_stem = register_uploaded_pdf(UploadedPdf())
+
+    assert output_stem == "ColesRetailEnterpriseAgreement2024"
+    assert (tmp_path / UploadedPdf.name).read_bytes() == b"%PDF-test"
+    assert registered["award_code"] == output_stem
+
 
 def test_source_record_for_award_reads_registered_local_pdf(tmp_path):
     registry_path = tmp_path / "source_registry.json"
@@ -1706,11 +1760,11 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
     )
 
     assert result["success"] is True
-    assert result["completed_steps"] == 7
-    assert result["total_steps"] == 7
-    assert "Starting step 1 of 7: Retrieve award" in live_log_path.read_text(encoding="utf-8")
+    assert result["completed_steps"] == 8
+    assert result["total_steps"] == 8
+    assert "Starting step 1 of 8: Retrieve award" in live_log_path.read_text(encoding="utf-8")
     assert "output from 5.1" in live_log_path.read_text(encoding="utf-8")
-    assert status_updates[0]["total_steps"] == 7
+    assert status_updates[0]["total_steps"] == 8
     assert status_updates[0]["current_step"] == "1"
     assert status_updates[-1]["progress_fraction"] == 1.0
     assert calls == [
@@ -1728,6 +1782,7 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
             sentinel.entitlements_path,
         ),
         ("run_selected_step", sentinel.paths, "5.1", None),
+        ("run_selected_step", sentinel.paths, "6.1", None),
     ]
 
 

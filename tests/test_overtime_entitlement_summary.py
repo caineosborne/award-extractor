@@ -278,7 +278,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertEqual(
             fake_client.responses.calls[0]["reasoning"],
-            {"effort": "low"},
+            {"effort": "medium"},
         )
         self.assertNotIn(
             "award_overtime_interpretation_revised.md",

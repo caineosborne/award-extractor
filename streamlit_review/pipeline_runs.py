@@ -14,6 +14,7 @@ from typing import Any
 
 from src.award_pipeline import (
     AwardPipelineError,
+    CLI_DEFAULT_RULESET_KEYS,
     deduplicate_preserving_order,
     RULESET_SPECIFIC_STEPS,
     build_paths,
@@ -299,6 +300,7 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
                 PipelinePlannedStep("3.2", PIPELINE_STEP_LABELS["3.2"], "selected_step"),
                 PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step"),
                 PipelinePlannedStep("5.1", PIPELINE_STEP_LABELS["5.1"], "selected_step"),
+                PipelinePlannedStep("6.1", PIPELINE_STEP_LABELS["6.1"], "selected_step"),
             ]
 
         return [
@@ -309,6 +311,7 @@ def pipeline_steps_for_run(source_type: str, step: str | None) -> list[PipelineP
             PipelinePlannedStep("3.2", PIPELINE_STEP_LABELS["3.2"], "selected_step"),
             PipelinePlannedStep("4.1", PIPELINE_STEP_LABELS["4.1"], "formatter_step"),
             PipelinePlannedStep("5.1", PIPELINE_STEP_LABELS["5.1"], "selected_step"),
+            PipelinePlannedStep("6.1", PIPELINE_STEP_LABELS["6.1"], "selected_step"),
         ]
 
     if step == "1" and source_type == SOURCE_TYPE_LOCAL_PDF:
@@ -332,6 +335,16 @@ def filtered_pipeline_steps_for_run(
     planned_steps = pipeline_steps_for_run(source_type, step)
     if step is not None:
         return planned_steps
+
+    if ruleset_keys is not None:
+        selected_ruleset_keys = set(ruleset_keys)
+        all_rulesets_were_selected = selected_ruleset_keys == set(CLI_DEFAULT_RULESET_KEYS)
+        if not all_rulesets_were_selected:
+            planned_steps = [
+                planned_step
+                for planned_step in planned_steps
+                if planned_step.step_id != "6.1"
+            ]
 
     filtered_steps: list[PipelinePlannedStep] = []
 
@@ -661,8 +674,13 @@ def start_background_pipeline_run(
         "ruleset_keys": selected_ruleset_keys,
     }
     write_status(initial_status)
-    log_path_for_award(award_code).write_text("", encoding="utf-8")
-
+    with log_path_for_award(award_code).open("a", encoding="utf-8") as log_file:
+        log_file.write("\n" + "=" * 80 + "\n")
+        log_file.write(
+            f"{pipeline_run_label(step, selected_ruleset_keys)} "
+            f"(run {run_id})\n"
+        )
+        log_file.write("=" * 80 + "\n")
     command = [
         sys.executable,
         "-m",

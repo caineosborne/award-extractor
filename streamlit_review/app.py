@@ -28,9 +28,11 @@ from src.common.active_pipeline_paths import (
     normalize_award_code,
 )
 from src.common.award_sources import (
+    DOCUMENTS_DIR,
     SOURCE_TYPE_FAIR_WORK_HTML,
     SOURCE_TYPE_LOCAL_PDF,
     can_run_pipeline_for_award,
+    register_local_pdf_source,
     source_record_for_award,
 )
 from src.common.overtime_rulesets import (
@@ -244,19 +246,34 @@ def render_sidebar(award_codes: list[str]) -> str:
 
         if selected_award_choice == ADD_NEW_AWARD_LABEL:
             if "award_code_new" not in st.session_state:
-                st.session_state["award_code_new"] = (
-                    default_award_code if default_award_code not in award_codes else ""
-                )
+                st.session_state["award_code_new"] = ""
             st.text_input(
-                "New award code",
+                "MA award code (optional when uploading a PDF)",
                 key="award_code_new",
                 placeholder="MA000002",
             )
+            uploaded_pdf = st.file_uploader(
+                "Or upload a PDF",
+                type=["pdf"],
+                key="new_award_pdf",
+            )
+            uploaded_pdf_code = ""
+            if uploaded_pdf is not None:
+                uploaded_pdf_code = register_uploaded_pdf(
+                    uploaded_pdf,
+                    output_stem=st.session_state["award_code_new"].strip() or None,
+                )
+
             selected_award_code = selected_award_code_from_choice(
                 selected_award_choice,
-                st.session_state["award_code_new"],
+                st.session_state["award_code_new"] or uploaded_pdf_code,
             )
-            st.caption("Enter a new award code to add it to the review workspace.")
+            if uploaded_pdf_code:
+                st.caption(
+                    f"Using PDF filename stem as the local output set: `{uploaded_pdf_code}`"
+                )
+            else:
+                st.caption("Enter an MA code or upload a PDF to add a review workspace.")
         else:
             st.session_state["award_code"] = selected_award_choice
             selected_award_code = selected_award_code_from_choice(selected_award_choice)
@@ -265,6 +282,7 @@ def render_sidebar(award_codes: list[str]) -> str:
         validated_award_code, validation_error = validate_award_code_input(
             selected_award_code,
             existing_output_sets=award_codes,
+            local_pdf_codes=[uploaded_pdf_code] if selected_award_choice == ADD_NEW_AWARD_LABEL else None,
         )
         if validation_error is not None:
             st.warning(validation_error)
@@ -420,13 +438,18 @@ def update_layout_mode_from_widget() -> None:
 def validate_award_code_input(
     value: str,
     existing_output_sets: list[str] | None = None,
+    local_pdf_codes: list[str] | None = None,
 ) -> tuple[str | None, str | None]:
     available_output_sets = existing_output_sets or []
+    available_local_pdf_codes = local_pdf_codes or []
     selected_award_code = value.strip()
     if not selected_award_code:
         return None, "Enter an award code to review or run."
 
     if selected_award_code in available_output_sets:
+        return selected_award_code, None
+
+    if selected_award_code in available_local_pdf_codes:
         return selected_award_code, None
 
     try:
@@ -435,6 +458,25 @@ def validate_award_code_input(
         return None, "Select an existing output set or enter an award code like `MA000002`."
 
     return normalized_award_code, None
+
+
+def register_uploaded_pdf(uploaded_pdf: Any, output_stem: str | None = None) -> str:
+    """Persist an uploaded PDF under its original filename and register its stem."""
+    original_filename = Path(str(uploaded_pdf.name)).name
+    pdf_path = DOCUMENTS_DIR / original_filename
+    pdf_path.parent.mkdir(parents=True, exist_ok=True)
+    pdf_path.write_bytes(uploaded_pdf.getvalue())
+
+    selected_output_stem = (output_stem or Path(original_filename).stem).strip()
+    if not selected_output_stem:
+        raise ValueError("The uploaded PDF filename must contain a name before .pdf.")
+
+    register_local_pdf_source(
+        award_code=selected_output_stem,
+        pdf_path=pdf_path,
+        display_name=original_filename,
+    )
+    return selected_output_stem
 
 
 def looks_like_modern_award_code(value: str) -> bool:
@@ -584,7 +626,14 @@ def render_l2_payment_screen(artifact_paths: Any, panel_key: str, ruleset_key: s
 
     st.markdown(f"#### Clause {selected_key}")
     st.markdown("**Tags**")
-    st.write(", ".join(record.get("tags", [])))
+    tags = record.get("tags", [])
+    if tags:
+        st.write(", ".join(tags))
+    else:
+        st.caption(
+            "No payment or definition category assigned. Retained for audit; "
+            "not selected for downstream ruleset classification."
+        )
     st.markdown("**Reason**")
     st.write(record.get("reason", ""))
     render_json_expander("Selected L2 JSON", record, key_suffix=panel_key)
@@ -1638,13 +1687,9 @@ def render_calculator_questionnaire_screen(
         label="If yes, after how many overtime hours does it switch? (The extended rate starts only when overtime hours are greater than this threshold, not when they are equal to it.)",
         widget_key=f"{editor_key}_ot_threshold",
     )
-    updated_answers[("overtime", "extended_overtime_days")] = render_calculator_question_json(
+    updated_answers[("overtime", "extended_overtime_days")] = render_extended_overtime_days_question(
         questionnaire_answers,
-        section_name="overtime",
-        question_name="extended_overtime_days",
-        label='If yes, which named days use the extended overtime structure? Enter a JSON list such as ["Monday", "Tuesday"]. Include Saturday or Sunday only when the two-tier overtime rule overrides the weekend overtime multipliers on those days.',
         widget_key=f"{editor_key}_ot_extended_days",
-        height=120,
     )
     updated_answers[("overtime", "saturday_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
@@ -2048,6 +2093,54 @@ def render_calculator_question_json(
     answer = record.get("answer")
     default_value = json.dumps(answer, indent=2)
     return st.text_area(label, value=default_value, height=height, key=widget_key)
+
+
+def render_extended_overtime_days_question(
+    questionnaire_answers: dict[str, Any],
+    *,
+    widget_key: str,
+) -> list[str]:
+    """Render the three supported day scopes for extended overtime."""
+    record = calculator_question_record(
+        questionnaire_answers,
+        section_name="overtime",
+        question_name="extended_overtime_days",
+    )
+    render_calculator_question_metadata(record)
+
+    day_scope_to_days = {
+        "Weekday": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "Weekday and Saturday": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+        ],
+        "Everyday": [
+            "Monday",
+            "Tuesday",
+            "Wednesday",
+            "Thursday",
+            "Friday",
+            "Saturday",
+            "Sunday",
+        ],
+    }
+    stored_days = record.get("answer")
+    scopes = list(day_scope_to_days)
+    selected_scope = next(
+        (scope for scope, days in day_scope_to_days.items() if stored_days == days),
+        "Weekday",
+    )
+    selected_scope = st.selectbox(
+        "On which days does extended overtime apply?",
+        scopes,
+        index=scopes.index(selected_scope),
+        key=widget_key,
+    )
+    return day_scope_to_days[selected_scope]
 
 
 def render_calculator_penalty_rules_editor(
@@ -3084,6 +3177,7 @@ def render_processed_file_cleanup_controls() -> None:
             return
 
         deleted_paths = delete_processed_files_matching_prefix(prefix)
+        clear_pipeline_run_status(prefix)
         if not deleted_paths:
             st.info("No matching non-archive processed files were found.")
             return

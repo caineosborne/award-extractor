@@ -117,6 +117,8 @@ def generate_calculator_rules_yaml(
         response_data,
         award_code=award_code,
     )
+    for warning in normalized_data.get("validation_warnings", []):
+        print(f"Step 6.1 warning: {warning}")
     if inputs.award_title is not None:
         normalized_data["award_title"] = inputs.award_title
     write_python_output(inputs.output_path, normalized_data)

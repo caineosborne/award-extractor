@@ -11,6 +11,7 @@ from typing import Any, Mapping
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
+from src.common.pipeline_runtime import build_openai_client
 from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_2_1_classify_payments import (
     PAYMENT_CLASSIFICATION_ALLOWED_TAGS,
@@ -40,7 +41,7 @@ def load_environment(env_path: Path | str = PROJECT_ROOT / ".env") -> None:
 def load_openai_client() -> OpenAI:
     """Load the OpenAI environment and return the step 2.1 client."""
     load_environment()
-    return OpenAI()
+    return build_openai_client()
 
 
 def selected_model(model: str | None) -> str:
@@ -138,6 +139,7 @@ def classify_groups(
     groups: tuple[Any, ...],
     client: Any,
     model: str,
+    prefer_exact_full_references: bool = False,
 ) -> tuple[OrderedDict[str, dict[str, Any]], OrderedDict[str, dict[str, Any]]]:
     """Classify each top-level group and collect the combined results."""
     top_level_clauses: OrderedDict[str, dict[str, Any]] = OrderedDict()
@@ -152,6 +154,7 @@ def classify_groups(
             top_result, descendant_results = validate_group_classification(
                 group,
                 classification,
+                prefer_exact_full_references=prefer_exact_full_references,
             )
             apply_deterministic_tag_repairs(group, top_result, descendant_results)
 

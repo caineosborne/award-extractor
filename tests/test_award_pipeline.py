@@ -24,14 +24,23 @@ from src.award_pipeline import (
 from src.common.active_pipeline_paths import PROJECT_ROOT
 
 
-def test_parse_args_defaults_to_active_pipeline_through_5_1():
+def test_parse_args_defaults_to_active_pipeline_through_6_1():
     args = parse_args(["MA000018"])
 
     assert args.award_code == "MA000018"
     assert args.step is None
     assert args.suffix is None
     assert args.subset is None
-    assert DEFAULT_PIPELINE_STEPS == ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
+    assert DEFAULT_PIPELINE_STEPS == (
+        "1",
+        "2.1",
+        "2.2",
+        "3.1",
+        "3.2",
+        "4.1",
+        "5.1",
+        "6.1",
+    )
 
 
 def test_parse_args_accepts_ruleset_subset_ids():
@@ -452,6 +461,7 @@ def test_run_default_pipeline_with_rulesets_runs_shared_steps_once_then_ruleset_
         "3.2": lambda current_paths, ruleset_key=None: calls.append(("3.2", ruleset_key)),
         "4.1": lambda current_paths, ruleset_key=None: calls.append(("4.1", ruleset_key)),
         "5.1": lambda current_paths, ruleset_key=None: calls.append(("5.1", ruleset_key)),
+        "6.1": lambda current_paths: calls.append(("6.1", None)),
     }
 
     with patch.dict("src.award_pipeline.STEP_RUNNERS", fake_step_runners, clear=True):
@@ -476,6 +486,38 @@ def test_run_default_pipeline_with_rulesets_runs_shared_steps_once_then_ruleset_
         ("4.1", OVERTIME_CONSEQUENCE_RULESET),
         ("5.1", OVERTIME_CONSEQUENCE_RULESET),
     ]
+
+
+def test_run_default_pipeline_adds_step_6_1_when_all_rulesets_are_selected():
+    paths = build_paths(
+        award_code="MA000018",
+        suffix=None,
+        url="https://awards.fairwork.gov.au/MA000018.html",
+    )
+    calculator_calls: list[object] = []
+
+    fake_step_runners = {
+        "1": lambda current_paths: None,
+        "2.1": lambda current_paths: None,
+        "2.2": lambda current_paths, ruleset_key=None: None,
+        "3.1": lambda current_paths, ruleset_key=None: None,
+        "3.2": lambda current_paths, ruleset_key=None: None,
+        "4.1": lambda current_paths, ruleset_key=None: None,
+        "5.1": lambda current_paths, ruleset_key=None: None,
+        "6.1": lambda current_paths: calculator_calls.append(current_paths),
+    }
+
+    with patch.dict("src.award_pipeline.STEP_RUNNERS", fake_step_runners, clear=True):
+        run_default_pipeline(
+            paths,
+            [
+                OVERTIME_CREATION_RULESET,
+                OVERTIME_CONSEQUENCE_RULESET,
+                PENALTIES_RULESET,
+            ],
+        )
+
+    assert calculator_calls == [paths]
 
 
 def test_run_selected_step_runs_ruleset_specific_step_for_selected_rulesets():

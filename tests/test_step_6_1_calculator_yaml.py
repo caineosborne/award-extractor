@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 from src.step_6_1_generate_calculator_yaml.core import (
     normalize_response_data,
     render_python_text,
@@ -303,6 +305,22 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
     assert normalized["calculator_rules"]["use_contracted_hours_for_pt_overtime"] is True
     assert normalized["field_evidence"]["gap_penalty_hours"]["special_case_notes"] == (
         "Shiftworkers use 8 hours under clause 30."
+    )
+
+    no_live_span_cutoff_response = deepcopy(response_data)
+    no_live_span_cutoff_response["questionnaire_answers"]["span"][
+        "live_span_cutoff_hour"
+    ]["answer"] = None
+
+    normalized_without_live_span_cutoff = normalize_response_data(
+        no_live_span_cutoff_response,
+        award_code="MA000002",
+    )
+
+    assert normalized_without_live_span_cutoff["calculator_rules"]["apply_span_overtime"] is False
+    assert normalized_without_live_span_cutoff["calculator_rules"]["span_overtime_hour"] is None
+    assert "live span-overtime calculation has been disabled" in (
+        normalized_without_live_span_cutoff["validation_warnings"][0]
     )
 
 
@@ -744,7 +762,7 @@ def test_normalize_response_data_uses_time_suffix_only_when_short_names_collide(
     assert "shift_start_13_to_16" in normalized["calculator_rules"]["penalties"]
 
 
-def test_normalize_response_data_rejects_penalty_time_text_mismatch():
+def test_normalize_response_data_records_penalty_time_text_mismatch_as_warning():
     response_data = {
         "questionnaire_answers": {
             "core_hours": {
@@ -807,12 +825,84 @@ def test_normalize_response_data_rejects_penalty_time_text_mismatch():
         }
     }
 
-    try:
-        normalize_response_data(response_data, award_code="MA000018")
-    except Exception as exc:
-        assert "structured hours do not match" in str(exc)
-    else:
-        raise AssertionError("Expected mismatched penalty times to fail validation")
+    normalized = normalize_response_data(response_data, award_code="MA000018")
+
+    assert len(normalized["validation_warnings"]) == 1
+    assert "structured hours do not match" in normalized["validation_warnings"][0]
+
+
+def test_normalize_response_data_accepts_ampm_penalty_time_with_midnight():
+    response_data = {
+        "questionnaire_answers": {
+            "core_hours": {
+                "day_worker_daily_limit_hours": _answer(None),
+                "shift_worker_daily_limit_hours": _answer(None),
+                "day_worker_weekly_limit_hours": _answer(None),
+                "shift_worker_weekly_limit_hours": _answer(None),
+            },
+            "overtime": {
+                "standard_overtime_multiplier": _answer(None),
+                "has_two_tier_overtime": _answer(False),
+                "extended_overtime_multiplier": _answer(None),
+                "higher_overtime_starts_after_hours": _answer(None),
+                "extended_overtime_days": _answer([], status="not_found"),
+                "saturday_overtime_multiplier": _answer(None),
+                "sunday_overtime_multiplier": _answer(None),
+            },
+            "span": {
+                "day_workers_have_span_overtime": _answer(False),
+                "live_span_cutoff_hour": _answer(None),
+                "ordinary_span_summary": _answer(None),
+            },
+            "weekend_treatment": {
+                "day_saturday_treatment": _answer(None),
+                "day_sunday_treatment": _answer(None),
+                "shift_saturday_treatment": _answer(None),
+                "shift_sunday_treatment": _answer(None),
+                "day_saturday_penalty_loading": _answer(None),
+                "day_sunday_penalty_loading": _answer(None),
+                "shift_saturday_penalty_loading": _answer(None),
+                "shift_sunday_penalty_loading": _answer(None),
+            },
+            "gap_between_shifts": {
+                "minimum_break_required": _answer(False),
+                "standard_minimum_break_hours": _answer(None),
+                "breach_penalty_multiplier": _answer(None),
+                "special_case_thresholds": _answer([], status="not_found"),
+            },
+            "weekday_penalties": {
+                "shift_based_penalties": _answer(
+                    [
+                        {
+                            "code_name": "afternoon_shift_allowance",
+                            "type": "shift_based",
+                            "basis": "end",
+                            "start_hour": 19,
+                            "end_hour": 24,
+                            "rate": 0.15,
+                            "description": (
+                                "Afternoon shift allowance for shiftworkers finishing "
+                                "after 6:30 pm and at or before midnight."
+                            ),
+                            "applies_to": ["shift"],
+                        }
+                    ],
+                    source_ruleset_keys=["penalties"],
+                    source_rule_ids=["penalty-rule-1"],
+                    clause_references=["31.1"],
+                ),
+                "time_based_penalties": _answer([], status="not_found"),
+                "other_penalty_notes": _answer(None, status="not_found"),
+            },
+        }
+    }
+
+    normalized = normalize_response_data(response_data, award_code="MA000120")
+
+    penalty = next(iter(normalized["calculator_rules"]["penalties"].values()))
+
+    assert penalty["start"] == 19
+    assert penalty["end"] == 24
 
 
 def test_render_python_text_matches_calculator_class_shape():

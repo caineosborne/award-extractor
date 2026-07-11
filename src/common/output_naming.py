@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
 
 ACTIVE_PIPELINE_STEP_CHOICES = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1", "6.1")
-DEFAULT_ACTIVE_PIPELINE_STEPS = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
+DEFAULT_ACTIVE_PIPELINE_STEPS = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1", "6.1")
 
 
 def default_award_url_for_code(award_code: str) -> str:

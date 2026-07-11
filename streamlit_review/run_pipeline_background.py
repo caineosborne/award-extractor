@@ -77,7 +77,9 @@ def main() -> None:
         )
     except Exception:
         log_text = traceback.format_exc()
-        log_path_for_award(args.award_code).write_text(log_text, encoding="utf-8")
+        with log_path_for_award(args.award_code).open("a", encoding="utf-8") as log_file:
+            log_file.write("\n\n--- Background runner error ---\n")
+            log_file.write(log_text)
         finished_at = time.time()
         write_status(
             {
@@ -89,8 +91,6 @@ def main() -> None:
             }
         )
         return
-
-    log_path_for_award(args.award_code).write_text(result["log"], encoding="utf-8")
 
     finished_at = time.time()
     final_status = {

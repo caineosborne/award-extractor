@@ -10,8 +10,8 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
-from src.common.pipeline_runtime import load_openai_environment
-from src.common.prompt_logging import log_llm_prompt
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
+from src.common.prompt_logging import log_llm_error, log_llm_prompt, log_llm_response
 from src.prompts.step_6_1_generate_calculator_yaml import build_messages
 
 from .core import (
@@ -29,7 +29,7 @@ def load_environment(env_path: Path | str = Path(__file__).resolve().parents[2] 
 def load_client() -> OpenAI:
     """Load the OpenAI client for step 6.1."""
     load_environment()
-    return OpenAI()
+    return build_openai_client()
 
 
 def selected_model(model: str | None) -> str:
@@ -64,6 +64,8 @@ def request_calculator_rules(
         response = client.responses.create(
             model=model,
             input=messages,
+            reasoning={"effort": "medium"},
+            max_output_tokens=16000,
             text={
                 "format": {
                     "type": "json_schema",
@@ -74,9 +76,17 @@ def request_calculator_rules(
             },
         )
     except Exception as exc:
-        raise CalculatorRulesYamlError("OpenAI calculator questionnaire request failed.") from exc
+        log_llm_error(f"6.1 Calculator Rules Questionnaire Error - {award_code}", exc)
+        raise CalculatorRulesYamlError(
+            f"OpenAI calculator questionnaire request failed: {exc}"
+        ) from exc
 
     output_text = extract_response_text(response)
+    log_llm_response(
+        f"6.1 Calculator Rules Questionnaire Response - {award_code}",
+        response,
+        output_text,
+    )
     if not output_text:
         raise CalculatorRulesYamlError("OpenAI response did not include output text.")
 

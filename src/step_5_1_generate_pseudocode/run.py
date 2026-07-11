@@ -116,7 +116,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--model",
         default=None,
-        help="OpenAI model to use. Defaults to CORE_OVERTIME_PSEUDOCODE_MODEL or gpt-5.4-mini.",
+        help="OpenAI model to use. Defaults to CORE_OVERTIME_PSEUDOCODE_MODEL or gpt-5.6-luna.",
     )
     parser.add_argument(
         "--ruleset-key",

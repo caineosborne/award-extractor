@@ -16,9 +16,21 @@ def resolve_direct_l2_reference(
     group_reference: str,
     returned_reference: str,
     direct_references: set[str],
+    prefer_exact_full_references: bool = False,
 ) -> str | None:
     """Map direct or relative L2 references back to the owning direct L2 clause."""
-    for direct_reference in sorted(direct_references, key=len, reverse=True):
+    ordered_references = sorted(direct_references, key=len, reverse=True)
+
+    if prefer_exact_full_references:
+        for direct_reference in ordered_references:
+            if returned_reference == direct_reference:
+                return direct_reference
+            if returned_reference.startswith(f"{direct_reference}("):
+                return direct_reference
+            if returned_reference.startswith(f"{direct_reference}."):
+                return direct_reference
+
+    for direct_reference in ordered_references:
         if returned_reference == direct_reference:
             return direct_reference
 
@@ -87,6 +99,7 @@ def title_only_top_level_result(group: TopLevelGroup) -> dict[str, Any]:
 def validate_group_classification(
     group: TopLevelGroup,
     classification: Mapping[str, Any],
+    prefer_exact_full_references: bool = False,
 ) -> tuple[dict[str, Any], OrderedDict[str, dict[str, Any]]]:
     """Check model references and attach the results back to source clause text."""
     top = classification.get("top_level_clause")
@@ -124,6 +137,7 @@ def validate_group_classification(
             group.reference,
             returned_reference,
             direct_references,
+            prefer_exact_full_references=prefer_exact_full_references,
         )
 
         if (
@@ -164,6 +178,23 @@ def validate_group_classification(
             "tags": _unique_items(item["tags"]),
             "reason": reason,
         }
+
+    if requires_l2_classification:
+        for descendant in group.descendants:
+            if descendant.reference in classified:
+                continue
+
+            # Preserve every direct L2 clause under a relevant L1 clause. An
+            # empty tag list records the model's non-selection explicitly and
+            # prevents a clause disappearing from the audit artifact.
+            classified[descendant.reference] = {
+                "text": descendant.text,
+                "tags": [],
+                "reason": (
+                    "No payment or definition category was assigned to this "
+                    "direct L2 clause."
+                ),
+            }
 
     return top_result, classified
 

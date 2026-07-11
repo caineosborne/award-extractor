@@ -51,7 +51,7 @@ Important:
 Business interpretation rules:
 - For core-hours limits, separate day workers and shift workers where the source supports that distinction.
 - For two-tier overtime, answer whether there is a standard higher overtime tier, the higher multiplier, the threshold in hours, and which named days use the extended overtime structure.
-- `extended_overtime_days` must list the exact day names where the standard overtime rate applies up to the threshold and the extended overtime rate applies only after the threshold.
+- Interpret `extended_overtime_days` as the answer to: "On which days does extended overtime apply?" List every exact day name on which the higher overtime tier applies after the threshold. Include Saturday and/or Sunday when the same two-tier overtime rule applies on those days; do not limit the list to Monday-Friday merely because ordinary hours are usually described as weekday hours.
 - On a day listed in `extended_overtime_days`, if `has_two_tier_overtime` is true, weekend overtime multipliers such as Saturday or Sunday overtime do not control overtime-rate selection for that day.
 - That override is limited to overtime-rate selection. Weekend penalty logic is separate.
 - The extended overtime rate starts only when overtime hours are greater than the threshold, not when they are equal to the threshold.

@@ -23,7 +23,7 @@ from src.common.overtime_rulesets import (
 )
 
 DEFAULT_CLASSIFICATION_PATH = default_classification_path_for_award("MA000018")
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "gpt-5.6-luna"
 SCHEMA_VERSION = "overtime-clause-classification-v3"
 SUPPORTED_SCHEMA_VERSIONS = (
     "overtime-clause-classification-v2",

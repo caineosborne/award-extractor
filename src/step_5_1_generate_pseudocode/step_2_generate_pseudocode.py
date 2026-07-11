@@ -9,7 +9,7 @@ from typing import Any
 from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
-from src.common.pipeline_runtime import load_openai_environment
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
 from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_5_1_generate_pseudocode import build_messages, build_repair_messages
 
@@ -22,7 +22,7 @@ def load_openai_client() -> OpenAI:
         env_path=Path(__file__).resolve().parents[2] / ".env",
         error_type=CoreOvertimePseudocodeError,
     )
-    return OpenAI()
+    return build_openai_client()
 
 
 def resolve_model(model: str | None) -> str:
@@ -48,6 +48,7 @@ def request_initial_pseudocode(
         response = client.responses.create(
             model=model,
             input=messages,
+            reasoning={"effort": "medium"},
         )
     except Exception as exc:
         raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc
@@ -86,6 +87,7 @@ def request_repaired_pseudocode(
         response = client.responses.create(
             model=model,
             input=messages,
+            reasoning={"effort": "medium"},
         )
     except Exception as exc:
         raise CoreOvertimePseudocodeError("OpenAI request failed.") from exc

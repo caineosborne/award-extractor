@@ -12,7 +12,7 @@ from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import write_text_output
-from src.common.pipeline_runtime import load_openai_environment
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
 from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_4_1_format_ruleset import build_messages
 
@@ -26,7 +26,7 @@ def load_openai_client() -> OpenAI:
         env_path=Path(__file__).resolve().parents[2] / ".env",
         error_type=OvertimeEntitlementSummaryError,
     )
-    return OpenAI()
+    return build_openai_client()
 
 
 def resolve_model(model: str | None) -> str:
@@ -56,7 +56,7 @@ def request_formatted_ruleset(
     response = client.responses.create(
         model=model,
         input=messages,
-        reasoning={"effort": "low"},
+        reasoning={"effort": "medium"},
     )
     output_text = extract_response_text(response)
     if not output_text:

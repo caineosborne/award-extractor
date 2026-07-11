@@ -8,6 +8,8 @@ from openai import OpenAI
 
 
 OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_OPENAI_MAX_RETRIES = 5
+DEFAULT_OPENAI_TIMEOUT_SECONDS = 600.0
 
 
 def load_openai_environment(
@@ -45,4 +47,39 @@ def load_openrouter_api_key(
 
 def build_openrouter_client(api_key: str) -> OpenAI:
     """Create an OpenAI-compatible client configured for OpenRouter."""
-    return OpenAI(api_key=api_key, base_url=OPENROUTER_BASE_URL)
+    return build_openai_client(
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
+    )
+
+
+def build_openai_client(
+    *,
+    api_key: str | None = None,
+    base_url: str | None = None,
+) -> OpenAI:
+    """Create a client that retries transient API connection failures.
+
+    A long pipeline makes occasional dropped connections expected. The OpenAI
+    SDK retries connection failures automatically, but its default is only two
+    retries. These settings are shared by every pipeline step so one temporary
+    disconnect does not stop a Run all execution prematurely.
+
+    The values can be overridden in .env when needed:
+    OPENAI_MAX_RETRIES and OPENAI_TIMEOUT_SECONDS.
+    """
+    max_retries = int(
+        os.getenv("OPENAI_MAX_RETRIES", str(DEFAULT_OPENAI_MAX_RETRIES))
+    )
+    timeout_seconds = float(
+        os.getenv(
+            "OPENAI_TIMEOUT_SECONDS",
+            str(DEFAULT_OPENAI_TIMEOUT_SECONDS),
+        )
+    )
+    return OpenAI(
+        api_key=api_key,
+        base_url=base_url,
+        max_retries=max_retries,
+        timeout=timeout_seconds,
+    )

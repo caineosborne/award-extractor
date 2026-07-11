@@ -14,7 +14,7 @@ from src.common.overtime_clause_classification import (
     OvertimeInterpretationError,
 )
 from src.common.overtime_rulesets import OVERTIME_CREATION_RULESET, overtime_ruleset_config
-from src.common.pipeline_runtime import load_openai_environment
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
 from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_3_1_generate_ruleset import build_interpretation_messages
 
@@ -29,7 +29,7 @@ def load_environment(env_path: Path | str = Path(__file__).resolve().parents[2] 
 def load_openai_client() -> OpenAI:
     """Load the OpenAI environment and return the step 3.1 client."""
     load_environment()
-    return OpenAI()
+    return build_openai_client()
 
 
 def resolve_models(
@@ -137,6 +137,7 @@ def request_structured_interpretation_run(
         response = client.responses.create(
             model=model,
             input=messages,
+            reasoning={"effort": "medium"},
             text={
                 "format": {
                     "type": "json_schema",
