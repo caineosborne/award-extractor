@@ -422,6 +422,7 @@ def summarized_rules(artifact: dict[str, Any]) -> list[dict[str, Any]]:
                 "employee_cohort": raw_rule.get("employee_cohort"),
                 "work_arrangement": raw_rule.get("work_arrangement"),
                 "clause_references": raw_rule.get("clause_references"),
+                "rule_markdown": raw_rule.get("rule_markdown"),
                 "rule_plain_text": raw_rule.get("rule_plain_text"),
                 "other_scope_notes": raw_rule.get("other_scope_notes"),
             }
@@ -1422,11 +1423,22 @@ def render_python_text(data: dict[str, Any]) -> str:
     lines = [
         '"""Rule engine for award pay calculations."""',
         "",
-        "",
-        f"class {class_name}:",
-        f'    """Business rules for award {award_code} pay calculations."""',
-        "",
     ]
+
+    validation_warnings = data.get("validation_warnings", [])
+    if isinstance(validation_warnings, list) and validation_warnings:
+        lines.append("# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR")
+        for warning in validation_warnings:
+            lines.append(f"# - {warning}")
+        lines.append("")
+
+    lines.extend(
+        [
+            f"class {class_name}:",
+            f'    """Business rules for award {award_code} pay calculations."""',
+            "",
+        ]
+    )
 
     for field_name in ALL_RULE_FIELDS:
         class_attribute = CLASS_ATTRIBUTE_BY_RULE_FIELD[field_name]

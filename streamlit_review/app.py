@@ -47,6 +47,7 @@ from src.common.overtime_rules import (
     VALIDATION_SECTION_TITLES,
     categorize_validation_warnings,
 )
+from src.common.prompt_logging import configure_prompt_log
 from src.step_1_2_parse_award.run import (
     extract_pdf_to_award,
     write_pdf_step_outputs as write_pdf_outputs,
@@ -57,6 +58,10 @@ from src.step_6_1_generate_calculator_yaml.core import (
     write_python_output,
 )
 from src.step_6_1_generate_calculator_yaml.run import load_inputs
+from src.step_6_2_validate_calculator_ruleset.run import (
+    CalculatorRulesetValidationError,
+    validate_calculator_python,
+)
 from streamlit_review.pipeline_runs import (
     log_path_for_award,
     normalized_status_for_award,
@@ -67,6 +72,8 @@ from streamlit_review.output_data import (
     artifact_paths_for_award,
     calculator_rules_questionnaire_path_for_award,
     calculator_rules_python_path_for_award,
+    calculator_rules_validation_json_path_for_award,
+    calculator_rules_validation_markdown_path_for_award,
     clamp_index,
     delete_processed_files_matching_prefix,
     discover_award_codes,
@@ -1516,10 +1523,9 @@ def render_calculator_python_screen(
     panel_key: str,
     ruleset_key: str,
 ) -> None:
-    del artifact_paths
     del ruleset_key
 
-    award_code = st.session_state.get("award_code", "")
+    award_code = award_code_for_artifact_paths(artifact_paths)
     python_path = calculator_rules_python_path_for_award(award_code)
     render_file_details(python_path)
     python_content = read_text_file(python_path)
@@ -1529,43 +1535,40 @@ def render_calculator_python_screen(
         st.info("Run step 6.1 to create the first calculator Python draft.")
         return
 
+    calculator_warnings = calculator_warnings_from_python_text(python_content.text)
+    if calculator_warnings:
+        st.warning(
+            "**Calculator warnings — review before use:** "
+            f"{len(calculator_warnings)} warning(s)."
+        )
+        with st.expander("Calculator generation warnings", expanded=False):
+            for warning in calculator_warnings:
+                st.write(f"- {warning}")
+
+    render_calculator_ruleset_validation_panel(award_code, python_path)
+
+    st.subheader("Calculator Python")
     editor_key = calculator_python_editor_widget_key(panel_key, python_path)
-    edited_python = st.text_area(
-        "Calculator Python",
-        value=python_content.text,
-        height=610,
-        label_visibility="collapsed",
-        key=editor_key,
-    )
-
-    parsed_module: Any | None = None
-    parse_error = ""
-    try:
-        parsed_module = ast.parse(edited_python)
-    except SyntaxError as exc:
-        parse_error = str(exc)
-
-    if parse_error:
-        st.warning(f"Python syntax warning: {parse_error}")
-    elif parsed_module is not None:
-        render_json_expander(
-            "Parsed calculator Python AST",
-            ast.dump(parsed_module, indent=2),
-            key_suffix=f"{panel_key}_{python_path.stem}",
+    with st.expander("Edit calculator Python", expanded=True):
+        edited_python = st.text_area(
+            "Calculator Python source",
+            value=python_content.text,
+            height=610,
+            key=editor_key,
         )
 
-    if st.button("Save updated Python", key=f"{editor_key}_save"):
-        if not edited_python.strip():
-            st.error("The calculator Python file is empty. Nothing was saved.")
-            return
-        try:
-            ast.parse(edited_python)
-        except SyntaxError as exc:
-            st.error(f"Python is invalid and was not saved: {exc}")
-            return
+        if st.button("Save updated Python", key=f"{editor_key}_save"):
+            if not edited_python.strip():
+                st.error("The calculator Python file is empty. Nothing was saved.")
+                return
+            try:
+                ast.parse(edited_python)
+            except SyntaxError as exc:
+                st.error(f"Python is invalid and was not saved: {exc}")
+                return
 
-        write_text_file(python_path, edited_python)
-        st.success(f"Saved updated Python to `{format_path_for_display(python_path)}`.")
+            write_text_file(python_path, edited_python)
+            st.success(f"Saved updated Python to `{format_path_for_display(python_path)}`.")
 
 
 def render_calculator_questionnaire_screen(
@@ -1573,10 +1576,9 @@ def render_calculator_questionnaire_screen(
     panel_key: str,
     ruleset_key: str,
 ) -> None:
-    del artifact_paths
     del ruleset_key
 
-    award_code = st.session_state.get("award_code", "")
+    award_code = award_code_for_artifact_paths(artifact_paths)
     questionnaire_path = calculator_rules_questionnaire_path_for_award(award_code)
     python_path = calculator_rules_python_path_for_award(award_code)
     render_file_details(
@@ -1618,6 +1620,17 @@ def render_calculator_questionnaire_screen(
     st.caption(
         "Review the calculator answers field by field. Saving this form updates the questionnaire JSON and rebuilds the Python rules file."
     )
+
+    review_required_questions = calculator_questions_requiring_review(
+        questionnaire_answers
+    )
+    if review_required_questions:
+        st.warning(
+            "**Review required before using this calculator.** "
+            f"{len(review_required_questions)} answer(s) need attention: "
+            + ", ".join(review_required_questions)
+            + "."
+        )
 
     updated_answers: dict[tuple[str, str], Any] = {}
 
@@ -1975,7 +1988,9 @@ def render_calculator_question_metadata(record: dict[str, Any]) -> None:
     reasoning_summary = str(record.get("reasoning_summary") or "").strip()
     special_case_notes = str(record.get("special_case_notes") or "").strip()
 
-    metadata_parts = [f"Status: {status}"]
+    st.markdown(calculator_question_status_message(status))
+
+    metadata_parts = []
     if rule_ids:
         metadata_parts.append(f"Rule IDs: {rule_ids}")
     if clauses:
@@ -1985,7 +2000,140 @@ def render_calculator_question_metadata(record: dict[str, Any]) -> None:
     if reasoning_summary:
         st.caption(f"Reasoning: {reasoning_summary}")
     if special_case_notes:
-        st.caption(f"Special cases: {special_case_notes}")
+        st.info(f"**Special case to consider:** {special_case_notes}")
+
+
+def calculator_question_status_message(status: str) -> str:
+    """Return a clear review status without implying unsupported numeric confidence."""
+    normalized_status = status.strip().lower()
+
+    if normalized_status == "derived":
+        return ":green[**Status: Derived — supported by the reviewed rules.**]"
+    if normalized_status == "defaulted":
+        return ":orange[**Status: Defaulted — confirm this assumption.**]"
+    if normalized_status == "needs_review":
+        return ":orange[**Status: Needs review — do not treat this as a live calculator rule yet.**]"
+    if normalized_status == "not_found":
+        return ":red[**Status: Not found — enter or confirm a value before relying on this rule.**]"
+
+    return ":red[**Status: Unknown — review this answer before relying on it.**]"
+
+
+def calculator_warnings_from_python_text(python_text: str) -> list[str]:
+    """Read the explicit review warnings placed at the top of generated Python."""
+    warning_lines: list[str] = []
+    reading_warnings = False
+
+    for line in python_text.splitlines():
+        if line == "# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR":
+            reading_warnings = True
+            continue
+
+        if reading_warnings and line.startswith("# - "):
+            warning_lines.append(line.removeprefix("# - "))
+            continue
+
+        if reading_warnings:
+            break
+
+    return warning_lines
+
+
+def render_calculator_ruleset_validation_panel(
+    award_code: str,
+    calculator_python_path: Path,
+) -> None:
+    """Render the read-only Screen 13 calculator validity validation."""
+    validation_json_path = calculator_rules_validation_json_path_for_award(award_code)
+    validation_markdown_path = calculator_rules_validation_markdown_path_for_award(award_code)
+
+    st.subheader("Validate calculator Python")
+    st.caption(
+        "This check reviews only the Screen 13 calculator Python for valid syntax, "
+        "calculator-contract compliance, internal consistency and common-sense "
+        "runtime behaviour. It does not assess award alignment or change any artifact."
+    )
+
+    if st.button(
+        "Run calculator Python validation",
+        key=f"validate_calculator_ruleset_{award_code}",
+    ):
+        try:
+            configure_prompt_log(log_path_for_award(award_code))
+            with st.spinner("Validating calculator Python..."):
+                validate_calculator_python(
+                    award_code=award_code,
+                    calculator_python_path=calculator_python_path,
+                    validation_json_path=validation_json_path,
+                    validation_markdown_path=validation_markdown_path,
+                )
+            st.success("Calculator validation report created.")
+        except CalculatorRulesetValidationError as exc:
+            st.error(f"Calculator validation failed: {exc}")
+
+    if not validation_json_path.exists():
+        return
+
+    validation_data = load_json_or_show_error(validation_json_path)
+    if validation_data is None:
+        return
+
+    overall_status = str(validation_data.get("overall_status") or "unknown").lower()
+    summary = str(validation_data.get("summary") or "").strip()
+    if overall_status == "red":
+        st.error(f"**Overall status: RED** — {summary}")
+    elif overall_status == "amber":
+        st.warning(f"**Overall status: AMBER** — {summary}")
+    else:
+        st.success(f"**Overall status: GREEN** — {summary}")
+
+    findings = validation_data.get("findings", [])
+    validation_markdown = read_text_file(validation_markdown_path)
+    has_findings = isinstance(findings, list) and bool(findings)
+    if has_findings or validation_markdown.exists:
+        with st.expander("Validation findings and report", expanded=False):
+            if isinstance(findings, list):
+                for finding in findings:
+                    if not isinstance(finding, dict):
+                        continue
+                    severity = str(finding.get("severity") or "amber").lower()
+                    message = (
+                        f"**{finding.get('calculator_item', 'Calculator item')}** — "
+                        f"{finding.get('finding', '')}\n\n"
+                        f"Recommendation: {finding.get('recommendation', '')}"
+                    )
+                    if severity == "red":
+                        st.error(message)
+                    elif severity == "amber":
+                        st.warning(message)
+                    else:
+                        st.success(message)
+
+            if validation_markdown.exists:
+                st.markdown("#### Validation report Markdown")
+                st.markdown(validation_markdown.text)
+
+
+def calculator_questions_requiring_review(
+    questionnaire_answers: dict[str, Any],
+) -> list[str]:
+    """Return questionnaire fields whose evidence status needs human attention."""
+    review_required_statuses = {"defaulted", "needs_review", "not_found"}
+    review_required_questions: list[str] = []
+
+    for section_name, raw_section in questionnaire_answers.items():
+        if not isinstance(raw_section, dict):
+            continue
+
+        for question_name, raw_record in raw_section.items():
+            if not isinstance(raw_record, dict):
+                continue
+
+            status = str(raw_record.get("status") or "").strip().lower()
+            if status in review_required_statuses:
+                review_required_questions.append(f"{section_name}.{question_name}")
+
+    return review_required_questions
 
 
 def render_calculator_question_number(

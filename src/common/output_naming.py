@@ -333,3 +333,15 @@ def calculator_rules_python_path_for_output_stem(output_stem: str) -> Path:
     """Return the canonical step 6.1 calculator Python path for one output set."""
     module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
     return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}.py"
+
+
+def calculator_rules_validation_json_path_for_output_stem(output_stem: str) -> Path:
+    """Return the calculator-to-reviewed-rules validation JSON path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
+    return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}_validation.json"
+
+
+def calculator_rules_validation_markdown_path_for_output_stem(output_stem: str) -> Path:
+    """Return the calculator-to-reviewed-rules validation Markdown path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
+    return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}_validation.md"

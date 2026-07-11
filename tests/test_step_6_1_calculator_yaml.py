@@ -3,6 +3,7 @@ from copy import deepcopy
 from src.step_6_1_generate_calculator_yaml.core import (
     normalize_response_data,
     render_python_text,
+    summarized_rules,
 )
 
 
@@ -25,6 +26,26 @@ def _answer(
         "reasoning_summary": reasoning_summary,
         "special_case_notes": special_case_notes,
     }
+
+
+def test_summarized_rules_retains_rule_markdown_needed_for_numeric_calculator_values():
+    artifact = {
+        "rules": [
+            {
+                "rule_id": "non-shiftworker-out-of-spread",
+                "rule_markdown": (
+                    "- Ordinary hours are between 7:00 am and 11:00 pm."
+                ),
+                "rule_plain_text": "Work outside the ordinary-hours spread is overtime.",
+            }
+        ]
+    }
+
+    summarized = summarized_rules(artifact)
+
+    assert summarized[0]["rule_markdown"] == (
+        "- Ordinary hours are between 7:00 am and 11:00 pm."
+    )
 
 
 def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
@@ -985,3 +1006,40 @@ def test_render_python_text_matches_calculator_class_shape():
     assert "'penalty_rate': 0.5" in rendered
     assert "# FIELD_EVIDENCE =" in rendered
     assert "# GENERATION_METADATA =" in rendered
+
+
+def test_render_python_text_puts_validation_warnings_before_the_calculator_class():
+    normalized_data = {
+        "schema_version": "1.0",
+        "award_code": "MA000002",
+        "calculator_rules": {
+            "ordinary_hours_limit_daily": None,
+            "ordinary_hours_limit_weekly": None,
+            "day_worker_ordinary_hours_daily": None,
+            "day_worker_ordinary_hours_weekly": None,
+            "standard_overtime_rate": None,
+            "extended_overtime_rate": None,
+            "sunday_overtime_rate": None,
+            "saturday_overtime_rate": None,
+            "apply_span_overtime": False,
+            "span_overtime_hour": None,
+            "gap_penalty_hours": None,
+            "gap_penalty_rate": None,
+            "penalties": {},
+            "hours_pen_rules": {},
+            "weekend_rules": {},
+            "two_tier_overtime": False,
+            "two_tier_overtime_threshold": None,
+            "extended_overtime_days": [],
+            "use_contracted_hours_for_pt_overtime": True,
+            "pt_employees_entitled_to_contracted_topup": True,
+            "ft_employees_entitled_to_contracted_topup": True,
+        },
+        "field_evidence": {},
+        "validation_warnings": ["A live span cutoff is not available."],
+    }
+
+    rendered = render_python_text(normalized_data)
+
+    assert "# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR" in rendered
+    assert rendered.index("# IMPORTANT:") < rendered.index("class MA000002Rules:")

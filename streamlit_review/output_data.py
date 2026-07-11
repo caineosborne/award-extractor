@@ -103,6 +103,18 @@ def calculator_rules_questionnaire_path_for_award(output_set_name: str) -> Path:
     )
 
 
+def calculator_rules_validation_json_path_for_award(output_set_name: str) -> Path:
+    """Return the saved calculator-to-reviewed-rules validation JSON path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}_validation.json"
+
+
+def calculator_rules_validation_markdown_path_for_award(output_set_name: str) -> Path:
+    """Return the saved calculator-to-reviewed-rules validation Markdown path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}_validation.md"
+
+
 def canonical_ruleset_paths(
     output_set_name: str,
     ruleset_key: str,
