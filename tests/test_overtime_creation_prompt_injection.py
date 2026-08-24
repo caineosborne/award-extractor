@@ -34,6 +34,16 @@ def message_contains_expected_block(messages: list[dict[str, str]]) -> bool:
 
 
 class OvertimeCreationPromptInjectionTests(unittest.TestCase):
+    def test_shared_creation_block_contains_authoritative_ordinary_hours_rule(self):
+        self.assertIn(
+            "Any worked hours that are not ordinary hours are overtime",
+            OVERTIME_CREATION_COMMON_QUESTIONS,
+        )
+        self.assertIn(
+            "An applicable ordinary-hours boundary is therefore an overtime trigger",
+            OVERTIME_CREATION_COMMON_QUESTIONS,
+        )
+
     def test_step_2_2_classification_includes_creation_questions(self):
         messages = build_clause_classification_messages(
             {"21.1": {"text": "Ordinary hours are 38 per week."}},

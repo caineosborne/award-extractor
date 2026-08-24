@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -189,6 +190,77 @@ def normalized_status_for_award(award_code: str) -> dict[str, Any] | None:
         if isinstance(started_at, (int, float)):
             status["duration_seconds"] = finished_at - started_at
         write_status(status)
+
+    return status
+
+
+def stop_background_pipeline_run(award_code: str) -> dict[str, Any]:
+    """Stop the isolated background process group for one active pipeline run."""
+    status = read_status(award_code)
+    if status is None:
+        raise RuntimeError(f"No pipeline run status exists for {award_code}.")
+
+    state = str(status.get("state", "unknown"))
+    if state not in {"starting", "running"}:
+        raise RuntimeError(f"No active pipeline run exists for {award_code}.")
+
+    pid = status.get("pid")
+    if not isinstance(pid, int) or pid <= 0:
+        raise RuntimeError(
+            "The pipeline process has not started yet. Refresh the status and try again."
+        )
+
+    if not process_is_running(pid):
+        return normalized_status_for_award(award_code) or status
+
+    try:
+        process_group_id = os.getpgid(pid)
+    except ProcessLookupError:
+        return normalized_status_for_award(award_code) or status
+
+    # Background runs are started in a new session. Requiring the process to be
+    # its own group leader prevents this control from signalling Streamlit or an
+    # unrelated process group if the persisted status is ever incorrect.
+    if process_group_id != pid:
+        raise RuntimeError(
+            "The stored pipeline process is not an isolated background run, so it was not stopped."
+        )
+
+    try:
+        os.killpg(process_group_id, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    except PermissionError as exc:
+        raise RuntimeError("The pipeline process could not be stopped.") from exc
+
+    stop_deadline = time.monotonic() + 2.0
+    while process_is_running(pid) and time.monotonic() < stop_deadline:
+        time.sleep(0.05)
+
+    if process_is_running(pid):
+        try:
+            os.killpg(process_group_id, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        except PermissionError as exc:
+            raise RuntimeError("The pipeline process could not be stopped.") from exc
+
+    finished_at = time.time()
+    status["state"] = "stopped"
+    status["message"] = (
+        f"Pipeline run stopped for {award_code}. Files already written were kept; "
+        "rerun the interrupted step before relying on its outputs."
+    )
+    status["finished_at"] = finished_at
+    status["current_step"] = None
+    status["current_step_label"] = None
+    started_at = status.get("started_at")
+    if isinstance(started_at, (int, float)):
+        status["duration_seconds"] = finished_at - started_at
+    write_status(status)
+
+    with log_path_for_award(award_code).open("a", encoding="utf-8") as log_file:
+        log_file.write("\nPipeline run stopped by the user.\n")
 
     return status
 

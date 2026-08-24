@@ -68,6 +68,7 @@ from streamlit_review.pipeline_runs import (
     normalized_status_for_award,
     start_background_pipeline_run,
     status_path_for_award,
+    stop_background_pipeline_run,
 )
 from streamlit_review.output_data import (
     artifact_paths_for_award,
@@ -3782,6 +3783,8 @@ def render_pipeline_run_status(
         st.warning(status_message)
     elif state == "error" and status_message:
         st.error(status_message)
+    elif state == "stopped" and status_message:
+        st.warning(status_message)
     elif state in {"starting", "running"} and status_message:
         st.info(status_message)
 
@@ -3815,7 +3818,7 @@ def render_pipeline_run_status(
             "This run is continuing in the background. This panel refreshes automatically every 5 seconds."
         )
 
-    refresh_column, clear_column = st.columns(2, gap="small")
+    refresh_column, run_action_column = st.columns(2, gap="small")
 
     with refresh_column:
         if st.button(
@@ -3825,8 +3828,22 @@ def render_pipeline_run_status(
         ):
             st.rerun()
 
-    with clear_column:
-        if state != "running" and st.button(
+    with run_action_column:
+        if state in {"starting", "running"}:
+            if st.button(
+                "Stop pipeline run",
+                key=f"stop_pipeline_run_{selected_award_code}",
+                type="primary",
+                use_container_width=True,
+                help="Stops the active background run and keeps files already written.",
+            ):
+                try:
+                    stop_background_pipeline_run(selected_award_code)
+                except RuntimeError as exc:
+                    st.error(str(exc))
+                else:
+                    st.rerun()
+        elif st.button(
             "Clear run status",
             key=f"clear_run_status_{selected_award_code}",
             use_container_width=True,

@@ -33,6 +33,12 @@ COMMON_OVERTIME_RULES_PREAMBLE = """General guidance for the reusable checks bel
 
 OVERTIME_CREATION_COMMON_QUESTIONS = """Reusable overtime creation checks:
 
+Authoritative overtime-creation rule:
+- Any worked hours that are not ordinary hours are overtime.
+- An applicable ordinary-hours boundary is therefore an overtime trigger for every employee covered by that boundary.
+- Apply a different treatment only where the award expressly provides an alternative ordinary-hours rule for the employee or work arrangement.
+- Do not weaken this rule by describing hours outside an applicable boundary as merely overtime-eligible, requiring assessment, or needing another employee-cohort test.
+
 - Is overtime created by working more than a number of hours in a day?
 - What is the maximum amount of hours workable in a day before hours become overtime?
 - Is overtime created by working outside a defined span of hours? This often, but not always, varies for day workers and shift workers.
