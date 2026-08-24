@@ -49,6 +49,7 @@ def test_step_constants_cover_current_and_future_pipeline_shapes():
         "3.2",
         "4.1",
         "5.1",
+        "6.1",
     )
     from src.common.output_naming import ACTIVE_PIPELINE_STEP_CHOICES
 

@@ -20,6 +20,11 @@ from src.step_4_1_format_ruleset.step_1_load_inputs import (
     strip_validation_notes_preamble,
     strip_wrapping_markdown_fence,
 )
+from src.step_4_1_format_ruleset.step_2_format_ruleset import (
+    append_missing_rules_catch_all,
+    extract_markdown_bullets,
+    rule_is_represented_in_output,
+)
 
 
 class FakeResponses:
@@ -38,6 +43,34 @@ class FakeClient:
 
 
 class OvertimeEntitlementSummaryTests(unittest.TestCase):
+    def test_extract_markdown_bullets_keeps_nested_rule_details_with_parent(self):
+        rules = extract_markdown_bullets(
+            "- Apply overtime after the daily limit. [13.7]\n"
+            "  - Day shift: 8 hours.\n"
+            "  - Night shift: 10 hours.\n"
+            "- Apply overtime after 38 hours per week. [13.2]"
+        )
+
+        self.assertEqual(
+            rules,
+            [
+                "Apply overtime after the daily limit. [13.7] Day shift: 8 hours. Night shift: 10 hours.",
+                "Apply overtime after 38 hours per week. [13.2]",
+            ],
+        )
+
+    def test_rule_coverage_allows_one_reviewed_rule_to_be_split_across_output(self):
+        source_rule = (
+            "An afternoon shift finishes after 7 pm and a night shift finishes after "
+            "midnight. [31.2]"
+        )
+        formatted_rules = [
+            "Afternoon shift finishes after 7 pm. [31.2]",
+            "Night shift finishes after midnight. [31.2]",
+        ]
+
+        self.assertTrue(rule_is_represented_in_output(source_rule, formatted_rules))
+
     def test_formatted_ruleset_path_for_creation_ruleset_uses_canonical_name(self):
         result = formatted_ruleset_path_for_ruleset(
             Path("data/processed/MA000018/3_2_OT_creation_revised_ruleset.md"),
@@ -120,12 +153,25 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         )
 
         self.assertIn("reviewed payroll ruleset", messages[0]["content"])
+        self.assertIn("presentation rewrite", messages[0]["content"])
         self.assertIn(
-            "Write each rule as clearly and operationally as possible",
+            "Start every top-level bullet with the direct payroll rule or outcome",
             messages[0]["content"],
         )
         self.assertIn(
-            "Keep clause references visible in every rule bullet",
+            "Overtime is created when an employee works more than the daily limit",
+            messages[1]["content"],
+        )
+        self.assertIn(
+            "If the reviewed 3.2 rule is already understandable, retain its sentence",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Do not expand a reviewed rule into an explanation",
+            messages[0]["content"],
+        )
+        self.assertIn(
+            "Keep clause references at the end of the lead bullet",
             messages[0]["content"],
         )
         self.assertIn("Reviewed ruleset content:", messages[1]["content"])
@@ -138,7 +184,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertIn("Only include a heading", messages[1]["content"])
         self.assertIn("Do not add headings outside this structure", messages[1]["content"])
         self.assertIn(
-            "Preserve ordinary-hours boundary rules clearly and explicitly",
+            "Preserve ordinary-hours boundary rules clearly where work outside",
             messages[1]["content"],
         )
         self.assertIn(
@@ -170,9 +216,9 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
             "what is paid, owed, or applied once overtime already exists",
             messages[1]["content"],
         )
-        self.assertIn("This is a formatting step, not a summarisation or rewriting step.", messages[0]["content"])
+        self.assertIn("This is a presentation rewrite, not a new interpretation.", messages[0]["content"])
         self.assertIn("The output must be lossless in substance", messages[0]["content"])
-        self.assertIn("Do not delete, omit, merge, split, generalise, or invent substantive rules.", messages[0]["content"])
+        self.assertIn("Do not delete, omit, merge, generalise, or invent substantive rules.", messages[0]["content"])
         self.assertIn("Do not add new operational claims, even if they seem implied by the source.", messages[1]["content"])
         self.assertIn("weekend/public-holiday overtime consequences", messages[1]["content"])
         self.assertIn(
@@ -278,7 +324,7 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         self.assertEqual(fake_client.responses.calls[0]["model"], DEFAULT_MODEL)
         self.assertEqual(
             fake_client.responses.calls[0]["reasoning"],
-            {"effort": "low"},
+            {"effort": "medium"},
         )
         self.assertNotIn(
             "award_overtime_interpretation_revised.md",
@@ -329,6 +375,22 @@ class OvertimeEntitlementSummaryTests(unittest.TestCase):
         )
         self.assertEqual(written_metadata["rendered_markdown"], written_output)
         self.assertEqual(written_metadata["validation_warnings"], validation_warnings)
+        self.assertIn("## Reviewed rules omitted by the formatter", written_output)
+        self.assertIn(
+            "eight hours on a day shift or 10 hours on a night shift",
+            written_output,
+        )
+
+    def test_append_missing_rules_catch_all_keeps_the_reviewed_rule_verbatim(self):
+        warning = (
+            "Step 4.1 formatted output may have dropped this reviewed rule instead "
+            "of only formatting it: Casual Sunday overtime is 250%. [25.1(c)]"
+        )
+
+        result = append_missing_rules_catch_all("# Penalties\n", [warning])
+
+        self.assertIn("## Reviewed rules omitted by the formatter", result)
+        self.assertIn("- Casual Sunday overtime is 250%. [25.1(c)]", result)
 
 
 if __name__ == "__main__":

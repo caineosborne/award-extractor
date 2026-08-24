@@ -20,6 +20,11 @@ from src.common.output_naming import (
     validation_json_path_for_pseudocode,
     validation_markdown_path_for_pseudocode,
 )
+from src.common.award_sources import (
+    SOURCE_REGISTRY_PATH,
+    SOURCE_TYPE_LOCAL_PDF,
+    load_source_registry,
+)
 from src.common.active_pipeline_paths import (
     ruleset_clause_classification_output_path_for_classification,
 )
@@ -98,6 +103,18 @@ def calculator_rules_questionnaire_path_for_award(output_set_name: str) -> Path:
     )
 
 
+def calculator_rules_validation_json_path_for_award(output_set_name: str) -> Path:
+    """Return the saved calculator-to-reviewed-rules validation JSON path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}_validation.json"
+
+
+def calculator_rules_validation_markdown_path_for_award(output_set_name: str) -> Path:
+    """Return the saved calculator-to-reviewed-rules validation Markdown path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_set_name)
+    return award_dir_for_output_set(output_set_name) / "calculator" / f"{module_stem}_validation.md"
+
+
 def canonical_ruleset_paths(
     output_set_name: str,
     ruleset_key: str,
@@ -151,6 +168,16 @@ def discover_award_codes(processed_root: Path = PROCESSED_ROOT) -> list[str]:
         if ARCHIVE_DIR in path.parts:
             continue
         award_codes.append(path.parent.name)
+
+    if processed_root == PROCESSED_ROOT:
+        for award_code, source_record in load_source_registry(SOURCE_REGISTRY_PATH).items():
+            if source_record.get("source_type") != SOURCE_TYPE_LOCAL_PDF:
+                continue
+            if not (processed_root / award_code).is_dir():
+                continue
+            source_path = Path(str(source_record.get("source_path") or ""))
+            if source_path.exists():
+                award_codes.append(award_code)
 
     return sorted(set(award_codes))
 

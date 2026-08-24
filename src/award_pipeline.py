@@ -461,7 +461,7 @@ def run_default_pipeline(
     paths: ActivePipelinePaths,
     ruleset_keys: list[str] | None = None,
 ) -> None:
-    """Run the active pipeline end to end through step 5.1."""
+    """Run the active pipeline end to end through step 6.1."""
     configure_prompt_log(paths.award_json_path.parent / f"{paths.output_stem}.log")
     if ruleset_keys is None:
         for step in DEFAULT_PIPELINE_STEPS:
@@ -483,6 +483,11 @@ def run_default_pipeline(
                     continue
                 seen_clause_classification_paths.add(clause_classification_path)
             STEP_RUNNERS[step](paths, ruleset_key)
+
+    selected_ruleset_keys = set(ruleset_keys)
+    all_rulesets_were_selected = selected_ruleset_keys == set(CLI_DEFAULT_RULESET_KEYS)
+    if all_rulesets_were_selected:
+        STEP_RUNNERS["6.1"](paths)
 
 
 def run_selected_ruleset_steps(
@@ -527,7 +532,7 @@ def run_selected_step(
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     """Parse CLI arguments for the active pipeline wrapper."""
     parser = argparse.ArgumentParser(
-        description="Run the active award extraction pipeline through step 5.1."
+        description="Run the active award extraction pipeline through step 6.1."
     )
     parser.add_argument(
         "award_code",
@@ -538,7 +543,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "step",
         nargs="?",
         choices=STEP_CHOICES,
-        help="Optional step to run. If omitted, the pipeline runs through 5.1.",
+        help="Optional step to run. If omitted, the pipeline runs through 6.1.",
     )
     parser.add_argument(
         "--suffix",

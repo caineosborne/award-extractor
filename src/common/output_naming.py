@@ -13,7 +13,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_URL_TEMPLATE = "https://awards.fairwork.gov.au/{award_code}.html"
 
 ACTIVE_PIPELINE_STEP_CHOICES = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1", "6.1")
-DEFAULT_ACTIVE_PIPELINE_STEPS = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1")
+DEFAULT_ACTIVE_PIPELINE_STEPS = ("1", "2.1", "2.2", "3.1", "3.2", "4.1", "5.1", "6.1")
 
 
 def default_award_url_for_code(award_code: str) -> str:
@@ -333,3 +333,15 @@ def calculator_rules_python_path_for_output_stem(output_stem: str) -> Path:
     """Return the canonical step 6.1 calculator Python path for one output set."""
     module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
     return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}.py"
+
+
+def calculator_rules_validation_json_path_for_output_stem(output_stem: str) -> Path:
+    """Return the calculator-to-reviewed-rules validation JSON path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
+    return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}_validation.json"
+
+
+def calculator_rules_validation_markdown_path_for_output_stem(output_stem: str) -> Path:
+    """Return the calculator-to-reviewed-rules validation Markdown path."""
+    module_stem = calculator_rules_module_stem_for_output_stem(output_stem)
+    return award_dir_for_output_stem(output_stem) / "calculator" / f"{module_stem}_validation.md"

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 import pprint
@@ -12,65 +13,33 @@ from src.common.output_naming import award_title_from_award_json_path
 from src.common.output_paths import write_text_output
 
 
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "gpt-5.6-luna"
 DEFAULT_BOOLEAN_FIELDS = {
     "use_contracted_hours_for_pt_overtime": True,
     "pt_employees_entitled_to_contracted_topup": True,
     "ft_employees_entitled_to_contracted_topup": True,
 }
-SCALAR_RULE_FIELDS = (
-    "ordinary_hours_limit_daily",
-    "ordinary_hours_limit_weekly",
-    "day_worker_ordinary_hours_daily",
-    "day_worker_ordinary_hours_weekly",
-    "standard_overtime_rate",
-    "extended_overtime_rate",
-    "sunday_overtime_rate",
-    "saturday_overtime_rate",
-    "apply_span_overtime",
-    "span_overtime_hour",
-    "gap_penalty_hours",
-    "gap_penalty_rate",
-    "two_tier_overtime",
-    "two_tier_overtime_threshold",
-    "extended_overtime_days",
+GROUPED_CLASS_ATTRIBUTES = (
+    "SHIFT_RULES",
+    "ORDINARY_TIME_RULES",
+    "DAY_TREATMENT_RULES",
+    "PAY_RATES",
+    "GAP_BETWEEN_SHIFTS_RULE",
+    "ORDINARY_HOUR_PENALTIES",
+    "TOP_UP_RULES",
 )
-OBJECT_RULE_FIELDS = (
-    "penalties",
-    "hours_pen_rules",
-    "weekend_rules",
-)
-CLASS_ATTRIBUTE_BY_RULE_FIELD = {
-    "ordinary_hours_limit_daily": "ORDINARY_HOURS_LIMIT_DAILY",
-    "ordinary_hours_limit_weekly": "ORDINARY_HOURS_LIMIT_WEEKLY",
-    "day_worker_ordinary_hours_daily": "DAY_WORKER_ORDINARY_HOURS_DAILY",
-    "day_worker_ordinary_hours_weekly": "DAY_WORKER_ORDINARY_HOURS_WEEKLY",
-    "use_contracted_hours_for_pt_overtime": "USE_CONTRACTED_HOURS_FOR_PT_OVERTIME",
-    "pt_employees_entitled_to_contracted_topup": "PT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP",
-    "ft_employees_entitled_to_contracted_topup": "FT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP",
-    "standard_overtime_rate": "STANDARD_OVERTIME_RATE",
-    "extended_overtime_rate": "EXTENDED_OVERTIME_RATE",
-    "sunday_overtime_rate": "SUNDAY_OVERTIME_RATE",
-    "saturday_overtime_rate": "SATURDAY_OVERTIME_RATE",
-    "apply_span_overtime": "APPLY_SPAN_OVERTIME",
-    "span_overtime_hour": "SPAN_OVERTIME_HOUR",
-    "gap_penalty_hours": "GAP_PENALTY_HOURS",
-    "gap_penalty_rate": "GAP_PENALTY_RATE",
-    "penalties": "PENALTIES",
-    "hours_pen_rules": "HOURS_PEN_RULES",
-    "weekend_rules": "WEEKEND_RULES",
-    "two_tier_overtime": "TWO_TIER_OVERTIME",
-    "two_tier_overtime_threshold": "TWO_TIER_OVERTIME_THRESHOLD",
-    "extended_overtime_days": "EXTENDED_OVERTIME_DAYS",
+FIELDS_EXCLUDED_FROM_ANALYSIS = {
+    "SHIFT_RULES.default_break_hours",
+    "SHIFT_RULES.minimum_paid_shift_hours",
+    "ORDINARY_TIME_RULES.long_day",
+    "ORDINARY_TIME_RULES.period.basis",
+    "ORDINARY_TIME_RULES.period.max_work_days",
+    "ORDINARY_TIME_RULES.period.max_work_days_basis",
+    "ORDINARY_TIME_RULES.period.part_time_uses_contracted_hours",
+    "ORDINARY_TIME_RULES.ordinary_rates.casual_loading",
+    "TOP_UP_RULES.part_time",
+    "TOP_UP_RULES.full_time",
 }
-FIXED_CLASS_ATTRIBUTES = (
-    ("DEFAULT_BREAK", 0.5),
-)
-ALL_RULE_FIELDS = (
-    *SCALAR_RULE_FIELDS,
-    *DEFAULT_BOOLEAN_FIELDS.keys(),
-    *OBJECT_RULE_FIELDS,
-)
 WEEKEND_TREATMENT_OPTIONS = (
     "overtime",
     "penalty",
@@ -98,6 +67,7 @@ PENALTY_BASIS_OPTIONS = (
     "start",
     "end",
     "duration",
+    "time",
 )
 TIME_CONNECTOR_TOKENS = {
     "to",
@@ -138,7 +108,13 @@ def evidence_schema() -> dict[str, Any]:
         "properties": {
             "status": {
                 "type": "string",
-                "enum": ["derived", "needs_review", "defaulted", "not_found"],
+                "enum": [
+                    "derived",
+                    "not_applicable",
+                    "needs_review",
+                    "defaulted",
+                    "not_found",
+                ],
             },
             "source_ruleset_keys": {
                 "type": "array",
@@ -197,8 +173,113 @@ def _nullable_enum_schema(options: tuple[str, ...]) -> dict[str, Any]:
     return {"anyOf": [{"type": "string", "enum": list(options)}, {"type": "null"}]}
 
 
+def align_questionnaire_to_calculator_contract(
+    response_data: dict[str, Any],
+) -> dict[str, Any]:
+    """Populate neutral values for fields made irrelevant by another answer."""
+    aligned_response = deepcopy(response_data)
+    questionnaire_answers = aligned_response.get("questionnaire_answers")
+    if not isinstance(questionnaire_answers, dict):
+        return aligned_response
+
+    core_hours_answers = questionnaire_answers.get("core_hours")
+    if isinstance(core_hours_answers, dict):
+        day_daily_record = core_hours_answers.get("day_worker_daily_limit_hours")
+        shift_daily_record = core_hours_answers.get("shift_worker_daily_limit_hours")
+        daily_records = [day_daily_record, shift_daily_record]
+        if all(isinstance(record, dict) for record in daily_records):
+            daily_explanation = " ".join(
+                str(record.get(field_name) or "")
+                for record in daily_records
+                for field_name in ("reasoning_summary", "special_case_notes")
+            ).lower().replace("-", " ")
+            has_day_and_night_shift_source = (
+                "day shift" in daily_explanation
+                and "night shift" in daily_explanation
+            )
+            has_numeric_worker_values = all(
+                isinstance(record.get("answer"), (int, float))
+                for record in daily_records
+            )
+            if has_day_and_night_shift_source and has_numeric_worker_values:
+                for record in daily_records:
+                    record["status"] = "defaulted"
+                day_daily_record["special_case_notes"] = (
+                    "Contract-alignment assumption: the day-shift boundary is used "
+                    "for the calculator's day-worker category."
+                )
+                shift_daily_record["special_case_notes"] = (
+                    "Contract-alignment assumption: the night-shift boundary is used "
+                    "for the calculator's shiftworker category."
+                )
+
+    weekend_answers = questionnaire_answers.get("weekend_treatment")
+    if isinstance(weekend_answers, dict):
+        for day_name in ("saturday", "sunday", "public_holiday"):
+            for worker_prefix in ("day", "shift"):
+                treatment_name = f"{worker_prefix}_{day_name}_treatment"
+                treatment_record = weekend_answers.get(treatment_name)
+                if not isinstance(treatment_record, dict):
+                    continue
+                if treatment_record.get("answer") != "overtime":
+                    continue
+
+                loading_names = [
+                    f"{worker_prefix}_{day_name}_penalty_loading",
+                    f"casual_{worker_prefix}_{day_name}_penalty_loading",
+                ]
+                for loading_name in loading_names:
+                    loading_record = weekend_answers.get(loading_name)
+                    if not isinstance(loading_record, dict):
+                        continue
+                    loading_record["answer"] = 0
+                    loading_record["status"] = "not_applicable"
+                    loading_record["reasoning_summary"] = (
+                        "This worker type is classified as overtime for this day, so "
+                        "the calculator does not use an ordinary-hours penalty loading."
+                    )
+                    loading_record["special_case_notes"] = (
+                        "The applicable overtime rate is selected from PAY_RATES."
+                    )
+
+    gap_answers = questionnaire_answers.get("gap_between_shifts")
+    if isinstance(gap_answers, dict):
+        casual_gap_record = gap_answers.get("casual_breach_penalty_multiplier")
+        if isinstance(casual_gap_record, dict) and casual_gap_record.get("answer") is None:
+            casual_gap_explanation = " ".join(
+                str(casual_gap_record.get(field_name) or "")
+                for field_name in ("reasoning_summary", "special_case_notes")
+            ).lower()
+            if "casual" in casual_gap_explanation and "exclud" in casual_gap_explanation:
+                casual_gap_record["answer"] = 0
+                casual_gap_record["status"] = "not_applicable"
+                casual_gap_record["special_case_notes"] = (
+                    "The reviewed payment excludes casual employees. The calculator "
+                    "contract cannot exclude casuals from an active gap rule, so this "
+                    "zero value still requires confirmation of the suppression effect."
+                )
+
+    penalty_answers = questionnaire_answers.get("weekday_penalties")
+    if isinstance(penalty_answers, dict):
+        # Removed from the current questionnaire scope. Drop it when an older
+        # saved questionnaire is rebuilt through the current code.
+        penalty_answers.pop("casual_ordinary_loading", None)
+        for penalty_list_name in ("shift_based_penalties", "time_based_penalties"):
+            penalty_record = penalty_answers.get(penalty_list_name)
+            if not isinstance(penalty_record, dict):
+                continue
+            if penalty_record.get("answer") == [] and penalty_record.get("status") == "not_found":
+                penalty_record["status"] = "not_applicable"
+                penalty_record["special_case_notes"] = (
+                    "The reviewed rules produced no live rules that fit this calculator "
+                    "penalty shape."
+                )
+
+    return aligned_response
+
+
 def penalty_rule_schema() -> dict[str, Any]:
-    """Return one weekday penalty rule answer shape."""
+    """Return one ordinary-hour penalty rule answer shape."""
     return {
         "type": "object",
         "additionalProperties": False,
@@ -209,10 +290,15 @@ def penalty_rule_schema() -> dict[str, Any]:
             "start_hour": {"type": "number"},
             "end_hour": {"type": "number"},
             "rate": {"type": "number"},
+            "casual_rate": _nullable_number_schema(),
             "description": {"type": "string"},
             "applies_to": {
                 "type": "array",
                 "items": {"type": "string", "enum": list(WORKER_TYPE_OPTIONS)},
+            },
+            "days": {
+                "type": "array",
+                "items": {"type": "string", "enum": list(DAY_NAME_OPTIONS)},
             },
         },
         "required": [
@@ -222,8 +308,10 @@ def penalty_rule_schema() -> dict[str, Any]:
             "start_hour",
             "end_hour",
             "rate",
+            "casual_rate",
             "description",
             "applies_to",
+            "days",
         ],
     }
 
@@ -266,8 +354,10 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "standard_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_standard_overtime_multiplier": _answer_schema(_nullable_number_schema()),
             "has_two_tier_overtime": _answer_schema(_nullable_boolean_schema()),
             "extended_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_extended_overtime_multiplier": _answer_schema(_nullable_number_schema()),
             "higher_overtime_starts_after_hours": _answer_schema(_nullable_number_schema()),
             "extended_overtime_days": _answer_schema(
                 {
@@ -276,16 +366,26 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
                 }
             ),
             "saturday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_saturday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
             "sunday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_sunday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "public_holiday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_public_holiday_overtime_multiplier": _answer_schema(_nullable_number_schema()),
         },
         "required": [
             "standard_overtime_multiplier",
+            "casual_standard_overtime_multiplier",
             "has_two_tier_overtime",
             "extended_overtime_multiplier",
+            "casual_extended_overtime_multiplier",
             "higher_overtime_starts_after_hours",
             "extended_overtime_days",
             "saturday_overtime_multiplier",
+            "casual_saturday_overtime_multiplier",
             "sunday_overtime_multiplier",
+            "casual_sunday_overtime_multiplier",
+            "public_holiday_overtime_multiplier",
+            "casual_public_holiday_overtime_multiplier",
         ],
     }
 
@@ -294,11 +394,13 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
         "additionalProperties": False,
         "properties": {
             "day_workers_have_span_overtime": _answer_schema(_nullable_boolean_schema()),
+            "live_span_start_hour": _answer_schema(_nullable_number_schema()),
             "live_span_cutoff_hour": _answer_schema(_nullable_number_schema()),
             "ordinary_span_summary": _answer_schema(_nullable_string_schema()),
         },
         "required": [
             "day_workers_have_span_overtime",
+            "live_span_start_hour",
             "live_span_cutoff_hour",
             "ordinary_span_summary",
         ],
@@ -324,6 +426,20 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "day_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
             "shift_saturday_penalty_loading": _answer_schema(_nullable_number_schema()),
             "shift_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_day_saturday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_day_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_shift_saturday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_shift_sunday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "day_public_holiday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "shift_public_holiday_treatment": _answer_schema(
+                _nullable_enum_schema(WEEKEND_TREATMENT_OPTIONS)
+            ),
+            "day_public_holiday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "shift_public_holiday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_day_public_holiday_penalty_loading": _answer_schema(_nullable_number_schema()),
+            "casual_shift_public_holiday_penalty_loading": _answer_schema(_nullable_number_schema()),
         },
         "required": [
             "day_saturday_treatment",
@@ -334,6 +450,16 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "day_sunday_penalty_loading",
             "shift_saturday_penalty_loading",
             "shift_sunday_penalty_loading",
+            "casual_day_saturday_penalty_loading",
+            "casual_day_sunday_penalty_loading",
+            "casual_shift_saturday_penalty_loading",
+            "casual_shift_sunday_penalty_loading",
+            "day_public_holiday_treatment",
+            "shift_public_holiday_treatment",
+            "day_public_holiday_penalty_loading",
+            "shift_public_holiday_penalty_loading",
+            "casual_day_public_holiday_penalty_loading",
+            "casual_shift_public_holiday_penalty_loading",
         ],
     }
 
@@ -344,6 +470,7 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "minimum_break_required": _answer_schema(_nullable_boolean_schema()),
             "standard_minimum_break_hours": _answer_schema(_nullable_number_schema()),
             "breach_penalty_multiplier": _answer_schema(_nullable_number_schema()),
+            "casual_breach_penalty_multiplier": _answer_schema(_nullable_number_schema()),
             "special_case_thresholds": _answer_schema(
                 {
                     "type": "array",
@@ -355,6 +482,7 @@ def calculator_rules_response_json_schema() -> dict[str, Any]:
             "minimum_break_required",
             "standard_minimum_break_hours",
             "breach_penalty_multiplier",
+            "casual_breach_penalty_multiplier",
             "special_case_thresholds",
         ],
     }
@@ -422,6 +550,7 @@ def summarized_rules(artifact: dict[str, Any]) -> list[dict[str, Any]]:
                 "employee_cohort": raw_rule.get("employee_cohort"),
                 "work_arrangement": raw_rule.get("work_arrangement"),
                 "clause_references": raw_rule.get("clause_references"),
+                "rule_markdown": raw_rule.get("rule_markdown"),
                 "rule_plain_text": raw_rule.get("rule_plain_text"),
                 "other_scope_notes": raw_rule.get("other_scope_notes"),
             }
@@ -505,6 +634,29 @@ def _normalize_question_record(
     record = _get_question_record(questionnaire_answers, section_name, question_name)
     normalized = _normalize_evidence_record(record)
     normalized["answer"] = record.get("answer")
+    return normalized
+
+
+def _normalize_optional_question_record(
+    questionnaire_answers: dict[str, Any],
+    *,
+    section_name: str,
+    question_name: str,
+) -> dict[str, Any]:
+    """Read a newly added question while keeping stored draft fixtures reviewable."""
+    section = questionnaire_answers.get(section_name)
+    if isinstance(section, dict) and isinstance(section.get(question_name), dict):
+        return _normalize_question_record(
+            questionnaire_answers,
+            section_name=section_name,
+            question_name=question_name,
+        )
+
+    normalized = default_evidence(
+        f"The questionnaire did not provide {section_name}.{question_name}.",
+        "not_found",
+    )
+    normalized["answer"] = None
     return normalized
 
 
@@ -603,7 +755,13 @@ def _extract_explicit_hours_from_text(text: str) -> list[float]:
 
         extracted_hours.append(hour + (minute / 60))
 
-    for match in re.finditer(r"\b(\d{1,2}):(\d{2})\b", normalized_text):
+    # Do not extract the clock portion a second time when it already has an
+    # am/pm suffix. Otherwise "6:30 pm" becomes both 18.5 and 6.5, shifting
+    # the apparent end time and causing a false hard validation failure.
+    for match in re.finditer(
+        r"\b(\d{1,2}):(\d{2})\b(?!\s*(?:am|pm)\b)",
+        normalized_text,
+    ):
         hour = int(match.group(1))
         minute = int(match.group(2))
         extracted_hours.append(hour + (minute / 60))
@@ -722,10 +880,10 @@ def _validate_penalty_time_text(
     description: str,
     start_hour: int | float,
     end_hour: int | float,
-) -> None:
+) -> str | None:
     explicit_hours = _extract_explicit_hours_from_text(description)
     if len(explicit_hours) < 2:
-        return
+        return None
 
     expected_start = _normalize_midnight_hour(start_hour)
     expected_end = _normalize_midnight_hour(end_hour)
@@ -741,12 +899,14 @@ def _validate_penalty_time_text(
         rounded_stated_start != rounded_expected_start
         or rounded_stated_end != rounded_expected_end
     ):
-        raise CalculatorRulesYamlError(
+        return (
             "Step 6.1 produced a weekday penalty whose structured hours do not match its "
             f"description: '{description}' implies {rounded_stated_start} to "
             f"{rounded_stated_end}, but the structured window is "
             f"{rounded_expected_start} to {rounded_expected_end}."
         )
+
+    return None
 
 
 def _penalty_code_name_has_explicit_times(code_name: str) -> bool:
@@ -765,33 +925,10 @@ def _unique_penalty_name(base_name: str, existing_penalties: dict[str, Any]) -> 
     return f"{base_name}_{suffix}"
 
 
-def _weekend_day_entry(treatment: str | None, *, overtime_rate: Any, penalty_rate: Any) -> dict[str, Any] | None:
-    if treatment == "overtime":
-        return {"is_overtime": True}
-    if treatment == "penalty":
-        # The current calculator runtime does not have a separate day-worker
-        # weekend penalty branch. Use the overtime path so weekend day shifts
-        # still receive the required uplift.
-        return {"is_overtime": True}
-    return None
-
-
-def _weekend_shift_entry(
-    treatment: str | None,
-    *,
-    overtime_rate: Any,
-    penalty_rate: Any,
-) -> dict[str, Any] | None:
-    if treatment == "overtime":
-        return {"is_overtime": True}
-    if treatment == "penalty":
-        return {"is_overtime": False, "rate": None, "penalty_rate": penalty_rate}
-    return None
-
-
 def _build_live_penalties(
     shift_based_rules: list[dict[str, Any]],
     time_based_rules: list[dict[str, Any]],
+    validation_warnings: list[str],
 ) -> dict[str, Any]:
     penalties: dict[str, Any] = {}
 
@@ -829,16 +966,17 @@ def _build_live_penalties(
         lower_description = description.lower()
         lower_code_name = code_name.lower()
 
-        _validate_penalty_time_text(
+        penalty_time_warning = _validate_penalty_time_text(
             description=description,
             start_hour=start_hour,
             end_hour=end_hour,
         )
+        if penalty_time_warning is not None:
+            validation_warnings.append(penalty_time_warning)
 
-        # The current engine only applies PENALTIES on ordinary weekdays and has
-        # no calendar-aware weekend/public-holiday filtering in this path.
-        # Exclude any calendar-specific live rule here so it does not leak onto
-        # weekday calculations.
+        # Named weekend and public-holiday treatments belong in
+        # DAY_TREATMENT_RULES. Ordinary-hour penalties may still provide their
+        # own explicit day list when one rule operates across several days.
         calendar_specific_terms = (
             "saturday",
             "sunday",
@@ -866,26 +1004,21 @@ def _build_live_penalties(
             "start": start_hour,
             "end": end_hour,
             "rate": raw_rule.get("rate"),
+            "casual_rate": raw_rule.get("casual_rate"),
             "description": description,
             "applies_to": applies_to,
+            "days": [
+                day_name
+                for day_name in raw_rule.get("days", [])
+                if day_name in DAY_NAME_OPTIONS
+            ],
         }
 
     return penalties
 
 
-def _weekend_effective_overtime_rate(
-    *,
-    treatment: str | None,
-    overtime_rate: Any,
-    penalty_rate: Any,
-) -> Any:
-    if treatment == "penalty" and isinstance(penalty_rate, (int, float)):
-        return 1 + penalty_rate
-    return overtime_rate
-
-
-def validate_calculator_rules_shape(calculator_rules: dict[str, Any]) -> None:
-    """Validate the final runtime shape without changing business values."""
+def validate_questionnaire_values(calculator_rules: dict[str, Any]) -> None:
+    """Validate the extracted questionnaire values before grouping them."""
     if calculator_rules.get("apply_span_overtime") is True:
         if not isinstance(calculator_rules.get("span_overtime_hour"), (int, float)):
             raise CalculatorRulesYamlError(
@@ -932,11 +1065,6 @@ def validate_calculator_rules_shape(calculator_rules: dict[str, Any]) -> None:
                 f"Penalty '{penalty_name}' must have a numeric end."
             )
 
-    weekend_rules = calculator_rules.get("weekend_rules")
-    if not isinstance(weekend_rules, dict):
-        raise CalculatorRulesYamlError("Step 6.1 weekend_rules must be a mapping.")
-
-
 def normalize_response_data(
     response_data: dict[str, Any],
     *,
@@ -975,6 +1103,11 @@ def normalize_response_data(
             section_name="overtime",
             question_name="standard_overtime_multiplier",
         ),
+        "casual_standard_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_standard_overtime_multiplier",
+        ),
         "has_two_tier_overtime": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
@@ -984,6 +1117,11 @@ def normalize_response_data(
             questionnaire_answers,
             section_name="overtime",
             question_name="extended_overtime_multiplier",
+        ),
+        "casual_extended_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_extended_overtime_multiplier",
         ),
         "higher_overtime_starts_after_hours": _normalize_question_record(
             questionnaire_answers,
@@ -1000,15 +1138,40 @@ def normalize_response_data(
             section_name="overtime",
             question_name="saturday_overtime_multiplier",
         ),
+        "casual_saturday_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_saturday_overtime_multiplier",
+        ),
         "sunday_overtime_multiplier": _normalize_question_record(
             questionnaire_answers,
             section_name="overtime",
             question_name="sunday_overtime_multiplier",
         ),
+        "casual_sunday_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_sunday_overtime_multiplier",
+        ),
+        "public_holiday_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="public_holiday_overtime_multiplier",
+        ),
+        "casual_public_holiday_overtime_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_public_holiday_overtime_multiplier",
+        ),
         "day_workers_have_span_overtime": _normalize_question_record(
             questionnaire_answers,
             section_name="span",
             question_name="day_workers_have_span_overtime",
+        ),
+        "live_span_start_hour": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="span",
+            question_name="live_span_start_hour",
         ),
         "live_span_cutoff_hour": _normalize_question_record(
             questionnaire_answers,
@@ -1060,6 +1223,56 @@ def normalize_response_data(
             section_name="weekend_treatment",
             question_name="shift_sunday_penalty_loading",
         ),
+        "casual_day_saturday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_day_saturday_penalty_loading",
+        ),
+        "casual_day_sunday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_day_sunday_penalty_loading",
+        ),
+        "casual_shift_saturday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_shift_saturday_penalty_loading",
+        ),
+        "casual_shift_sunday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_shift_sunday_penalty_loading",
+        ),
+        "day_public_holiday_treatment": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_public_holiday_treatment",
+        ),
+        "shift_public_holiday_treatment": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_public_holiday_treatment",
+        ),
+        "day_public_holiday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_public_holiday_penalty_loading",
+        ),
+        "shift_public_holiday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_public_holiday_penalty_loading",
+        ),
+        "casual_day_public_holiday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_day_public_holiday_penalty_loading",
+        ),
+        "casual_shift_public_holiday_penalty_loading": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="casual_shift_public_holiday_penalty_loading",
+        ),
         "minimum_break_required": _normalize_question_record(
             questionnaire_answers,
             section_name="gap_between_shifts",
@@ -1074,6 +1287,11 @@ def normalize_response_data(
             questionnaire_answers,
             section_name="gap_between_shifts",
             question_name="breach_penalty_multiplier",
+        ),
+        "casual_breach_penalty_multiplier": _normalize_optional_question_record(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="casual_breach_penalty_multiplier",
         ),
         "special_case_thresholds": _normalize_question_record(
             questionnaire_answers,
@@ -1097,49 +1315,39 @@ def normalize_response_data(
         ),
     }
 
+    validation_warnings: list[str] = []
+
     has_two_tier = question_records["has_two_tier_overtime"]["answer"]
     minimum_break_required = question_records["minimum_break_required"]["answer"]
+
+    casual_gap_record = question_records["casual_breach_penalty_multiplier"]
+    casual_gap_is_not_applicable = (
+        casual_gap_record["status"] == "not_applicable"
+    )
+    if minimum_break_required is True and casual_gap_is_not_applicable:
+        validation_warnings.append(
+            "The reviewed rules exclude casual employees from the payment for an "
+            "insufficient break between shifts. The calculator cannot switch this "
+            "rule off for casual employees only. It therefore uses a zero casual "
+            "loading, but applying the rule may still remove other casual loadings. "
+            "Review this treatment before approval."
+        )
 
     shift_based_penalties_answer = question_records["shift_based_penalties"]["answer"] or []
     time_based_penalties_answer = question_records["time_based_penalties"]["answer"] or []
 
-    weekend_rules: dict[str, Any] = {}
-    day_weekend_rules: dict[str, Any] = {}
-    shift_weekend_rules: dict[str, Any] = {}
+    span_overtime_is_supported = (
+        question_records["day_workers_have_span_overtime"]["answer"] is True
+    )
+    span_overtime_cutoff = question_records["live_span_cutoff_hour"]["answer"]
+    has_numeric_span_overtime_cutoff = isinstance(span_overtime_cutoff, (int, float))
 
-    day_saturday_entry = _weekend_day_entry(
-        question_records["day_saturday_treatment"]["answer"],
-        overtime_rate=question_records["saturday_overtime_multiplier"]["answer"],
-        penalty_rate=question_records["day_saturday_penalty_loading"]["answer"],
-    )
-    day_sunday_entry = _weekend_day_entry(
-        question_records["day_sunday_treatment"]["answer"],
-        overtime_rate=question_records["sunday_overtime_multiplier"]["answer"],
-        penalty_rate=question_records["day_sunday_penalty_loading"]["answer"],
-    )
-    shift_saturday_entry = _weekend_shift_entry(
-        question_records["shift_saturday_treatment"]["answer"],
-        overtime_rate=question_records["saturday_overtime_multiplier"]["answer"],
-        penalty_rate=question_records["shift_saturday_penalty_loading"]["answer"],
-    )
-    shift_sunday_entry = _weekend_shift_entry(
-        question_records["shift_sunday_treatment"]["answer"],
-        overtime_rate=question_records["sunday_overtime_multiplier"]["answer"],
-        penalty_rate=question_records["shift_sunday_penalty_loading"]["answer"],
-    )
-
-    if day_saturday_entry is not None:
-        day_weekend_rules["Saturday"] = day_saturday_entry
-    if day_sunday_entry is not None:
-        day_weekend_rules["Sunday"] = day_sunday_entry
-    if shift_saturday_entry is not None:
-        shift_weekend_rules["Saturday"] = shift_saturday_entry
-    if shift_sunday_entry is not None:
-        shift_weekend_rules["Sunday"] = shift_sunday_entry
-    if day_weekend_rules:
-        weekend_rules["day"] = day_weekend_rules
-    if shift_weekend_rules:
-        weekend_rules["shift"] = shift_weekend_rules
+    if span_overtime_is_supported and not has_numeric_span_overtime_cutoff:
+        validation_warnings.append(
+            "Span overtime is supported by the reviewed rules, but no single numeric "
+            "span cutoff is available. The live span-overtime calculation has been "
+            "disabled and requires review before it can be enabled."
+        )
 
     normalized_rules: dict[str, Any] = {
         "ordinary_hours_limit_daily": question_records["shift_daily_limit"]["answer"],
@@ -1147,17 +1355,44 @@ def normalize_response_data(
         "day_worker_ordinary_hours_daily": question_records["day_daily_limit"]["answer"],
         "day_worker_ordinary_hours_weekly": question_records["day_weekly_limit"]["answer"],
         "standard_overtime_rate": question_records["standard_overtime_multiplier"]["answer"],
+        "casual_standard_overtime_rate": question_records[
+            "casual_standard_overtime_multiplier"
+        ]["answer"],
         "extended_overtime_rate": (
             question_records["extended_overtime_multiplier"]["answer"]
             if has_two_tier is True
             else None
         ),
+        "casual_extended_overtime_rate": (
+            question_records["casual_extended_overtime_multiplier"]["answer"]
+            if has_two_tier is True
+            else None
+        ),
         "sunday_overtime_rate": question_records["sunday_overtime_multiplier"]["answer"],
+        "casual_sunday_overtime_rate": question_records[
+            "casual_sunday_overtime_multiplier"
+        ]["answer"],
         "saturday_overtime_rate": question_records["saturday_overtime_multiplier"]["answer"],
-        "apply_span_overtime": question_records["day_workers_have_span_overtime"]["answer"],
+        "casual_saturday_overtime_rate": question_records[
+            "casual_saturday_overtime_multiplier"
+        ]["answer"],
+        "public_holiday_overtime_rate": question_records[
+            "public_holiday_overtime_multiplier"
+        ]["answer"],
+        "casual_public_holiday_overtime_rate": question_records[
+            "casual_public_holiday_overtime_multiplier"
+        ]["answer"],
+        "apply_span_overtime": (
+            span_overtime_is_supported and has_numeric_span_overtime_cutoff
+        ),
         "span_overtime_hour": (
-            question_records["live_span_cutoff_hour"]["answer"]
-            if question_records["day_workers_have_span_overtime"]["answer"] is True
+            span_overtime_cutoff
+            if span_overtime_is_supported and has_numeric_span_overtime_cutoff
+            else None
+        ),
+        "span_overtime_start_hour": (
+            question_records["live_span_start_hour"]["answer"]
+            if span_overtime_is_supported
             else None
         ),
         "gap_penalty_hours": (
@@ -1170,12 +1405,16 @@ def normalize_response_data(
             if minimum_break_required is True
             else None
         ),
+        "casual_gap_penalty_rate": (
+            question_records["casual_breach_penalty_multiplier"]["answer"]
+            if minimum_break_required is True
+            else None
+        ),
         "penalties": _build_live_penalties(
             shift_based_penalties_answer,
             time_based_penalties_answer,
+            validation_warnings,
         ),
-        "hours_pen_rules": {},
-        "weekend_rules": weekend_rules,
         "two_tier_overtime": has_two_tier,
         "two_tier_overtime_threshold": (
             question_records["higher_overtime_starts_after_hours"]["answer"]
@@ -1187,9 +1426,63 @@ def normalize_response_data(
             if has_two_tier is True
             else []
         ),
+        "day_treatment_inputs": {
+            "Saturday": {
+                "day": {
+                    "treatment": question_records["day_saturday_treatment"]["answer"],
+                    "loading": question_records["day_saturday_penalty_loading"]["answer"],
+                    "casual_loading": question_records[
+                        "casual_day_saturday_penalty_loading"
+                    ]["answer"],
+                },
+                "shift": {
+                    "treatment": question_records["shift_saturday_treatment"]["answer"],
+                    "loading": question_records["shift_saturday_penalty_loading"]["answer"],
+                    "casual_loading": question_records[
+                        "casual_shift_saturday_penalty_loading"
+                    ]["answer"],
+                },
+            },
+            "Sunday": {
+                "day": {
+                    "treatment": question_records["day_sunday_treatment"]["answer"],
+                    "loading": question_records["day_sunday_penalty_loading"]["answer"],
+                    "casual_loading": question_records[
+                        "casual_day_sunday_penalty_loading"
+                    ]["answer"],
+                },
+                "shift": {
+                    "treatment": question_records["shift_sunday_treatment"]["answer"],
+                    "loading": question_records["shift_sunday_penalty_loading"]["answer"],
+                    "casual_loading": question_records[
+                        "casual_shift_sunday_penalty_loading"
+                    ]["answer"],
+                },
+            },
+            "public_holiday": {
+                "day": {
+                    "treatment": question_records["day_public_holiday_treatment"]["answer"],
+                    "loading": question_records[
+                        "day_public_holiday_penalty_loading"
+                    ]["answer"],
+                    "casual_loading": question_records[
+                        "casual_day_public_holiday_penalty_loading"
+                    ]["answer"],
+                },
+                "shift": {
+                    "treatment": question_records["shift_public_holiday_treatment"]["answer"],
+                    "loading": question_records[
+                        "shift_public_holiday_penalty_loading"
+                    ]["answer"],
+                    "casual_loading": question_records[
+                        "casual_shift_public_holiday_penalty_loading"
+                    ]["answer"],
+                },
+            },
+        },
     }
 
-    validate_calculator_rules_shape(normalized_rules)
+    validate_questionnaire_values(normalized_rules)
 
     normalized_evidence = {
         "ordinary_hours_limit_daily": _merge_evidence_records(
@@ -1212,6 +1505,10 @@ def normalize_response_data(
             [question_records["standard_overtime_multiplier"]],
             empty_reason="No evidence available for standard overtime multiplier.",
         ),
+        "casual_standard_overtime_rate": _merge_evidence_records(
+            [question_records["casual_standard_overtime_multiplier"]],
+            empty_reason="No evidence available for casual standard overtime multiplier.",
+        ),
         "extended_overtime_rate": _merge_evidence_records(
             [
                 question_records["has_two_tier_overtime"],
@@ -1219,13 +1516,36 @@ def normalize_response_data(
             ],
             empty_reason="No evidence available for extended overtime multiplier.",
         ),
+        "casual_extended_overtime_rate": _merge_evidence_records(
+            [
+                question_records["has_two_tier_overtime"],
+                question_records["casual_extended_overtime_multiplier"],
+            ],
+            empty_reason="No evidence available for casual extended overtime multiplier.",
+        ),
         "sunday_overtime_rate": _merge_evidence_records(
             [question_records["sunday_overtime_multiplier"]],
             empty_reason="No evidence available for Sunday overtime multiplier.",
         ),
+        "casual_sunday_overtime_rate": _merge_evidence_records(
+            [question_records["casual_sunday_overtime_multiplier"]],
+            empty_reason="No evidence available for casual Sunday overtime multiplier.",
+        ),
         "saturday_overtime_rate": _merge_evidence_records(
             [question_records["saturday_overtime_multiplier"]],
             empty_reason="No evidence available for Saturday overtime multiplier.",
+        ),
+        "casual_saturday_overtime_rate": _merge_evidence_records(
+            [question_records["casual_saturday_overtime_multiplier"]],
+            empty_reason="No evidence available for casual Saturday overtime multiplier.",
+        ),
+        "public_holiday_overtime_rate": _merge_evidence_records(
+            [question_records["public_holiday_overtime_multiplier"]],
+            empty_reason="No evidence available for public-holiday overtime multiplier.",
+        ),
+        "casual_public_holiday_overtime_rate": _merge_evidence_records(
+            [question_records["casual_public_holiday_overtime_multiplier"]],
+            empty_reason="No evidence available for casual public-holiday overtime multiplier.",
         ),
         "apply_span_overtime": _merge_evidence_records(
             [
@@ -1241,6 +1561,14 @@ def normalize_response_data(
                 question_records["ordinary_span_summary"],
             ],
             empty_reason="No evidence available for span overtime cutoff hour.",
+        ),
+        "span_overtime_start_hour": _merge_evidence_records(
+            [
+                question_records["day_workers_have_span_overtime"],
+                question_records["live_span_start_hour"],
+                question_records["ordinary_span_summary"],
+            ],
+            empty_reason="No evidence available for span overtime start hour.",
         ),
         "gap_penalty_hours": _merge_evidence_records(
             [
@@ -1258,6 +1586,10 @@ def normalize_response_data(
             ],
             empty_reason="No evidence available for gap-between-shifts penalty multiplier.",
         ),
+        "casual_gap_penalty_rate": _merge_evidence_records(
+            [question_records["casual_breach_penalty_multiplier"]],
+            empty_reason="No evidence available for casual gap-between-shifts loading.",
+        ),
         "penalties": _merge_evidence_records(
             [
                 question_records["shift_based_penalties"],
@@ -1266,11 +1598,7 @@ def normalize_response_data(
             ],
             empty_reason="No evidence available for weekday penalties.",
         ),
-        "hours_pen_rules": default_evidence(
-            "No separate hours_pen_rules mapping is generated in step 6.1 yet.",
-            "defaulted",
-        ),
-        "weekend_rules": _merge_evidence_records(
+        "day_treatment_rules": _merge_evidence_records(
             [
                 question_records["day_saturday_treatment"],
                 question_records["day_sunday_treatment"],
@@ -1280,6 +1608,16 @@ def normalize_response_data(
                 question_records["day_sunday_penalty_loading"],
                 question_records["shift_saturday_penalty_loading"],
                 question_records["shift_sunday_penalty_loading"],
+                question_records["casual_day_saturday_penalty_loading"],
+                question_records["casual_day_sunday_penalty_loading"],
+                question_records["casual_shift_saturday_penalty_loading"],
+                question_records["casual_shift_sunday_penalty_loading"],
+                question_records["day_public_holiday_treatment"],
+                question_records["shift_public_holiday_treatment"],
+                question_records["day_public_holiday_penalty_loading"],
+                question_records["shift_public_holiday_penalty_loading"],
+                question_records["casual_day_public_holiday_penalty_loading"],
+                question_records["casual_shift_public_holiday_penalty_loading"],
             ],
             empty_reason="No evidence available for weekend rules.",
         ),
@@ -1310,12 +1648,515 @@ def normalize_response_data(
             "defaulted",
         )
 
+    grouped_rules, grouped_evidence, missing_fields = build_grouped_calculator_rules(
+        normalized_rules,
+        normalized_evidence,
+    )
+
+    if missing_fields:
+        validation_warnings.append(
+            f"The following {len(missing_fields)} calculator rule(s) were not fully "
+            "supplied by the analysis and were generated using assumptions or "
+            "defaults. Review each listed rule before approval."
+        )
+
     return {
-        "schema_version": "calculator-rules-python-v1",
+        "schema_version": "calculator-rules-python-v2",
         "award_code": award_code,
-        "calculator_rules": normalized_rules,
-        "field_evidence": normalized_evidence,
+        "calculator_rules": grouped_rules,
+        "field_evidence": grouped_evidence,
+        "missing_from_analysis": missing_fields,
+        "validation_warnings": validation_warnings,
     }
+
+
+def _day_treatment_rule(
+    *,
+    treatment: Any,
+    ordinary_loading: Any,
+    casual_loading: Any,
+    overtime_rate_key: str,
+) -> dict[str, Any]:
+    """Translate one questionnaire weekend answer to the grouped contract."""
+    is_overtime = treatment == "overtime"
+    loading = ordinary_loading if treatment == "penalty" else 0
+
+    if is_overtime:
+        # DAY_TREATMENT casual_rate is an ordinary-hours loading. Overtime
+        # casual rates come from PAY_RATES and must not be duplicated here.
+        casual_rate = 0
+    elif isinstance(casual_loading, (int, float)):
+        casual_rate = casual_loading
+    elif isinstance(loading, (int, float)):
+        casual_rate = loading
+    else:
+        casual_rate = 0
+
+    return {
+        "base_classification": "overtime" if is_overtime else "ordinary",
+        "ordinary_loading": loading if isinstance(loading, (int, float)) else 0,
+        "casual_rate": casual_rate,
+        "overtime_rate_key": overtime_rate_key,
+    }
+
+
+def _grouped_penalties(
+    penalties: dict[str, Any],
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Add the fields required by the grouped ordinary-penalties contract."""
+    grouped_penalties: dict[str, Any] = {}
+    missing_fields: list[dict[str, Any]] = []
+    weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
+    for penalty_name, penalty in penalties.items():
+        penalty_rate = penalty.get("rate")
+        penalty_type = penalty.get("type")
+        grouped_penalty = {
+            "type": penalty_type,
+            "basis": "time" if penalty_type == "time_based" else penalty.get("basis"),
+            "start": penalty.get("start"),
+            "end": penalty.get("end"),
+            "rate": penalty_rate,
+            "casual_rate": (
+                penalty.get("casual_rate")
+                if isinstance(penalty.get("casual_rate"), (int, float))
+                else penalty_rate
+            ),
+            "description": penalty.get("description"),
+            "applies_to": penalty.get("applies_to"),
+            "days": penalty.get("days") or weekdays.copy(),
+        }
+        grouped_penalties[penalty_name] = grouped_penalty
+
+        if not penalty.get("days"):
+            missing_fields.append(
+                {
+                    "field": f"ORDINARY_HOUR_PENALTIES.{penalty_name}.days",
+                    "default_value": weekdays,
+                    "reason": "No calendar-day scope was derived for this penalty.",
+                }
+            )
+
+    return grouped_penalties, missing_fields
+
+
+def build_grouped_calculator_rules(
+    values: dict[str, Any],
+    evidence: dict[str, Any],
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    """Build the seven grouped calculator attributes required by the live contract."""
+    span_overtime: dict[str, Any] = {}
+    if values["apply_span_overtime"]:
+        span_overtime = {
+            "day": {
+                "default": {
+                    "start": values["span_overtime_start_hour"],
+                    "end": values["span_overtime_hour"],
+                    "enabled": True,
+                }
+            }
+        }
+
+    day_treatment_rules: dict[str, Any] = {}
+    for day_name in ("Saturday", "Sunday", "public_holiday"):
+        if day_name == "public_holiday":
+            public_holiday_inputs = values["day_treatment_inputs"][day_name]
+            has_public_holiday_treatment = any(
+                public_holiday_inputs[worker_type]["treatment"]
+                in {"overtime", "penalty"}
+                for worker_type in WORKER_TYPE_OPTIONS
+            )
+            if not has_public_holiday_treatment:
+                continue
+        day_treatment_rules[day_name] = {}
+        for worker_type in WORKER_TYPE_OPTIONS:
+            treatment_input = values["day_treatment_inputs"][day_name][worker_type]
+            day_treatment_rules[day_name][worker_type] = _day_treatment_rule(
+                treatment=treatment_input["treatment"],
+                ordinary_loading=treatment_input["loading"],
+                casual_loading=treatment_input["casual_loading"],
+                overtime_rate_key=day_name.lower(),
+            )
+
+    ordinary_hour_penalties, penalty_missing_fields = _grouped_penalties(
+        values["penalties"]
+    )
+
+    grouped_rules = {
+        "SHIFT_RULES": {
+            "default_break_hours": 0.5,
+            "minimum_paid_shift_hours": {},
+        },
+        "ORDINARY_TIME_RULES": {
+            "span_overtime": span_overtime,
+            "daily": {
+                "variation": "worker_type",
+                "day": values["day_worker_ordinary_hours_daily"],
+                "shift": values["ordinary_hours_limit_daily"],
+            },
+            "long_day": {
+                "uses_per_week": 0,
+                "ordinary_limit_hours": None,
+            },
+            "period": {
+                "variation": "worker_type",
+                "day": values["day_worker_ordinary_hours_weekly"],
+                "shift": values["ordinary_hours_limit_weekly"],
+                "basis": "weekly",
+                "max_work_days": None,
+                "max_work_days_basis": "weekly",
+                "part_time_uses_contracted_hours": values[
+                    "use_contracted_hours_for_pt_overtime"
+                ],
+            },
+            "ordinary_rates": {
+                # Ordinary casual loading is deliberately outside the LLM analysis.
+                # The required calculator field stays explicit and is flagged below.
+                "casual_loading": 0
+            },
+        },
+        "DAY_TREATMENT_RULES": day_treatment_rules,
+        "PAY_RATES": {
+            "overtime": {
+                "weekday": {
+                    "multiplier": values["standard_overtime_rate"],
+                    "casual": _first_non_null(
+                        values["casual_standard_overtime_rate"],
+                        values["standard_overtime_rate"],
+                    ),
+                },
+                "saturday": {
+                    "multiplier": values["saturday_overtime_rate"],
+                    "casual": _first_non_null(
+                        values["casual_saturday_overtime_rate"],
+                        values["saturday_overtime_rate"],
+                    ),
+                },
+                "sunday": {
+                    "multiplier": values["sunday_overtime_rate"],
+                    "casual": _first_non_null(
+                        values["casual_sunday_overtime_rate"],
+                        values["sunday_overtime_rate"],
+                    ),
+                },
+                "public_holiday": {
+                    "multiplier": values["public_holiday_overtime_rate"],
+                    "casual": values["casual_public_holiday_overtime_rate"],
+                },
+                "extended": {
+                    "multiplier": values["extended_overtime_rate"],
+                    "casual": _first_non_null(
+                        values["casual_extended_overtime_rate"],
+                        values["extended_overtime_rate"],
+                    ),
+                },
+                "two_tier": {
+                    "enabled": values["two_tier_overtime"] is True,
+                    "threshold": values["two_tier_overtime_threshold"] or 0,
+                    "days": values["extended_overtime_days"],
+                },
+            }
+        },
+        "GAP_BETWEEN_SHIFTS_RULE": {},
+        "ORDINARY_HOUR_PENALTIES": ordinary_hour_penalties,
+        "TOP_UP_RULES": {
+            "part_time": values["pt_employees_entitled_to_contracted_topup"],
+            "full_time": values["ft_employees_entitled_to_contracted_topup"],
+        },
+    }
+
+    if values["gap_penalty_hours"]:
+        grouped_rules["GAP_BETWEEN_SHIFTS_RULE"] = {
+            "minimum_hours": values["gap_penalty_hours"],
+            "loading": values["gap_penalty_rate"],
+            "casual_rate": _first_non_null(
+                values["casual_gap_penalty_rate"],
+                values["gap_penalty_rate"],
+            ),
+        }
+
+    grouped_evidence = {
+        "SHIFT_RULES": {
+            "default_break_hours": default_evidence(
+                "Default from the calculator contract; not included in the current analysis.",
+                "defaulted",
+            ),
+            "minimum_paid_shift_hours": default_evidence(
+                "Disabled because minimum engagement is not included in the current analysis.",
+                "defaulted",
+            ),
+        },
+        "ORDINARY_TIME_RULES": {
+            "span_overtime": evidence["span_overtime_hour"],
+            "span_overtime.start": evidence["span_overtime_start_hour"],
+            "daily.day": evidence["day_worker_ordinary_hours_daily"],
+            "daily.shift": evidence["ordinary_hours_limit_daily"],
+            "long_day": default_evidence(
+                "Disabled because long-day exceptions are not included in the current analysis.",
+                "defaulted",
+            ),
+            "period.day": evidence["day_worker_ordinary_hours_weekly"],
+            "period.shift": evidence["ordinary_hours_limit_weekly"],
+            "period.part_time_uses_contracted_hours": evidence[
+                "use_contracted_hours_for_pt_overtime"
+            ],
+            "ordinary_rates.casual_loading": default_evidence(
+                "Ordinary casual loading is outside the overtime-and-penalties analysis scope.",
+                "not_found",
+            ),
+        },
+        "DAY_TREATMENT_RULES": evidence["day_treatment_rules"],
+        "PAY_RATES": {
+            "overtime.weekday": evidence["standard_overtime_rate"],
+            "overtime.weekday.casual": evidence["casual_standard_overtime_rate"],
+            "overtime.saturday": evidence["saturday_overtime_rate"],
+            "overtime.saturday.casual": evidence["casual_saturday_overtime_rate"],
+            "overtime.sunday": evidence["sunday_overtime_rate"],
+            "overtime.sunday.casual": evidence["casual_sunday_overtime_rate"],
+            "overtime.public_holiday": evidence["public_holiday_overtime_rate"],
+            "overtime.public_holiday.casual": evidence[
+                "casual_public_holiday_overtime_rate"
+            ],
+            "overtime.extended": evidence["extended_overtime_rate"],
+            "overtime.extended.casual": evidence["casual_extended_overtime_rate"],
+            "overtime.two_tier": evidence["two_tier_overtime"],
+        },
+        "GAP_BETWEEN_SHIFTS_RULE": _merge_evidence_records(
+            [evidence["gap_penalty_hours"], evidence["casual_gap_penalty_rate"]],
+            empty_reason="No evidence available for the gap-between-shifts rule.",
+        ),
+        "ORDINARY_HOUR_PENALTIES": evidence["penalties"],
+        "TOP_UP_RULES": {
+            "part_time": evidence["pt_employees_entitled_to_contracted_topup"],
+            "full_time": evidence["ft_employees_entitled_to_contracted_topup"],
+        },
+    }
+
+    missing_fields = [
+        {
+            "field": "SHIFT_RULES.default_break_hours",
+            "default_value": 0.5,
+            "reason": "Not included in the current analysis.",
+        },
+        {
+            "field": "SHIFT_RULES.minimum_paid_shift_hours",
+            "default_value": {},
+            "reason": "Minimum engagement is not included in the current analysis.",
+        },
+        {
+            "field": "ORDINARY_TIME_RULES.long_day",
+            "default_value": {"uses_per_week": 0, "ordinary_limit_hours": None},
+            "reason": "Long-day exceptions are not included in the current analysis.",
+        },
+        {
+            "field": "ORDINARY_TIME_RULES.period.basis",
+            "default_value": "weekly",
+            "reason": "Period basis is not included in the current analysis.",
+        },
+        {
+            "field": "ORDINARY_TIME_RULES.period.max_work_days",
+            "default_value": None,
+            "reason": "Maximum worked days are not included in the current analysis.",
+        },
+        {
+            "field": "ORDINARY_TIME_RULES.period.max_work_days_basis",
+            "default_value": "weekly",
+            "reason": "Maximum worked-days basis is not included in the current analysis.",
+        },
+        {
+            "field": "ORDINARY_TIME_RULES.period.part_time_uses_contracted_hours",
+            "default_value": values["use_contracted_hours_for_pt_overtime"],
+            "reason": "Part-time contracted-hours treatment is not included in the current analysis.",
+        },
+        {
+            "field": "TOP_UP_RULES.part_time",
+            "default_value": values["pt_employees_entitled_to_contracted_topup"],
+            "reason": "Part-time top-up entitlement is not included in the current analysis.",
+        },
+        {
+            "field": "TOP_UP_RULES.full_time",
+            "default_value": values["ft_employees_entitled_to_contracted_topup"],
+            "reason": "Full-time top-up entitlement is not included in the current analysis.",
+        },
+        *penalty_missing_fields,
+    ]
+
+    analysed_fields = [
+        (
+            "ORDINARY_TIME_RULES.daily.day",
+            grouped_rules["ORDINARY_TIME_RULES"]["daily"]["day"],
+            evidence["day_worker_ordinary_hours_daily"],
+        ),
+        (
+            "ORDINARY_TIME_RULES.span_overtime.day.default.start",
+            values["span_overtime_start_hour"],
+            evidence["span_overtime_start_hour"],
+        ),
+        (
+            "ORDINARY_TIME_RULES.daily.shift",
+            grouped_rules["ORDINARY_TIME_RULES"]["daily"]["shift"],
+            evidence["ordinary_hours_limit_daily"],
+        ),
+        (
+            "ORDINARY_TIME_RULES.period.day",
+            grouped_rules["ORDINARY_TIME_RULES"]["period"]["day"],
+            evidence["day_worker_ordinary_hours_weekly"],
+        ),
+        (
+            "ORDINARY_TIME_RULES.period.shift",
+            grouped_rules["ORDINARY_TIME_RULES"]["period"]["shift"],
+            evidence["ordinary_hours_limit_weekly"],
+        ),
+        (
+            "PAY_RATES.overtime.weekday.multiplier",
+            grouped_rules["PAY_RATES"]["overtime"]["weekday"]["multiplier"],
+            evidence["standard_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.weekday.casual",
+            grouped_rules["PAY_RATES"]["overtime"]["weekday"]["casual"],
+            evidence["casual_standard_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.saturday.multiplier",
+            grouped_rules["PAY_RATES"]["overtime"]["saturday"]["multiplier"],
+            evidence["saturday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.saturday.casual",
+            grouped_rules["PAY_RATES"]["overtime"]["saturday"]["casual"],
+            evidence["casual_saturday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.sunday.multiplier",
+            grouped_rules["PAY_RATES"]["overtime"]["sunday"]["multiplier"],
+            evidence["sunday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.sunday.casual",
+            grouped_rules["PAY_RATES"]["overtime"]["sunday"]["casual"],
+            evidence["casual_sunday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.public_holiday.multiplier",
+            grouped_rules["PAY_RATES"]["overtime"]["public_holiday"]["multiplier"],
+            evidence["public_holiday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.public_holiday.casual",
+            grouped_rules["PAY_RATES"]["overtime"]["public_holiday"]["casual"],
+            evidence["casual_public_holiday_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.extended.multiplier",
+            grouped_rules["PAY_RATES"]["overtime"]["extended"]["multiplier"],
+            evidence["extended_overtime_rate"],
+        ),
+        (
+            "PAY_RATES.overtime.extended.casual",
+            grouped_rules["PAY_RATES"]["overtime"]["extended"]["casual"],
+            evidence["casual_extended_overtime_rate"],
+        ),
+        (
+            "ORDINARY_TIME_RULES.ordinary_rates.casual_loading",
+            grouped_rules["ORDINARY_TIME_RULES"]["ordinary_rates"]["casual_loading"],
+            {
+                "status": "not_found",
+                "reasoning_summary": (
+                    "Ordinary casual loading is outside the overtime-and-penalties "
+                    "analysis scope."
+                ),
+            },
+        ),
+        (
+            "GAP_BETWEEN_SHIFTS_RULE",
+            grouped_rules["GAP_BETWEEN_SHIFTS_RULE"],
+            evidence["gap_penalty_hours"],
+        ),
+        (
+            "ORDINARY_HOUR_PENALTIES",
+            grouped_rules["ORDINARY_HOUR_PENALTIES"],
+            evidence["penalties"],
+        ),
+    ]
+
+    for field_name, default_value, field_evidence in analysed_fields:
+        status = str(field_evidence.get("status") or "not_found")
+        if status in {"not_found", "defaulted", "needs_review"} or default_value is None:
+            missing_fields.append(
+                {
+                    "field": field_name,
+                    "default_value": default_value,
+                    "reason": (
+                        "The current analysis did not produce a derived value "
+                        f"(evidence status: {status})."
+                    ),
+                }
+            )
+
+    if "public_holiday" not in grouped_rules["DAY_TREATMENT_RULES"]:
+        missing_fields.append(
+            {
+                "field": "DAY_TREATMENT_RULES.public_holiday",
+                "default_value": "not_configured",
+                "reason": "The overtime and penalties analysis did not produce a usable public-holiday treatment.",
+            }
+        )
+
+    gap_rule = grouped_rules["GAP_BETWEEN_SHIFTS_RULE"]
+    if (
+        isinstance(gap_rule.get("minimum_hours"), (int, float))
+        and isinstance(gap_rule.get("loading"), (int, float))
+        and not isinstance(values["casual_gap_penalty_rate"], (int, float))
+    ):
+        missing_fields.append(
+            {
+                "field": "GAP_BETWEEN_SHIFTS_RULE.casual_rate",
+                "default_value": gap_rule.get("casual_rate"),
+                "reason": (
+                    "The gap rule was generated, but the analysis did not produce "
+                    "a casual-specific treatment. Confirm whether the rule applies "
+                    "to casual employees before use."
+                ),
+            }
+        )
+
+    day_treatment_inputs = values["day_treatment_inputs"]
+    for day_name in ("Saturday", "Sunday", "public_holiday"):
+        for worker_type in WORKER_TYPE_OPTIONS:
+            treatment = day_treatment_inputs[day_name][worker_type]
+            generated_day_rule = grouped_rules["DAY_TREATMENT_RULES"].get(day_name)
+            if generated_day_rule and treatment["treatment"] not in {"overtime", "penalty"}:
+                missing_fields.append(
+                    {
+                        "field": (
+                            f"DAY_TREATMENT_RULES.{day_name}.{worker_type}."
+                            "base_classification"
+                        ),
+                        "default_value": generated_day_rule[worker_type][
+                            "base_classification"
+                        ],
+                        "reason": (
+                            "A day-treatment rule was generated for another worker "
+                            "type, but this worker type's treatment was not derived."
+                        ),
+                    }
+                )
+                continue
+            if treatment["treatment"] != "penalty":
+                continue
+            if not isinstance(treatment["casual_loading"], (int, float)):
+                generated_rule = grouped_rules["DAY_TREATMENT_RULES"].get(
+                    day_name, {}
+                ).get(worker_type, {})
+                missing_fields.append(
+                    {
+                        "field": f"DAY_TREATMENT_RULES.{day_name}.{worker_type}.casual_rate",
+                        "default_value": generated_rule.get("casual_rate"),
+                        "reason": "No casual-specific day-treatment loading was derived.",
+                    }
+                )
+
+    return grouped_rules, grouped_evidence, missing_fields
 
 
 def _class_name_base_from_award_title(award_title: str) -> str:
@@ -1370,6 +2211,117 @@ def _commented_python_block(
     return commented_lines
 
 
+def calculator_rule_warning_label(field_name: str) -> str:
+    """Return a readable business label for one generated calculator field."""
+    labels = {
+        "SHIFT_RULES.default_break_hours": "Default unpaid break",
+        "SHIFT_RULES.minimum_paid_shift_hours": "Minimum paid shift",
+        "ORDINARY_TIME_RULES.daily.day": "Daily ordinary-hours limit — day workers",
+        "ORDINARY_TIME_RULES.daily.shift": "Daily ordinary-hours limit — shiftworkers",
+        "ORDINARY_TIME_RULES.long_day": "Long-day ordinary-hours exception",
+        "ORDINARY_TIME_RULES.period.basis": "Ordinary-hours period basis",
+        "ORDINARY_TIME_RULES.period.max_work_days": "Maximum worked days",
+        "ORDINARY_TIME_RULES.period.max_work_days_basis": (
+            "Maximum worked-days period basis"
+        ),
+        "ORDINARY_TIME_RULES.period.part_time_uses_contracted_hours": (
+            "Part-time contracted-hours overtime threshold"
+        ),
+        "ORDINARY_TIME_RULES.ordinary_rates.casual_loading": (
+            "Ordinary-hours casual loading"
+        ),
+        "DAY_TREATMENT_RULES.public_holiday": "Public-holiday day treatment",
+        "DAY_TREATMENT_RULES.public_holiday.shift.base_classification": (
+            "Public-holiday treatment — shiftworkers"
+        ),
+        "GAP_BETWEEN_SHIFTS_RULE.casual_rate": (
+            "Gap-between-shifts loading — casual employees"
+        ),
+        "PAY_RATES.overtime.public_holiday": "Public-holiday overtime rate",
+        "TOP_UP_RULES.part_time": "Contracted-hours top-up — part-time employees",
+        "TOP_UP_RULES.full_time": "Contracted-hours top-up — full-time employees",
+    }
+    if field_name in labels:
+        return labels[field_name]
+
+    readable_name = field_name.replace("_", " ").replace(".", " — ")
+    return readable_name.strip().capitalize()
+
+
+def calculator_rule_assumption_text(
+    field_name: str,
+    default_value: Any,
+    reason: str,
+) -> str:
+    """Explain one generated assumption in plain business language."""
+    explanations = {
+        "SHIFT_RULES.default_break_hours": (
+            "Default unpaid break: assumed to be 30 minutes because default breaks "
+            "were not covered by the analysis."
+        ),
+        "SHIFT_RULES.minimum_paid_shift_hours": (
+            "Minimum paid shift: disabled because minimum engagement was not covered "
+            "by the analysis."
+        ),
+        "ORDINARY_TIME_RULES.long_day": (
+            "Long-day exception: disabled because long-day arrangements were not "
+            "covered by the analysis."
+        ),
+        "ORDINARY_TIME_RULES.period.basis": (
+            "Ordinary-hours period: assumed to be weekly because the applicable "
+            "averaging period was not determined by the analysis."
+        ),
+        "ORDINARY_TIME_RULES.period.max_work_days": (
+            "Maximum worked days: no limit has been applied because this rule was not "
+            "covered by the analysis."
+        ),
+        "ORDINARY_TIME_RULES.period.max_work_days_basis": (
+            "Maximum-worked-days period: assumed to be weekly, although the analysis "
+            "did not determine this setting."
+        ),
+        "ORDINARY_TIME_RULES.period.part_time_uses_contracted_hours": (
+            "Part-time overtime threshold: assumed to use each employee's contracted "
+            "hours because the analysis did not determine the treatment."
+        ),
+        "TOP_UP_RULES.part_time": (
+            "Part-time contracted-hours top-up: enabled by assumption because top-up "
+            "rules were outside the analysis."
+        ),
+        "TOP_UP_RULES.full_time": (
+            "Full-time contracted-hours top-up: enabled by assumption because top-up "
+            "rules were outside the analysis."
+        ),
+        "ORDINARY_TIME_RULES.daily.day": (
+            "Daily limit for day workers: assumed to be 8 hours by mapping the "
+            "reviewed 8-hour day-shift boundary to the calculator's day-worker category."
+        ),
+        "ORDINARY_TIME_RULES.daily.shift": (
+            "Daily limit for shiftworkers: assumed to be 10 hours by mapping the "
+            "reviewed 10-hour night-shift boundary to the calculator's shiftworker category."
+        ),
+        "ORDINARY_TIME_RULES.ordinary_rates.casual_loading": (
+            "Ordinary-hours casual loading: assumed to be zero because ordinary casual "
+            "loading is outside the overtime-and-penalties analysis."
+        ),
+        "DAY_TREATMENT_RULES.public_holiday.shift.base_classification": (
+            "Public-holiday treatment for permanent shiftworkers: assumed to be "
+            "ordinary hours with no loading because the reviewed rules did not provide "
+            "a complete treatment. This assumption may underpay those employees."
+        ),
+        "GAP_BETWEEN_SHIFTS_RULE.casual_rate": (
+            "Insufficient-break payment for casual employees: assumed to be zero "
+            "because the reviewed payment expressly excludes casual employees."
+        ),
+    }
+    if field_name in explanations:
+        return explanations[field_name]
+
+    rule_label = calculator_rule_warning_label(field_name)
+    return (
+        f"{rule_label}: assumed/default value {default_value!r} was used. {reason}"
+    )
+
+
 def render_python_text(data: dict[str, Any]) -> str:
     """Render one calculator rules artifact as a Python module."""
     award_code = str(data["award_code"])
@@ -1386,19 +2338,79 @@ def render_python_text(data: dict[str, Any]) -> str:
     }
     if isinstance(award_title, str) and award_title.strip():
         generation_metadata["award_title"] = award_title.strip()
+    if data.get("validation_warnings"):
+        generation_metadata["validation_warnings"] = data["validation_warnings"]
 
     lines = [
         '"""Rule engine for award pay calculations."""',
         "",
-        "",
-        f"class {class_name}:",
-        f'    """Business rules for award {award_code} pay calculations."""',
-        "",
     ]
 
-    for field_name in ALL_RULE_FIELDS:
-        class_attribute = CLASS_ATTRIBUTE_BY_RULE_FIELD[field_name]
-        value = calculator_rules[field_name]
+    validation_warnings = data.get("validation_warnings", [])
+    if isinstance(validation_warnings, list) and validation_warnings:
+        lines.append("# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR")
+        for warning in validation_warnings:
+            lines.append(f"# - {warning}")
+        lines.append("")
+
+    missing_fields = data.get("missing_from_analysis", [])
+    if isinstance(missing_fields, list) and missing_fields:
+        valid_missing_fields = [
+            missing_field
+            for missing_field in missing_fields
+            if isinstance(missing_field, dict)
+        ]
+        excluded_fields = [
+            missing_field
+            for missing_field in valid_missing_fields
+            if str(missing_field.get("field") or "") in FIELDS_EXCLUDED_FROM_ANALYSIS
+        ]
+        assumed_fields = [
+            missing_field
+            for missing_field in valid_missing_fields
+            if str(missing_field.get("field") or "") not in FIELDS_EXCLUDED_FROM_ANALYSIS
+        ]
+
+        warning_sections = [
+            (
+                "# RULES EXCLUDED FROM THE ANALYSIS",
+                "# These rules were outside the overtime-and-penalties analysis and use defaults:",
+                excluded_fields,
+            ),
+            (
+                "# RULES BUILT WITH ASSUMPTIONS OR DEFAULTS",
+                "# These rules were analysed but could not be mapped without an assumption:",
+                assumed_fields,
+            ),
+        ]
+
+        for section_header, section_explanation, section_fields in warning_sections:
+            if not section_fields:
+                continue
+            lines.append(section_header)
+            lines.append(section_explanation)
+            for missing_field in section_fields:
+                field_name = str(missing_field.get("field") or "Unknown field")
+                default_value = missing_field.get("default_value")
+                reason = str(missing_field.get("reason") or "")
+                assumption_text = calculator_rule_assumption_text(
+                    field_name,
+                    default_value,
+                    reason,
+                )
+                lines.append(f"# - {assumption_text}")
+            lines.append("")
+
+    lines.extend(
+        [
+            f"class {class_name}:",
+            f'    """Business rules for award {award_code} pay calculations."""',
+            "",
+        ]
+    )
+
+    for class_attribute in GROUPED_CLASS_ATTRIBUTES:
+        value = calculator_rules[class_attribute]
         rendered_value = _python_literal(value)
         rendered_lines = rendered_value.splitlines() or ["None"]
 
@@ -1409,9 +2421,6 @@ def render_python_text(data: dict[str, Any]) -> str:
         lines.append(f"    {class_attribute} = {rendered_lines[0]}")
         for continuation_line in rendered_lines[1:]:
             lines.append(f"    {continuation_line}")
-
-    for class_attribute, value in FIXED_CLASS_ATTRIBUTES:
-        lines.append(f"    {class_attribute} = {_python_literal(value)}")
 
     lines.append("")
     lines.extend(

@@ -7,6 +7,7 @@ from typing import Any
 from .schema import DEFAULT_TEMPLATE_PATH
 from .step_1_load_inputs import resolve_formatting_inputs
 from .step_2_format_ruleset import (
+    append_missing_rules_catch_all,
     load_openai_client,
     request_formatted_ruleset,
     resolve_model,
@@ -57,7 +58,11 @@ def summarize_overtime_entitlements(
         for warning in validation_warnings:
             print(f"- {warning}")
 
-    written_output = write_formatted_output(inputs.output_path, output_text)
+    lossless_output_text = append_missing_rules_catch_all(
+        output_text,
+        validation_warnings,
+    )
+    written_output = write_formatted_output(inputs.output_path, lossless_output_text)
     write_formatted_ruleset_metadata(
         destination=inputs.output_path,
         source_path=inputs.interpretation_path,

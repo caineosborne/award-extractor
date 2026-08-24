@@ -9,7 +9,7 @@ from typing import Any
 
 from src.common.llm_io import extract_response_text
 from src.common.model_call_budget import log_model_call_budget
-from src.common.prompt_logging import log_llm_prompt
+from src.common.prompt_logging import log_llm_prompt, log_llm_response
 from src.common.overtime_rules import apply_review_decisions, make_json_serializable
 from src.prompts.step_3_2_review_ruleset import (
     build_creator_repair_messages,
@@ -178,6 +178,7 @@ def request_creator_revision(
             model=creator_model,
             input=current_creator_messages,
             max_output_tokens=creator_max_output_tokens,
+            reasoning={"effort": "medium"},
             text={
                 "format": {
                     "type": "json_schema",
@@ -188,6 +189,11 @@ def request_creator_revision(
             },
         )
         creator_output_text = extract_response_text(creator_response)
+        log_llm_response(
+            f"3.2 Creator Response - Attempt {attempt_number + 1}",
+            creator_response,
+            creator_output_text,
+        )
         if not creator_output_text:
             last_validation_error = "Creator response did not include output text."
             if attempt_number >= MAX_CREATOR_REPAIR_ATTEMPTS:

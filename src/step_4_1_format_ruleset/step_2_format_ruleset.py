@@ -12,7 +12,7 @@ from openai import OpenAI
 
 from src.common.llm_io import extract_response_text
 from src.common.output_paths import write_text_output
-from src.common.pipeline_runtime import load_openai_environment
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
 from src.common.prompt_logging import log_llm_prompt
 from src.prompts.step_4_1_format_ruleset import build_messages
 
@@ -26,7 +26,7 @@ def load_openai_client() -> OpenAI:
         env_path=Path(__file__).resolve().parents[2] / ".env",
         error_type=OvertimeEntitlementSummaryError,
     )
-    return OpenAI()
+    return build_openai_client()
 
 
 def resolve_model(model: str | None) -> str:
@@ -56,7 +56,7 @@ def request_formatted_ruleset(
     response = client.responses.create(
         model=model,
         input=messages,
-        reasoning={"effort": "low"},
+        reasoning={"effort": "medium"},
     )
     output_text = extract_response_text(response)
     if not output_text:
@@ -75,13 +75,31 @@ def normalize_rule_text(text: str) -> str:
 
 
 def extract_markdown_bullets(markdown: str) -> list[str]:
-    """Return the top-level markdown bullets from one ruleset."""
+    """Return top-level bullets with their nested detail kept together."""
     bullets: list[str] = []
+    current_bullet_lines: list[str] = []
 
     for line in markdown.splitlines():
-        stripped_line = line.strip()
-        if stripped_line.startswith("- "):
-            bullets.append(stripped_line[2:].strip())
+        if line.startswith("- "):
+            if current_bullet_lines:
+                bullets.append(" ".join(current_bullet_lines))
+            current_bullet_lines = [line[2:].strip()]
+            continue
+
+        if current_bullet_lines and line.startswith(("  ", "\t")):
+            nested_text = line.strip()
+            if nested_text.startswith("- "):
+                nested_text = nested_text[2:].strip()
+            if nested_text:
+                current_bullet_lines.append(nested_text)
+            continue
+
+        if current_bullet_lines:
+            bullets.append(" ".join(current_bullet_lines))
+            current_bullet_lines = []
+
+    if current_bullet_lines:
+        bullets.append(" ".join(current_bullet_lines))
 
     return bullets
 
@@ -158,12 +176,15 @@ def rule_is_represented_in_output(source_rule: str, formatted_rules: list[str]) 
     source_clauses = extract_clause_references(source_rule)
     source_tokens = extract_significant_tokens(source_rule)
 
+    candidate_tokens: set[str] = set()
+
     for formatted_rule in formatted_rules:
         formatted_clauses = extract_clause_references(formatted_rule)
         if source_clauses and source_clauses.isdisjoint(formatted_clauses):
             continue
 
         formatted_tokens = extract_significant_tokens(formatted_rule)
+        candidate_tokens.update(formatted_tokens)
         if not source_tokens:
             return True
 
@@ -171,6 +192,13 @@ def rule_is_represented_in_output(source_rule: str, formatted_rules: list[str]) 
         overlap_ratio = len(shared_tokens) / len(source_tokens)
 
         if overlap_ratio >= 0.5:
+            return True
+
+    # A single reviewed rule may legitimately be split into several formatted
+    # bullets. Compare against their combined content before declaring it lost.
+    if source_tokens:
+        combined_overlap = len(source_tokens & candidate_tokens) / len(source_tokens)
+        if combined_overlap >= 0.5:
             return True
 
     return False
@@ -195,6 +223,38 @@ def validate_formatted_ruleset_coverage(
         f"{rule}"
         for rule in missing_rules
     ]
+
+
+def append_missing_rules_catch_all(
+    formatted_ruleset_markdown: str,
+    validation_warnings: list[str],
+) -> str:
+    """Append formatter omissions verbatim so downstream review remains lossless."""
+    if not validation_warnings:
+        return formatted_ruleset_markdown
+
+    cleaned_formatted_ruleset = strip_wrapping_markdown_fence(
+        formatted_ruleset_markdown
+    )
+
+    warning_prefix = (
+        "Step 4.1 formatted output may have dropped this reviewed rule instead "
+        "of only formatting it: "
+    )
+    omitted_rules: list[str] = []
+
+    for warning in validation_warnings:
+        rule_text = warning.removeprefix(warning_prefix)
+        omitted_rules.append(f"- {rule_text}")
+
+    catch_all = [
+        "## Reviewed rules omitted by the formatter",
+        "",
+        "These reviewed rules remain in scope and are shown verbatim for placement and review.",
+        "",
+        *omitted_rules,
+    ]
+    return cleaned_formatted_ruleset.rstrip() + "\n\n" + "\n".join(catch_all) + "\n"
 
 
 def write_formatted_output(destination: Path, output_text: str) -> str:

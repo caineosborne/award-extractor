@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
+from src.common.prompt_logging import configure_prompt_log
 from .schema import (
     DEFAULT_INTER_CALL_DELAY_SECONDS,
     OvertimeInterpretationReviewArtifacts,
@@ -40,6 +42,10 @@ def review_ruleset(
 ) -> OvertimeInterpretationReviewArtifacts:
     """Run step 3.2 and return the written artifact paths."""
     active_status_callback = status_callback or _print_status
+    classification_file = Path(classification_path)
+    configure_prompt_log(
+        classification_file.parent / f"{classification_file.parent.name}.log"
+    )
     inputs = load_review_inputs(
         interpretation_path=interpretation_path,
         classification_path=classification_path,

@@ -186,12 +186,12 @@ def write_pdf_outputs(
     raw_dir: Path,
     processed_dir: Path,
 ) -> None:
-    """Write the maintained output files for one PDF parse."""
-    raw_markdown_path = raw_dir / f"{output_stem_value}.md"
-    award_json_path = processed_dir / output_stem_value / f"{output_stem_value}.json"
+    """Write PDF outputs using the canonical active-pipeline filenames."""
+    raw_markdown_path = raw_dir / "1_1_raw.md"
+    award_json_path = processed_dir / output_stem_value / "1_2_award.json"
     supporting_dir = award_json_path.parent / FETCH_AWARD_SUPPORTING_DIR
-    diagnostics_path = supporting_dir / f"{output_stem_value}_diagnostics.json"
-    excluded_sections_path = supporting_dir / f"{output_stem_value}_excluded_sections.json"
+    diagnostics_path = supporting_dir / "1_2_award_diagnostics.json"
+    excluded_sections_path = supporting_dir / "1_2_award_excluded_sections.json"
 
     raw_markdown_path.parent.mkdir(parents=True, exist_ok=True)
     raw_markdown_path.write_text(markdown_text, encoding="utf-8")

@@ -19,6 +19,7 @@ from src.common.overtime_clause_classification import (
     validate_overtime_clause_classifications,
 )
 from src.common.prompt_logging import log_llm_prompt
+from src.common.pipeline_runtime import build_openai_client
 from src.common.overtime_rulesets import (
     OVERTIME_CREATION_RULESET,
     overtime_ruleset_config,
@@ -33,7 +34,7 @@ def load_openai_client() -> OpenAI:
     from .step_1_load_inputs import load_environment
 
     load_environment()
-    return OpenAI()
+    return build_openai_client()
 
 
 def model_name(selected_model: str | None) -> str:

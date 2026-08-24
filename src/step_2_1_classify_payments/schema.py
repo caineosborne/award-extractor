@@ -8,7 +8,7 @@ from typing import Any, Mapping
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_PATH = PROJECT_ROOT / "data" / "processed" / "MA000018" / "MA000018.json"
-DEFAULT_MODEL = "gpt-5.4-mini"
+DEFAULT_MODEL = "gpt-5.6-luna"
 SCHEMA_VERSION = "payment-classification-v2"
 CONTENT_KEY = "_content"
 PLACEHOLDER_PREFIX = "No Level"

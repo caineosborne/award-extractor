@@ -14,8 +14,8 @@ from openai import OpenAI
 from src.common.llm_io import extract_response_text
 from src.common.model_call_budget import log_model_call_budget
 from src.common.overtime_rules import ALLOWED_REVIEW_RECOMMENDATIONS, validate_review_feedback_artifact
-from src.common.pipeline_runtime import load_openai_environment
-from src.common.prompt_logging import log_llm_prompt
+from src.common.pipeline_runtime import build_openai_client, load_openai_environment
+from src.common.prompt_logging import log_llm_prompt, log_llm_response
 from src.prompts.step_3_2_review_ruleset import (
     build_evaluator_repair_messages,
     build_review_evaluator_messages,
@@ -38,7 +38,7 @@ def load_client() -> OpenAI:
         env_path=Path(__file__).resolve().parents[2] / ".env",
         error_type=OvertimeInterpretationReviewError,
     )
-    return OpenAI()
+    return build_openai_client()
 
 
 def resolve_review_models(
@@ -207,6 +207,7 @@ def request_evaluator_feedback(
             model=evaluator_model,
             input=current_evaluator_messages,
             max_output_tokens=evaluator_max_output_tokens,
+            reasoning={"effort": "medium"},
             text={
                 "format": {
                     "type": "json_schema",
@@ -217,6 +218,11 @@ def request_evaluator_feedback(
             },
         )
         evaluator_output_text = extract_response_text(evaluator_response)
+        log_llm_response(
+            f"3.2 Evaluator Response - Attempt {attempt_number + 1}",
+            evaluator_response,
+            evaluator_output_text,
+        )
         if not evaluator_output_text:
             last_evaluator_validation_error = "Evaluator response did not include output text."
             if attempt_number >= MAX_EVALUATOR_REPAIR_ATTEMPTS:

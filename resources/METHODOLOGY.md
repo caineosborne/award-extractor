@@ -334,6 +334,10 @@ can challenge the decision if necessary.
 
 ## Step 4.1. Formatted ruleset guide
 
+Step 4.1 uses the quality-first `gpt-5.6-sol` model by default. The formatter's
+controlled rewrite has a higher semantic-preservation requirement than routine
+high-volume classification, so model quality is prioritised for this step.
+
 Files:
 - `src/step_4_1_format_ruleset/run.py`
 - `src/prompts/step_4_1_format_ruleset.py`
@@ -346,6 +350,9 @@ Purpose:
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
+The formatter rewrites award-style drafting into a short operative rule followed
+by indented qualifications. This improves readability without changing the
+reviewed interpretation or dropping clause traceability.
 
 ### Human review checkpoint
 
@@ -399,7 +406,19 @@ Files:
 Purpose:
 - combine the reviewed step `3.2` JSON rulesets for overtime creation, overtime consequence, and penalties;
 - answer a fixed calculator questionnaire with evidence fields;
-- generate a calculator Python draft from that questionnaire.
+- generate a calculator Python draft from that questionnaire using only the
+  seven grouped attributes defined in `resources/ruleset.md`;
+- identify fields outside the current analysis and show their explicit defaults
+  under `MISSING_FROM_ANALYSIS` in the generated Python.
+- present each missing rule with a readable business label, its auditable field
+  path, the assumed/default value used, and the reason for that assumption.
+- exclude ordinary casual loading from the LLM questionnaire while keeping its
+  required output default explicit and reviewable;
+- use the employee penalty loading for `casual_rate` when no distinct casual
+  penalty rate is stated, without adding ordinary casual loading.
+- distinguish `not_applicable` neutral values from genuinely missing analysis,
+  and map daily limits to the calculator contract's day-worker/shiftworker
+  dimensions with assumptions recorded in the answer evidence.
 
 This is the first calculator-facing output layer. It is a deliberate projection
 of the reviewed rulesets into the narrower calculator contract. Its output is not

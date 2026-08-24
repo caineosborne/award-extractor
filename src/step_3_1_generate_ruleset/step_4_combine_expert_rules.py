@@ -200,6 +200,7 @@ def combine_expert_rulesets(
         response = client.responses.create(
             model=model,
             input=messages,
+            reasoning={"effort": "medium"},
             text={
                 "format": {
                     "type": "json_schema",

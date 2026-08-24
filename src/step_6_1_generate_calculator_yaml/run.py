@@ -11,6 +11,7 @@ from src.common.output_paths import write_text_output
 from .core import (
     CalculatorRulesYamlError,
     CalculatorYamlInputs,
+    align_questionnaire_to_calculator_contract,
     award_title_from_award_json_path,
     normalize_response_data,
     summarized_rules,
@@ -108,6 +109,7 @@ def generate_calculator_rules_yaml(
         penalties_json_path=inputs.penalties_json_path,
         penalties_rules=summarized_rules(inputs.penalties_artifact),
     )
+    response_data = align_questionnaire_to_calculator_contract(response_data)
     questionnaire_path = inputs.output_path.with_name(
         f"{inputs.output_path.stem}_questionnaire.json"
     )
@@ -117,6 +119,8 @@ def generate_calculator_rules_yaml(
         response_data,
         award_code=award_code,
     )
+    for warning in normalized_data.get("validation_warnings", []):
+        print(f"Step 6.1 warning: {warning}")
     if inputs.award_title is not None:
         normalized_data["award_title"] = inputs.award_title
     write_python_output(inputs.output_path, normalized_data)

@@ -28,6 +28,11 @@ from streamlit_review.app import (
     clause_hover_text,
     build_review_decision_rows,
     combine_pipeline_logs,
+    calculator_warnings_from_python_text,
+    calculator_question_display_name,
+    calculator_question_status_message,
+    calculator_questions_requiring_review,
+    formatted_ruleset_warning_rule_text,
     json_expander_widget_key,
     manual_ruleset_editor_widget_key,
     move_selected_index,
@@ -35,6 +40,7 @@ from streamlit_review.app import (
     pipeline_run_label,
     recommendation_not_implemented,
     render_pipeline_run_controls,
+    register_uploaded_pdf,
     render_creator_commentary_panel,
     render_evaluator_feedback_panel,
     review_decision_concerns,
@@ -97,6 +103,35 @@ from src.common.award_sources import (
 )
 
 
+def test_calculator_warning_reader_includes_missing_analysis_defaults():
+    python_text = """# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR
+# - Structured warning
+
+# RULES EXCLUDED FROM THE ANALYSIS
+# These rules were outside the overtime-and-penalties analysis and use defaults:
+# - Public-holiday overtime rate: assumed/default value None was used. Not found.
+
+class ExampleRules:
+    pass
+"""
+
+    assert calculator_warnings_from_python_text(python_text) == [
+        "Structured warning",
+        "Public-holiday overtime rate: assumed/default value None was used. Not found.",
+    ]
+
+
+def test_formatted_ruleset_warning_rule_text_returns_the_full_omitted_rule():
+    warning = (
+        "Step 4.1 formatted output may have dropped this reviewed rule instead "
+        "of only formatting it: Casual Sunday overtime is 250%. [25.1(c)]"
+    )
+
+    assert formatted_ruleset_warning_rule_text(warning) == (
+        "Casual Sunday overtime is 250%. [25.1(c)]"
+    )
+
+
 def test_discover_award_codes_from_payment_classification_files(tmp_path):
     (tmp_path / "MA000018").mkdir()
     (tmp_path / "MA000018" / "2_1_payment_classification.json").write_text(
@@ -115,6 +150,27 @@ def test_discover_award_codes_from_payment_classification_files(tmp_path):
     )
 
     assert discover_award_codes(tmp_path) == ["MA000002", "MA000018"]
+
+
+def test_discover_award_codes_includes_registered_local_pdf_sources(monkeypatch, tmp_path):
+    pdf_path = tmp_path / "ColesRetailEnterpriseAgreement2024.pdf"
+    pdf_path.write_bytes(b"%PDF-test")
+
+    processed_root = tmp_path / "processed"
+    processed_root.mkdir()
+    (processed_root / "ColesRetailEnterpriseAgreement2024").mkdir()
+    monkeypatch.setattr("streamlit_review.output_data.PROCESSED_ROOT", processed_root)
+    monkeypatch.setattr(
+        "streamlit_review.output_data.load_source_registry",
+        lambda path: {
+            "ColesRetailEnterpriseAgreement2024": {
+                "source_type": "local_pdf",
+                "source_path": str(pdf_path),
+            }
+        },
+    )
+
+    assert discover_award_codes(processed_root) == ["ColesRetailEnterpriseAgreement2024"]
 
 
 def test_artifact_paths_for_award():
@@ -1409,6 +1465,38 @@ def test_validate_award_code_input_accepts_existing_output_sets_or_standard_code
         existing_output_sets=existing_output_sets,
     ) == (None, "Select an existing output set or enter an award code like `MA000002`.")
 
+    assert validate_award_code_input(
+        "ColesRetailEnterpriseAgreement2024",
+        local_pdf_codes=["ColesRetailEnterpriseAgreement2024"],
+    ) == ("ColesRetailEnterpriseAgreement2024", None)
+
+
+def test_register_uploaded_pdf_keeps_original_filename_and_uses_its_stem(monkeypatch, tmp_path):
+    registered: dict[str, str] = {}
+
+    monkeypatch.setattr("streamlit_review.app.DOCUMENTS_DIR", tmp_path)
+    monkeypatch.setattr(
+        "streamlit_review.app.register_local_pdf_source",
+        lambda award_code, pdf_path, display_name: registered.update(
+            award_code=award_code,
+            pdf_path=str(pdf_path),
+            display_name=display_name,
+        ),
+    )
+
+    class UploadedPdf:
+        name = "ColesRetailEnterpriseAgreement2024.pdf"
+
+        @staticmethod
+        def getvalue():
+            return b"%PDF-test"
+
+    output_stem = register_uploaded_pdf(UploadedPdf())
+
+    assert output_stem == "ColesRetailEnterpriseAgreement2024"
+    assert (tmp_path / UploadedPdf.name).read_bytes() == b"%PDF-test"
+    assert registered["award_code"] == output_stem
+
 
 def test_source_record_for_award_reads_registered_local_pdf(tmp_path):
     registry_path = tmp_path / "source_registry.json"
@@ -1706,11 +1794,11 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
     )
 
     assert result["success"] is True
-    assert result["completed_steps"] == 7
-    assert result["total_steps"] == 7
-    assert "Starting step 1 of 7: Retrieve award" in live_log_path.read_text(encoding="utf-8")
+    assert result["completed_steps"] == 8
+    assert result["total_steps"] == 8
+    assert "Starting step 1 of 8: Retrieve award" in live_log_path.read_text(encoding="utf-8")
     assert "output from 5.1" in live_log_path.read_text(encoding="utf-8")
-    assert status_updates[0]["total_steps"] == 7
+    assert status_updates[0]["total_steps"] == 8
     assert status_updates[0]["current_step"] == "1"
     assert status_updates[-1]["progress_fraction"] == 1.0
     assert calls == [
@@ -1728,6 +1816,7 @@ def test_background_run_pipeline_reports_progress_and_writes_live_log(monkeypatc
             sentinel.entitlements_path,
         ),
         ("run_selected_step", sentinel.paths, "5.1", None),
+        ("run_selected_step", sentinel.paths, "6.1", None),
     ]
 
 
@@ -2151,3 +2240,27 @@ def test_background_run_pipeline_uses_both_selected_rulesets_for_full_ruleset_ru
             consequence_pseudocode_markdown,
         ),
     ]
+def test_not_applicable_calculator_answer_does_not_require_review():
+    questionnaire_answers = {
+        "weekend_treatment": {
+            "day_saturday_penalty_loading": {
+                "answer": 0,
+                "status": "not_applicable",
+            },
+            "shift_saturday_treatment": {
+                "answer": None,
+                "status": "needs_review",
+            },
+        }
+    }
+
+    assert calculator_questions_requiring_review(questionnaire_answers) == [
+        "weekend_treatment.shift_saturday_treatment"
+    ]
+    assert "Not applicable" in calculator_question_status_message("not_applicable")
+
+
+def test_calculator_question_display_name_replaces_internal_field_path():
+    assert calculator_question_display_name(
+        "core_hours.shift_worker_daily_limit_hours"
+    ) == "Daily ordinary-hours limit — shiftworkers"

@@ -99,7 +99,10 @@ None
         target_path=Path("target.md"),
     )
 
-    assert any(issue.issue_type == "priority_without_rule" for issue in report.issues)
+    priority_issue = next(
+        issue for issue in report.issues if issue.issue_type == "priority_without_rule"
+    )
+    assert priority_issue.severity == "noted"
 
 
 def test_validation_paths_use_pseudocode_stem():
@@ -181,7 +184,7 @@ def test_extract_clause_references_does_not_treat_plain_times_as_clause_referenc
     assert extract_clause_references(rule_text) == ()
 
 
-def test_validate_overtime_pseudocode_treats_explicit_exclusion_as_unresolved():
+def test_validate_overtime_pseudocode_treats_documented_exclusion_as_passed_note():
     source_markdown = """## All employees
 
 - Employees must be released after overtime where the clause requires immediate release and managerial direction. [21.8]
@@ -228,14 +231,15 @@ None
         target_path=Path("target.md"),
     )
 
-    assert report.overall_status == "unresolved"
+    assert report.overall_status == "passed_with_notes"
     assert report.failed_rule_count == 0
-    assert report.unresolved_rule_count == 1
-    assert report.rule_results[0].status == "unresolved"
-    assert "explicitly excluded" in report.rule_results[0].message
+    assert report.noted_rule_count == 1
+    assert report.unresolved_rule_count == 0
+    assert report.rule_results[0].status == "noted"
+    assert "documented" in report.rule_results[0].message
 
 
-def test_validate_overtime_pseudocode_fails_exclusion_without_reason():
+def test_validate_overtime_pseudocode_notes_exclusion_without_reason():
     source_markdown = """## All employees
 
 - Employees must be released after overtime where the clause requires immediate release and managerial direction. [21.8]
@@ -282,8 +286,10 @@ None
         target_path=Path("target.md"),
     )
 
-    assert report.overall_status == "failed"
-    assert any(
-        issue.issue_type == "excluded_condition_missing_reason"
+    assert report.overall_status == "passed_with_notes"
+    missing_reason_issue = next(
+        issue
         for issue in report.issues
+        if issue.issue_type == "excluded_condition_missing_reason"
     )
+    assert missing_reason_issue.severity == "noted"

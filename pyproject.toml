@@ -23,6 +23,7 @@ dependencies = [
 
 [project.scripts]
 award-pipeline = "src.award_pipeline:main"
+rule-trace = "src.rule_traceability.core:main"
 
 [build-system]
 requires = ["setuptools>=82.0.1"]
