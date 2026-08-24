@@ -74,7 +74,20 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         )
 
         self.assertTrue(message_contains_expected_block(messages))
+        system_prompt = messages[0]["content"]
         user_prompt = messages[1]["content"]
+        self.assertIn(
+            "Authoritative project interpretation for overtime creation",
+            system_prompt,
+        )
+        self.assertIn(
+            "Any worked time outside an applicable ordinary-hours boundary is overtime",
+            system_prompt,
+        )
+        self.assertIn(
+            "This is the default interpretation for the ruleset, not an assumption",
+            system_prompt,
+        )
         self.assertIn(
             "Task: Build the overtime creation payroll ruleset from the source clauses below.",
             user_prompt,
@@ -82,6 +95,10 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         self.assertIn("Step 3.1 subset-specific instructions:", user_prompt)
         self.assertNotIn("Source classification file:", user_prompt)
         self.assertIn("General guidance for the reusable checks below:", user_prompt)
+        self.assertIn(
+            "Do not say that work outside an applicable ordinary-hours boundary is merely overtime-eligible",
+            user_prompt,
+        )
         self.assertLess(
             user_prompt.index("Task: Build"),
             user_prompt.index("Step 3.1 subset-specific instructions:"),
@@ -163,6 +180,14 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         self.assertIn("Step 3.1 ruleset generation:", messages)
         self.assertIn("validation_warnings", messages)
         self.assertIn("# Validation notes", messages)
+        self.assertIn(
+            "Authoritative project interpretation: any worked time outside an applicable ordinary-hours boundary is overtime",
+            messages,
+        )
+        self.assertIn(
+            "an express shiftworker override means the general span is a day-worker rule",
+            messages,
+        )
 
     def test_step_3_2_creator_includes_creation_questions(self):
         message = build_step_3_2_creator_user_prompt(
@@ -175,6 +200,10 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         )
 
         self.assertIn(OVERTIME_CREATION_COMMON_QUESTIONS, message)
+        self.assertIn(
+            "Keep an express alternative work-arrangement rule separate",
+            message,
+        )
 
     def test_step_4_1_formatting_includes_creation_questions(self):
         messages = build_format_messages(
@@ -194,6 +223,14 @@ class OvertimeCreationPromptInjectionTests(unittest.TestCase):
         self.assertLess(
             user_prompt.index("Step 4.1 subset-specific formatting instructions:"),
             user_prompt.index("Reviewed ruleset content:"),
+        )
+        self.assertIn(
+            "Do not append a warning that the",
+            user_prompt,
+        )
+        self.assertIn(
+            "rule must be tested under a full-time, part-time, or casual trigger",
+            user_prompt,
         )
 
     def test_step_5_1_pseudocode_includes_creation_questions(self):

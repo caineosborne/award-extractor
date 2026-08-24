@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="An experimental, traceable approach to AI-assisted interpretation of Australian industrial awards.">
+  <title>Award Extractor | AI suggested, human edited</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header"><div class="page-width header-inner"><a class="wordmark" href="#top">Award Extractor</a><span class="header-note">Experimental process</span></div></header>
+  <main id="top" class="page-width">
+    <section class="intro" aria-labelledby="page-title">
+      <div class="intro-copy">
+        <p class="kicker">AI-assisted award interpretation / experiment</p>
+        <h1 id="page-title"><span>AI suggested.</span><span>Human edited.</span><span class="trace-word">Traceable.</span></h1>
+        <p class="lead">Award Extractor tests a structured approach to interpreting Australian industrial awards with AI. The model does the difficult first pass; a human reviews and edits the result; and the supporting clauses remain visible throughout.</p>
+      </div>
+      <aside class="trace-record" aria-label="Example of a rule traced from source to reviewed output">
+        <div class="record-head"><span>Interpretation record</span><span>AE—001</span></div>
+        <ol class="trace-flow">
+          <li><span class="trace-label">Source clause</span><strong>Clause 28.1</strong><small>Evidence retained</small></li>
+          <li><span class="trace-label">AI suggestion</span><strong>Draft rule</strong><small>Assumptions exposed</small></li>
+          <li><span class="trace-label">Human decision</span><strong>Reviewed</strong><small>Change recorded</small></li>
+          <li><span class="trace-label">Output</span><strong>Payroll rule</strong><small>Linked to source</small></li>
+        </ol>
+        <p class="record-status"><span aria-hidden="true">✓</span> Review path preserved</p>
+      </aside>
+    </section>
+    <section class="summary" aria-labelledby="summary-title">
+      <div class="section-heading"><span class="section-number">01 / Thesis</span><h2 id="summary-title">A plausible answer is not enough</h2></div>
+      <div class="summary-content">
+        <p>Frontier AI models can often get surprisingly close to a useful award interpretation. But a plausible answer is not enough. The reasoning can be difficult to trace, assumptions may be hidden, and there is often no practical way to review how an individual rule was derived from the source.</p>
+        <p>Award Extractor explores a more structured approach: <strong>AI suggested, human edited</strong>.</p>
+        <ul class="rulesets"><li><strong>AI suggested</strong><span>The model proposes structured payroll rules from the award.</span></li><li><strong>Human edited</strong><span>A reviewer can accept, modify or reject the proposed interpretation.</span></li><li><strong>Traceable output</strong><span>Rules stay linked to source clauses so the interpretation can be inspected and challenged.</span></li></ul>
+        <p>The aim is not to replace human interpretation. It is to test whether AI can accelerate the difficult first pass while keeping the result traceable, reviewable and suitable for further assurance.</p>
+        <p class="summary-close">The current experiment produces one Award Interpretation covering overtime creation, overtime consequences and penalties.</p>
+      </div>
+    </section>
+    <section class="process" aria-labelledby="process-title">
+      <div class="section-heading"><span class="section-number">02 / Method</span><h2 id="process-title">From award text to reviewed rule</h2></div>
+      <p class="section-intro">The process begins with the award text and progressively turns model suggestions into a human-reviewed interpretation. Open a step to see what happens, what is produced, and what a reviewer can check.</p>
+      <div class="steps">
+        <details class="step" open><summary><span class="step-number">1</span><span class="step-name">Fetch and structure the award</span><span class="step-type">Source record</span></summary><div class="step-body"><p>Retrieve the award from FWO, or use the supplied PDF. Parse the document into headings and clauses and write a structured JSON snapshot. No interpretation is performed at this point.</p><dl><div><dt>Output</dt><dd>Structured award JSON and source snapshot</dd></div><div><dt>Review point</dt><dd>Does the structure match the original award?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">2.1</span><span class="step-name">Classify payment-relevant clauses</span><span class="step-type">LLM + deterministic checks</span></summary><div class="step-body"><p>Classify each top-level clause as payment-relevant, definition-relevant or not relevant. For relevant direct subclauses, identify the payment type, such as overtime, penalties, allowances, breaks or leave.</p><dl><div><dt>Output</dt><dd>Payment classification JSON</dd></div><div><dt>Review point</dt><dd>Are all clauses accounted for, including exclusions?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">2.2</span><span class="step-name">Build the selected ruleset subset</span><span class="step-type">LLM + deterministic checks</span></summary><div class="step-body"><p>Select clauses for the overtime and penalties rulesets. Within overtime, distinguish clauses that determine when time becomes overtime from clauses that apply after overtime has occurred. Identify the relevant employee cohort and work arrangement where the award supports it.</p><dl><div><dt>Output</dt><dd>Ruleset clause-classification JSON</dd></div><div><dt>Review point</dt><dd>Why is each clause in this ruleset, and for whom?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">3.1</span><span class="step-name">Draft and combine the ruleset</span><span class="step-type">LLM activities + checks</span></summary><div class="step-body"><p>Two independent LLM interpretations turn the shortlisted clauses into payroll rules. A comparison call proposes how differences should be reconciled. The drafts and comparison are combined into a draft ruleset.</p><dl><div><dt>Output</dt><dd>Expert drafts, comparison and combined ruleset files</dd></div><div><dt>Review point</dt><dd>Are disagreements, clause coverage and cohort differences visible?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">3.2</span><span class="step-name">Adversarially review the draft</span><span class="step-type">LLM evaluator + creator</span></summary><div class="step-body"><p>An evaluator reviews the combined ruleset against the clause evidence. A creator records whether each recommendation is kept, modified or removed, records additions, and rebuilds the revised ruleset.</p><dl><div><dt>Output</dt><dd>Evaluator findings, creator decisions and revised ruleset</dd></div><div><dt>Review point</dt><dd>Are silent removals and unsupported additions prevented?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">4.1</span><span class="step-name">Format the guide</span><span class="step-type">LLM + coverage warning</span></summary><div class="step-body"><p>Reorganise the reviewed ruleset into a guide that a payroll officer can read. Compare the source and formatted versions so that missing rules are flagged rather than silently lost.</p><dl><div><dt>Output</dt><dd>Formatted Markdown guide and coverage warnings</dd></div><div><dt>Review point</dt><dd>Are the key rules, thresholds, scope and citations still visible?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">4.9</span><span class="step-name">Create the human working copy</span><span class="step-type">Human review</span></summary><div class="step-body"><p>A reviewer can correct the guide in a Markdown working file. That reviewed file becomes the preferred source for the next stage, with the change kept visible.</p><dl><div><dt>Output</dt><dd>Human-reviewed ruleset Markdown</dd></div><div><dt>Review point</dt><dd>What did the reviewer change before implementation?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">5.1</span><span class="step-name">Generate pseudocode</span><span class="step-type">LLM + rule inventory</span></summary><div class="step-body"><p>Translate the latest reviewed source into pseudocode. Check that the source rules, required inputs, exclusions and clause references are represented in the implementation draft.</p><dl><div><dt>Output</dt><dd>Pseudocode and validation files</dd></div><div><dt>Review point</dt><dd>Which reviewed rule, if any, is missing from the logic?</dd></div></dl></div></details>
+        <details class="step"><summary><span class="step-number">6.1</span><span class="step-name">Project the rules into a calculator</span><span class="step-type">LLM + evidence</span></summary><div class="step-body"><p>Load the three rulesets in the Award Interpretation and use them to answer a fixed calculator questionnaire and draft Python. This is a projection of the interpretation, not a replacement for it.</p><dl><div><dt>Output</dt><dd>Calculator questionnaire JSON and Python draft</dd></div><div><dt>Review point</dt><dd>What evidence supports each calculator answer?</dd></div></dl></div></details>
+      </div>
+    </section>
+    <section class="controls" aria-labelledby="controls-title"><div class="section-heading"><span class="section-number">03 / Controls</span><h2 id="controls-title">How the answer stays reviewable</h2></div><div class="control-list"><p><span>Propose</span><strong>AI suggestions</strong> classify clauses and draft interpretations.</p><p><span>Test</span><strong>Deterministic controls</strong> check structure, coverage, references, duplicates and required fields.</p><p><span>Decide</span><strong>Human review</strong> tests the interpretation against the award and edits it before implementation.</p></div></section>
+  </main>
+  <footer class="site-footer"><div class="page-width">Award Extractor · experimental process description</div></footer>
+</body>
+</html>

@@ -31,23 +31,46 @@ Requirements:
 {GENERIC_PAYROLL_CONFIGURATION_PROMPT}
 
 - Use only the supplied reviewed ruleset for award-specific facts.
-- This is a formatting step, not a summarisation or rewriting step.
+- This is a presentation rewrite, not a new interpretation. Rewrite the wording
+  into plain English without changing the reviewed rule's meaning.
 - The output must be lossless in substance: every reviewed rule must remain represented in the formatted guide.
-- Ensure clause numbers are prsesent in the output, preferably at the end of each rule in square brackets.
-- Be careful when aggregating that you do not loose any operational threshhold - eg if a rule is featured in all employees and full time employees, it may be removed if the context is the same, but if the context is different, it must be preserved in both places. Rules should never be removed from all employees. 
-- Do not delete, omit, merge, split, generalise, or invent substantive rules.
+- Ensure clause numbers are present in the output, preferably at the end of each rule in square brackets.
+- Be careful when aggregating so that no operational threshold is lost. For
+  example, if a rule appears for all employees and for full-time employees, it
+  may be combined only when its scope and effect are identical.
+- Do not delete, omit, merge, generalise, or invent substantive rules. Keep one
+  top-level output bullet for each reviewed source rule. A long list of numeric
+  alternatives may use short indented bullets.
 - Do not move a rule into a different meaning just to make the guide shorter or fit the template better.
 - Treat the supplied template as a structural guide, not a hard contract.
 - Only keep headings and sections that are supported by the reviewed ruleset.
 - Do not force rare cohort splits or empty sections just because they appear in the template.
 - Keep the output concise and easy to scan, but never at the expense of losing a reviewed rule.
 - Use short markdown bullet points under each heading.
-- Write each rule as clearly and operationally as possible so it can be read in isolation by a payroll reviewer.
+- Start every top-level bullet with the direct payroll rule or outcome. Prefer
+  forms such as `Overtime is created when ...`, `The overtime rate is ...`, or
+  `A penalty applies when ...`.
+- Keep the lead rule to one short sentence where practical. Use indented bullets
+  only when they make a list of thresholds or genuine exceptions easier to read.
+- If the reviewed 3.2 rule is already understandable, retain its sentence and
+  make only the smallest edits needed for plain English.
+- Do not expand a reviewed rule into an explanation of how boundaries, triggers,
+  cohorts, or configurations interact. Step 3.2 has already completed that
+  interpretation.
+- Write for a payroll reviewer who should understand the operative rule without
+  reading the award-style drafting behind it.
+- Prefer active, everyday language. Replace abstract wording with the employee,
+  hours, threshold, and result wherever the reviewed rule supports them.
+- Do not add explanatory labels such as `Ordinary-hours boundary`, `not a
+  standalone overtime trigger`, `Thresholds`, or `Limit`. State the rule itself.
+- Do not begin a rule with `Select` unless the payroll reviewer genuinely must
+  choose between alternative configurations. State the rule that creates the
+  payroll result first.
 - Preserve the substantive rule content from the reviewed ruleset. Do not omit a reviewed rule merely to make the guide shorter.
 - Do not collapse distinct thresholds, limits, spans, spreads, multipliers, minimum payments, cohort-specific rules, or clause-specific exceptions into vague summaries.
 - If the source contains overlapping but plausible reviewed rules, preserve them rather than deduplicating aggressively at the formatting stage.
 - Preserve employee groups, thresholds, assumptions, consequences, and clause references from the source.
-- Keep clause references visible in every rule bullet, preferably at the end in square brackets.
+- Keep clause references at the end of the lead bullet in square brackets.
 - Do not invent rules, clause references, headings, or categories that are not supported by the source.
 - Do not add a rule that is not already present in the reviewed ruleset.
 - Ignore any validation-notes preamble in the source and format only the actual rules.
@@ -93,8 +116,18 @@ Additional rules:
 - Use `## All Employees (Full-Time, Part-Time, Casual, Day Workers And Shift Workers)` for general rules that apply across employee cohorts or are expressed generally as `employee` or `ordinary hours`, including ordinary-hours boundaries, spans, spreads, daily limits, agreed daily extensions, and Monday-to-Friday ordinary-hours rules, unless the reviewed source clearly narrows them to a smaller cohort.
 - Use `### Other` only when a reviewed rule does not fit a more specific heading in the required structure.
 - Do not place a general rule in `### Other` merely because it was added during review or evaluator feedback.
-- Preserve ordinary-hours boundary rules clearly and explicitly where work outside that boundary may become overtime.
+- Preserve ordinary-hours boundary rules clearly where work outside that
+  boundary may become overtime, using the same degree of certainty as step 3.2.
+- When the reviewed rule states that work outside an applicable ordinary-hours
+  boundary is overtime, use one direct sentence. Do not append a warning that the
+  rule must be tested under a full-time, part-time, or casual trigger.
+- Keep an express alternative work-arrangement rule, such as a shiftworker
+  override, in its own bullet or section instead of adding it as a legal caveat
+  to the day-worker boundary rule.
 - Keep the actual operative numbers and conditions in the bullet text, such as daily limits, agreed extensions, spans, spreads, roster conditions, and break conditions.
+- Example style:
+  - `Overtime is created when an employee works more than the daily limit for their shift: 8 hours for a day shift or 10 hours for a night shift. [22.1(c), 25.1]`
+  - `For a day worker, work outside 6.00 am to 6.00 pm Monday to Friday is overtime. [22.2(a)]`
 - Do not replace a specific reviewed rule with a shorter high-level paraphrase if that would remove an operational threshold or condition.
 - Do not add new operational claims, even if they seem implied by the source.
 - Do not include overtime multipliers, penalty amounts, allowance amounts, or payment consequences except where needed to explain that a rule is out of scope.

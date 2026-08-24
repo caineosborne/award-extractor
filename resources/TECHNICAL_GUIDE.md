@@ -343,6 +343,11 @@ For penalties, the review overlay explicitly:
 
 ## Step 4.1. Formatted Ruleset Guide
 
+Step 4.1 defaults to `gpt-5.6-sol` at medium reasoning because it must rewrite
+complex reviewed rules into plain English without losing thresholds, scope,
+exceptions, or clause traceability. Higher-volume pipeline stages may continue
+to use `gpt-5.6-luna`.
+
 Owner:
 - `src/step_4_1_format_ruleset/run.py`
 
@@ -354,6 +359,8 @@ Purpose:
 - prefer the revised step `3.2` interpretation when an award code is used;
 - use `resources/Templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
+- present each rule as a short, direct payroll outcome, with scope, thresholds,
+  exceptions, assumptions, and source clauses placed in indented bullets;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 Ruleset-specific formatting:

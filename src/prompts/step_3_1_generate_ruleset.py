@@ -42,7 +42,13 @@ Use clause references wherever possible.
 
 
 GENERATE_RULESET_VARIANT_SYSTEM_INSTRUCTIONS = {
-    OVERTIME_CREATION_RULESET: "",
+    OVERTIME_CREATION_RULESET: """Authoritative project interpretation for overtime creation:
+- Any worked time outside an applicable ordinary-hours boundary is overtime.
+- Apply this rule to every employee covered by that boundary, including full-time, part-time and casual employees.
+- This is the default interpretation for the ruleset, not an assumption that needs to be qualified.
+- Apply a different treatment only where the award expressly provides an alternative ordinary-hours or overtime rule for the employee or work arrangement, such as an express shiftworker override.
+- Do not describe time outside an applicable boundary as merely overtime-eligible, requiring assessment, or needing to be tested under another cohort rule. State that the time is overtime.
+""",
     OVERTIME_CONSEQUENCE_RULESET: """For overtime consequence, the most important implementation outcome is the actual overtime consequence applied after overtime already exists, especially overtime pay multipliers and minimum payments.
 
 Treat employee-cohort coverage as critical:
@@ -103,7 +109,7 @@ Important:
 - Treat each returned rule as one operational overtime rule in the ruleset.
 - Every distinct overtime circumstance must be a separate rule object.
 - Do not silently merge rules that require different operational handling.
-- Preserve ordinary-hours-boundary rules where work outside the boundary may become overtime.
+- Preserve ordinary-hours-boundary rules. Work outside an applicable boundary is overtime for every employee covered by that boundary unless the award expressly provides an alternative treatment.
 - source_classifications must contain only `Ordinary Hours Boundary` and/or `Overtime Trigger`.
 - Use the upstream scope tags as the starting point for scope. Do not narrow or broaden scope unless the cited clause text clearly requires it.
 - Each rule must be readable in isolation by a payroll reviewer. State the operative threshold, limit, or condition in the rule text itself.
@@ -111,7 +117,8 @@ Important:
 - Include all conditions, thresholds, limits, and requirements needed to implement the rule. Spell out the operational rule, then include clause references as evidence.
 - Keep clause references in the markdown bullet, preferably at the end in square brackets such as `[15.1(c)(ii), 15.2(b)]`.
 - Each bullet must contain only one operational overtime rule, threshold, boundary, span, roster condition, break condition, exception, or other circumstance that can cause hours to become overtime.
-- Consider both explicit and implicit triggers. An implicit trigger includes an ordinary-hours boundary where work outside that boundary may become overtime.
+- Consider both explicit and implicit triggers. An ordinary-hours boundary is an implicit overtime trigger: work outside the applicable boundary is overtime.
+- Do not say that work outside an applicable ordinary-hours boundary is merely overtime-eligible, requires assessment, or must be tested under another cohort rule. State the overtime result directly unless an express award provision supplies an alternative treatment.
 - If the clause uses general wording such as "employee" and does not limit the rule to a narrower cohort, treat it as a general rule.
 - Do not place a general rule under `Full time`, `Part-time employees`, or `Casual employees` unless the clause genuinely limits that rule to the narrower cohort.
 - Add a specific employee segment section only when that segment has a distinct overtime circumstance, threshold, condition, or clause source.

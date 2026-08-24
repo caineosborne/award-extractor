@@ -63,11 +63,11 @@ def test_steps_2_1_2_2_and_3_1_default_to_gpt_5_6_luna():
     assert RULESET_GENERATION_MODEL == "gpt-5.6-luna"
 
 
-def test_steps_3_2_through_6_1_default_to_gpt_5_6_luna():
+def test_step_4_1_uses_quality_model_while_other_later_steps_use_luna():
     assert EVALUATOR_MODEL == "gpt-5.6-luna"
     assert DEFAULT_CREATOR_MODEL == "gpt-5.6-luna"
     assert DEFAULT_EVALUATOR_MAX_OUTPUT_TOKENS == 16000
-    assert FORMATTER_MODEL == "gpt-5.6-luna"
+    assert FORMATTER_MODEL == "gpt-5.6-sol"
     assert PSEUDOCODE_MODEL == "gpt-5.6-luna"
     assert CALCULATOR_MODEL == "gpt-5.6-luna"
 

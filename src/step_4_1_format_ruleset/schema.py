@@ -6,7 +6,9 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_AWARD_CODE = "MA000018"
-DEFAULT_MODEL = "gpt-5.6-luna"
+# Step 4.1 must simplify legal-style rules without losing operational meaning.
+# Use the quality-first model here; higher-volume extraction steps remain on Luna.
+DEFAULT_MODEL = "gpt-5.6-sol"
 DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Templates" / "Template.md"
 DEFAULT_CONSEQUENCE_TEMPLATE_PATH = (
     PROJECT_ROOT / "resources" / "Templates" / "overtime_consequence_template.md"

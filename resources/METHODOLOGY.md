@@ -334,6 +334,10 @@ can challenge the decision if necessary.
 
 ## Step 4.1. Formatted ruleset guide
 
+Step 4.1 uses the quality-first `gpt-5.6-sol` model by default. The formatter's
+controlled rewrite has a higher semantic-preservation requirement than routine
+high-volume classification, so model quality is prioritised for this step.
+
 Files:
 - `src/step_4_1_format_ruleset/run.py`
 - `src/prompts/step_4_1_format_ruleset.py`
@@ -346,6 +350,9 @@ Purpose:
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
 This is a presentation step. The template is not source evidence.
+The formatter rewrites award-style drafting into a short operative rule followed
+by indented qualifications. This improves readability without changing the
+reviewed interpretation or dropping clause traceability.
 
 ### Human review checkpoint
 

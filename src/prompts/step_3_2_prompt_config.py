@@ -30,7 +30,10 @@ STEP_3_2_PROMPT_SUBSET_OVERRIDES: dict[str, dict[str, tuple[str, ...]]] = {
     OVERTIME_CREATION_RULESET: {
         "subset_scope_notes": (
             "Focus on circumstances that cause time worked to become overtime, that is any rules that increase the amount of hours classified as overtime.",
-            "Any hours which are not ordinary hours are considered overtime, there any rules which define ordinary hours are relevant to this subset.",
+            "Authoritative project interpretation: any worked time outside an applicable ordinary-hours boundary is overtime for every employee covered by that boundary. This is the default ruleset logic, not an assumption or a question for another cohort test.",
+            "Do not describe work outside an applicable ordinary-hours boundary as merely overtime-eligible, requiring assessment, or needing to be tested under a separate full-time, part-time or casual trigger.",
+            "Where the award expressly provides a separate work-arrangement rule that operates despite or replaces general ordinary-hours clauses, scope the general boundary to the remaining arrangement. For example, an express shiftworker override means the general span is a day-worker rule, while the shiftworker rule is stated separately.",
+            "Write a boundary rule directly and plainly, for example: `For a day worker, work outside the stated ordinary-hours span is overtime.` Keep an express alternative work-arrangement rule separate instead of appending a long legal caveat to the boundary rule.",
             "If a rule is plausibly supported by the cited clauses and relevant to this subset, prefer retaining or narrowing it rather than excluding it too aggressively.",
         ),
     },
