@@ -54,6 +54,7 @@ from src.step_1_2_parse_award.run import (
 )
 from src.step_4_1_format_ruleset.run import summarize_overtime_entitlements
 from src.step_6_1_generate_calculator_yaml.core import (
+    align_questionnaire_to_calculator_contract,
     normalize_response_data,
     write_python_output,
 )
@@ -1446,15 +1447,20 @@ def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key:
     formatted_data = load_optional_json_file(formatted_json_path) or {}
     validation_warnings = formatted_data.get("validation_warnings", [])
 
+    if isinstance(validation_warnings, list) and validation_warnings:
+        st.warning(
+            "**Formatting catch-all — reviewed rules omitted by the formatter:** "
+            f"{len(validation_warnings)} rule(s). The rules remain part of the "
+            "reviewed ruleset and require placement."
+        )
+        with st.expander("Reviewed rules omitted by the formatter", expanded=True):
+            for warning in validation_warnings:
+                st.write(f"- {formatted_ruleset_warning_rule_text(str(warning))}")
+
     render_markdown_file(
         ruleset_artifacts.formatted_markdown,
         source_path=ruleset_artifacts.revised_markdown,
     )
-
-    if isinstance(validation_warnings, list) and validation_warnings:
-        with st.expander("Formatting warnings", expanded=True):
-            for warning in validation_warnings:
-                st.write(f"- {warning}")
 
 
 def render_manual_ruleset_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
@@ -1537,9 +1543,9 @@ def render_calculator_python_screen(
 
     calculator_warnings = calculator_warnings_from_python_text(python_content.text)
     if calculator_warnings:
-        st.warning(
-            "**Calculator warnings — review before use:** "
-            f"{len(calculator_warnings)} warning(s)."
+        st.error(
+            "**Calculator is not approved for use until these items are reviewed:** "
+            f"{len(calculator_warnings)} item(s)."
         )
         with st.expander("Calculator generation warnings", expanded=False):
             for warning in calculator_warnings:
@@ -1606,6 +1612,10 @@ def render_calculator_questionnaire_screen(
         st.error("Questionnaire JSON must be a JSON object.")
         return
 
+    loaded_questionnaire = align_questionnaire_to_calculator_contract(
+        loaded_questionnaire
+    )
+
     questionnaire_answers = loaded_questionnaire.get("questionnaire_answers")
     if not isinstance(questionnaire_answers, dict):
         st.error("Questionnaire JSON is missing questionnaire_answers.")
@@ -1625,12 +1635,13 @@ def render_calculator_questionnaire_screen(
         questionnaire_answers
     )
     if review_required_questions:
-        st.warning(
-            "**Review required before using this calculator.** "
-            f"{len(review_required_questions)} answer(s) need attention: "
-            + ", ".join(review_required_questions)
-            + "."
+        st.error(
+            "**Calculator review is incomplete.** "
+            f"Resolve the following {len(review_required_questions)} item(s) "
+            "before approving this calculator:"
         )
+        for question_path in review_required_questions:
+            st.write(f"- {calculator_question_display_name(question_path)}")
 
     updated_answers: dict[tuple[str, str], Any] = {}
 
@@ -1639,14 +1650,14 @@ def render_calculator_questionnaire_screen(
         questionnaire_answers,
         section_name="core_hours",
         question_name="day_worker_daily_limit_hours",
-        label="What is the ordinary-hours daily limit before overtime applies for day workers?",
+        label="What daily ordinary-hours limit applies to day workers?",
         widget_key=f"{editor_key}_core_day_daily",
     )
     updated_answers[("core_hours", "shift_worker_daily_limit_hours")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="core_hours",
         question_name="shift_worker_daily_limit_hours",
-        label="What is the ordinary-hours daily limit before overtime applies for shift workers?",
+        label="What daily ordinary-hours limit applies to shiftworkers?",
         widget_key=f"{editor_key}_core_shift_daily",
     )
     updated_answers[("core_hours", "day_worker_weekly_limit_hours")] = render_calculator_question_number(
@@ -1679,6 +1690,14 @@ def render_calculator_questionnaire_screen(
         label="What is the standard overtime multiplier? (Enter the total paid rate, for example 1.5 for 150%.)",
         widget_key=f"{editor_key}_ot_standard",
     )
+    if calculator_question_exists(questionnaire_answers, "overtime", "casual_standard_overtime_multiplier"):
+        updated_answers[("overtime", "casual_standard_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_standard_overtime_multiplier",
+            label="What is the casual standard overtime multiplier? (Enter the total paid rate.)",
+            widget_key=f"{editor_key}_ot_casual_standard",
+        )
     updated_answers[("overtime", "has_two_tier_overtime")] = render_calculator_question_boolean(
         questionnaire_answers,
         section_name="overtime",
@@ -1693,6 +1712,14 @@ def render_calculator_questionnaire_screen(
         label="If yes, what is the extended overtime multiplier? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_extended",
     )
+    if calculator_question_exists(questionnaire_answers, "overtime", "casual_extended_overtime_multiplier"):
+        updated_answers[("overtime", "casual_extended_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_extended_overtime_multiplier",
+            label="What is the casual extended overtime multiplier? (Enter the total paid rate.)",
+            widget_key=f"{editor_key}_ot_casual_extended",
+        )
     updated_answers[("overtime", "higher_overtime_starts_after_hours")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="overtime",
@@ -1711,6 +1738,14 @@ def render_calculator_questionnaire_screen(
         label="What overtime multiplier applies on Saturday? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_sat",
     )
+    if calculator_question_exists(questionnaire_answers, "overtime", "casual_saturday_overtime_multiplier"):
+        updated_answers[("overtime", "casual_saturday_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_saturday_overtime_multiplier",
+            label="What casual overtime multiplier applies on Saturday?",
+            widget_key=f"{editor_key}_ot_casual_sat",
+        )
     updated_answers[("overtime", "sunday_overtime_multiplier")] = render_calculator_question_number(
         questionnaire_answers,
         section_name="overtime",
@@ -1718,11 +1753,33 @@ def render_calculator_questionnaire_screen(
         label="What overtime multiplier applies on Sunday? (Enter the total paid rate, for example 2.0 for 200%.)",
         widget_key=f"{editor_key}_ot_sun",
     )
+    if calculator_question_exists(questionnaire_answers, "overtime", "casual_sunday_overtime_multiplier"):
+        updated_answers[("overtime", "casual_sunday_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_sunday_overtime_multiplier",
+            label="What casual overtime multiplier applies on Sunday?",
+            widget_key=f"{editor_key}_ot_casual_sun",
+        )
+    if calculator_question_exists(questionnaire_answers, "overtime", "public_holiday_overtime_multiplier"):
+        updated_answers[("overtime", "public_holiday_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="public_holiday_overtime_multiplier",
+            label="What non-casual overtime multiplier applies on a public holiday?",
+            widget_key=f"{editor_key}_ot_public_holiday",
+        )
+        updated_answers[("overtime", "casual_public_holiday_overtime_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="overtime",
+            question_name="casual_public_holiday_overtime_multiplier",
+            label="What casual overtime multiplier applies on a public holiday?",
+            widget_key=f"{editor_key}_ot_casual_public_holiday",
+        )
 
     st.subheader("Span Overtime")
     st.caption(
-        "This calculator currently supports one day-worker span overtime cutoff only. "
-        "There is no separate morning span overtime field."
+        "The calculator supports a day-worker ordinary-span start and end."
     )
     updated_answers[("span", "day_workers_have_span_overtime")] = render_calculator_question_boolean(
         questionnaire_answers,
@@ -1738,6 +1795,14 @@ def render_calculator_questionnaire_screen(
         label="If yes, after what hour do day-worker hours become span overtime?",
         widget_key=f"{editor_key}_span_hour",
     )
+    if calculator_question_exists(questionnaire_answers, "span", "live_span_start_hour"):
+        updated_answers[("span", "live_span_start_hour")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="span",
+            question_name="live_span_start_hour",
+            label="Before what hour do day-worker hours become span overtime?",
+            widget_key=f"{editor_key}_span_start_hour",
+        )
     updated_answers[("span", "ordinary_span_summary")] = render_calculator_question_text(
         questionnaire_answers,
         section_name="span",
@@ -1748,7 +1813,7 @@ def render_calculator_questionnaire_screen(
     )
 
     st.subheader("Penalties")
-    st.caption("Penalty-related fields are split into weekend treatment and weekday penalties.")
+    st.caption("Penalty-related fields are split into day treatment and ordinary-hour penalties.")
 
     st.markdown("**Weekend Treatment**")
     weekend_options = ["overtime", "penalty", "not_applicable", "needs_review", ""]
@@ -1813,6 +1878,75 @@ def render_calculator_questionnaire_screen(
         widget_key=f"{editor_key}_weekend_shift_sun_rate",
     )
 
+    casual_day_treatment_questions = [
+        (
+            "casual_day_saturday_penalty_loading",
+            "What casual day-worker loading applies on Saturday?",
+        ),
+        (
+            "casual_day_sunday_penalty_loading",
+            "What casual day-worker loading applies on Sunday?",
+        ),
+        (
+            "casual_shift_saturday_penalty_loading",
+            "What casual shift-worker loading applies on Saturday?",
+        ),
+        (
+            "casual_shift_sunday_penalty_loading",
+            "What casual shift-worker loading applies on Sunday?",
+        ),
+    ]
+    for question_name, label in casual_day_treatment_questions:
+        if calculator_question_exists(
+            questionnaire_answers,
+            "weekend_treatment",
+            question_name,
+        ):
+            updated_answers[("weekend_treatment", question_name)] = render_calculator_question_number(
+                questionnaire_answers,
+                section_name="weekend_treatment",
+                question_name=question_name,
+                label=label,
+                widget_key=f"{editor_key}_{question_name}",
+            )
+
+    if calculator_question_exists(
+        questionnaire_answers,
+        "weekend_treatment",
+        "day_public_holiday_treatment",
+    ):
+        st.markdown("**Public Holiday Treatment**")
+        updated_answers[("weekend_treatment", "day_public_holiday_treatment")] = render_calculator_question_select(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="day_public_holiday_treatment",
+            label="For day workers on a public holiday, are hours overtime or penalty-based?",
+            widget_key=f"{editor_key}_public_holiday_day_treatment",
+            options=weekend_options,
+        )
+        updated_answers[("weekend_treatment", "shift_public_holiday_treatment")] = render_calculator_question_select(
+            questionnaire_answers,
+            section_name="weekend_treatment",
+            question_name="shift_public_holiday_treatment",
+            label="For shift workers on a public holiday, are hours overtime or penalty-based?",
+            widget_key=f"{editor_key}_public_holiday_shift_treatment",
+            options=weekend_options,
+        )
+        public_holiday_loading_questions = [
+            ("day_public_holiday_penalty_loading", "Non-casual day-worker public-holiday loading above base"),
+            ("shift_public_holiday_penalty_loading", "Non-casual shift-worker public-holiday loading above base"),
+            ("casual_day_public_holiday_penalty_loading", "Casual day-worker public-holiday loading above base"),
+            ("casual_shift_public_holiday_penalty_loading", "Casual shift-worker public-holiday loading above base"),
+        ]
+        for question_name, label in public_holiday_loading_questions:
+            updated_answers[("weekend_treatment", question_name)] = render_calculator_question_number(
+                questionnaire_answers,
+                section_name="weekend_treatment",
+                question_name=question_name,
+                label=label,
+                widget_key=f"{editor_key}_{question_name}",
+            )
+
     st.subheader("Gap Between Shifts")
     updated_answers[("gap_between_shifts", "minimum_break_required")] = render_calculator_question_boolean(
         questionnaire_answers,
@@ -1835,6 +1969,14 @@ def render_calculator_questionnaire_screen(
         label="If the minimum break is breached, what penalty multiplier loading above base applies?",
         widget_key=f"{editor_key}_gap_penalty",
     )
+    if calculator_question_exists(questionnaire_answers, "gap_between_shifts", "casual_breach_penalty_multiplier"):
+        updated_answers[("gap_between_shifts", "casual_breach_penalty_multiplier")] = render_calculator_question_number(
+            questionnaire_answers,
+            section_name="gap_between_shifts",
+            question_name="casual_breach_penalty_multiplier",
+            label="If the minimum break is breached, what casual loading above base applies?",
+            widget_key=f"{editor_key}_gap_casual_penalty",
+        )
     updated_answers[("gap_between_shifts", "special_case_thresholds")] = render_calculator_question_json(
         questionnaire_answers,
         section_name="gap_between_shifts",
@@ -1844,26 +1986,26 @@ def render_calculator_questionnaire_screen(
         height=160,
     )
 
-    st.markdown("**Weekday Penalties**")
+    st.markdown("**Ordinary-Hour Penalties**")
     updated_answers[("weekday_penalties", "shift_based_penalties")] = render_calculator_penalty_rules_editor(
         questionnaire_answers,
         section_name="weekday_penalties",
         question_name="shift_based_penalties",
-        label="Shift-based weekday penalties",
+        label="Shift-based ordinary-hour penalties",
         widget_key_prefix=f"{editor_key}_weekday_shift_penalties",
     )
     updated_answers[("weekday_penalties", "time_based_penalties")] = render_calculator_penalty_rules_editor(
         questionnaire_answers,
         section_name="weekday_penalties",
         question_name="time_based_penalties",
-        label="Time-based weekday penalties",
+        label="Time-based ordinary-hour penalties",
         widget_key_prefix=f"{editor_key}_weekday_time_penalties",
     )
     updated_answers[("weekday_penalties", "other_penalty_notes")] = render_calculator_question_text(
         questionnaire_answers,
         section_name="weekday_penalties",
         question_name="other_penalty_notes",
-        label="Other weekday penalty notes",
+        label="Other ordinary-hour penalty notes",
         widget_key=f"{editor_key}_weekday_penalty_notes",
         height=120,
     )
@@ -1939,8 +2081,11 @@ def rebuild_calculator_python_from_questionnaire(
             penalties_json_path=penalties_ruleset_paths.revised_json,
             output_path=python_path,
         )
+        aligned_questionnaire_data = align_questionnaire_to_calculator_contract(
+            questionnaire_data
+        )
         normalized_data = normalize_response_data(
-            questionnaire_data,
+            aligned_questionnaire_data,
             award_code=award_code,
         )
     except Exception as exc:
@@ -1952,7 +2097,10 @@ def rebuild_calculator_python_from_questionnaire(
         normalized_data["award_title"] = inputs.award_title
 
     if save_questionnaire:
-        write_text_file(questionnaire_path, json.dumps(questionnaire_data, indent=2))
+        write_text_file(
+            questionnaire_path,
+            json.dumps(aligned_questionnaire_data, indent=2),
+        )
 
     write_python_output(python_path, normalized_data)
 
@@ -1981,6 +2129,16 @@ def calculator_question_record(
     return record
 
 
+def calculator_question_exists(
+    questionnaire_answers: dict[str, Any],
+    section_name: str,
+    question_name: str,
+) -> bool:
+    """Return whether a saved questionnaire contains one question."""
+    section = questionnaire_answers.get(section_name)
+    return isinstance(section, dict) and isinstance(section.get(question_name), dict)
+
+
 def render_calculator_question_metadata(record: dict[str, Any]) -> None:
     status = str(record.get("status") or "").strip() or "unknown"
     rule_ids = ", ".join(record.get("source_rule_ids", []))
@@ -2000,7 +2158,13 @@ def render_calculator_question_metadata(record: dict[str, Any]) -> None:
     if reasoning_summary:
         st.caption(f"Reasoning: {reasoning_summary}")
     if special_case_notes:
-        st.info(f"**Special case to consider:** {special_case_notes}")
+        if status == "not_applicable":
+            note_label = "Why this field is not used"
+        elif status in {"needs_review", "not_found", "defaulted"}:
+            note_label = "Review context"
+        else:
+            note_label = "Rule qualification"
+        st.info(f"**{note_label}:** {special_case_notes}")
 
 
 def calculator_question_status_message(status: str) -> str:
@@ -2009,6 +2173,8 @@ def calculator_question_status_message(status: str) -> str:
 
     if normalized_status == "derived":
         return ":green[**Status: Derived — supported by the reviewed rules.**]"
+    if normalized_status == "not_applicable":
+        return ":green[**Status: Not applicable — this field is not used for the selected calculator treatment.**]"
     if normalized_status == "defaulted":
         return ":orange[**Status: Defaulted — confirm this assumption.**]"
     if normalized_status == "needs_review":
@@ -2023,9 +2189,16 @@ def calculator_warnings_from_python_text(python_text: str) -> list[str]:
     """Read the explicit review warnings placed at the top of generated Python."""
     warning_lines: list[str] = []
     reading_warnings = False
+    warning_headers = {
+        "# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR",
+        "# MISSING_FROM_ANALYSIS: review these defaults before use",
+        "# MISSING_FROM_ANALYSIS: rules generated using assumptions or defaults",
+        "# RULES EXCLUDED FROM THE ANALYSIS",
+        "# RULES BUILT WITH ASSUMPTIONS OR DEFAULTS",
+    }
 
     for line in python_text.splitlines():
-        if line == "# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR":
+        if line in warning_headers:
             reading_warnings = True
             continue
 
@@ -2033,10 +2206,30 @@ def calculator_warnings_from_python_text(python_text: str) -> list[str]:
             warning_lines.append(line.removeprefix("# - "))
             continue
 
-        if reading_warnings:
-            break
+        if reading_warnings and line.startswith(
+            (
+                "# The analysis did not fully supply",
+                "# These rules were outside",
+                "# These rules were analysed",
+            )
+        ):
+            continue
+
+        if reading_warnings and not line.strip():
+            reading_warnings = False
 
     return warning_lines
+
+
+def formatted_ruleset_warning_rule_text(warning: str) -> str:
+    """Return the reviewed rule carried by a step 4.1 coverage warning."""
+    prefix = (
+        "Step 4.1 formatted output may have dropped this reviewed rule instead "
+        "of only formatting it: "
+    )
+    if warning.startswith(prefix):
+        return warning.removeprefix(prefix)
+    return warning
 
 
 def render_calculator_ruleset_validation_panel(
@@ -2134,6 +2327,51 @@ def calculator_questions_requiring_review(
                 review_required_questions.append(f"{section_name}.{question_name}")
 
     return review_required_questions
+
+
+def calculator_question_display_name(question_path: str) -> str:
+    """Return an audit-friendly label for a questionnaire field path."""
+    display_names = {
+        "core_hours.day_worker_daily_limit_hours": "Daily ordinary-hours limit — day workers",
+        "core_hours.shift_worker_daily_limit_hours": "Daily ordinary-hours limit — shiftworkers",
+        "weekend_treatment.day_saturday_penalty_loading": (
+            "Saturday ordinary-hours penalty loading — day workers"
+        ),
+        "weekend_treatment.day_sunday_penalty_loading": (
+            "Sunday ordinary-hours penalty loading — day workers"
+        ),
+        "weekend_treatment.casual_day_saturday_penalty_loading": (
+            "Saturday ordinary-hours penalty loading — casual day workers"
+        ),
+        "weekend_treatment.casual_day_sunday_penalty_loading": (
+            "Sunday ordinary-hours penalty loading — casual day workers"
+        ),
+        "weekend_treatment.shift_public_holiday_treatment": (
+            "Public-holiday treatment — shiftworkers"
+        ),
+        "weekend_treatment.shift_public_holiday_penalty_loading": (
+            "Public-holiday ordinary-hours loading — shiftworkers"
+        ),
+        "gap_between_shifts.breach_penalty_multiplier": (
+            "Gap-between-shifts loading — permanent employees"
+        ),
+        "gap_between_shifts.casual_breach_penalty_multiplier": (
+            "Gap-between-shifts loading — casual employees"
+        ),
+        "weekday_penalties.shift_based_penalties": (
+            "Whole-shift ordinary-hours penalties"
+        ),
+        "weekday_penalties.time_based_penalties": (
+            "Time-window ordinary-hours penalties"
+        ),
+    }
+    if question_path in display_names:
+        return display_names[question_path]
+
+    section_name, _, question_name = question_path.partition(".")
+    readable_question = question_name.replace("_", " ").strip().capitalize()
+    readable_section = section_name.replace("_", " ").strip().capitalize()
+    return f"{readable_question} ({readable_section})"
 
 
 def render_calculator_question_number(
@@ -2364,7 +2602,7 @@ def render_calculator_penalty_rules_editor(
                     key=f"{row_key}_type",
                 )
             with third_column:
-                basis_options = ["start", "end", "duration"]
+                basis_options = ["start", "end", "duration", "time"]
                 raw_basis = str(raw_rule.get("basis") or "start")
                 if raw_basis not in basis_options:
                     raw_basis = "start"
@@ -2398,6 +2636,17 @@ def render_calculator_penalty_rules_editor(
                     key=f"{row_key}_rate",
                 )
 
+            casual_rate_text = st.text_input(
+                "Casual rate (leave blank when not derived)",
+                value=(
+                    ""
+                    if raw_rule.get("casual_rate") is None
+                    else str(raw_rule.get("casual_rate"))
+                ),
+                key=f"{row_key}_casual_rate",
+            ).strip()
+            casual_rate = None if not casual_rate_text else float(casual_rate_text)
+
             applies_to_options = ["day", "shift"]
             default_applies_to = [
                 value
@@ -2409,6 +2658,25 @@ def render_calculator_penalty_rules_editor(
                 applies_to_options,
                 default=default_applies_to,
                 key=f"{row_key}_applies_to",
+            )
+            day_options = [
+                "Monday",
+                "Tuesday",
+                "Wednesday",
+                "Thursday",
+                "Friday",
+                "Saturday",
+                "Sunday",
+            ]
+            days = st.multiselect(
+                "Applicable days",
+                day_options,
+                default=[
+                    day_name
+                    for day_name in raw_rule.get("days", [])
+                    if day_name in day_options
+                ],
+                key=f"{row_key}_days",
             )
             description = st.text_input(
                 "Description",
@@ -2424,8 +2692,10 @@ def render_calculator_penalty_rules_editor(
                     "start_hour": start_hour,
                     "end_hour": end_hour,
                     "rate": rate,
+                    "casual_rate": casual_rate,
                     "description": description,
                     "applies_to": applies_to,
+                    "days": days,
                 }
             )
 
@@ -2440,8 +2710,10 @@ def blank_calculator_penalty_rule() -> dict[str, Any]:
         "start_hour": 0.0,
         "end_hour": 0.0,
         "rate": 0.0,
+        "casual_rate": None,
         "description": "",
         "applies_to": [],
+        "days": [],
     }
 
 
@@ -3649,6 +3921,7 @@ def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] |
         "overall_status": validation_data.get("overall_status", "unknown"),
         "passed_rule_count": validation_data.get("passed_rule_count", 0),
         "failed_rule_count": validation_data.get("failed_rule_count", 0),
+        "noted_rule_count": validation_data.get("noted_rule_count", 0),
         "unresolved_rule_count": validation_data.get("unresolved_rule_count", 0),
     }
 
@@ -3789,19 +4062,23 @@ def render_validation_summary(artifact_paths: Any) -> None:
     overall_status = str(validation_data.get("overall_status", "unknown"))
     passed_count = int(validation_data.get("passed_rule_count", 0))
     failed_count = int(validation_data.get("failed_rule_count", 0))
+    noted_count = int(validation_data.get("noted_rule_count", 0))
     unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
 
     if overall_status == "passed":
         st.success("Step 5.1 validation passed.")
+    elif overall_status == "passed_with_notes":
+        st.warning("Step 5.1 validation passed with documented exclusions.")
     elif overall_status == "unresolved":
         st.warning("Step 5.1 validation completed with unresolved coverage checks.")
     else:
         st.warning("Step 5.1 validation found coverage issues.")
 
-    metric_one, metric_two, metric_three = st.columns(3)
+    metric_one, metric_two, metric_three, metric_four = st.columns(4)
     metric_one.metric("Passed rules", passed_count)
     metric_two.metric("Failed rules", failed_count)
-    metric_three.metric("Unresolved rules", unresolved_count)
+    metric_three.metric("Documented exclusions", noted_count)
+    metric_four.metric("Unresolved rules", unresolved_count)
 
     validation_report = read_text_file(artifact_paths.core_overtime_validation_markdown)
     if validation_report.exists:
@@ -3820,19 +4097,23 @@ def render_ruleset_validation_summary(ruleset_artifacts: Any) -> None:
     overall_status = str(validation_data.get("overall_status", "unknown"))
     passed_count = int(validation_data.get("passed_rule_count", 0))
     failed_count = int(validation_data.get("failed_rule_count", 0))
+    noted_count = int(validation_data.get("noted_rule_count", 0))
     unresolved_count = int(validation_data.get("unresolved_rule_count", 0))
 
     if overall_status == "passed":
         st.success("Step 5.1 validation passed.")
+    elif overall_status == "passed_with_notes":
+        st.warning("Step 5.1 validation passed with documented exclusions.")
     elif overall_status == "unresolved":
         st.warning("Step 5.1 validation completed with unresolved coverage checks.")
     else:
         st.warning("Step 5.1 validation found coverage issues.")
 
-    metric_one, metric_two, metric_three = st.columns(3)
+    metric_one, metric_two, metric_three, metric_four = st.columns(4)
     metric_one.metric("Passed rules", passed_count)
     metric_two.metric("Failed rules", failed_count)
-    metric_three.metric("Unresolved rules", unresolved_count)
+    metric_three.metric("Documented exclusions", noted_count)
+    metric_four.metric("Unresolved rules", unresolved_count)
 
     validation_report = read_text_file(ruleset_artifacts.pseudocode_validation_markdown)
     if validation_report.exists:

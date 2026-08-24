@@ -11,6 +11,7 @@ from src.common.output_paths import write_text_output
 from .core import (
     CalculatorRulesYamlError,
     CalculatorYamlInputs,
+    align_questionnaire_to_calculator_contract,
     award_title_from_award_json_path,
     normalize_response_data,
     summarized_rules,
@@ -108,6 +109,7 @@ def generate_calculator_rules_yaml(
         penalties_json_path=inputs.penalties_json_path,
         penalties_rules=summarized_rules(inputs.penalties_artifact),
     )
+    response_data = align_questionnaire_to_calculator_contract(response_data)
     questionnaire_path = inputs.output_path.with_name(
         f"{inputs.output_path.stem}_questionnaire.json"
     )

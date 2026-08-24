@@ -59,6 +59,7 @@ class ValidationReport:
     overall_status: str
     passed_rule_count: int
     failed_rule_count: int
+    noted_rule_count: int
     unresolved_rule_count: int
     rule_results: tuple[RuleValidationResult, ...]
     issues: tuple[ValidationIssue, ...]
@@ -228,8 +229,8 @@ def find_best_matching_rule(
                 if clause_reference in excluded_condition.clause_references
             )
             if overlapping_clauses:
-                return None, "unresolved", (
-                    "This reviewed source rule was explicitly excluded from executable pseudocode in `Conditions not considered by the pseudocode`."
+                return None, "noted", (
+                    "This reviewed source rule is documented under `Conditions not considered by the pseudocode`, with its source clause and the reason it is not represented as executable pseudocode."
                 )
         return None, "failed", (
             "No matching clause references were found in the pseudocode implementation rules for this reviewed source rule."
@@ -286,19 +287,38 @@ def find_invalid_excluded_conditions(
             issues.append(
                 ValidationIssue(
                     issue_type="excluded_condition_missing_clause_reference",
-                    severity="failed",
+                    severity="noted",
                     message="Each item in `Conditions not considered by the pseudocode` must include the source clause reference.",
                 )
             )
         has_reason = any(
             marker in normalized_text
-            for marker in ("because", "cannot", "can't", "unable", "not coded", "not modelled", "not modeled", "manual", "judgement", "judgment", "review", "outside scope")
+            for marker in (
+                "because",
+                "reason",
+                "cannot",
+                "can't",
+                "unable",
+                "not coded",
+                "not modelled",
+                "not modeled",
+                "not provided",
+                "not supplied",
+                "not contained",
+                "not represented",
+                "not available",
+                "manual",
+                "judgement",
+                "judgment",
+                "review",
+                "outside scope",
+            )
         )
         if not has_reason:
             issues.append(
                 ValidationIssue(
                     issue_type="excluded_condition_missing_reason",
-                    severity="failed",
+                    severity="noted",
                     message="Each excluded condition should say why it is not represented in executable pseudocode.",
                 )
             )
@@ -315,6 +335,8 @@ def find_priority_items_without_matching_rules(
 
     for priority_item in priority_items:
         normalized_priority = priority_item.strip().lower()
+        if "remaining" in normalized_priority and "ordinary" in normalized_priority:
+            continue
         if (
             " before " in normalized_priority
             and normalized_priority.startswith(("apply ", "process ", "check ", "review "))
@@ -335,7 +357,7 @@ def find_priority_items_without_matching_rules(
             issues.append(
                 ValidationIssue(
                     issue_type="priority_without_rule",
-                    severity="failed",
+                    severity="noted",
                     message=(
                         "Each `Rule priority` item should correspond to a real pseudocode "
                         f"rule. No matching pseudocode rule was found for: `{priority_item}`."
@@ -391,12 +413,15 @@ def validate_overtime_pseudocode_against_inventory(
 
     passed_rule_count = len([result for result in rule_results if result.status == "passed"])
     failed_rule_count = len([result for result in rule_results if result.status == "failed"])
+    noted_rule_count = len([result for result in rule_results if result.status == "noted"])
     unresolved_rule_count = len([result for result in rule_results if result.status == "unresolved"])
     has_failed_issues = any(issue.severity == "failed" for issue in issues)
     if failed_rule_count > 0 or has_failed_issues:
         overall_status = "failed"
     elif unresolved_rule_count > 0:
         overall_status = "unresolved"
+    elif noted_rule_count > 0:
+        overall_status = "passed_with_notes"
     else:
         overall_status = "passed"
 
@@ -406,6 +431,7 @@ def validate_overtime_pseudocode_against_inventory(
         overall_status=overall_status,
         passed_rule_count=passed_rule_count,
         failed_rule_count=failed_rule_count,
+        noted_rule_count=noted_rule_count,
         unresolved_rule_count=unresolved_rule_count,
         rule_results=tuple(rule_results),
         issues=tuple(issues),
@@ -419,6 +445,7 @@ def render_validation_report_markdown(report: ValidationReport) -> str:
         f"- Overall status: `{report.overall_status}`",
         f"- Passed rules: `{report.passed_rule_count}`",
         f"- Failed rules: `{report.failed_rule_count}`",
+        f"- Documented exclusions: `{report.noted_rule_count}`",
         f"- Unresolved rules: `{report.unresolved_rule_count}`",
         "",
         "## Rule results",

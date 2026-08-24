@@ -61,7 +61,9 @@ PSEUDOCODE_GENERIC_CONSTRAINTS = """Common constraints:
 - Prefer simple step-by-step pseudocode over dense formulas.
 - Write each rule so the triggering data point, condition, and output are all explicit.
 - When determining priority, process outlier and exception rules first, then day-type and time-of-day rules, then shorter-period thresholds, then longer-period thresholds.
-- If any fields are unable to be converted into psuedocode, add these to the `Conditions not considered by the pseudocode` section, and explain why they are not included.
+- If a reviewed rule cannot be represented as useful executable pseudocode with the available fields, keep it under `Conditions not considered by the pseudocode`.
+- Every condition in that section must state the source clause reference, the business rule that remains relevant, and the specific reason it is not executable with the available fields.
+- A documented exclusion is a useful review note, not an instruction to delete or weaken the reviewed business rule.
 - Return markdown only.
 """
 

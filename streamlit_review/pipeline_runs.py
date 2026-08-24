@@ -379,6 +379,7 @@ def load_5b_validation_summary(paths: Any, step: str | None) -> dict[str, Any] |
         "overall_status": validation_data.get("overall_status", "unknown"),
         "passed_rule_count": validation_data.get("passed_rule_count", 0),
         "failed_rule_count": validation_data.get("failed_rule_count", 0),
+        "noted_rule_count": validation_data.get("noted_rule_count", 0),
         "unresolved_rule_count": validation_data.get("unresolved_rule_count", 0),
     }
 

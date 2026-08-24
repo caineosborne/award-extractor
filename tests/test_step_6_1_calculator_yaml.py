@@ -1,6 +1,9 @@
+import ast
 from copy import deepcopy
 
 from src.step_6_1_generate_calculator_yaml.core import (
+    align_questionnaire_to_calculator_contract,
+    calculator_rules_response_json_schema,
     normalize_response_data,
     render_python_text,
     summarized_rules,
@@ -26,6 +29,23 @@ def _answer(
         "reasoning_summary": reasoning_summary,
         "special_case_notes": special_case_notes,
     }
+
+
+def test_questionnaire_schema_only_adds_supported_overtime_and_penalties_questions():
+    schema = calculator_rules_response_json_schema()
+    sections = schema["properties"]["questionnaire_answers"]["properties"]
+
+    assert "casual_standard_overtime_multiplier" in sections["overtime"]["properties"]
+    assert "public_holiday_overtime_multiplier" in sections["overtime"]["properties"]
+    assert "live_span_start_hour" in sections["span"]["properties"]
+    assert "casual_breach_penalty_multiplier" in sections["gap_between_shifts"]["properties"]
+    assert "casual_ordinary_loading" not in sections["weekday_penalties"]["properties"]
+    assert "top_up" not in sections
+    assert "minimum_engagement" not in sections
+    status_options = sections["core_hours"]["properties"][
+        "day_worker_daily_limit_hours"
+    ]["properties"]["status"]["enum"]
+    assert "not_applicable" in status_options
 
 
 def test_summarized_rules_retains_rule_markdown_needed_for_numeric_calculator_values():
@@ -84,6 +104,7 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     source_rule_ids=["consequence-rule-1"],
                     clause_references=["21.4"],
                 ),
+                "casual_standard_overtime_multiplier": _answer(1.875),
                 "has_two_tier_overtime": _answer(
                     True,
                     source_ruleset_keys=["overtime_consequence"],
@@ -96,6 +117,7 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     source_rule_ids=["consequence-rule-1"],
                     clause_references=["21.4"],
                 ),
+                "casual_extended_overtime_multiplier": _answer(2.5),
                 "higher_overtime_starts_after_hours": _answer(
                     2,
                     source_ruleset_keys=["overtime_consequence"],
@@ -115,12 +137,16 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     source_rule_ids=["consequence-rule-2"],
                     clause_references=["21.4"],
                 ),
+                "casual_saturday_overtime_multiplier": _answer(2.5),
                 "sunday_overtime_multiplier": _answer(
                     2.0,
                     source_ruleset_keys=["overtime_consequence"],
                     source_rule_ids=["consequence-rule-3"],
                     clause_references=["21.4"],
                 ),
+                "casual_sunday_overtime_multiplier": _answer(2.5),
+                "public_holiday_overtime_multiplier": _answer(2.5),
+                "casual_public_holiday_overtime_multiplier": _answer(3.125),
             },
             "span": {
                 "day_workers_have_span_overtime": _answer(
@@ -129,6 +155,7 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     source_rule_ids=["creation-rule-5"],
                     clause_references=["13.3"],
                 ),
+                "live_span_start_hour": _answer(7),
                 "live_span_cutoff_hour": _answer(
                     19,
                     source_ruleset_keys=["overtime_creation"],
@@ -193,6 +220,16 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     source_rule_ids=["penalty-rule-3"],
                     clause_references=["31.1"],
                 ),
+                "casual_day_saturday_penalty_loading": _answer(0.5),
+                "casual_day_sunday_penalty_loading": _answer(1.25),
+                "casual_shift_saturday_penalty_loading": _answer(0.75),
+                "casual_shift_sunday_penalty_loading": _answer(1.0),
+                "day_public_holiday_treatment": _answer("overtime"),
+                "shift_public_holiday_treatment": _answer("penalty"),
+                "day_public_holiday_penalty_loading": _answer(0),
+                "shift_public_holiday_penalty_loading": _answer(1.5),
+                    "casual_day_public_holiday_penalty_loading": _answer(1.75),
+                "casual_shift_public_holiday_penalty_loading": _answer(1.75),
             },
             "gap_between_shifts": {
                 "minimum_break_required": _answer(
@@ -215,6 +252,7 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                     clause_references=["22.4"],
                     special_case_notes="Shiftworkers use 8 hours under clause 30.",
                 ),
+                "casual_breach_penalty_multiplier": _answer(1.25),
                 "special_case_thresholds": _answer(
                     [
                         {
@@ -239,8 +277,10 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                             "start_hour": 19,
                             "end_hour": 24,
                             "rate": 0.15,
+                            "casual_rate": 0.25,
                             "description": "Standard afternoon shift penalty.",
                             "applies_to": ["shift"],
+                            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
                         },
                         {
                             "code_name": "shiftwork_saturday_sunday_public_holiday",
@@ -249,8 +289,10 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                             "start_hour": 0,
                             "end_hour": 24,
                             "rate": 0.5,
+                            "casual_rate": 0.75,
                             "description": "Weekend shift penalty that should not be in live weekday penalties.",
                             "applies_to": ["shift"],
+                            "days": ["Saturday", "Sunday"],
                         },
                     ],
                     source_ruleset_keys=["penalties"],
@@ -266,8 +308,10 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
                             "start_hour": 7,
                             "end_hour": 19,
                             "rate": 0.25,
+                            "casual_rate": 0.5,
                             "description": "Saturday day rule that should not leak into weekday penalties.",
                             "applies_to": ["day"],
+                            "days": ["Saturday"],
                         }
                     ],
                     source_ruleset_keys=["penalties"],
@@ -288,43 +332,77 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
     normalized = normalize_response_data(response_data, award_code="MA000002")
 
     assert normalized["award_code"] == "MA000002"
-    assert normalized["calculator_rules"]["ordinary_hours_limit_daily"] == 10
-    assert normalized["calculator_rules"]["day_worker_ordinary_hours_daily"] == 8
-    assert normalized["calculator_rules"]["apply_span_overtime"] is True
-    assert normalized["calculator_rules"]["span_overtime_hour"] == 19
-    assert normalized["calculator_rules"]["gap_penalty_hours"] == 10
-    assert normalized["calculator_rules"]["gap_penalty_rate"] == 1.0
-    assert normalized["calculator_rules"]["two_tier_overtime"] is True
-    assert normalized["calculator_rules"]["two_tier_overtime_threshold"] == 2
-    assert normalized["calculator_rules"]["extended_overtime_days"] == [
+    rules = normalized["calculator_rules"]
+    assert rules["ORDINARY_TIME_RULES"]["daily"]["shift"] == 10
+    assert rules["ORDINARY_TIME_RULES"]["daily"]["day"] == 8
+    assert rules["ORDINARY_TIME_RULES"]["span_overtime"]["day"]["default"] == {
+        "start": 7,
+        "end": 19,
+        "enabled": True,
+    }
+    assert rules["GAP_BETWEEN_SHIFTS_RULE"]["minimum_hours"] == 10
+    assert rules["GAP_BETWEEN_SHIFTS_RULE"]["loading"] == 1.0
+    assert rules["GAP_BETWEEN_SHIFTS_RULE"]["casual_rate"] == 1.25
+    assert rules["PAY_RATES"]["overtime"]["two_tier"]["enabled"] is True
+    assert rules["PAY_RATES"]["overtime"]["two_tier"]["threshold"] == 2
+    assert rules["PAY_RATES"]["overtime"]["two_tier"]["days"] == [
         "Monday",
         "Tuesday",
         "Wednesday",
         "Thursday",
         "Friday",
     ]
-    assert normalized["calculator_rules"]["penalties"] == {
+    assert rules["ORDINARY_HOUR_PENALTIES"] == {
         "afternoon_shift": {
             "type": "shift_based",
             "basis": "end",
             "start": 19,
             "end": 24,
             "rate": 0.15,
+            "casual_rate": 0.25,
             "description": "Standard afternoon shift penalty.",
             "applies_to": ["shift"],
+            "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"],
         }
     }
-    assert normalized["calculator_rules"]["saturday_overtime_rate"] == 2.0
-    assert normalized["calculator_rules"]["weekend_rules"]["shift"]["Saturday"] == {
-        "is_overtime": False,
-        "rate": None,
-        "penalty_rate": 0.5,
+    assert rules["PAY_RATES"]["overtime"]["saturday"]["multiplier"] == 2.0
+    assert rules["PAY_RATES"]["overtime"]["weekday"]["casual"] == 1.875
+    assert rules["PAY_RATES"]["overtime"]["extended"]["casual"] == 2.5
+    assert rules["PAY_RATES"]["overtime"]["public_holiday"] == {
+        "multiplier": 2.5,
+        "casual": 3.125,
     }
-    assert normalized["calculator_rules"]["weekend_rules"]["day"]["Saturday"] == {
-        "is_overtime": True,
+    assert rules["DAY_TREATMENT_RULES"]["Saturday"]["shift"] == {
+        "base_classification": "ordinary",
+        "ordinary_loading": 0.5,
+        "casual_rate": 0.75,
+        "overtime_rate_key": "saturday",
     }
-    assert normalized["calculator_rules"]["use_contracted_hours_for_pt_overtime"] is True
-    assert normalized["field_evidence"]["gap_penalty_hours"]["special_case_notes"] == (
+    assert rules["DAY_TREATMENT_RULES"]["Saturday"]["day"] == {
+        "base_classification": "ordinary",
+        "ordinary_loading": 0.25,
+        "casual_rate": 0.5,
+        "overtime_rate_key": "saturday",
+    }
+    assert rules["DAY_TREATMENT_RULES"]["public_holiday"]["shift"] == {
+        "base_classification": "ordinary",
+        "ordinary_loading": 1.5,
+        "casual_rate": 1.75,
+        "overtime_rate_key": "public_holiday",
+    }
+    assert rules["DAY_TREATMENT_RULES"]["public_holiday"]["day"] == {
+        "base_classification": "overtime",
+        "ordinary_loading": 0,
+        "casual_rate": 0,
+        "overtime_rate_key": "public_holiday",
+    }
+    assert rules["ORDINARY_TIME_RULES"]["ordinary_rates"]["casual_loading"] == 0
+    assert any(
+        missing["field"] == "ORDINARY_TIME_RULES.ordinary_rates.casual_loading"
+        for missing in normalized["missing_from_analysis"]
+    )
+    assert rules["ORDINARY_TIME_RULES"]["period"]["part_time_uses_contracted_hours"] is True
+    assert normalized["field_evidence"]["GAP_BETWEEN_SHIFTS_RULE"]["special_case_notes"] == (
         "Shiftworkers use 8 hours under clause 30."
     )
 
@@ -338,8 +416,9 @@ def test_normalize_response_data_maps_questionnaire_to_calculator_fields():
         award_code="MA000002",
     )
 
-    assert normalized_without_live_span_cutoff["calculator_rules"]["apply_span_overtime"] is False
-    assert normalized_without_live_span_cutoff["calculator_rules"]["span_overtime_hour"] is None
+    assert normalized_without_live_span_cutoff["calculator_rules"]["ORDINARY_TIME_RULES"][
+        "span_overtime"
+    ] == {}
     assert "live span-overtime calculation has been disabled" in (
         normalized_without_live_span_cutoff["validation_warnings"][0]
     )
@@ -399,9 +478,10 @@ def test_normalize_response_data_preserves_source_rule_ids_without_validation():
 
     normalized = normalize_response_data(response_data, award_code="MA000009")
 
-    assert normalized["field_evidence"]["ordinary_hours_limit_daily"]["status"] == "derived"
-    assert normalized["field_evidence"]["ordinary_hours_limit_weekly"]["status"] == "defaulted"
-    assert normalized["field_evidence"]["ordinary_hours_limit_daily"]["source_rule_ids"] == ["missing-rule"]
+    ordinary_evidence = normalized["field_evidence"]["ORDINARY_TIME_RULES"]
+    assert ordinary_evidence["daily.shift"]["status"] == "derived"
+    assert ordinary_evidence["period.shift"]["status"] == "defaulted"
+    assert ordinary_evidence["daily.shift"]["source_rule_ids"] == ["missing-rule"]
 
 def test_normalize_response_data_preserves_source_rule_ids_verbatim():
     response_data = {
@@ -466,7 +546,7 @@ def test_normalize_response_data_preserves_source_rule_ids_verbatim():
 
     normalized = normalize_response_data(response_data, award_code="MA000120")
 
-    assert normalized["field_evidence"]["weekend_rules"]["source_rule_ids"] == [
+    assert normalized["field_evidence"]["DAY_TREATMENT_RULES"]["source_rule_ids"] == [
         "saturday-shiftworker-ordinary-hours-time-and-a-half"
     ]
 
@@ -540,18 +620,25 @@ def test_normalize_response_data_accepts_dotted_am_pm_shift_penalty_times():
 
     normalized = normalize_response_data(response_data, award_code="MA000120")
 
-    assert normalized["calculator_rules"]["penalties"]["early_morning_shift"] == {
+    assert normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"]["early_morning_shift"] == {
         "type": "shift_based",
         "basis": "start",
         "start": 5,
         "end": 6,
         "rate": 0.1,
+        "casual_rate": 0.1,
         "description": (
             "Shiftworkers: early morning shift starts at or after 5.00 am and "
             "before 6.00 am; the entire shift attracts a 10% loading."
         ),
         "applies_to": ["shift"],
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     }
+    assert not any(
+        missing["field"].endswith(".casual_rate")
+        and missing["field"].startswith("ORDINARY_HOUR_PENALTIES")
+        for missing in normalized["missing_from_analysis"]
+    )
 
 
 def test_normalize_response_data_rounds_fractional_penalty_hours_to_whole_hours():
@@ -622,17 +709,19 @@ def test_normalize_response_data_rounds_fractional_penalty_hours_to_whole_hours(
 
     normalized = normalize_response_data(response_data, award_code="MA000120")
 
-    assert normalized["calculator_rules"]["penalties"]["afternoon_shift"] == {
+    assert normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"]["afternoon_shift"] == {
         "type": "shift_based",
         "basis": "end",
         "start": 19,
         "end": 24,
         "rate": 0.15,
+        "casual_rate": 0.15,
         "description": (
             "Afternoon shift for shiftworkers: shift finishing after 6.30 pm and "
             "at or before midnight."
         ),
         "applies_to": ["shift"],
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
     }
 
 
@@ -701,7 +790,7 @@ def test_normalize_response_data_shortens_penalty_names():
 
     normalized = normalize_response_data(response_data, award_code="MA000018")
 
-    assert "early_morning_shift" in normalized["calculator_rules"]["penalties"]
+    assert "early_morning_shift" in normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"]
 
 
 def test_normalize_response_data_uses_time_suffix_only_when_short_names_collide():
@@ -779,8 +868,8 @@ def test_normalize_response_data_uses_time_suffix_only_when_short_names_collide(
 
     normalized = normalize_response_data(response_data, award_code="MA000018")
 
-    assert "shift" in normalized["calculator_rules"]["penalties"]
-    assert "shift_start_13_to_16" in normalized["calculator_rules"]["penalties"]
+    assert "shift" in normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"]
+    assert "shift_start_13_to_16" in normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"]
 
 
 def test_normalize_response_data_records_penalty_time_text_mismatch_as_warning():
@@ -848,8 +937,11 @@ def test_normalize_response_data_records_penalty_time_text_mismatch_as_warning()
 
     normalized = normalize_response_data(response_data, award_code="MA000018")
 
-    assert len(normalized["validation_warnings"]) == 1
+    assert len(normalized["validation_warnings"]) == 2
     assert "structured hours do not match" in normalized["validation_warnings"][0]
+    assert "generated using assumptions or defaults" in normalized[
+        "validation_warnings"
+    ][1]
 
 
 def test_normalize_response_data_accepts_ampm_penalty_time_with_midnight():
@@ -920,7 +1012,9 @@ def test_normalize_response_data_accepts_ampm_penalty_time_with_midnight():
 
     normalized = normalize_response_data(response_data, award_code="MA000120")
 
-    penalty = next(iter(normalized["calculator_rules"]["penalties"].values()))
+    penalty = next(
+        iter(normalized["calculator_rules"]["ORDINARY_HOUR_PENALTIES"].values())
+    )
 
     assert penalty["start"] == 19
     assert penalty["end"] == 24
@@ -928,60 +1022,54 @@ def test_normalize_response_data_accepts_ampm_penalty_time_with_midnight():
 
 def test_render_python_text_matches_calculator_class_shape():
     normalized_data = {
-        "schema_version": "calculator-rules-python-v1",
+        "schema_version": "calculator-rules-python-v2",
         "award_code": "MA000002",
         "award_title": "This is the Clerks—Private Sector Award 2020.",
         "calculator_rules": {
-            "ordinary_hours_limit_daily": 10,
-            "ordinary_hours_limit_weekly": 38,
-            "day_worker_ordinary_hours_daily": 8,
-            "day_worker_ordinary_hours_weekly": 38,
-            "standard_overtime_rate": 1.5,
-            "extended_overtime_rate": 2.0,
-            "sunday_overtime_rate": 2.0,
-            "saturday_overtime_rate": 2.0,
-            "apply_span_overtime": True,
-            "span_overtime_hour": 19,
-            "gap_penalty_hours": 10,
-            "gap_penalty_rate": 1.0,
-            "two_tier_overtime": True,
-            "two_tier_overtime_threshold": 2,
-            "extended_overtime_days": [
-                "Monday",
-                "Tuesday",
-                "Wednesday",
-                "Thursday",
-                "Friday",
-            ],
-            "use_contracted_hours_for_pt_overtime": True,
-            "pt_employees_entitled_to_contracted_topup": True,
-            "ft_employees_entitled_to_contracted_topup": True,
-            "penalties": {
+            "SHIFT_RULES": {
+                "default_break_hours": 0.5,
+                "minimum_paid_shift_hours": {},
+            },
+            "ORDINARY_TIME_RULES": {
+                "span_overtime": {
+                    "day": {
+                        "default": {"start": None, "end": 19, "enabled": True}
+                    }
+                },
+                "daily": {"variation": "worker_type", "day": 8, "shift": 10},
+                "long_day": {"uses_per_week": 0, "ordinary_limit_hours": None},
+                "period": {
+                    "variation": "worker_type",
+                    "day": 38,
+                    "shift": 38,
+                    "basis": "weekly",
+                    "max_work_days": None,
+                    "max_work_days_basis": "weekly",
+                    "part_time_uses_contracted_hours": True,
+                },
+                "ordinary_rates": {"casual_loading": 0},
+            },
+            "DAY_TREATMENT_RULES": {},
+            "PAY_RATES": {"overtime": {}},
+            "GAP_BETWEEN_SHIFTS_RULE": {
+                "minimum_hours": 10,
+                "loading": 1.0,
+                "casual_rate": 1.0,
+            },
+            "ORDINARY_HOUR_PENALTIES": {
                 "afternoon_shift": {
                     "type": "shift_based",
                     "basis": "end",
                     "start": 19,
                     "end": 24,
                     "rate": 0.15,
+                    "casual_rate": 0.15,
                     "description": "Standard afternoon shift penalty.",
                     "applies_to": ["shift"],
+                    "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
                 }
             },
-            "hours_pen_rules": {},
-            "weekend_rules": {
-                "day": {
-                    "Saturday": {
-                        "is_overtime": True,
-                    }
-                },
-                "shift": {
-                    "Saturday": {
-                        "is_overtime": False,
-                        "rate": None,
-                        "penalty_rate": 0.5,
-                    }
-                }
-            },
+            "TOP_UP_RULES": {"part_time": True, "full_time": True},
         },
         "field_evidence": {
             "ordinary_hours_limit_daily": {
@@ -993,19 +1081,56 @@ def test_render_python_text_matches_calculator_class_shape():
                 "special_case_notes": "",
             }
         },
+        "missing_from_analysis": [
+            {
+                "field": "SHIFT_RULES.minimum_paid_shift_hours",
+                "default_value": {},
+                "reason": "Minimum engagement is not included in the current analysis.",
+            }
+        ],
     }
 
     rendered = render_python_text(normalized_data)
 
     assert "class ClerksPrivateSectorRules:" in rendered
-    assert "ORDINARY_HOURS_LIMIT_DAILY = 10" in rendered
-    assert "USE_CONTRACTED_HOURS_FOR_PT_OVERTIME = True" in rendered
-    assert "EXTENDED_OVERTIME_DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']" in rendered
-    assert "DEFAULT_BREAK = 0.5" in rendered
+    assert "SHIFT_RULES = {'default_break_hours': 0.5" in rendered
+    assert "ORDINARY_TIME_RULES = {'span_overtime'" in rendered
+    assert "DAY_TREATMENT_RULES = {}" in rendered
+    assert "PAY_RATES = {'overtime': {}}" in rendered
+    assert "GAP_BETWEEN_SHIFTS_RULE = {'minimum_hours': 10" in rendered
+    assert "ORDINARY_HOUR_PENALTIES = {'afternoon_shift'" in rendered
+    assert "TOP_UP_RULES = {'part_time': True, 'full_time': True}" in rendered
+    assert "ORDINARY_HOURS_LIMIT_DAILY" not in rendered
     assert "'basis': 'end'" in rendered
-    assert "'penalty_rate': 0.5" in rendered
+    assert "'casual_rate': 0.15" in rendered
+    assert "# RULES EXCLUDED FROM THE ANALYSIS" in rendered
+    assert (
+        "# - Minimum paid shift: disabled because minimum engagement was not covered "
+        "by the analysis."
+    ) in rendered
     assert "# FIELD_EVIDENCE =" in rendered
     assert "# GENERATION_METADATA =" in rendered
+
+    parsed_module = ast.parse(rendered)
+    rules_class = next(
+        node for node in parsed_module.body if isinstance(node, ast.ClassDef)
+    )
+    assigned_attributes = {
+        target.id
+        for statement in rules_class.body
+        if isinstance(statement, ast.Assign)
+        for target in statement.targets
+        if isinstance(target, ast.Name)
+    }
+    assert assigned_attributes == {
+        "SHIFT_RULES",
+        "ORDINARY_TIME_RULES",
+        "DAY_TREATMENT_RULES",
+        "PAY_RATES",
+        "GAP_BETWEEN_SHIFTS_RULE",
+        "ORDINARY_HOUR_PENALTIES",
+        "TOP_UP_RULES",
+    }
 
 
 def test_render_python_text_puts_validation_warnings_before_the_calculator_class():
@@ -1013,27 +1138,13 @@ def test_render_python_text_puts_validation_warnings_before_the_calculator_class
         "schema_version": "1.0",
         "award_code": "MA000002",
         "calculator_rules": {
-            "ordinary_hours_limit_daily": None,
-            "ordinary_hours_limit_weekly": None,
-            "day_worker_ordinary_hours_daily": None,
-            "day_worker_ordinary_hours_weekly": None,
-            "standard_overtime_rate": None,
-            "extended_overtime_rate": None,
-            "sunday_overtime_rate": None,
-            "saturday_overtime_rate": None,
-            "apply_span_overtime": False,
-            "span_overtime_hour": None,
-            "gap_penalty_hours": None,
-            "gap_penalty_rate": None,
-            "penalties": {},
-            "hours_pen_rules": {},
-            "weekend_rules": {},
-            "two_tier_overtime": False,
-            "two_tier_overtime_threshold": None,
-            "extended_overtime_days": [],
-            "use_contracted_hours_for_pt_overtime": True,
-            "pt_employees_entitled_to_contracted_topup": True,
-            "ft_employees_entitled_to_contracted_topup": True,
+            "SHIFT_RULES": {},
+            "ORDINARY_TIME_RULES": {},
+            "DAY_TREATMENT_RULES": {},
+            "PAY_RATES": {},
+            "GAP_BETWEEN_SHIFTS_RULE": {},
+            "ORDINARY_HOUR_PENALTIES": {},
+            "TOP_UP_RULES": {},
         },
         "field_evidence": {},
         "validation_warnings": ["A live span cutoff is not available."],
@@ -1043,3 +1154,67 @@ def test_render_python_text_puts_validation_warnings_before_the_calculator_class
 
     assert "# IMPORTANT: REVIEW REQUIRED BEFORE USING THIS CALCULATOR" in rendered
     assert rendered.index("# IMPORTANT:") < rendered.index("class MA000002Rules:")
+def test_align_questionnaire_populates_fields_that_are_not_applicable():
+    response_data = {
+        "questionnaire_answers": {
+            "weekend_treatment": {
+                "day_saturday_treatment": _answer("overtime"),
+                "day_saturday_penalty_loading": _answer(None, status="not_found"),
+                "casual_day_saturday_penalty_loading": _answer(
+                    0.75,
+                    status="derived",
+                ),
+            },
+            "gap_between_shifts": {
+                "casual_breach_penalty_multiplier": _answer(
+                    None,
+                    status="not_found",
+                    reasoning_summary="The payment expressly excludes casual employees.",
+                ),
+            },
+            "weekday_penalties": {
+                "time_based_penalties": _answer([], status="not_found"),
+                "casual_ordinary_loading": _answer(0.25),
+            },
+        }
+    }
+
+    aligned = align_questionnaire_to_calculator_contract(response_data)
+    answers = aligned["questionnaire_answers"]
+
+    assert answers["weekend_treatment"]["day_saturday_penalty_loading"]["answer"] == 0
+    assert answers["weekend_treatment"]["day_saturday_penalty_loading"]["status"] == "not_applicable"
+    assert answers["weekend_treatment"]["casual_day_saturday_penalty_loading"]["answer"] == 0
+    assert answers["gap_between_shifts"]["casual_breach_penalty_multiplier"]["answer"] == 0
+    assert answers["gap_between_shifts"]["casual_breach_penalty_multiplier"]["status"] == "not_applicable"
+    assert answers["weekday_penalties"]["time_based_penalties"]["status"] == "not_applicable"
+    assert "casual_ordinary_loading" not in answers["weekday_penalties"]
+    assert response_data["questionnaire_answers"]["weekend_treatment"][
+        "day_saturday_penalty_loading"
+    ]["answer"] is None
+
+
+def test_align_questionnaire_marks_day_night_worker_mapping_as_an_assumption():
+    response_data = {
+        "questionnaire_answers": {
+            "core_hours": {
+                "day_worker_daily_limit_hours": _answer(
+                    8,
+                    reasoning_summary="The source provides an 8-hour day shift.",
+                ),
+                "shift_worker_daily_limit_hours": _answer(
+                    10,
+                    reasoning_summary="The source provides a 10-hour night shift.",
+                ),
+            }
+        }
+    }
+
+    aligned = align_questionnaire_to_calculator_contract(response_data)
+    core_hours = aligned["questionnaire_answers"]["core_hours"]
+
+    assert core_hours["day_worker_daily_limit_hours"]["status"] == "defaulted"
+    assert core_hours["shift_worker_daily_limit_hours"]["status"] == "defaulted"
+    assert "Contract-alignment assumption" in core_hours[
+        "shift_worker_daily_limit_hours"
+    ]["special_case_notes"]
