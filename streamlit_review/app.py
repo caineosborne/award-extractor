@@ -97,6 +97,7 @@ from streamlit_review.output_data import (
     source_path_for_ruleset_manual_ruleset_editor,
     write_text_file,
 )
+from streamlit_review.warning_aggregation import build_warning_register
 
 
 SCREEN_L1_PAYMENT = "1. Payment clauses"
@@ -108,10 +109,11 @@ SCREEN_EXPERT_COMPARISON = "6. Comparison of expert outputs"
 SCREEN_ORIGINAL_OVERTIME = "7. Step 3.1 Combined ruleset"
 SCREEN_REVIEW_FEEDBACK = "8. Step 3.2 Review and revised ruleset"
 SCREEN_FORMATTED_4A = "9. Step 4.1 Formatted overtime guide"
-SCREEN_HUMAN_REVIEW = "10. Step 4.9 Human review"
-SCREEN_CORE_OVERTIME_PSEUDOCODE = "11. Step 5.1 Pseudocode"
-SCREEN_CALCULATOR_QUESTIONNAIRE = "12. Step 6.1 Calculator Ruleset"
-SCREEN_CALCULATOR_PYTHON = "13. Step 6.1 Calculator Python"
+SCREEN_WARNING_REGISTER = "10. Step 4.2 Warning register"
+SCREEN_HUMAN_REVIEW = "11. Step 4.9 Human review"
+SCREEN_CORE_OVERTIME_PSEUDOCODE = "12. Step 5.1 Pseudocode"
+SCREEN_CALCULATOR_QUESTIONNAIRE = "13. Step 6.1 Calculator Ruleset"
+SCREEN_CALCULATOR_PYTHON = "14. Step 6.1 Calculator Python"
 CLAUSE_REFERENCE_PATTERN = re.compile(
     r"\b\d+(?:\.\d+)+(?:\([a-z0-9]+\))*\b",
     re.IGNORECASE,
@@ -147,6 +149,7 @@ SCREEN_OPTIONS = [
     SCREEN_ORIGINAL_OVERTIME,
     SCREEN_REVIEW_FEEDBACK,
     SCREEN_FORMATTED_4A,
+    SCREEN_WARNING_REGISTER,
     SCREEN_HUMAN_REVIEW,
     SCREEN_CORE_OVERTIME_PSEUDOCODE,
     SCREEN_CALCULATOR_QUESTIONNAIRE,
@@ -344,7 +347,13 @@ def render_sidebar(award_codes: list[str]) -> str:
             st.session_state["layout_mode"] = "Single expanded"
             sync_layout_widgets_from_state()
 
-        if st.button("3.2 manual ruleset editor", use_container_width=True):
+        if st.button("4.2 warning register", use_container_width=True):
+            st.session_state["screen_one"] = SCREEN_WARNING_REGISTER
+            st.session_state["screen_two"] = "None"
+            st.session_state["layout_mode"] = "Single expanded"
+            sync_layout_widgets_from_state()
+
+        if st.button("4.9 manual ruleset editor", use_container_width=True):
             st.session_state["screen_one"] = SCREEN_HUMAN_REVIEW
             st.session_state["screen_two"] = "None"
             st.session_state["layout_mode"] = "Single expanded"
@@ -567,6 +576,7 @@ def render_screen(
         SCREEN_EXPERT_COMPARISON: render_expert_comparison_screen,
         SCREEN_REVIEW_FEEDBACK: render_review_feedback_screen,
         SCREEN_FORMATTED_4A: render_formatted_4a_screen,
+        SCREEN_WARNING_REGISTER: render_warning_register_screen,
         SCREEN_HUMAN_REVIEW: render_manual_ruleset_editor_screen,
         SCREEN_CORE_OVERTIME_PSEUDOCODE: render_core_overtime_pseudocode_screen,
         SCREEN_CALCULATOR_QUESTIONNAIRE: render_calculator_questionnaire_screen,
@@ -1462,6 +1472,76 @@ def render_formatted_4a_screen(artifact_paths: Any, panel_key: str, ruleset_key:
         ruleset_artifacts.formatted_markdown,
         source_path=ruleset_artifacts.revised_markdown,
     )
+
+
+def render_warning_register_screen(
+    artifact_paths: Any,
+    panel_key: str,
+    ruleset_key: str,
+) -> None:
+    """Render the stored step 3.1 through 4.1 warnings in one register."""
+    del panel_key
+    ruleset_artifacts = ruleset_artifact_paths_for_award(
+        award_code_for_artifact_paths(artifact_paths),
+        ruleset_key,
+    )
+    warning_register = build_warning_register(ruleset_artifacts)
+    stage_summaries = warning_register["stage_summaries"]
+    warnings = warning_register["warnings"]
+    missing_artifacts = warning_register["missing_artifacts"]
+
+    st.caption(
+        "This register collects the warnings already stored by each stage. "
+        "It does not rerun or broaden any stage comparison."
+    )
+
+    stage_columns = st.columns(len(stage_summaries), gap="small")
+    for column, summary in zip(stage_columns, stage_summaries):
+        metric_value: int | str = summary["warning_count"]
+        if not summary["artifact_available"]:
+            metric_value = "Not found"
+        column.metric(summary["stage_label"], metric_value)
+
+    if missing_artifacts:
+        missing_stage_labels = ", ".join(
+            artifact["stage_label"] for artifact in missing_artifacts
+        )
+        st.info(
+            "Warning artifacts are not yet available for: " + missing_stage_labels + "."
+        )
+
+    if not warnings:
+        if not missing_artifacts:
+            st.success("No stored warnings were found across steps 3.1 to 4.1.")
+        return
+
+    unique_warning_count = warning_register["unique_warning_count"]
+    total_stage_occurrences = warning_register["total_stage_occurrences"]
+    if total_stage_occurrences == unique_warning_count:
+        st.warning(f"{unique_warning_count} warning(s) require review.")
+    else:
+        st.warning(
+            f"{unique_warning_count} unique warning(s) require review. "
+            f"{total_stage_occurrences - unique_warning_count} repeated stage "
+            "occurrence(s) have been merged."
+        )
+
+    clause_index = load_clause_hover_index(
+        str(ruleset_artifacts.clause_classification)
+    )
+    for warning_number, warning_record in enumerate(warnings, start=1):
+        warning = str(warning_record["warning"])
+        display_warning = format_validation_warning_for_display(warning)
+        stage_labels = ", ".join(warning_record["stage_labels"])
+
+        with st.container(border=True):
+            st.markdown(f"**{warning_number}. {display_warning}**")
+            st.caption(f"Raised by: {stage_labels}")
+            render_clause_source_details(
+                clause_references_in_text(display_warning),
+                clause_index,
+                label_prefix="Source clause",
+            )
 
 
 def render_manual_ruleset_editor_screen(artifact_paths: Any, panel_key: str, ruleset_key: str) -> None:
@@ -3070,6 +3150,17 @@ def render_clause_source_details(
 
 def format_validation_warning_for_display(warning: str) -> str:
     """Normalize older warning text into the current reviewer-friendly wording."""
+    current_review_coverage_loss_match = re.fullmatch(
+        r"The earlier draft clause (.+) was present before review but is not referenced after review\.",
+        warning,
+    )
+    if current_review_coverage_loss_match:
+        clause_number = current_review_coverage_loss_match.group(1)
+        return (
+            f"Clause {clause_number} was referenced in the 3.1 Combined ruleset "
+            "but is not referenced in the 3.2 Revised ruleset."
+        )
+
     coverage_loss_match = re.fullmatch(
         r"Original step 3\.4 clause (.+) was present before review but is not referenced after review\.",
         warning,

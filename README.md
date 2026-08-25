@@ -78,6 +78,7 @@ The main review screens are now reviewer-facing:
 - combined ruleset
 - reviewer feedback and commentary
 - final formatted ruleset
+- consolidated step 4.2 warning register
 - manually edited ruleset
 - pseudocode
 - calculator questionnaire

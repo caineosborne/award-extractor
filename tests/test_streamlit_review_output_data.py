@@ -21,6 +21,7 @@ from src.prompts.step_3_2_review_ruleset import (
 from streamlit_review.app import (
     PIPELINE_STEP_LABELS as APP_PIPELINE_STEP_LABELS,
     RULESET_OPTIONS,
+    SCREEN_OPTIONS,
     apply_calculator_questionnaire_answers,
     award_code_for_artifact_paths,
     award_selection_index,
@@ -33,6 +34,7 @@ from streamlit_review.app import (
     calculator_question_status_message,
     calculator_questions_requiring_review,
     formatted_ruleset_warning_rule_text,
+    format_validation_warning_for_display,
     json_expander_widget_key,
     manual_ruleset_editor_widget_key,
     move_selected_index,
@@ -119,6 +121,18 @@ class ExampleRules:
         "Structured warning",
         "Public-holiday overtime rate: assumed/default value None was used. Not found.",
     ]
+
+
+def test_step_3_2_coverage_warning_names_the_compared_stages():
+    warning = (
+        "The earlier draft clause 25.2(c) was present before review but is not "
+        "referenced after review."
+    )
+
+    assert format_validation_warning_for_display(warning) == (
+        "Clause 25.2(c) was referenced in the 3.1 Combined ruleset but is not "
+        "referenced in the 3.2 Revised ruleset."
+    )
 
 
 def test_formatted_ruleset_warning_rule_text_returns_the_full_omitted_rule():
@@ -1150,9 +1164,19 @@ def test_default_second_screen_for_uses_the_next_available_screen():
     assert default_second_screen_for("6. Comparison of expert outputs") == (
         "7. Step 3.1 Combined ruleset"
     )
-    assert default_second_screen_for("13. Step 6.1 Calculator Python") == (
-        "12. Step 6.1 Calculator Ruleset"
+    assert default_second_screen_for("14. Step 6.1 Calculator Python") == (
+        "13. Step 6.1 Calculator Ruleset"
     )
+
+
+def test_warning_register_is_between_formatted_output_and_human_review():
+    formatted_index = SCREEN_OPTIONS.index("9. Step 4.1 Formatted overtime guide")
+
+    assert SCREEN_OPTIONS[formatted_index : formatted_index + 3] == [
+        "9. Step 4.1 Formatted overtime guide",
+        "10. Step 4.2 Warning register",
+        "11. Step 4.9 Human review",
+    ]
 
 
 def test_restore_side_by_side_view_keeps_the_current_full_screen_selection(monkeypatch):
