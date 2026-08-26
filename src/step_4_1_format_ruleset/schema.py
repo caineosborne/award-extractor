@@ -9,9 +9,9 @@ DEFAULT_AWARD_CODE = "MA000018"
 # Step 4.1 must simplify legal-style rules without losing operational meaning.
 # Use the quality-first model here; higher-volume extraction steps remain on Luna.
 DEFAULT_MODEL = "gpt-5.6-sol"
-DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "resources" / "Templates" / "Template.md"
+DEFAULT_TEMPLATE_PATH = PROJECT_ROOT / "templates" / "Template.md"
 DEFAULT_CONSEQUENCE_TEMPLATE_PATH = (
-    PROJECT_ROOT / "resources" / "Templates" / "overtime_consequence_template.md"
+    PROJECT_ROOT / "templates" / "overtime_consequence_template.md"
 )
 
 

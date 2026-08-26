@@ -9,7 +9,7 @@ Use it when you need to know:
 - which JSON schema is expected;
 - which deterministic validations run before an artifact is accepted or written.
 
-For business purpose and review intent, use `resources/METHODOLOGY.md`.
+For business purpose and review intent, use [METHODOLOGY.md](METHODOLOGY.md).
 
 ## Scope
 
@@ -26,8 +26,6 @@ Active default pipeline:
 - Step `3.2`
 - Step `4.1`
 - Step `5.1`
-
-Maintained final calculator step:
 - Step `6.1`
 
 Optional review utility between step `4.1` and step `5.1`:
@@ -62,6 +60,29 @@ Primary shared helpers:
 | 5.1 validation | `src/step_5_1_generate_pseudocode/step_3_validate_pseudocode.py` | No | Validation JSON/MD |
 | 6.1 | `src/step_6_1_generate_calculator_yaml/run.py` | Yes | Calculator questionnaire JSON and calculator Python |
 
+## Canonical Output Locations
+
+`MAxxxxx` represents the selected award code. `<ruleset-label>` is
+`OT_creation`, `OT_consequence`, or `Penalties`.
+
+| Step | Artifact | Canonical location |
+| --- | --- | --- |
+| 1 | Raw award HTML | `data/processed/MAxxxxx/raw/1_1_raw.html` |
+| 1 | Structured award | `data/processed/MAxxxxx/1_2_award.json` |
+| 1 | Section index | `data/processed/MAxxxxx/supporting/1_2_award_sections.json` |
+| 1 | Heading summary | `data/processed/MAxxxxx/supporting/1_2_award.csv` |
+| 2.1 | Payment classification | `data/processed/MAxxxxx/2_1_payment_classification.json` |
+| 2.2 | Overtime clause classification | `data/processed/MAxxxxx/2_2_OT_clause_classification.json` |
+| 2.2 | Penalties clause classification | `data/processed/MAxxxxx/2_2_Penalties_clause_classification.json` |
+| 3.1 | Expert drafts | `data/processed/MAxxxxx/3_1_<ruleset-label>_ruleset_expert_a.{json,md}` and `3_1_<ruleset-label>_ruleset_expert_b.{json,md}` |
+| 3.1 | Comparison and combined ruleset | `data/processed/MAxxxxx/3_1_<ruleset-label>_ruleset_comparison.json` and `3_1_<ruleset-label>_ruleset.{json,md}` |
+| 3.2 | Evaluator and creator records | `data/processed/MAxxxxx/feedback/3_2_<ruleset-label>_review.{json,md}` and `3_2_<ruleset-label>_creator_response.{json,md}` |
+| 3.2 | Revised ruleset | `data/processed/MAxxxxx/3_2_<ruleset-label>_revised_ruleset.{json,md}` |
+| 4.1 | Formatted ruleset | `data/processed/MAxxxxx/4_1_<ruleset-label>_formatted_ruleset.md` |
+| 4.9 | Optional human-reviewed ruleset | `data/processed/MAxxxxx/3_2_<ruleset-label>_revised_ruleset_manual.md` |
+| 5.1 | Pseudocode and validation | `data/processed/MAxxxxx/5_1_<ruleset-label>_pseudocode.md` and `5_1_<ruleset-label>_pseudocode_validation.{json,md}` |
+| 6.1 | Calculator questionnaire and Python | `data/processed/MAxxxxx/calculator/MAxxxxx_ruleset_questionnaire.json` and `MAxxxxx_ruleset.py` |
+
 ## Prompt Construction Pattern
 
 The prompt layer is intentionally split so shared payroll language can be reused without making every Step, Ruleset, or Subset repeat the same wording.
@@ -89,7 +110,7 @@ Use this legend when reading the tables below:
 
 | Step | Script or module that calls the prompt | Prompt modules used | What is injected |
 | --- | --- | --- | --- |
-| 2.2 | `src/step_2_2_classify_overtime_clauses/run.py` and `src/step_2_2_classify_overtime_clauses/step_3_run_llm.py` | `src/prompts/step_2_2_classify_overtime_clauses.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_2_1_classify_payments.py`, `src/prompts/shared_overtime_clause_classification.py` | System prompt, generic payroll configuration, shared glossary, subset-wide instructions, Step 2.2 family instructions, ruleset question block, Step 2.2 subset instructions, clause payload, output contract |
+| 2.2 | `src/step_2_2_classify_overtime_clauses/run.py` and `src/step_2_2_classify_overtime_clauses/step_3_classify_overtime.py` | `src/prompts/step_2_2_classify_overtime_clauses.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_2_1_classify_payments.py`, `src/prompts/shared_overtime_clause_classification.py` | System prompt, generic payroll configuration, shared glossary, subset-wide instructions, Step 2.2 family instructions, ruleset question block, Step 2.2 subset instructions, clause payload, output contract |
 | 3.1 | `src/step_3_1_generate_ruleset/run.py` and `src/step_3_1_generate_ruleset/step_2_generate_expert_rules.py` | `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_3_1_shared.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, shared interpretation language, subset-wide instructions, Step 3.1 family instructions, ruleset question block, Step 3.1 subset instructions, working paper content |
 | 3.2 | `src/step_3_2_review_ruleset/run.py`, `src/step_3_2_review_ruleset/step_2_run_reviewer.py`, `src/step_3_2_review_ruleset/step_3_run_creator.py` | `src/prompts/step_3_2_review_ruleset.py`, `src/prompts/step_3_2_prompt_config.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py`, `src/prompts/step_3_1_generate_ruleset.py`, `src/prompts/step_2_2_classify_overtime_clauses.py` | Review prompt, generic payroll configuration, subset-wide instructions, Step 3.2 family instructions, ruleset question block, Step 3.2 subset scope notes, Step 2.1 and Step 2.2 context, canonical Step 3.1 output, evaluator feedback, creator revision instructions |
 | 4.1 | `src/step_4_1_format_ruleset/run.py` and `src/step_4_1_format_ruleset/step_2_format_ruleset.py` | `src/prompts/step_4_1_format_ruleset.py`, `src/prompts/ruleset_subset_prompt_blocks.py`, `src/prompts/overtime_common_prompt_blocks.py` | System prompt, generic payroll configuration, subset-wide instructions, Step 4.1 family instructions, template markdown, reviewed ruleset markdown, ruleset question block, Step 4.1 subset formatting instructions |
@@ -357,7 +378,7 @@ Prompt:
 Purpose:
 - turn the revised interpretation artifact into a cleaner human-readable ruleset guide;
 - prefer the revised step `3.2` interpretation when an award code is used;
-- use `resources/Templates/Template.md` as a formatting and heading reference;
+- use `templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
 - present each rule as a short, direct payroll outcome, with scope, thresholds,
   exceptions, assumptions, and source clauses placed in indented bullets;
@@ -403,8 +424,7 @@ Purpose:
 - answer a fixed calculator questionnaire from the reviewed step `3.2` JSON rulesets;
 - combine the reviewed overtime creation, overtime consequence, and penalties rulesets;
 - preserve evidence fields for each answer;
-- generate a Python calculator rules draft containing only the seven grouped
-  attributes in `resources/ruleset.md`;
+- generate a Python calculator rules draft from the fixed questionnaire schema;
 - mark fields that are outside the current analysis as `MISSING_FROM_ANALYSIS`
   and show the default written to the Python output.
 - do not ask the model to derive ordinary casual loading; retain the required
@@ -419,8 +439,8 @@ Purpose:
   human-review assumption.
 
 Primary artifacts:
-- `calculator/6_1_calculator_questionnaire.json`
-- `calculator/6_1_calculator_rules.py`
+- `calculator/MAxxxxx_ruleset_questionnaire.json`
+- `calculator/MAxxxxx_ruleset.py`
 
 Important limitation:
 - step `6.1` is a first-pass calculator configuration surface. The questionnaire and Python output format are expected to keep changing as calculator integration needs become clearer.

@@ -4,9 +4,8 @@ This document explains how the current pipeline works at a business and review-m
 
 It is intentionally not the low-level implementation reference.
 
-Use:
-- `resources/TECHNICAL_GUIDE.md` for exact LLM inputs and outputs, JSON schemas, and deterministic validation logic;
-- `resources/outputs.md` for filenames and output locations.
+Use [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md) for exact LLM inputs and outputs,
+JSON schemas, deterministic validation logic, and canonical output locations.
 
 ## Purpose
 
@@ -26,10 +25,11 @@ The active path is:
 3. Build one selected ruleset subset, draft rulesets, and review the revised interpretation.
 4. Format the reviewed ruleset for reviewer-facing output.
 5. Generate implementation-oriented pseudocode.
+6. Generate the calculator questionnaire and calculator Python draft.
 
-In code, those are steps `1`, `2.1`, `2.2`, `3.1`, `3.2`, `4.1`, and `5.1`.
-Step `6.1` is a separate calculator-questionnaire and calculator-draft stage
-that can be run after the reviewed rulesets are available.
+In code, those are steps `1`, `2.1`, `2.2`, `3.1`, `3.2`, `4.1`, `5.1`, and
+`6.1`. Step `6.1` runs after the reviewed creation, consequence, and penalties
+rulesets are available.
 
 ## Human review expectations
 
@@ -345,7 +345,7 @@ Files:
 Purpose:
 - turn the revised interpretation artifact into a cleaner human-readable ruleset guide;
 - prefer the revised step `3.2` interpretation when an award code is used;
-- use `resources/Templates/Template.md` as a formatting and heading reference;
+- use `templates/Template.md` as a formatting and heading reference;
 - omit unsupported template headings entirely rather than emitting placeholder text;
 - ignore the validation-notes preamble from the source interpretation and format only the actual rules.
 
@@ -406,8 +406,7 @@ Files:
 Purpose:
 - combine the reviewed step `3.2` JSON rulesets for overtime creation, overtime consequence, and penalties;
 - answer a fixed calculator questionnaire with evidence fields;
-- generate a calculator Python draft from that questionnaire using only the
-  seven grouped attributes defined in `resources/ruleset.md`;
+- generate a calculator Python draft from the fixed questionnaire schema;
 - identify fields outside the current analysis and show their explicit defaults
   under `MISSING_FROM_ANALYSIS` in the generated Python.
 - present each missing rule with a readable business label, its auditable field
@@ -434,8 +433,7 @@ This methodology document deliberately stops short of:
 - listing every field of every artifact;
 - restating exact validator function behaviour line by line.
 
-Those details now live in:
-- `resources/TECHNICAL_GUIDE.md`
+Those details now live in [TECHNICAL_GUIDE.md](TECHNICAL_GUIDE.md).
 
 ## Streamlit review application
 

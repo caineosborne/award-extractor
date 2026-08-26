@@ -1,41 +1,70 @@
 # Award Extractor
 
-This project produces audit-readable payroll ruleset interpretation artifacts from Australian modern awards.
+Award Extractor produces reviewable payroll-ruleset interpretation artifacts from Australian modern awards.
 
-Keep this file as the short entry point. The detailed documentation now lives in:
+The project is an experimental, reviewer-assisted workflow. It is designed to make source clauses, interpretation decisions, validation warnings, and downstream artifacts easier to trace.
 
-- `resources/METHODOLOGY.md`
-- `resources/TECHNICAL_GUIDE.md`
-- `resources/outputs.md`
+## Important limitation
 
-## Current active pipeline
+This software does not provide legal advice and does not produce an authoritative payroll determination. Model-generated rulesets, pseudocode, and calculator drafts can be incomplete or incorrect.
 
-The current default pipeline is:
+Before using an output for payroll configuration or assurance work, a suitably qualified reviewer must check it against the current official award, applicable legislation, and the relevant employment circumstances. The official award source always takes precedence over this project's output.
 
-1. `1` = fetch and structure the award. This combines phases `1.1` and `1.2`.
-2. `2.1` = classify payment-relevant clauses.
-3. `2.2` = build the selected ruleset clause subset.
-4. `3.1` = generate the selected ruleset.
-5. `3.2` = review and revise the ruleset.
-6. `4.1` = format the ruleset.
-7. `5.1` = generate pseudocode.
-8. `6.1` = generate the calculator questionnaire JSON and calculator Python draft.
+## Documentation
+
+- [Methodology](METHODOLOGY.md) explains the business workflow, review points, and interpretation boundaries.
+- [Technical guide](TECHNICAL_GUIDE.md) explains pipeline ownership, model inputs and outputs, validation, and canonical output filenames.
+
+## Current pipeline
+
+The default pipeline runs these steps:
+
+1. `1` — fetch and structure the award.
+2. `2.1` — classify payment-relevant clauses.
+3. `2.2` — build the selected ruleset clause subset.
+4. `3.1` — generate the selected ruleset.
+5. `3.2` — review and revise the ruleset.
+6. `4.1` — format the ruleset.
+7. `5.1` — generate pseudocode.
+8. `6.1` — generate the calculator questionnaire JSON and calculator Python draft.
 
 From step `2.2` onward, the active rulesets are:
-- overtime creation
-- overtime consequence
-- penalties
 
-The default `award-pipeline` run goes through `5.1`.
-Run `6.1` after the reviewed creation, consequence, and penalties rulesets exist.
+- overtime creation;
+- overtime consequence; and
+- penalties.
 
-Run the active pipeline end to end with:
+## Setup
+
+Requirements:
+
+- Python 3.12 or later;
+- [`uv`](https://docs.astral.sh/uv/); and
+- an OpenAI API key with access to the models configured in the pipeline.
+
+Install the project dependencies:
+
+```bash
+uv sync
+```
+
+Set the API key in your shell or in a local `.env` file:
+
+```bash
+export OPENAI_API_KEY="your-api-key"
+```
+
+The `.env` file is excluded from Git. Model-backed runs use the OpenAI API and may incur usage charges.
+
+## Run the pipeline
+
+Run the complete pipeline through step `6.1`:
 
 ```bash
 uv run award-pipeline MA000018
 ```
 
-Run later maintained steps with:
+Run one maintained step:
 
 ```bash
 uv run award-pipeline MA000018 4.1
@@ -43,84 +72,42 @@ uv run award-pipeline MA000018 5.1
 uv run award-pipeline MA000018 6.1
 ```
 
-## Version 1 boundary
+Run only selected rulesets by using `1` for overtime creation, `2` for overtime consequence, or `3` for penalties:
 
-Version 1 is a reviewer-assisted extraction workflow. It produces auditable draft
-rulesets, pseudocode, and calculator configuration artifacts. It does not claim
-fully automated correctness across every modern award.
+```bash
+uv run award-pipeline MA000018 --subset 1 2
+```
 
-Expected ongoing iteration:
-- prompt wording;
-- step `6.1` questionnaire and calculator output shape;
-- additional human intervention points;
-- user-facing prompt review and editing.
+## Review application
 
-## Review app
-
-Run the Streamlit review app with:
+Run the Streamlit review application:
 
 ```bash
 uv run streamlit run review_outputs.py
 ```
 
-The app lets you inspect and compare intermediate artifacts, review expert outputs, edit the manual ruleset markdown, inspect the step `5.1` pseudocode outputs, and review/edit the step `6.1` calculator questionnaire and Python draft.
+The application exposes the source classifications, expert drafts, comparison artifact, structured review decisions, revised rulesets, formatting warnings, pseudocode, and calculator artifacts. It also allows a reviewer to save a manually edited ruleset for later pseudocode generation.
 
-To start a local PDF workflow, choose **Add new award** in the sidebar. Enter an
-MA-style code, or upload a PDF without a code. When no code is entered, the PDF
-filename stem (without `.pdf`) is used as the local output set name.
-
-The main review screens are now reviewer-facing:
-- payment clauses
-- payment clause categories
-- ruleset clause classification
-- expert A and expert B ruleset drafts
-- comparison of expert outputs
-- combined ruleset
-- reviewer feedback and commentary
-- final formatted ruleset
-- consolidated step 4.2 warning register
-- manually edited ruleset
-- pseudocode
-- calculator questionnaire
-- calculator Python
-- step-3 ruleset selector for overtime creation, overtime consequence, and penalties
+For a local PDF workflow, select **Add new award** in the sidebar. Enter an MA-style award code or upload a PDF without a code. When no code is entered, the PDF filename stem is used as the local output-set name.
 
 ## Rule traceability
 
-The `rule-trace` tool works backwards from a Python ruleset to check whether each
-included rule survives across named phase artifacts. It reports whether a rule is
-`missing`, `present_accurate`, or `present_inaccurate`, with the matching file and
-line as evidence. Python and JSON phase outputs are compared structurally when
-possible; Markdown and pseudocode text are checked by rule name and value.
-
-For example:
+The `rule-trace` utility checks whether rules from a supplied Python ruleset appear across named pipeline artifacts. Its `present_accurate` result means accurate relative to the supplied ruleset source of truth; it does not independently establish legal correctness against an award.
 
 ```bash
 uv run rule-trace rules.py \
-  --ignore-name PT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP \
-  --ignore-name FT_EMPLOYEES_ENTITLED_TO_CONTRACTED_TOPUP \
-  --phase "Expert A=expert_a.md" \
-  --phase "Expert B=expert_b.md" \
-  --phase "Combined Expert=combined.md" \
-  --phase "Post Review=post_review.md" \
-  --phase "Formatted=formatted.md" \
+  --phase "Reviewed=reviewed.md" \
   --phase "Pseudocode=pseudocode.md" \
   --phase "Python Output=calculator.py" \
   --output rule_traceability.md
 ```
 
-`present_accurate` means accurate relative to the supplied ruleset source of
-truth. It does not independently determine whether the rule is legally correct
-against the award; that remains an award-clause review question.
-
-For step `3.2`, the review screen shows both:
-- the readable evaluator and creator markdown summaries; and
-- the structured JSON artifacts, including evaluator rule-by-rule recommendations and proposed new rules.
-
 ## Tests
-
-Run the test suite with:
 
 ```bash
 uv run pytest
 ```
+
+## Licence and reuse
+
+No open-source licence is currently granted for this repository. Public visibility permits review of the source but does not grant permission to copy, modify, distribute, or use it commercially. Contact the repository owner if you want permission to reuse the project.

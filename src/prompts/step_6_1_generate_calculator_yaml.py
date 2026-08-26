@@ -44,9 +44,9 @@ Important:
 - The questionnaire covers only overtime creation, overtime consequences, and penalties.
 - Do not infer minimum engagement, default breaks, top-up entitlements, or other rule families outside those three reviewed sources.
 - Every answer must include evidence fields.
-- Treat `resources/ruleset.md` as the authoritative output contract. Use the
-  reviewed step 3.2 rulesets as the source for values and document any
-  assumption needed to fit those values into the calculator contract.
+- Treat the supplied questionnaire schema as the authoritative calculator
+  output contract. Use the reviewed step 3.2 rulesets as the source for values
+  and document any assumption needed to fit those values into that contract.
 - If the source does not support a confident live answer, set `answer` to null,
   use status `needs_review` or `not_found`, and explain why.
 - Use status `not_applicable` when the calculator field has no role because of

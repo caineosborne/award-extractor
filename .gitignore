@@ -40,3 +40,6 @@ htmlcov/
 *.ipynb
 .ipynb_checkpoints/
 jupyter/
+
+# Local historical and working material that is not published to GitHub
+/archive/

@@ -183,7 +183,7 @@ If my wording is ambiguous or technically inaccurate:
 1. Explain the ambiguity briefly.
 2. Recommend the preferred project terminology.
 3. Use that terminology consistently.
-4. Suggest additions to `resources/domain-glossary.md` when recurring concepts are identified.
+4. Suggest creating or updating a domain glossary when recurring concepts are identified.
 
 Do not rename established domain concepts purely for readability.
 
@@ -244,4 +244,3 @@ If a better term exists:
 - explain why,
 - recommend it,
 - then use it consistently.
-
