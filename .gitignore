@@ -41,5 +41,9 @@ htmlcov/
 .ipynb_checkpoints/
 jupyter/
 
+
+# Front end
+/frontend
+
 # Local historical and working material that is not published to GitHub
 /archive/

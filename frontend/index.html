@@ -1,80 +1,506 @@
 <!doctype html>
 <html lang="en">
+
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="A briefing paper on experiments in automated award extraction.">
-  <title>Experiments in automated award extraction | Award Extractor</title>
+  <meta name="description"
+    content="Award Extractor turns complex awards into reviewable payroll rules with evidence and controls.">
+  <title>Award Extractor | Reviewable payroll rules from complex awards</title>
   <link rel="stylesheet" href="styles.css">
 </head>
+
 <body>
-  <header class="site-header"><div class="page-width header-inner"><a class="wordmark" href="#top">Award Extractor</a><span class="header-note">Briefing paper · experimental project</span></div></header>
+  <header class="site-header">
+    <div class="page-width header-inner"><a class="wordmark" href="#top"><span>PayGuide</span> / Award Extractor</a>
+      <nav class="product-nav" aria-label="Page navigation"><a href="#summary">What it does</a><a
+          href="#controls">Controls</a><a href="#process-title">Process</a><a href="#caveats-title">Caveats</a><a
+          class="nav-cta" href="#try">Try it</a></nav>
+    </div>
+  </header>
 
   <main id="top" class="page-width">
     <section class="intro" aria-labelledby="page-title">
-      <p class="kicker">Experiments in automated award extraction</p>
-      <h1 id="page-title">Can AI produce an award interpretation that a payroll team can trust?</h1>
-      <p class="lead">Frontier AI models can give surprisingly good answers to specific entitlement questions. The harder question is whether they can analyse a complete award, preserve every relevant clause, and produce rules that can be reviewed before they are used in payroll.</p>
-      <div class="briefing-meta"><div><span class="meta-label">Status</span><span>Experimental process</span></div><div><span class="meta-label">Primary audience</span><span>Assurance and payroll managers</span></div><div><span class="meta-label">Final artifact</span><span>Award Interpretation containing rulesets</span></div></div>
+      <div class="hero-copy">
+        <p class="kicker">Controlled AI-assisted award interpretation</p>
+        <h1 id="page-title">Turn complex awards and EAs into usable payroll guides.</h1>
+        <p class="lead">Award Extractor uses AI to analyse award clauses and create draft rulesets. Deterministic
+          checks ensure every clause is accounted for, then a structured review step helps people make the final
+          judgement.</p>
+        <div class="hero-actions"><a class="primary-link" href="#try">Interested in trying it? <span
+              aria-hidden="true">→</span></a><a class="secondary-link" href="#process-title">Explore the process</a></div>
+      </div>
+      <aside class="trace-card" aria-label="Award Extractor evidence trail">
+        <div class="trace-card-head"><span>Evidence trail</span><span>01–07</span></div>
+        <ol class="trace-list">
+          <li><span>01</span><div><strong>Award or EA</strong><small>Source document</small></div></li>
+          <li><span>02</span><div><strong>Payment clauses</strong><small>Classified and checked</small></div></li>
+          <li><span>03</span><div><strong>Rulesets</strong><small>Drafted and reviewed</small></div></li>
+          <li><span>04</span><div><strong>Interpretation Matrix</strong><small>Human-reviewed output</small></div></li>
+        </ol>
+        <p>Every hand-off leaves a reviewable file and highlights what changed.</p>
+      </aside>
+      <div class="briefing-meta">
+        <div><span class="meta-label">Designed for</span><span>Payroll and assurance teams</span></div>
+        <div><span class="meta-label">Output</span><span>Interpretation Matrix containing rulesets</span></div>
+        <div><span class="meta-label">Approach</span><span>AI activity + controls + review</span></div>
+      </div>
     </section>
 
-    <section class="summary" aria-labelledby="summary-title">
-      <div class="section-heading"><span class="section-number">01</span><h2 id="summary-title">Purpose and executive summary</h2></div>
-      <div class="summary-content">
-        <p>A plausible AI answer is not enough when people are being paid. A complete interpretation needs to account for the award clauses, make its reasoning traceable, and show where assumptions or omissions have been identified.</p>
-        <p>I therefore built an end-to-end process rather than asking one model to describe all entitlements in a single response. The process uses multiple AI activities, deterministic checks and human review.</p>
-        <p>The result is useful in three different ways:</p>
-        <ul class="rulesets"><li><strong>Specific entitlement questions</strong><span>The model can produce smart, useful answers to focused questions.</span></li><li><strong>Award Interpretation</strong><span>The output is detailed and comprehensive, but can be too convoluted to use directly as a practical payroll ruleset.</span></li><li><strong>Pseudocode</strong><span>The output is deliberately exhaustive. A human would remove much of it, but it is useful for checking that award provisions have not been missed.</span></li></ul>
-        <p class="summary-close"><strong>The strength is completeness; the weakness is prioritisation.</strong> The process is good enough to share, not because it is perfect, but because it asks the right questions and makes potential omissions visible.</p>
+    <section id="summary" class="summary" aria-labelledby="summary-title">
+      <div class="section-heading"><span class="section-number">01</span>
+        <h2 id="summary-title">What Award Extractor does</h2>
       </div>
+      <div class="summary-content">
+        <p>Any award interpretation needs to be complete, traceable to its source clauses, and supported by human
+          judgement where there is uncertainty.</p>
+        <p>Frontier models are useful for answering specific questions, but they do not automatically provide full
+          traceability for every clause or show how each clause may affect payment.</p>
+        <p>Award Extractor turns an award or enterprise agreement into a reviewable <strong>Interpretation
+            Matrix</strong> by extracting each clause, checking whether it is relevant to payment, and then
+          summarising the results for human review.</p>
+        <p>The process preserves the source clauses, uses multiple AI activities, checks the hand-offs between stages,
+          and gives a reviewer a focused place to challenge the result.</p>
+        <p>The process creates three key outputs:</p>
+        <ul class="rulesets">
+          <li><strong>Interpretation Matrix</strong><span>A human-readable summary of award entitlements containing rulesets created from the relevant clauses.</span></li>
+          <li><strong>Pseudocode</strong><span>A human-readable description of the code needed to build a payroll engine
+              for a particular award.</span></li>
+          <li><strong>Machine-readable ruleset file</strong><span>A structured ruleset file produced from the reviewed
+              Interpretation Matrix for use by payroll software.</span></li>
+        </ul>
+        <p class="summary-close"><strong>The product is resilient because it makes uncertainty visible.</strong> It
+          creates an evidence trail around omissions, differences and assumptions so that a reviewer can decide what
+          should happen next.</p>
+      </div>
+    </section>
+
+    <section class="uses" aria-labelledby="uses-title">
+      <div>
+        <p class="kicker">Potential uses</p>
+        <h2 id="uses-title">Start with more evidence, then apply judgement.</h2>
+      </div>
+      <ul class="use-list">
+        <li><strong>A starting point for your Interpretation Matrix</strong><span>Use the structured clauses and draft rulesets to accelerate the first version of a reviewable interpretation.</span></li>
+        <li><strong>A secondary check on payroll rules</strong><span>Use the clause coverage, warnings and evidence trail to check that relevant rules have been considered before configuration.</span></li>
+      </ul>
     </section>
 
     <section class="section-block" aria-labelledby="question-title">
-      <div class="section-heading"><span class="section-number">02</span><h2 id="question-title">What the experiment was testing</h2></div>
-      <div class="section-copy"><p>Could a structured, validated process make AI useful for building award interpretations that can be passed to a software team, used as a secondary check on payroll configuration, or used to investigate what should be paid?</p><p>The experiment did not assume that the AI would make the final judgement. It tested whether the surrounding process could expose omissions, preserve evidence and give a human reviewer a practical point at which to challenge the result.</p></div>
-    </section>
-
-    <section class="section-block" aria-labelledby="flow-title">
-      <div class="section-heading"><span class="section-number">03</span><h2 id="flow-title">The process in one view</h2></div>
-      <div class="process-line" aria-label="Award process sequence"><span>Retrieve award</span><i>→</i><span>Structure clauses</span><i>→</i><span>Classify clauses</span><i>→</i><span>Select rulesets</span><i>→</i><span>Draft and review</span><i>→</i><strong>Create Award Interpretation</strong></div>
-      <p class="section-copy">The Award Interpretation is the final working artifact. It contains the selected rulesets for overtime creation, overtime consequence and penalties. Pseudocode and the calculator questionnaire are produced from that interpretation.</p>
-    </section>
-
-    <section class="section-block" aria-labelledby="controls-title">
-      <div class="section-heading"><span class="section-number">04</span><h2 id="controls-title">How the process is controlled</h2></div>
-      <div class="control-list"><p><strong>LLM activities</strong> propose clause classifications, interpretations and ruleset drafts.</p><p><strong>Deterministic checks</strong> check structure, clause coverage, references, duplicates, scope and required fields. They surface differences rather than silently hiding them.</p><p><strong>Human review</strong> takes place on the consolidated Award Interpretation. The reviewer can simplify or exclude rules while keeping the source references and changes visible.</p></div>
-    </section>
-
-    <section class="section-block" aria-labelledby="example-title">
-      <div class="section-heading"><span class="section-number">05</span><h2 id="example-title">Why the coverage checks matter</h2></div>
-      <div class="example-grid"><div class="example-copy"><p>Clause 24.1 was identified as relevant to overtime but was not present in the draft ruleset before review. The clause concerns meal breaks: where an employee works during a required break, the time is paid at overtime rates, but remains ordinary time.</p><p>This is not an overtime-creation rule. It is a payment rule that belongs in the Award Interpretation because it affects what an employee should be paid.</p><p>The deterministic check did not need to interpret the clause. It identified the discrepancy:</p><blockquote>Classified as relevant → not represented in the draft ruleset</blockquote><p>The reviewer can then decide where the clause belongs and whether the resulting rule is appropriate.</p></div><div class="placeholder" aria-label="Placeholder for future clause evidence screenshot"><span>Future evidence placeholder</span><small>Add clause extract, JSON reference and warning screenshot here.</small></div></div>
-    </section>
-
-    <section class="section-block" aria-labelledby="warnings-title">
-      <div class="section-heading"><span class="section-number">06</span><h2 id="warnings-title">What the warnings compare</h2></div>
-      <p class="section-copy">Each warning compares a stage with its immediate predecessor. This keeps the control meaningful and avoids treating every difference between expert drafts as an error.</p>
-      <div class="comparison-table" role="table" aria-label="Coverage warning comparisons"><div class="comparison-row comparison-head" role="row"><span role="columnheader">Stage</span><span role="columnheader">Comparison</span><span role="columnheader">Warning</span></div><div class="comparison-row" role="row"><span role="cell">3.1 individual expert</span><span role="cell">2.2 shortlisted clauses vs that expert</span><span role="cell">A shortlisted clause is not represented in the expert draft.</span></div><div class="comparison-row" role="row"><span role="cell">3.1 combined</span><span role="cell">Expert A or B vs combined ruleset</span><span role="cell">A clause identified by either expert is not represented in the combined ruleset.</span></div><div class="comparison-row" role="row"><span role="cell">3.2 revised ruleset</span><span role="cell">3.1 combined vs 3.2 revised</span><span role="cell">A clause present before adversarial review is not represented afterwards.</span></div></div>
-      <p class="section-copy note"><strong>Important:</strong> a warning is a review prompt, not proof that the ruleset is wrong. A clause can be excluded deliberately, but the decision should be visible.</p>
-    </section>
-
-    <section class="process" aria-labelledby="process-title">
-      <div class="section-heading"><span class="section-number">07</span><h2 id="process-title">Detailed step-by-step process</h2></div>
-      <p class="section-intro">Open a step to see the activity, the AI work, the deterministic controls and the files produced. Human checks are described separately in the process notes.</p>
-      <div class="steps">
-        <details class="step" open><summary><span class="step-number">1</span><span class="step-name">Fetch and structure the award</span><span class="step-type">Source record</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Retrieve the award from FWO, or use the supplied PDF. Parse the text into headings, clauses and subclauses, then write the snapshot to structured JSON.</p></div><div class="detail-block"><dt>AI activity</dt><p>N/A. This stage uses code to construct the award structure before interpretation begins.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Confirm the source can be accessed, construct the award structure using code, and ensure the outputs can be serialised and written.</p></div><dl><div><dt>Files</dt><dd>Structured award JSON and source snapshot</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">2.1</span><span class="step-name">Classify payment-relevant clauses</span><span class="step-type">LLM + deterministic checks</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Segment the award into top-level clause groups and direct subclauses. Classify each clause as payment-relevant, definition-relevant or not relevant. For relevant payment clauses, identify categories including overtime, penalties, allowances, breaks and leave. Omit subclauses that are not relevant from the classified results.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM reviews each top-level clause and records whether it is payment- and/or definition-relevant. It reviews each direct subclause to classify the payment type.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Check that every top-level clause group supplied to the classifier appears in the output. Check that each direct subclause is classified, marked not relevant or excluded by a documented filtering rule. Reclassify clear missed wording, detect duplicates, and record classifications, exclusions, corrections and edits.</p></div><dl><div><dt>Files</dt><dd>Payment classification JSON</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">2.2</span><span class="step-name">Build the selected ruleset subset</span><span class="step-type">LLM + deterministic checks</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Review each clause for the selected ruleset: overtime or penalties. Within overtime, distinguish clauses that determine when worked time becomes overtime from clauses that apply after overtime has occurred. Identify the employee cohort and work arrangement where the award text supports it.</p></div><div class="detail-block"><dt>AI activity</dt><p>For overtime clauses, an LLM classifies each shortlisted clause by its overtime role and proposes the relevant employee cohort and work arrangement.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Confirm every shortlisted clause is classified into an applicable category. Reject duplicate or invented references, validate classification and scope fields, check that cohort and work arrangement are supported by the clause text, and normalise unsupported scope to all. For penalties, apply predefined code rules to select clauses, assign the penalty classification and set the scope.</p></div><dl><div><dt>Files</dt><dd>Ruleset clause-classification JSON</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">3.1</span><span class="step-name">Draft and combine a ruleset within the Award Interpretation</span><span class="step-type">LLM activities + checks</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Convert selected clauses into explicit payroll rules designed to be read by a payroll officer. Prepare two independent drafts, compare them and combine them into one draft ruleset component within the Award Interpretation.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM runs two independent expert interpretations. Expert A and Expert B each produce a structured ruleset from Step 2.2. A further LLM comparison call proposes how the drafts should be reconciled.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Validate both expert rule lists and the comparison output. Confirm that every rule from either expert is accounted for in the comparison and combined ruleset, allowing for similar rules to be combined. Confirm shortlisted clauses remain represented and identify employee-cohort mismatches.</p></div><dl><div><dt>Files</dt><dd>Expert A and B drafts, comparison output and combined ruleset component</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">3.2</span><span class="step-name">Adversarially review the draft</span><span class="step-type">LLM evaluator + creator</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Review the Step 3.1 combined ruleset against the clause evidence and classifications from Steps 2.1 and 2.2. The evaluator records rule-by-rule recommendations, including proposed new rules. The creator records decisions and rebuilds the revised ruleset component.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM evaluator reviews the combined ruleset against clause evidence. A separate LLM creator records keep, modify, remove and add decisions and produces the revised ruleset.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Require every original rule to be addressed. Prevent silent removals and additions, require tracked evaluator and creator records for additions, rebuild from structured decisions, and surface reductions in clause coverage.</p></div><dl><div><dt>Files</dt><dd>Evaluator feedback, creator response, revised ruleset and clause-coverage warnings</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">4.1</span><span class="step-name">Format a reviewed ruleset within the Award Interpretation</span><span class="step-type">LLM + coverage warning</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Select the revised ruleset component and transform it into a cleaner, reviewer-facing guide using the appropriate headings and formatting template.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM reorganises and rewrites the reviewed component into the required presentation format. This is a formatting activity, not a new interpretation.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Compare the reviewed component with the formatted output and flag rules that appear to have been omitted during formatting. Produce warnings rather than automatic repairs.</p></div><dl><div><dt>Files</dt><dd>Formatted ruleset guide and coverage-warning output</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">4.9</span><span class="step-name">Human review of the Award Interpretation</span><span class="step-type">Human review</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Optionally edit the formatted ruleset component and save a separate human-reviewed working copy. The reviewed file becomes the preferred source for Step 5.1.</p></div><dl><div><dt>Files</dt><dd>Human-reviewed Markdown ruleset working file</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">5.1</span><span class="step-name">Generate pseudocode from a reviewed ruleset</span><span class="step-type">LLM + rule inventory</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Select the best available reviewed ruleset component, build an inventory of its rules, and generate implementation-oriented pseudocode for technical teams.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM translates the reviewed ruleset and rule inventory into pseudocode, required inputs, decision logic and outputs.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Compare the pseudocode against the source-rule inventory. Identify missing rule coverage and check required inputs, exclusions, reasons and clause references. Write validation JSON and Markdown reports.</p></div><dl><div><dt>Files</dt><dd>Pseudocode Markdown and validation JSON/Markdown</dd></div></dl></div></details>
-        <details class="step"><summary><span class="step-number">6.1</span><span class="step-name">Generate the calculator questionnaire and Python draft</span><span class="step-type">LLM + evidence</span></summary><div class="step-body"><div class="detail-block"><dt>What happens</dt><p>Load the three reviewed rulesets contained in the Award Interpretation—overtime creation, overtime consequence and penalties. Answer a fixed calculator questionnaire and generate a Python draft for the PayGuide calculator.</p></div><div class="detail-block"><dt>AI activity</dt><p>An LLM interprets the three reviewed rulesets to answer the structured questionnaire with supporting evidence, then generates a Python draft from that questionnaire.</p></div><div class="detail-block"><dt>Deterministic controls</dt><p>Validate questionnaire values, normalise the response, retain evidence, identify unsupported or missing fields, and generate Python from the structured questionnaire.</p></div><dl><div><dt>Files</dt><dd>Calculator questionnaire JSON and calculator Python draft</dd></div></dl></div></details>
+      <div class="section-heading"><span class="section-number">02</span>
+        <h2 id="question-title">Why Award Extractor exists</h2>
+      </div>
+      <div class="section-copy">
+        <p>Could AI reliably read an award, extract its payment clauses and do so with enough certainty and resilience
+          to remove humans from the process?</p>
+        <p>No. The experiment became a clear example of the <em>jagged frontier</em> of AI. Models can be excellent at
+          focused questions, but they tend to take text literally. Australian awards are not always written literally:
+          clauses can interact or appear to contradict one another, and an important condition may be stated in one
+          section but omitted from another.</p>
+        <p>Rather than build an AI-only award extraction system, we built a structured and validated process that makes
+          AI useful for building award interpretations.</p>
+        <p>AI cannot complete the process by itself. It can create an initial structured interpretation, perform
+          self-checks, and highlight uncertainty so that a human reviewer can focus on the decisions that require
+          judgement.</p>
       </div>
     </section>
 
-    <section class="section-block" aria-labelledby="conclusion-title"><div class="section-heading"><span class="section-number">08</span><h2 id="conclusion-title">Current conclusion</h2></div><div class="section-copy"><p>The process is good enough to share. It is not perfect, and it is unlikely that any automated interpretation process will remove the need for judgement in a complex award system. Its value is that it produces useful answers, preserves a broad evidence base, and surfaces the questions that need human attention.</p><p>The next additions to this page will show the Markdown, JSON and warning outputs produced at each stage.</p></div></section>
+    <section class="section-block" aria-labelledby="flow-title">
+      <div class="section-heading"><span class="section-number">03</span>
+        <h2 id="flow-title">The process in one view</h2>
+      </div>
+      <div class="process-line" aria-label="Award process sequence"><span>Retrieve award</span><i>→</i><span>Structure
+          clauses</span><i>→</i><span>Classify clauses</span><i>→</i><span>Draft initial
+          rulesets</span><i>→</i><span>LLM review</span><i>→</i><span>Format for human
+          review</span><i>→</i><span>Human review</span><i>→</i><strong>Interpretation Matrix</strong></div>
+      <p class="section-copy">The human-reviewed Interpretation Matrix is the final source artifact. It contains the
+        selected rulesets for overtime creation, overtime consequence and penalties. It is then used to produce
+        pseudocode and, at Step 7.1, a machine-readable ruleset file.</p>
+    </section>
+
+    <section id="controls" class="section-block" aria-labelledby="controls-title">
+      <div class="section-heading"><span class="section-number">04</span>
+        <h2 id="controls-title">How the quality is controlled</h2>
+      </div>
+      <div class="section-copy">
+        <p>The process uses separate layers of review so that an AI error becomes a visible question rather than a
+          silent change.</p>
+      </div>
+      <div class="control-list">
+        <p><strong>LLM activities</strong> propose clause classifications, interpretations and ruleset drafts.</p>
+        <p><strong>LLM review</strong> challenges the LLM drafts and proposes changes.</p>
+        <p><strong>Deterministic checks</strong> check coverage, references, duplicates, employee scope and required
+          fields. Any queries are highlighted for human review rather than hidden.</p>
+        <p><strong>Human review</strong> takes place on the consolidated Interpretation Matrix. The reviewer can edit
+          to simplify or exclude rules while keeping the source references and changes visible. Human changes are
+          carried through into the pseudocode and machine-readable ruleset file.</p>
+      </div>
+    </section>
+
+    <section class="section-block" aria-labelledby="example-title">
+      <div class="section-heading"><span class="section-number">05</span>
+        <h2 id="example-title">A control catching a potentially relevant clause</h2>
+      </div>
+      <div class="example-grid">
+        <div class="example-copy">
+          <p>For the Children’s Services Award, Clause 24.1 was identified as relevant to overtime but was not present
+            in the draft overtime ruleset before review. The clause concerns meal breaks: where an employee works during
+            a required break, the time is paid at overtime rates, but remains ordinary time.</p>
+          <p>Because this is technically not an overtime clause, the AI correctly excludes it from the overtime
+            entitlements. However, because it was identified as relevant to overtime but is not included in the overtime
+            interpretation, the process highlights it for human review.</p>
+          <p>The deterministic check identifies the discrepancy:</p>
+          <blockquote>Classified as relevant → not represented in the overtime ruleset</blockquote>
+          <p>The reviewer decides whether the clause belongs in the Interpretation Matrix and whether it needs a separate
+            payment rule.</p>
+          <p>That is the balance the product is designed to achieve: AI does the work it is good at, while human review
+            resolves questions of relevance and practical application.</p>
+        </div>
+        <div class="placeholder" aria-label="Placeholder for future clause evidence screenshot"><span>Future evidence
+            placeholder</span><small>Add clause extract, JSON reference and warning screenshot here.</small></div>
+      </div>
+    </section>
+
+    <section class="process" aria-labelledby="process-title">
+      <div class="section-heading"><span class="section-number">06</span>
+        <h2 id="process-title">Detailed step-by-step process</h2>
+      </div>
+      <p class="section-intro">Open a step to see the activity, the AI work, the deterministic controls and the files
+        produced.</p>
+      <p class="section-intro">At each stage, the tool displays a Markdown and JSON summary of the output and highlights
+        warnings, allowing manual review where required. A human checkpoint occurs after the draft Interpretation Matrix
+        is produced, allowing the user to edit it before the final Interpretation Matrix is created.</p>
+      <div class="steps">
+        <details class="step" open>
+          <summary><span class="step-number">1</span><span class="step-name">Fetch and structure the award</span><span
+              class="step-type">Source record</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Retrieve the award from FWO, or use the supplied PDF. Parse the text into headings, clauses and
+                subclauses, then write the snapshot to structured JSON.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>N/A. This stage uses code to construct the award structure before interpretation begins.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Confirm the source can be accessed, construct the award structure using code, and ensure the outputs
+                can be serialised and written.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Output Files</dt>
+                <dd>Structured award JSON and source snapshot</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">2.1</span><span class="step-name">Classify payment-relevant
+              clauses</span><span class="step-type">LLM + deterministic checks</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Only payment-related clauses are relevant for this interpretation. Each clause is therefore classified
+                as payment-relevant, definition-relevant or not relevant. Clauses that are not related to payment are
+                omitted, with the classification and reason available for review. Relevant payment clauses are
+                classified by payment type, including overtime, penalties, allowances, breaks and leave. Subclauses
+                that are not relevant for payment purposes are excluded from downstream calculations.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM reviews each top-level clause and records whether it is payment- and/or definition-relevant. It
+                reviews each top-level subclause to classify the type of payment.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Check that every top-level clause group supplied to the classifier appears in the output. Check that
+                each direct subclause is classified, marked not relevant or excluded by a documented filtering rule
+                (i.e. nothing is silently excluded). Perform a deterministic sweep to identify clauses with wording
+                that may make them relevant but were excluded by the AI. Detect duplicates, and record classifications,
+                exclusions, corrections and edits.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Payment classification JSON</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">2.2</span><span class="step-name">Build the selected ruleset
+              subset</span><span class="step-type">LLM + deterministic checks</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>The model currently creates rulesets for hours worked and therefore focuses on overtime and penalties.
+                Clauses that are not related to overtime or penalties are omitted. For each overtime clause, distinguish
+                clauses that create overtime (i.e. determine when worked time becomes overtime) from clauses that
+                describe what happens when overtime is worked (overtime consequences). Identify the employee cohort and
+                work arrangement where the award text supports it.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>For overtime clauses, an LLM classifies each shortlisted clause into Overtime Creation or Overtime
+                Consequence. All penalty clauses are kept together and classified as penalties. For each clause, the
+                LLM proposes the relevant employee cohort (FT/PT/Casual/All) and work arrangement (day/shift workers or
+                all).</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Confirm every shortlisted clause is classified into an applicable category. Reject duplicate or
+                invented references, validate classification and scope fields, check that cohort and work arrangement
+                are supported by the clause text, and normalise unsupported scope to all. For penalties, apply
+                predefined code rules to select clauses, assign the penalty classification and set the scope.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Ruleset clause-classification JSON</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">3.1</span><span class="step-name">Draft and combine a
+              ruleset</span><span class="step-type">LLM activities + checks</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Convert selected clauses into explicit payroll rules designed to be read by a payroll officer. For
+                accuracy, two independent drafts are prepared by two separate LLM calls, then compared and combined
+                into one combined draft ruleset.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM runs two independent expert interpretations. Expert A and Expert B each produce a structured
+                ruleset from Step 2.2. A further LLM comparison call proposes how the drafts should be reconciled.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Validate both expert rule lists and the comparison output. Confirm that every rule from either expert
+                is accounted for in the comparison and combined ruleset. Highlight any clauses in the Step 2.2 output
+                that are not in either expert ruleset, along with any employee-cohort mismatches.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Expert A and B drafts, comparison output and combined ruleset component</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">3.2</span><span class="step-name">Adversarially review the
+              draft</span><span class="step-type">LLM evaluator + creator</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Review the Step 3.1 combined ruleset against the clause evidence and classifications from Steps 2.1 and
+                2.2. The evaluator records rule-by-rule recommendations, including proposed new rules. The creator
+                records decisions and rebuilds the revised ruleset component.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM evaluator reviews the combined ruleset against clause evidence. A separate LLM creator records
+                keep, modify, remove and add decisions and produces the revised ruleset.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Require every original rule to be addressed. Prevent silent removals and additions (any excluded rules
+                are highlighted for human review), require tracked evaluator and creator records for additions, rebuild
+                from structured decisions, and surface reductions in clause coverage. Any rules in the combined Step
+                3.1 ruleset that are not in the revised Step 3.2 ruleset are highlighted for user review.</p>
+              <blockquote>We want the expert review to add or remove rules as applicable, but we do not want rules
+                removed without the creator being aware of and agreeing to the removal.</blockquote>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Evaluator feedback, creator response, revised ruleset and clause-coverage warnings</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">4.1</span><span class="step-name">Create the Interpretation Matrix</span><span
+              class="step-type">LLM + coverage warning</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Select the revised ruleset component and transform it into a cleaner, reviewer-facing Interpretation
+                Matrix using the appropriate ruleset headings and formatting template.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM reorganises and rewrites the reviewed component into the required Interpretation Matrix format.
+                This is a formatting activity, not a new interpretation.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Compare the reviewed component with the formatted output and highlight rules that appear to have been
+                omitted during formatting. Produce warnings for human review rather than proceeding with automatic
+                repairs.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Interpretation Matrix and coverage-warning output</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">4.9</span><span class="step-name">Human review of the Interpretation
+              Matrix</span><span class="step-type">Human review</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Provide the formatted Interpretation Matrix for human review, allowing the reviewer to make any
+                required changes. This can be read alongside the evolving drafts and any warnings produced through the
+                process. Save a final human-reviewed Interpretation Matrix. It becomes the preferred source for the
+                pseudocode and machine-readable ruleset file.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Human-reviewed Interpretation Matrix Markdown working file</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">5.1</span><span class="step-name">Generate pseudocode from a reviewed
+              ruleset</span><span class="step-type">LLM + rule inventory</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Select the best available reviewed Interpretation Matrix, build an inventory of its rulesets, and
+                generate implementation-oriented pseudocode for technical teams.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM translates the reviewed Interpretation Matrix and ruleset inventory into pseudocode, required inputs, decision
+                logic and outputs.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Compare the pseudocode against the source-rule inventory. Identify missing rule coverage and check
+                required inputs, exclusions, reasons and clause references. Write validation JSON and Markdown reports.
+              </p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Pseudocode Markdown and validation JSON/Markdown</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">6.1</span><span class="step-name">Generate the calculator questionnaire and
+              Python draft</span><span class="step-type">LLM + evidence</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Load the three reviewed rulesets contained in the Interpretation Matrix—overtime creation, overtime
+                consequence and penalties. Answer a fixed calculator questionnaire and generate a Python draft for the
+                PayGuide calculator.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>An LLM interprets the three reviewed rulesets to answer the structured questionnaire with supporting
+                evidence, then generates a Python draft from that questionnaire.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Validate questionnaire values, normalise the response, retain evidence, identify unsupported or missing
+                fields, and generate Python from the structured questionnaire.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Calculator questionnaire JSON and calculator Python draft</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+        <details class="step">
+          <summary><span class="step-number">7.1</span><span class="step-name">Create the machine-readable ruleset file</span><span
+              class="step-type">Structured output + validation</span></summary>
+          <div class="step-body">
+            <div class="detail-block">
+              <dt>What happens</dt>
+              <p>Convert the human-reviewed Interpretation Matrix and its rulesets into the machine-readable schema
+                required by payroll software.</p>
+            </div>
+            <div class="detail-block">
+              <dt>AI activity</dt>
+              <p>The reviewed ruleset data is structured into the required machine-readable format. This output is
+                generated from the reviewed Interpretation Matrix rather than from an earlier draft.</p>
+            </div>
+            <div class="detail-block">
+              <dt>Deterministic controls</dt>
+              <p>Validate the schema, required fields, rule references, employee scope and supported input values before
+                the file is made available to downstream payroll software.</p>
+            </div>
+            <dl>
+              <div>
+                <dt>Files</dt>
+                <dd>Machine-readable ruleset file</dd>
+              </div>
+            </dl>
+          </div>
+        </details>
+      </div>
+    </section>
+
+    <section class="section-block caveats" aria-labelledby="caveats-title">
+      <div class="section-heading"><span class="section-number">07</span>
+        <h2 id="caveats-title">Caveats and current status</h2>
+      </div>
+      <div class="section-copy">
+        <p>Award Extractor is designed to support award interpretation and payroll assurance. It does not provide legal
+          advice, does not remove the need for professional judgement, and should not be treated as an unquestionable
+          legal or payroll authority.</p>
+        <ul>
+          <li>AI can miss how clauses interact, even when it answers a specific question well.</li>
+          <li>The Interpretation Matrix can be more comprehensive than a practical payroll implementation needs; human
+            prioritisation is still required.</li>
+          <li>Deterministic checks validate structure, coverage and consistency. They do not prove that an
+            interpretation is legally correct.</li>
+          <li>Human review is currently performed through the visible Markdown working files.</li>
+          <li>Enterprise agreements and unusual award provisions may require additional review and configuration.</li>
+        </ul>
+        <p>The product is good enough to share because it produces useful outputs and asks the right questions when
+          something changes or disappears. Future updates to this page will show the Markdown, JSON and warning outputs
+          produced at each stage.</p>
+      </div>
+    </section>
+
+    <section id="try" class="trial" aria-labelledby="trial-title">
+      <div>
+        <p class="kicker">Try Award Extractor</p>
+        <h2 id="trial-title">Interested in putting an award through the process?</h2>
+      </div>
+      <div class="trial-copy">
+        <p>Trial access is currently by conversation. The source code is available for anyone who wants to inspect,
+          run or extend the workflow.</p>
+        <div class="trial-actions"><a class="primary-link" href="https://github.com/caineosborne/award-extractor/issues/new"
+            target="_blank" rel="noreferrer">Request a trial via GitHub <span aria-hidden="true">→</span></a><a
+            class="secondary-link" href="https://github.com/caineosborne/award-extractor" target="_blank"
+            rel="noreferrer">View the source code</a></div>
+      </div>
+    </section>
   </main>
-  <footer class="site-footer"><div class="page-width">Award Extractor · experiments in automated award extraction</div></footer>
+  <footer class="site-footer">
+    <div class="page-width footer-inner"><span><strong>PayGuide</strong> / Award Extractor</span><span>Controlled
+        AI-assisted award interpretation</span><a href="https://github.com/caineosborne/award-extractor" target="_blank"
+        rel="noreferrer">GitHub</a></div>
+  </footer>
 </body>
+
 </html>
