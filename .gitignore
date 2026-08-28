@@ -20,9 +20,6 @@ __pycache__/
 .env
 
 # Project data
-data/raw/
-data/parsed/
-data/processed/
 data/
 src/archive/
 src/Archive/
@@ -44,6 +41,13 @@ jupyter/
 
 # Front end
 /frontend
+!/frontend/
+/frontend/*
+!/frontend/images/
+/frontend/images/*
+!/frontend/images/product-screens/
+!/frontend/images/product-screens/*.png
+!/frontend/images/product-screens/*.svg
 
 # Local historical and working material that is not published to GitHub
 /archive/

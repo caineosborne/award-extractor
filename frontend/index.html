@@ -15,7 +15,7 @@
     <div class="page-width header-inner"><a class="wordmark" href="#top"><span>PayGuide</span> / Award Extractor</a>
       <nav class="product-nav" aria-label="Page navigation"><a href="#summary">What it does</a><a
           href="#controls">Controls</a><a href="#process-title">Process</a><a href="#caveats-title">Caveats</a><a
-          class="nav-cta" href="#try">Try it</a></nav>
+          class="nav-cta" href="#try">Get in touch</a></nav>
     </div>
   </header>
 
@@ -24,26 +24,29 @@
       <div class="hero-copy">
         <p class="kicker">Controlled AI-assisted award interpretation</p>
         <h1 id="page-title">Turn complex awards and EAs into usable payroll guides.</h1>
-        <p class="lead">Award Extractor uses AI to analyse award clauses and create draft rulesets. Deterministic
-          checks ensure every clause is accounted for, then a structured review step helps people make the final
-          judgement.</p>
-        <div class="hero-actions"><a class="primary-link" href="#try">Interested in trying it? <span
+        <p class="lead">Award Extractor uses AI to analyse award clauses and create a substantially complete draft of
+          the payroll rules—targeting roughly 90% of the first version without human intervention. Deterministic
+          checks make the remaining gaps, assumptions and judgement calls visible.</p>
+        <div class="hero-actions"><a class="primary-link" href="#try">Get in touch <span
               aria-hidden="true">→</span></a><a class="secondary-link" href="#process-title">Explore the process</a></div>
       </div>
-      <aside class="trace-card" aria-label="Award Extractor evidence trail">
-        <div class="trace-card-head"><span>Evidence trail</span><span>01–07</span></div>
+      <aside class="trace-card trace-card--process" aria-label="Award Extractor seven-stage process">
+        <div class="trace-card-head"><span>Seven-stage process</span><span>01–07</span></div>
         <ol class="trace-list">
-          <li><span>01</span><div><strong>Award or EA</strong><small>Source document</small></div></li>
-          <li><span>02</span><div><strong>Payment clauses</strong><small>Classified and checked</small></div></li>
-          <li><span>03</span><div><strong>Rulesets</strong><small>Drafted and reviewed</small></div></li>
-          <li><span>04</span><div><strong>Interpretation Matrix</strong><small>Human-reviewed output</small></div></li>
+          <li><span>01</span><div><strong>Retrieve and parse</strong><small>Structure the award or EA</small></div></li>
+          <li><span>02</span><div><strong>Classify clauses</strong><small>Identify payment relevance</small></div></li>
+          <li><span>03</span><div><strong>Draft rulesets</strong><small>Create initial rules from clauses</small></div></li>
+          <li><span>04</span><div><strong>LLM review</strong><small>Challenge and revise the drafts</small></div></li>
+          <li><span>05</span><div><strong>Interpretation Matrix</strong><small>Create the structured review file</small></div></li>
+          <li><span>06</span><div><strong>Optional human review</strong><small>Apply judgement where needed</small></div></li>
+          <li><span>07</span><div><strong>Draft artifacts</strong><small>Matrix, pseudocode and ruleset file</small></div></li>
         </ol>
         <p>Every hand-off leaves a reviewable file and highlights what changed.</p>
       </aside>
       <div class="briefing-meta">
-        <div><span class="meta-label">Designed for</span><span>Payroll and assurance teams</span></div>
-        <div><span class="meta-label">Output</span><span>Interpretation Matrix containing rulesets</span></div>
-        <div><span class="meta-label">Approach</span><span>AI activity + controls + review</span></div>
+        <div><span class="meta-label">Designed for</span><span>Payroll and assurance teams supporting an initial interpretation or secondary review</span></div>
+        <div><span class="meta-label">Output</span><span>Interpretation Matrix containing award rulesets, with pseudocode and machine-readable versions</span></div>
+        <div><span class="meta-label">Approach</span><span>AI-led first draft, with controls and optional human oversight</span></div>
       </div>
     </section>
 
@@ -52,18 +55,18 @@
         <h2 id="summary-title">What Award Extractor does</h2>
       </div>
       <div class="summary-content">
-        <p>Any award interpretation needs to be complete, traceable to its source clauses, and supported by human
-          judgement where there is uncertainty.</p>
+        <p>Any award interpretation needs to be traceable to its source clauses and clear about where uncertainty
+          remains.</p>
         <p>Frontier models are useful for answering specific questions, but they do not automatically provide full
           traceability for every clause or show how each clause may affect payment.</p>
         <p>Award Extractor turns an award or enterprise agreement into a reviewable <strong>Interpretation
-            Matrix</strong> by extracting each clause, checking whether it is relevant to payment, and then
-          summarising the results for human review.</p>
+            Matrix</strong> by extracting each clause, checking whether it is relevant to payment, and assembling a
+          strong first version without requiring a person to intervene.</p>
         <p>The process preserves the source clauses, uses multiple AI activities, checks the hand-offs between stages,
           and gives a reviewer a focused place to challenge the result.</p>
         <p>The process creates three key outputs:</p>
         <ul class="rulesets">
-          <li><strong>Interpretation Matrix</strong><span>A human-readable summary of award entitlements containing rulesets created from the relevant clauses.</span></li>
+          <li><strong>Interpretation Matrix</strong><span>A human-readable first version of award entitlements, with rulesets created from the relevant clauses.</span></li>
           <li><strong>Pseudocode</strong><span>A human-readable description of the code needed to build a payroll engine
               for a particular award.</span></li>
           <li><strong>Machine-readable ruleset file</strong><span>A structured ruleset file produced from the reviewed
@@ -72,6 +75,22 @@
         <p class="summary-close"><strong>The product is resilient because it makes uncertainty visible.</strong> It
           creates an evidence trail around omissions, differences and assumptions so that a reviewer can decide what
           should happen next.</p>
+        <div class="summary-evidence" aria-label="Award Extractor output examples">
+          <figure class="product-shot product-shot--summary">
+            <img src="images/product-screens/09-formatted-overtime-guide.png"
+              alt="Aged Care Award formatted overtime guide showing overtime triggers for all employees and full-time employees"
+              loading="lazy">
+            <figcaption><strong>Readable payroll guidance.</strong> The draft Interpretation Matrix turns award clauses
+              into a structured guide with the operative employee scope and clause references visible.</figcaption>
+          </figure>
+          <figure class="product-shot product-shot--summary">
+            <img src="images/product-screens/12-pseudocode-output-continuation.png"
+              alt="Aged Care Award pseudocode showing explicit tests for part-time weekly, fortnightly and daily overtime thresholds"
+              loading="lazy">
+            <figcaption><strong>Implementation-ready logic.</strong> Pseudocode expresses the reviewed rules as clear
+              decision steps before they are translated into payroll software.</figcaption>
+          </figure>
+        </div>
       </div>
     </section>
 
@@ -91,17 +110,17 @@
         <h2 id="question-title">Why Award Extractor exists</h2>
       </div>
       <div class="section-copy">
-        <p>Could AI reliably read an award, extract its payment clauses and do so with enough certainty and resilience
-          to remove humans from the process?</p>
+        <p>Could AI reliably read an award and extract enough of its payment clauses to create a useful first version
+          without human intervention?</p>
         <p>No. The experiment became a clear example of the <em>jagged frontier</em> of AI. Models can be excellent at
           focused questions, but they tend to take text literally. Australian awards are not always written literally:
           clauses can interact or appear to contradict one another, and an important condition may be stated in one
           section but omitted from another.</p>
         <p>Rather than build an AI-only award extraction system, we built a structured and validated process that makes
           AI useful for building award interpretations.</p>
-        <p>AI cannot complete the process by itself. It can create an initial structured interpretation, perform
-          self-checks, and highlight uncertainty so that a human reviewer can focus on the decisions that require
-          judgement.</p>
+        <p>The aim is not to claim complete autonomy or a legally final interpretation. It is to create a strong,
+          reviewable first version—around 90% complete in the common case—then highlight the smaller set of questions
+          that warrant human judgement.</p>
       </div>
     </section>
 
@@ -112,10 +131,11 @@
       <div class="process-line" aria-label="Award process sequence"><span>Retrieve award</span><i>→</i><span>Structure
           clauses</span><i>→</i><span>Classify clauses</span><i>→</i><span>Draft initial
           rulesets</span><i>→</i><span>LLM review</span><i>→</i><span>Format for human
-          review</span><i>→</i><span>Human review</span><i>→</i><strong>Interpretation Matrix</strong></div>
-      <p class="section-copy">The human-reviewed Interpretation Matrix is the final source artifact. It contains the
-        selected rulesets for overtime creation, overtime consequence and penalties. It is then used to produce
-        pseudocode and, at Step 7.1, a machine-readable ruleset file.</p>
+          review</span><i>→</i><span>Optional human review</span><i>→</i><strong>Interpretation Matrix</strong></div>
+      <p class="section-copy">The Interpretation Matrix is the principal draft artifact. It contains the selected
+        rulesets for overtime creation, overtime consequence and penalties. It can be used directly for an initial
+        review, or taken through optional human review before it is used to produce pseudocode and, at Step 7.1, a
+        machine-readable ruleset file.</p>
     </section>
 
     <section id="controls" class="section-block" aria-labelledby="controls-title">
@@ -131,9 +151,10 @@
         <p><strong>LLM review</strong> challenges the LLM drafts and proposes changes.</p>
         <p><strong>Deterministic checks</strong> check coverage, references, duplicates, employee scope and required
           fields. Any queries are highlighted for human review rather than hidden.</p>
-        <p><strong>Human review</strong> takes place on the consolidated Interpretation Matrix. The reviewer can edit
-          to simplify or exclude rules while keeping the source references and changes visible. Human changes are
-          carried through into the pseudocode and machine-readable ruleset file.</p>
+        <p><strong>Optional human review</strong> is available on the consolidated Interpretation Matrix when assurance
+          sign-off or judgement is needed. The reviewer can edit to simplify or exclude rules while keeping the source
+          references and changes visible. Those changes can be carried through into the pseudocode and machine-readable
+          ruleset file.</p>
       </div>
     </section>
 
@@ -143,21 +164,25 @@
       </div>
       <div class="example-grid">
         <div class="example-copy">
-          <p>For the Children’s Services Award, Clause 24.1 was identified as relevant to overtime but was not present
-            in the draft overtime ruleset before review. The clause concerns meal breaks: where an employee works during
-            a required break, the time is paid at overtime rates, but remains ordinary time.</p>
-          <p>Because this is technically not an overtime clause, the AI correctly excludes it from the overtime
-            entitlements. However, because it was identified as relevant to overtime but is not included in the overtime
-            interpretation, the process highlights it for human review.</p>
+          <p>For the Aged Care Award, the day-worker span boundary was classified as applying to all work arrangements,
+            while the rule itself applies only to day workers. The distinction is important when a payroll rule is being
+            converted from broad clause metadata into an employee-specific configuration.</p>
+          <p>The warning does not assert that the rule is wrong. It makes the difference visible so a reviewer can
+            confirm the intended scope before the interpretation is used downstream.</p>
           <p>The deterministic check identifies the discrepancy:</p>
-          <blockquote>Classified as relevant → not represented in the overtime ruleset</blockquote>
-          <p>The reviewer decides whether the clause belongs in the Interpretation Matrix and whether it needs a separate
-            payment rule.</p>
+          <blockquote>Classified as applying broadly → rule wording is employee-specific</blockquote>
+          <p>The reviewer decides whether the metadata should be narrowed to match the operative wording, or whether the
+            rule needs an explicit scope note in the Interpretation Matrix.</p>
           <p>That is the balance the product is designed to achieve: AI does the work it is good at, while human review
             resolves questions of relevance and practical application.</p>
         </div>
-        <div class="placeholder" aria-label="Placeholder for future clause evidence screenshot"><span>Future evidence
-            placeholder</span><small>Add clause extract, JSON reference and warning screenshot here.</small></div>
+        <figure class="product-shot product-shot--warning">
+          <img src="images/product-screens/10-warning-register.png"
+            alt="Aged Care Award warning register showing employee-scope mismatches requiring review"
+            loading="lazy">
+          <figcaption>The warning register merges repeated observations and preserves the source clause for a focused
+            reviewer decision.</figcaption>
+        </figure>
       </div>
     </section>
 
@@ -167,9 +192,10 @@
       </div>
       <p class="section-intro">Open a step to see the activity, the AI work, the deterministic controls and the files
         produced.</p>
-      <p class="section-intro">At each stage, the tool displays a Markdown and JSON summary of the output and highlights
-        warnings, allowing manual review where required. A human checkpoint occurs after the draft Interpretation Matrix
-        is produced, allowing the user to edit it before the final Interpretation Matrix is created.</p>
+      <p class="section-intro">At each stage, the tool displays the available output files and highlights warnings.
+        These include structured JSON, Markdown working files and validation reports. The process produces the first
+        version without manual intervention; the human checkpoint is available afterwards for targeted review and edits.</p>
+      <p class="section-intro section-intro--image-note">Select any product image to view it full size.</p>
       <div class="steps">
         <details class="step" open>
           <summary><span class="step-number">1</span><span class="step-name">Fetch and structure the award</span><span
@@ -228,6 +254,20 @@
                 <dd>Payment classification JSON</dd>
               </div>
             </dl>
+            <div class="screen-gallery screen-gallery--two" aria-label="Payment clause classification examples">
+              <figure class="product-shot">
+                <img src="images/product-screens/01-payment-clause-screening.png"
+                  alt="Aged Care Award clause classified as payment relevant and requiring subclause review" loading="lazy">
+                <figcaption><span class="screen-label">Screen 1</span><strong>Clause-level screening.</strong> Clause 21
+                  is retained because ordinary-hours boundaries and related employee categories can affect payment.</figcaption>
+              </figure>
+              <figure class="product-shot">
+                <img src="images/product-screens/02-payment-clause-category.png"
+                  alt="Aged Care Award clause tagged as ordinary hours and overtime with a recorded reason" loading="lazy">
+                <figcaption><span class="screen-label">Screen 2</span><strong>Subclause categorisation.</strong> Clause
+                  21.1 is tagged and accompanied by an explanation that a reviewer can check against the award.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -262,6 +302,15 @@
                 <dd>Ruleset clause-classification JSON</dd>
               </div>
             </dl>
+            <div class="screen-gallery">
+              <figure class="product-shot">
+                <img src="images/product-screens/03-ruleset-clause-classification.png"
+                  alt="Aged Care Award clause classified as an ordinary-hours boundary with employee scope and source text"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 3</span><strong>Ruleset relevance and scope.</strong> The
+                  classification, employee cohort, explanation and source text are visible together for review.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -291,6 +340,20 @@
                 <dd>Expert A and B drafts, comparison output and combined ruleset component</dd>
               </div>
             </dl>
+            <div class="screen-gallery screen-gallery--two" aria-label="Independent and combined ruleset examples">
+              <figure class="product-shot">
+                <img src="images/product-screens/04-expert-a-ruleset-draft.png"
+                  alt="Aged Care Award Expert A draft translating ordinary-hours clauses into readable overtime rules" loading="lazy">
+                <figcaption><span class="screen-label">Screens 4–5</span><strong>Independent expert drafts.</strong> Two
+                  separate interpretations are produced; this view shows one draft and the clause references supporting it.</figcaption>
+              </figure>
+              <figure class="product-shot">
+                <img src="images/product-screens/07-combined-ruleset.png"
+                  alt="Aged Care Award combined overtime creation ruleset after the two expert drafts are compared" loading="lazy">
+                <figcaption><span class="screen-label">Screen 7</span><strong>Combined ruleset.</strong> The two drafts
+                  are reconciled into one structured interpretation while source references remain visible.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -323,6 +386,16 @@
                 <dd>Evaluator feedback, creator response, revised ruleset and clause-coverage warnings</dd>
               </div>
             </dl>
+            <div class="screen-gallery">
+              <figure class="product-shot product-shot--wide">
+                <img src="images/product-screens/08-review-and-revision.png"
+                  alt="Aged Care Award rule review showing evaluator rationale, creator response and revised wording alongside the revised ruleset"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 8</span><strong>Review, challenge and revision.</strong>
+                  The evaluator proposes a change, the creator records a decision, and the revised wording is shown
+                  alongside the resulting ruleset.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -351,18 +424,45 @@
                 <dd>Interpretation Matrix and coverage-warning output</dd>
               </div>
             </dl>
+            <div class="screen-gallery screen-gallery--two" aria-label="Formatted Interpretation Matrix output">
+              <figure class="product-shot">
+                <img src="images/product-screens/09-formatted-overtime-guide.png"
+                  alt="Aged Care Award formatted overtime guide showing overtime triggers for all employees and full-time employees"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 9 · Aged Care Award</span><strong>Formatted
+                  Interpretation Matrix.</strong> The draft retains the applicable employee scope and clause references
+                  before human review.</figcaption>
+              </figure>
+              <figure class="product-shot">
+                <img src="images/product-screens/09-childrens-services-formatted-overtime-guide.png"
+                  alt="Children’s Services Award formatted overtime guide showing overtime triggers across employee cohorts"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 9 · Children’s Services Award</span><strong>Second draft
+                  example.</strong> This equivalent draft remains clearly before human review, while preserving the
+                  award-specific employee cohorts and clause references.</figcaption>
+              </figure>
+            </div>
+            <div class="screen-gallery" aria-label="Formatted output warning example">
+              <figure class="product-shot product-shot--warning">
+                <img src="images/product-screens/10-warning-register.png"
+                  alt="Aged Care Award warning register merging repeated clause coverage and employee scope observations"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 10</span><strong>Consolidated warnings.</strong> Repeated
+                  observations are merged, attributed to their stage and presented as review work—not hidden failures.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
-          <summary><span class="step-number">4.9</span><span class="step-name">Human review of the Interpretation
-              Matrix</span><span class="step-type">Human review</span></summary>
+          <summary><span class="step-number">4.9</span><span class="step-name">Optional human review of the
+              Interpretation Matrix</span><span class="step-type">Optional assurance review</span></summary>
           <div class="step-body">
             <div class="detail-block">
               <dt>What happens</dt>
-              <p>Provide the formatted Interpretation Matrix for human review, allowing the reviewer to make any
-                required changes. This can be read alongside the evolving drafts and any warnings produced through the
-                process. Save a final human-reviewed Interpretation Matrix. It becomes the preferred source for the
-                pseudocode and machine-readable ruleset file.</p>
+              <p>Provide the formatted Interpretation Matrix for optional human review, allowing the reviewer to make
+                any required changes. This can be read alongside the evolving drafts and any warnings produced through
+                the process. A reviewer-edited version becomes the preferred source for the pseudocode and
+                machine-readable ruleset file where additional assurance is required.</p>
             </div>
             <dl>
               <div>
@@ -370,6 +470,15 @@
                 <dd>Human-reviewed Interpretation Matrix Markdown working file</dd>
               </div>
             </dl>
+            <div class="screen-gallery">
+              <figure class="product-shot">
+                <img src="images/product-screens/11-human-review-editor.png"
+                  alt="Aged Care Award human review editor containing the reviewer-facing overtime guide and a save action"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 11</span><strong>Human checkpoint.</strong> The reviewer
+                  can edit the consolidated guide before saving the version used by downstream outputs.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -398,6 +507,33 @@
                 <dd>Pseudocode Markdown and validation JSON/Markdown</dd>
               </div>
             </dl>
+            <div class="screen-gallery screen-gallery--two" aria-label="Aged Care Award pseudocode output">
+              <figure class="product-shot">
+                <img src="images/product-screens/12-pseudocode-output.png"
+                  alt="Aged Care Award overtime pseudocode output showing the start of the rule inventory"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Aged Care Award · draft pseudocode</span><strong>Actual
+                  generated output.</strong> Created before human review, this implementation-oriented source
+                  translates the current rules into a payroll decision sequence.</figcaption>
+              </figure>
+              <figure class="product-shot">
+                <img src="images/product-screens/12-childrens-services-pseudocode-output.png"
+                  alt="Children’s Services Award overtime pseudocode output defining worked intervals and derived fields"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Children’s Services Award · draft pseudocode</span><strong>Actual
+                  generated output.</strong> Created before human review, the same stage produces an award-specific
+                  implementation description for targeted review or downstream development.</figcaption>
+              </figure>
+            </div>
+            <div class="screen-gallery" aria-label="Pseudocode validation example">
+              <figure class="product-shot product-shot--warning">
+                <img src="images/product-screens/12-pseudocode-validation-warning.png"
+                  alt="Aged Care Award pseudocode validation showing implementation notes and a visible coverage issue status"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 12</span><strong>Pseudocode coverage check.</strong> The
+                  pseudocode remains available, but the validation result makes incomplete coverage visible before implementation.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -426,6 +562,21 @@
                 <dd>Calculator questionnaire JSON and calculator Python draft</dd>
               </div>
             </dl>
+            <div class="screen-gallery screen-gallery--two" aria-label="Calculator ruleset and Python examples">
+              <figure class="product-shot product-shot--warning">
+                <img src="images/product-screens/13-calculator-ruleset.png"
+                  alt="Aged Care Award calculator questionnaire showing derived values, review context and unresolved configuration items"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Screen 13</span><strong>Structured calculator inputs.</strong>
+                  Derived answers, defaults and items needing confirmation are clearly distinguished before approval.</figcaption>
+              </figure>
+              <figure class="product-shot product-shot--warning">
+                <img src="images/product-screens/14-calculator-python.png"
+                  alt="Aged Care Award generated calculator Python with review warnings and an editable source view" loading="lazy">
+                <figcaption><span class="screen-label">Screen 14</span><strong>Implementation draft with guardrails.</strong>
+                  Generated Python carries its assumptions and warnings forward so they cannot be mistaken for approved rules.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
         <details class="step">
@@ -434,13 +585,14 @@
           <div class="step-body">
             <div class="detail-block">
               <dt>What happens</dt>
-              <p>Convert the human-reviewed Interpretation Matrix and its rulesets into the machine-readable schema
-                required by payroll software.</p>
+              <p>Convert the Interpretation Matrix and its rulesets into the machine-readable schema required by
+                payroll software. Where a reviewer has made edits, use that reviewer-edited version.</p>
             </div>
             <div class="detail-block">
               <dt>AI activity</dt>
-              <p>The reviewed ruleset data is structured into the required machine-readable format. This output is
-                generated from the reviewed Interpretation Matrix rather than from an earlier draft.</p>
+              <p>The Interpretation Matrix ruleset data is structured into the required machine-readable format. This
+                output is generated from the current Matrix, including any reviewer edits, rather than from an earlier
+                draft.</p>
             </div>
             <div class="detail-block">
               <dt>Deterministic controls</dt>
@@ -453,6 +605,16 @@
                 <dd>Machine-readable ruleset file</dd>
               </div>
             </dl>
+            <div class="screen-gallery" aria-label="Illustrative machine-readable ruleset screen">
+              <figure class="product-shot product-shot--wide product-shot--warning">
+                <img src="images/product-screens/19-machine-readable-ruleset-preview.svg"
+                  alt="Illustrative proposed Step 7.1 screen showing a machine-readable overtime ruleset, source trace and validation notes"
+                  loading="lazy">
+                <figcaption><span class="screen-label">Step 7.1 · illustrative product preview</span><strong>What the
+                  machine-readable hand-off will look like.</strong> This is a proposed screen design, clearly marked
+                  as illustrative because the current pipeline does not yet generate a Step 7.1 artifact.</figcaption>
+              </figure>
+            </div>
           </div>
         </details>
       </div>
@@ -460,47 +622,94 @@
 
     <section class="section-block caveats" aria-labelledby="caveats-title">
       <div class="section-heading"><span class="section-number">07</span>
-        <h2 id="caveats-title">Caveats and current status</h2>
+        <h2 id="caveats-title">Caveats</h2>
       </div>
       <div class="section-copy">
-        <p>Award Extractor is designed to support award interpretation and payroll assurance. It does not provide legal
-          advice, does not remove the need for professional judgement, and should not be treated as an unquestionable
-          legal or payroll authority.</p>
+        <p>Award Extractor supports award interpretation and payroll assurance. It does not provide legal advice,
+          replace professional judgement, or constitute a definitive legal or payroll authority.</p>
         <ul>
-          <li>AI can miss how clauses interact, even when it answers a specific question well.</li>
-          <li>The Interpretation Matrix can be more comprehensive than a practical payroll implementation needs; human
-            prioritisation is still required.</li>
-          <li>Deterministic checks validate structure, coverage and consistency. They do not prove that an
+          <li>LLMs can miss how clauses interact, even when they answer a specific question well.</li>
+          <li>The Interpretation Matrix can contain more detail than a practical payroll implementation requires; human
+            prioritisation and simplification are still required.</li>
+          <li>Deterministic controls validate structure, coverage and consistency, but cannot determine whether an
             interpretation is legally correct.</li>
-          <li>Human review is currently performed through the visible Markdown working files.</li>
+          <li>Optional human review is currently performed through the visible Markdown working files.</li>
           <li>Enterprise agreements and unusual award provisions may require additional review and configuration.</li>
         </ul>
-        <p>The product is good enough to share because it produces useful outputs and asks the right questions when
-          something changes or disappears. Future updates to this page will show the Markdown, JSON and warning outputs
-          produced at each stage.</p>
+        <p>This software produces useful outputs that can support a secondary review of payroll entitlements.</p>
+        <p>For guidance on award obligations, consult Fair Work Ombudsman resources and, where appropriate, a qualified
+          legal adviser.</p>
       </div>
     </section>
 
     <section id="try" class="trial" aria-labelledby="trial-title">
       <div>
-        <p class="kicker">Try Award Extractor</p>
+        <p class="kicker">Get in touch</p>
         <h2 id="trial-title">Interested in putting an award through the process?</h2>
       </div>
       <div class="trial-copy">
-        <p>Trial access is currently by conversation. The source code is available for anyone who wants to inspect,
-          run or extend the workflow.</p>
-        <div class="trial-actions"><a class="primary-link" href="https://github.com/caineosborne/award-extractor/issues/new"
-            target="_blank" rel="noreferrer">Request a trial via GitHub <span aria-hidden="true">→</span></a><a
-            class="secondary-link" href="https://github.com/caineosborne/award-extractor" target="_blank"
-            rel="noreferrer">View the source code</a></div>
+        <p>Email PayGuide if you would like to put an award or enterprise
+          agreement through the process.</p>
+        <div class="trial-actions"><a class="primary-link" href="mailto:payguideau@gmail.com?subject=Award%20Extractor%20enquiry">Email PayGuide <span aria-hidden="true">→</span></a></div>
+        <div class="further-reading">
+          <p class="resources-label">Further reading</p>
+          <div class="resource-links">
+            <a class="resource-link" href="https://github.com/caineosborne/award-extractor/blob/main/METHODOLOGY.md"
+              target="_blank" rel="noreferrer"><span><strong>Methodology</strong><small>Business workflow, review points and interpretation boundaries.</small></span><b aria-hidden="true">↗</b></a>
+            <a class="resource-link" href="https://github.com/caineosborne/award-extractor/blob/main/TECHNICAL_GUIDE.md"
+              target="_blank" rel="noreferrer"><span><strong>Technical guide</strong><small>Pipeline ownership, model inputs and outputs, validation and canonical output filenames.</small></span><b aria-hidden="true">↗</b></a>
+          </div>
+        </div>
       </div>
     </section>
   </main>
+  <dialog id="image-viewer" class="image-viewer" aria-label="Expanded product screenshot">
+    <div class="image-viewer-actions">
+      <button class="image-viewer-close" type="button" aria-label="Close expanded image">×</button>
+    </div>
+    <img src="" alt="">
+  </dialog>
   <footer class="site-footer">
     <div class="page-width footer-inner"><span><strong>PayGuide</strong> / Award Extractor</span><span>Controlled
         AI-assisted award interpretation</span><a href="https://github.com/caineosborne/award-extractor" target="_blank"
         rel="noreferrer">GitHub</a></div>
   </footer>
+  <script>
+    const imageViewer = document.querySelector('#image-viewer');
+    const imageViewerImage = imageViewer.querySelector('img');
+    const imageViewerClose = imageViewer.querySelector('.image-viewer-close');
+
+    function closeImageViewer() {
+      imageViewer.close();
+    }
+
+    function openImageViewer(image) {
+      imageViewerImage.style.width = '';
+      imageViewerImage.style.height = '';
+      imageViewerImage.src = image.currentSrc || image.src;
+      imageViewerImage.alt = image.alt;
+      imageViewer.showModal();
+    }
+
+    document.querySelectorAll('.product-shot img').forEach((image) => {
+      image.setAttribute('tabindex', '0');
+      image.setAttribute('role', 'button');
+      image.setAttribute('aria-haspopup', 'dialog');
+      image.setAttribute('title', 'Select to enlarge');
+      image.addEventListener('click', () => openImageViewer(image));
+      image.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          openImageViewer(image);
+        }
+      });
+    });
+
+    imageViewerClose.addEventListener('click', closeImageViewer);
+    imageViewer.addEventListener('click', (event) => {
+      if (event.target === imageViewer) closeImageViewer();
+    });
+  </script>
 </body>
 
 </html>

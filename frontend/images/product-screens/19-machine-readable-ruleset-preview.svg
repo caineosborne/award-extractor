@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="820" viewBox="0 0 1440 820" role="img" aria-labelledby="title description">
+  <title id="title">Illustrative Step 7.1 machine-readable ruleset screen</title>
+  <desc id="description">A proposed product view for a draft machine-readable ruleset, with source status, validation checks and a JSON preview.</desc>
+  <rect width="1440" height="820" fill="#f7faf9"/>
+  <rect x="56" y="48" width="1328" height="724" rx="12" fill="#ffffff" stroke="#d5e0df" stroke-width="2"/>
+  <rect x="56" y="48" width="1328" height="92" rx="12" fill="#132b37"/>
+  <rect x="56" y="112" width="1328" height="28" fill="#132b37"/>
+  <text x="94" y="88" fill="#ffffff" font-family="Arial, sans-serif" font-size="18" font-weight="700">AWARD EXTRACTOR</text>
+  <text x="94" y="116" fill="#b7d9d4" font-family="Arial, sans-serif" font-size="14">Step 7.1 · Machine-readable ruleset</text>
+  <rect x="1110" y="72" width="230" height="42" rx="21" fill="#d88934"/>
+  <text x="1225" y="99" fill="#132b37" font-family="Arial, sans-serif" font-size="14" font-weight="700" text-anchor="middle">DRAFT · REVIEW REQUIRED</text>
+  <text x="96" y="190" fill="#147c78" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="2">OUTPUT PREVIEW</text>
+  <text x="96" y="230" fill="#132b37" font-family="Georgia, serif" font-size="34">Machine-readable overtime ruleset</text>
+  <text x="96" y="261" fill="#64767d" font-family="Arial, sans-serif" font-size="16">Children’s Services Award 2010 · MA000120 · derived from the reviewed Interpretation Matrix</text>
+  <rect x="96" y="300" width="820" height="404" rx="8" fill="#102a37"/>
+  <text x="130" y="344" fill="#8ed7cd" font-family="Menlo, monospace" font-size="16">{</text>
+  <text x="158" y="382" fill="#ffffff" font-family="Menlo, monospace" font-size="16">"award_code": "MA000120",</text>
+  <text x="158" y="420" fill="#ffffff" font-family="Menlo, monospace" font-size="16">"status": "draft_pending_human_review",</text>
+  <text x="158" y="458" fill="#ffffff" font-family="Menlo, monospace" font-size="16">"ruleset": "overtime_creation",</text>
+  <text x="158" y="496" fill="#ffffff" font-family="Menlo, monospace" font-size="16">"rules": [</text>
+  <text x="188" y="534" fill="#d9edeb" font-family="Menlo, monospace" font-size="16">{ "id": "roster_change", "clauses": ["21.7(b)"] },</text>
+  <text x="188" y="572" fill="#d9edeb" font-family="Menlo, monospace" font-size="16">{ "id": "emergency_overtime", "clauses": ["23.2(c)"] }</text>
+  <text x="158" y="610" fill="#ffffff" font-family="Menlo, monospace" font-size="16">],</text>
+  <text x="158" y="648" fill="#ffffff" font-family="Menlo, monospace" font-size="16">"validation": "warnings_require_explanation"</text>
+  <text x="130" y="686" fill="#8ed7cd" font-family="Menlo, monospace" font-size="16">}</text>
+  <rect x="958" y="300" width="382" height="160" rx="8" fill="#eef5f3" stroke="#c9dfda"/>
+  <text x="990" y="340" fill="#147c78" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">SOURCE TRACE</text>
+  <text x="990" y="376" fill="#132b37" font-family="Arial, sans-serif" font-size="16" font-weight="700">Interpretation Matrix</text>
+  <text x="990" y="405" fill="#38505b" font-family="Arial, sans-serif" font-size="15">Human-reviewed Markdown file</text>
+  <text x="990" y="432" fill="#38505b" font-family="Arial, sans-serif" font-size="15">Rule IDs and clause references retained</text>
+  <rect x="958" y="484" width="382" height="220" rx="8" fill="#fffaf2" stroke="#e4c28a"/>
+  <text x="990" y="524" fill="#a65f18" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="1.5">VALIDATION NOTES</text>
+  <circle cx="997" cy="561" r="6" fill="#d88934"/>
+  <text x="1015" y="567" fill="#132b37" font-family="Arial, sans-serif" font-size="15">Required fields complete</text>
+  <circle cx="997" cy="602" r="6" fill="#d88934"/>
+  <text x="1015" y="608" fill="#132b37" font-family="Arial, sans-serif" font-size="15">Clause links retained</text>
+  <circle cx="997" cy="643" r="6" fill="#d88934"/>
+  <text x="1015" y="649" fill="#132b37" font-family="Arial, sans-serif" font-size="15">Warnings need explanation</text>
+  <text x="96" y="742" fill="#64767d" font-family="Arial, sans-serif" font-size="13">Illustrative proposed screen only — shown to communicate the intended product output; it is not a current generated pipeline artifact.</text>
+</svg>
