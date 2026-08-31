@@ -10,6 +10,21 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SOURCE_FOLDER = PROJECT_ROOT / "data" / "processed" / "MA000018"
 OUTPUT_FOLDER = PROJECT_ROOT / "frontend" / "sample-outputs" / "aged-care"
 
+DEFAULT_STATUS = (
+    "<strong>Sample Award Extractor output for the Aged Care Award.</strong> Created before any user edit or "
+    "review, this page shows what Award Extractor produces. In real-world use, a user would review and refine "
+    "the draft before relying on it. It is not an approved interpretation."
+)
+
+PSEUDOCODE_STATUS = (
+    "<strong>Sample Award Extractor output for the Aged Care Award.</strong> Created before any user edit or "
+    "review, this page shows what Award Extractor produces. In real-world use, a user would review and refine "
+    "the Interpretation Matrix before relying on it. Award Extractor would then regenerate the pseudocode after "
+    "any user changes. This often includes removing rules from the Matrix before implementation to simplify the "
+    "code required. Award Extractor initially retains all rules to preserve coverage rather than silently remove "
+    "them. It is not an approved interpretation."
+)
+
 
 def render_inline_markdown(text: str) -> str:
     escaped_text = escape(text)
@@ -84,7 +99,7 @@ def render_markdown(markdown_text: str) -> str:
     return "\n".join(html_lines)
 
 
-def build_page(title: str, description: str, source_filename: str, markdown_html: str) -> str:
+def build_page(title: str, description: str, source_filename: str, markdown_html: str, status_html: str) -> str:
     return f"""<!doctype html>
 <html lang=\"en\">
 <head>
@@ -126,11 +141,11 @@ def build_page(title: str, description: str, source_filename: str, markdown_html
 </head>
 <body>
   <main class=\"shell\">
-    <a class=\"back\" href=\"../../index.html#top\">← Back to Award Extractor</a>
+    <a class=\"back\" href=\"https://payguide.au/\">← Back to PayGuide</a>
     <header>
       <p class=\"eyebrow\">Award Extractor · sample output</p>
       <h1>{escape(title)}</h1>
-      <div class=\"status\"><strong>Sample Award Extractor output for the Aged Care Award.</strong> Created before any user edit or review, this page shows what Award Extractor produces. In real-world use, a user would review and refine the draft before relying on it. It is not an approved interpretation.</div>
+      <div class=\"status\">{status_html}</div>
       <p class=\"file-meta\">Source file: <code>{escape(source_filename)}</code> · <a href=\"{escape(source_filename)}\">View raw Markdown</a></p>
     </header>
     <article>
@@ -142,14 +157,20 @@ def build_page(title: str, description: str, source_filename: str, markdown_html
 """
 
 
-def create_sample_output(source_filename: str, page_filename: str, title: str, description: str) -> None:
+def create_sample_output(
+    source_filename: str,
+    page_filename: str,
+    title: str,
+    description: str,
+    status_html: str,
+) -> None:
     source_path = SOURCE_FOLDER / source_filename
     output_markdown_path = OUTPUT_FOLDER / source_filename
     output_page_path = OUTPUT_FOLDER / page_filename
 
     markdown_text = source_path.read_text(encoding="utf-8")
     markdown_html = render_markdown(markdown_text)
-    page_html = build_page(title, description, source_filename, markdown_html)
+    page_html = build_page(title, description, source_filename, markdown_html, status_html)
 
     shutil.copyfile(source_path, output_markdown_path)
     output_page_path.write_text(page_html, encoding="utf-8")
@@ -163,12 +184,14 @@ def main() -> None:
         "overtime-creation-guide.html",
         "Aged Care Award: draft overtime creation guide",
         "Full Aged Care Award draft Interpretation Matrix output for overtime creation.",
+        DEFAULT_STATUS,
     )
     create_sample_output(
         "5_1_OT_creation_pseudocode.md",
         "overtime-creation-pseudocode.html",
         "Aged Care Award: draft overtime creation pseudocode",
         "Full Aged Care Award draft pseudocode output for overtime creation.",
+        PSEUDOCODE_STATUS,
     )
 
 
