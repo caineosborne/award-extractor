@@ -1,0 +1,609 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Full Aged Care Award draft pseudocode output for overtime creation.">
+  <title>Aged Care Award: draft overtime creation pseudocode | Award Extractor sample output</title>
+  <style>
+    :root { --ink: #16323b; --ink-soft: #385761; --teal: #107f7b; --line: #cbdadb; --wash: #f3f8f7; --warning: #d9811d; }
+    * { box-sizing: border-box; }
+    body { background: var(--wash); color: var(--ink); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; }
+    .shell { margin: 0 auto; max-width: 1100px; padding: 34px 24px 70px; }
+    .back { color: var(--teal); font-size: 13px; font-weight: 700; text-decoration: none; }
+    .back:hover { text-decoration: underline; }
+    header { border-bottom: 4px solid var(--warning); margin-top: 23px; padding: 28px 0 24px; }
+    .eyebrow { color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .12em; margin: 0 0 11px; text-transform: uppercase; }
+    h1, h2, h3 { font-family: Georgia, "Times New Roman", serif; }
+    h1 { font-size: clamp(2.25rem, 5vw, 4rem); font-weight: 400; letter-spacing: -.04em; line-height: 1.04; margin: 0; }
+    .status { background: #fff4dd; border-left: 4px solid var(--warning); color: var(--ink-soft); font-size: 14px; line-height: 1.5; margin-top: 22px; padding: 14px 16px; }
+    .status strong { color: var(--ink); }
+    .file-meta { color: var(--ink-soft); font-size: 13px; line-height: 1.55; margin: 20px 0 0; }
+    .file-meta code { background: #e6f1ef; color: #116d69; font-size: .92em; padding: 2px 5px; }
+    .file-meta a { color: var(--teal); font-weight: 700; }
+    article { background: #fff; border: 1px solid var(--line); margin-top: 28px; padding: clamp(25px, 5vw, 60px); }
+    article > h1 { font-size: clamp(2rem, 4.2vw, 3.4rem); margin: 0 0 25px; }
+    article h2 { border-top: 1px solid var(--line); font-size: clamp(1.6rem, 3vw, 2.2rem); font-weight: 400; margin: 40px 0 17px; padding-top: 27px; }
+    article h3 { color: var(--ink-soft); font-size: 1.1rem; margin: 28px 0 12px; }
+    article p, article li { font-size: 16px; line-height: 1.65; }
+    article p { margin: 0 0 16px; }
+    article ul { margin: 0 0 20px; padding-left: 24px; }
+    article li { margin: 7px 0; }
+    article li.indent-1 { margin-left: 24px; }
+    article li.indent-2 { margin-left: 48px; }
+    article code { background: #edf3f3; border-radius: 3px; color: #116d69; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .9em; padding: 2px 4px; }
+    article pre { background: #eef3f4; border-left: 4px solid var(--teal); color: var(--ink); margin: 16px 0 28px; overflow-x: auto; padding: 20px; }
+    article pre code { background: transparent; color: inherit; display: block; font-size: 14px; line-height: 1.55; padding: 0; white-space: pre; }
+    @media (max-width: 600px) { .shell { padding: 22px 16px 48px; } article { padding: 22px; } article p, article li { font-size: 15px; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <a class="back" href="../../index.html#top">← Back to Award Extractor</a>
+    <header>
+      <p class="eyebrow">Award Extractor · sample output</p>
+      <h1>Aged Care Award: draft overtime creation pseudocode</h1>
+      <div class="status"><strong>Sample Award Extractor output for the Aged Care Award.</strong> Created before any user edit or review, this page shows what Award Extractor produces. In real-world use, a user would review and refine the draft before relying on it. It is not an approved interpretation.</div>
+      <p class="file-meta">Source file: <code>5_1_OT_creation_pseudocode.md</code> · <a href="5_1_OT_creation_pseudocode.md">View raw Markdown</a></p>
+    </header>
+    <article>
+<h1>Overtime pseudocode</h1>
+<h2>Derived Fields</h2>
+<ul>
+<li class="indent-0"><code>Worked_Hour_Units</code></li>
+<li class="indent-1">Split each shift into non-overlapping hour units using <code>Shift_Start</code> and <code>Shift_End</code>.</li>
+<li class="indent-1">Preserve the calendar date and applicable day/week/fortnight/roster-cycle record for each hour unit.</li>
+<li class="indent-1">If a shift crosses midnight, assign each hour unit to the calendar date on which it occurs.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Unallocated_Hours</code></li>
+<li class="indent-1">Initialise to all <code>Worked_Hour_Units</code>.</li>
+<li class="indent-1">Reduce whenever an hour unit is assigned to <code>Overtime_Hours</code>.</li>
+<li class="indent-1">An hour unit must not be assigned to overtime more than once.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Ordinary_Hours</code></li>
+<li class="indent-1">Set to the remaining <code>Unallocated_Hours</code> after all overtime rules have been applied.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Employee_Cohort</code></li>
+<li class="indent-1">Derive from:</li>
+<li class="indent-2"><code>Employee Type - Full Time/PartTime/Casual</code></li>
+<li class="indent-2"><code>Shift_Worker_Status</code></li>
+<li class="indent-1">Classify an employee as a <code>Day_Worker</code> where <code>Shift_Worker_Status</code> indicates the employee is not a shift worker.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Daily_Worked_Hours</code></li>
+<li class="indent-1">Total worked hours for the relevant calendar date, including qualifying sleepover hours where required.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Weekly_Worked_Hours</code></li>
+<li class="indent-1">Total worked hours in the relevant week, including qualifying sleepover hours where required.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Fortnightly_Worked_Hours</code></li>
+<li class="indent-1">Total worked hours in the relevant fortnight, including qualifying sleepover hours where required.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Daily_Rostered_Ordinary_Hours</code></li>
+<li class="indent-1">Hours between <code>Roster_Start</code> and <code>Roster_End</code> for the relevant shift or work period.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Outside_Day_Worker_Span</code></li>
+<li class="indent-1"><code>TRUE</code> where an hour occurs:</li>
+<li class="indent-2">before <code>06:00</code>; or</li>
+<li class="indent-2">after <code>18:00</code>; or</li>
+<li class="indent-2">on Saturday or Sunday,</li>
+<li class="indent-1">and the employee is a <code>Day_Worker</code>.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Daily_Ordinary_Hours_Limit</code></li>
+<li class="indent-1"><code>8</code> hours where the shift is classified as a day shift.</li>
+<li class="indent-1"><code>10</code> hours where the shift is classified as a night shift.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Ordinary_Hours_Model_Boundary</code></li>
+<li class="indent-1">The selected applicable boundary:</li>
+<li class="indent-2"><code>38</code> hours per week; or</li>
+<li class="indent-2"><code>76</code> hours per fortnight; or</li>
+<li class="indent-2"><code>114</code> hours over 21 days; or</li>
+<li class="indent-2"><code>152</code> hours over four weeks.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Roster_Cycle_Work_Day_Count</code></li>
+<li class="indent-1">Number of work days in the applicable 28-calendar-day roster cycle.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Outside_Ordinary_Hours_Boundary</code></li>
+<li class="indent-1"><code>TRUE</code> for hours exceeding the selected weekly, fortnightly, 21-day, four-week, roster-cycle, daily, or day-worker span boundary.</li>
+<li class="indent-1">This field is a boundary indicator only and does not independently classify hours as overtime.</li>
+</ul>
+<h2>Required additional inputs</h2>
+<ul>
+<li class="indent-0"><code>Applicable_Ordinary_Hours_Model</code></li>
+<li class="indent-1">The selected ordinary-hours model for the employee or work arrangement.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Authorised_Work_Indicator</code></li>
+<li class="indent-1">Whether work was authorised for the full-time overtime rule.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Documented_Written_Part_Time_Variation_Indicator</code></li>
+<li class="indent-1">Whether a documented written variation exists under clause <code>10.3(c)</code>.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Agreed_Part_Time_Rostered_Hours</code></li>
+<li class="indent-1">The employee’s agreed rostered hours for each relevant day.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Shift_Type</code></li>
+<li class="indent-1">Whether each shift is a day shift or night shift for the 8-hour/10-hour daily boundary.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Roster_Cycle_Start</code></li>
+<li class="indent-1">Start date of the applicable 28-calendar-day roster cycle.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Roster_Cycle_Work_Day_Arrangement</code></li>
+<li class="indent-1">Whether the arrangement is:</li>
+<li class="indent-2">no more than 20 work days; or</li>
+<li class="indent-2">no more than 19 work days with the twentieth day as an accrued paid day off.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Qualifying_Sleepover_Indicator</code></li>
+<li class="indent-1">Whether the work period is an overnight required sleepover involving sleeping in while remaining on call for emergencies.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Sleepover_Start</code> and <code>Sleepover_End</code></li>
+<li class="indent-1">Required to verify that the sleepover span is between 8 and 10 hours.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Sleepover_Immediately_Before_or_After_Shift_Indicator</code></li>
+<li class="indent-1">Whether the sleepover is rostered immediately before or after the employee’s shift.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Sleepover_Continuity_Permitted_Indicator</code></li>
+<li class="indent-1">Whether clause <code>22.9(h)</code> permits continuity between the sleepover and the shift.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Full_Time_Daily_Hours_Comparator</code></li>
+<li class="indent-1">System-recorded full-time employee hours worked on the relevant day.</li>
+<li class="indent-1">If no full-time employee exists, use <code>11</code> hours.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Permanent_Part_Time_Indicator</code></li>
+<li class="indent-1">Whether the part-time employee is permanent rather than casual.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Full_Time_or_Permanent_Part_Time_Unavailable_Indicator</code></li>
+<li class="indent-1">Whether full-time and permanent part-time employees were unavailable for the casual sleepover.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Casual_Exclusively_or_Almost_Exclusively_Sleepovers_Indicator</code></li>
+<li class="indent-1">Whether the casual employee is used exclusively or almost exclusively for sleepovers.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Broken_Shift_Agreement_Indicator</code></li>
+<li class="indent-1">Whether the broken shift was mutually agreed.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Non_Meal_Break_Hours</code></li>
+<li class="indent-1">Total non-meal break time in the broken shift.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Broken_Shift_Portion_Minimum_Engagement_Compliant_Indicator</code></li>
+<li class="indent-1">Whether each broken-shift portion satisfies the applicable minimum-engagement requirement.</li>
+</ul>
+<ul>
+<li class="indent-0"><code>Broken_Shift_Span_Hours</code></li>
+<li class="indent-1">Total span from the start of the first portion to the end of the last portion.</li>
+</ul>
+<h2>Rule priority</h2>
+<p>Process rules in this order:</p>
+<p>1. Qualifying sleepover rules.</p>
+<p>2. Broken-shift validation and the 12-hour broken-shift boundary.</p>
+<p>3. Day-worker span and shift-worker status.</p>
+<p>4. Daily ordinary-hours boundaries.</p>
+<p>5. Full-time daily authorised work outside rostered ordinary hours.</p>
+<p>6. Part-time daily thresholds and agreed-rostered-hours threshold.</p>
+<p>7. Casual daily threshold.</p>
+<p>8. Part-time and casual weekly and fortnightly thresholds.</p>
+<p>9. Selected ordinary-hours model and roster-cycle boundaries as boundary controls.</p>
+<p>10. Assign all remaining <code>Unallocated_Hours</code> to <code>Ordinary_Hours</code>.</p>
+<p>Where multiple rules identify the same worked hour:</p>
+<ul>
+<li class="indent-0">Assign the hour to <code>Overtime_Hours</code> once.</li>
+<li class="indent-0">Remove it from <code>Unallocated_Hours</code>.</li>
+<li class="indent-0">Do not create a second overtime allocation for the same hour.</li>
+</ul>
+<h2>Pseudocode</h2>
+<ul>
+<li class="indent-0"><strong>Initialise hours</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  Worked_Hour_Units = split each shift into non-overlapping hour units
+  Unallocated_Hours = Worked_Hour_Units
+  Overtime_Hours = empty
+  Ordinary_Hours = empty
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Select and record the ordinary-hours model</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  IF Applicable_Ordinary_Hours_Model = &quot;38 hours per week&quot;:
+      Ordinary_Hours_Model_Boundary = 38 hours per week
+
+  ELSE IF Applicable_Ordinary_Hours_Model = &quot;76 hours per fortnight&quot;:
+      Ordinary_Hours_Model_Boundary = 76 hours per fortnight
+
+  ELSE IF Applicable_Ordinary_Hours_Model = &quot;114 hours over 21 days&quot;:
+      Ordinary_Hours_Model_Boundary = 114 hours over 21 days
+
+  ELSE IF Applicable_Ordinary_Hours_Model = &quot;152 hours over four weeks&quot;:
+      Ordinary_Hours_Model_Boundary = 152 hours over four weeks
+
+  ELSE:
+      flag missing ordinary-hours model
+</code></pre>
+<pre><code class="pseudocode">
+  // Clauses 22.1 and 25.1
+  Calculate Outside_Ordinary_Hours_Boundary using the selected model.
+  Do not classify an hour as overtime from this boundary alone.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Apply the 28-day roster-cycle boundary</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.1(a) and 22.1(b)
+  FOR each 28-calendar-day roster cycle:
+      IF Roster_Cycle_Work_Day_Arrangement = &quot;20 work days&quot;:
+          ordinary roster-cycle arrangement = no more than 20 work days
+
+      ELSE IF Roster_Cycle_Work_Day_Arrangement =
+              &quot;19 work days plus accrued paid day off&quot;:
+          ordinary roster-cycle arrangement =
+              no more than 19 work days plus twentieth day as accrued paid day off
+
+      Mark work outside the selected arrangement as Outside_Ordinary_Hours_Boundary.
+</code></pre>
+<pre><code class="pseudocode">
+  // Clauses 22.1(a), 22.1(b), 25.1
+  Do not classify roster-cycle boundary hours as overtime unless a cohort-specific
+  overtime trigger below also applies.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Apply the daily ordinary-hours limit</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.1(c) and 25.1
+  FOR each employee and calendar date:
+      IF Shift_Type = &quot;day shift&quot;:
+          Daily_Ordinary_Hours_Limit = 8 hours
+      ELSE IF Shift_Type = &quot;night shift&quot;:
+          Daily_Ordinary_Hours_Limit = 10 hours
+      ELSE:
+          flag missing shift type
+
+      Mark hours after Daily_Ordinary_Hours_Limit as
+      Outside_Ordinary_Hours_Boundary.
+</code></pre>
+<pre><code class="pseudocode">
+  Do not classify hours after the daily limit as overtime from this boundary alone.
+  Apply the employee’s applicable cohort-specific overtime trigger.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Identify day workers and shift workers</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.2(a) and 22.2(b)
+  IF Shift_Worker_Status = &quot;shift worker&quot;:
+      Employee_Cohort includes Shift_Worker
+  ELSE:
+      Employee_Cohort includes Day_Worker
+</code></pre>
+<pre><code class="pseudocode">
+  // Clause 22.2(a)
+  IF Employee_Cohort includes Day_Worker:
+      Mark hours worked before 06:00, after 18:00, or on Saturday/Sunday as
+      Outside_Day_Worker_Span.
+</code></pre>
+<pre><code class="pseudocode">
+  // Clauses 22.2(a), 22.2(b)
+  Do not use the day-worker span as a standalone overtime trigger.
+  For a shift worker, do not apply a separate shift-worker span because the source
+  does not specify one.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Full-time qualifying sleepover</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.9, 22.9(a), 22.9(g)(i), 22.9(h)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;full-time&quot;
+     AND Qualifying_Sleepover_Indicator = TRUE
+     AND Sleepover_Start and Sleepover_End define an 8-to-10-hour overnight span
+     AND Sleepover_Immediately_Before_or_After_Shift_Indicator = TRUE
+     AND Sleepover_Continuity_Permitted_Indicator = TRUE:
+
+      Move all qualifying sleepover hour units from Unallocated_Hours
+      to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Permanent part-time qualifying sleepover: daily comparator</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 22.9(g)(ii)
+  IF Permanent_Part_Time_Indicator = TRUE
+     AND Qualifying_Sleepover_Indicator = TRUE:
+
+      Include all qualifying sleepover hours in Daily_Worked_Hours.
+
+      IF Full_Time_Daily_Hours_Comparator exists:
+          Daily_Sleepover_Comparator = Full_Time_Daily_Hours_Comparator
+      ELSE:
+          Daily_Sleepover_Comparator = 11 hours
+
+      IF Daily_Worked_Hours &gt; Daily_Sleepover_Comparator:
+          Identify the portion of the relevant day&#x27;s worked hours
+          exceeding Daily_Sleepover_Comparator.
+
+          Move only those identified hour units still in Unallocated_Hours
+          to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Permanent part-time qualifying sleepover: weekly and fortnightly thresholds</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 22.9(g)(ii)
+  IF Permanent_Part_Time_Indicator = TRUE
+     AND Qualifying_Sleepover_Indicator = TRUE:
+
+      Include all qualifying sleepover hours in Weekly_Worked_Hours
+      and Fortnightly_Worked_Hours.
+
+      IF Weekly_Worked_Hours &gt; 38 hours:
+          Identify hours exceeding 38 hours in the relevant week.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+
+      IF Fortnightly_Worked_Hours &gt; 76 hours:
+          Identify hours exceeding 76 hours in the relevant fortnight.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Casual qualifying sleepover</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.9(g)(iii) and 22.9(k)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;casual&quot;
+     AND Qualifying_Sleepover_Indicator = TRUE
+     AND Full_Time_or_Permanent_Part_Time_Unavailable_Indicator = TRUE
+     AND Casual_Exclusively_or_Almost_Exclusively_Sleepovers_Indicator = FALSE:
+
+      Include all qualifying sleepover hours in Weekly_Worked_Hours
+      and Fortnightly_Worked_Hours.
+
+      IF Weekly_Worked_Hours &gt; 38 hours:
+          Identify hours exceeding 38 hours in the relevant week.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+
+      IF Fortnightly_Worked_Hours &gt; 76 hours:
+          Identify hours exceeding 76 hours in the relevant fortnight.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+</code></pre>
+<pre><code class="pseudocode">
+  IF Employee Type - Full Time/PartTime/Casual = &quot;casual&quot;
+     AND Qualifying_Sleepover_Indicator = TRUE
+     AND (
+         Full_Time_or_Permanent_Part_Time_Unavailable_Indicator = FALSE
+         OR Casual_Exclusively_or_Almost_Exclusively_Sleepovers_Indicator = TRUE
+     ):
+      flag sleepover as not permitted under the reviewed rule
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Broken-shift validation</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 22.8(a), 22.8(b), and 22.8(f)
+  IF Employee Type - Full Time/PartTime/Casual is &quot;casual&quot;
+     OR Employee Type - Full Time/PartTime/Casual is &quot;part-time&quot;:
+
+      IF Broken_Shift_Agreement_Indicator = TRUE
+         AND Non_Meal_Break_Hours &lt;= 4 hours
+         AND Broken_Shift_Portion_Minimum_Engagement_Compliant_Indicator = TRUE
+         AND Broken_Shift_Span_Hours &lt;= 12 hours:
+
+          record broken shift as valid
+
+      ELSE:
+          flag broken shift as not compliant with the reviewed conditions
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Broken-shift span exceeding 12 hours</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 22.8(d)
+  IF Broken_Shift_Span_Hours &gt; 12 hours:
+      mark hours beyond the 12-hour broken-shift span as
+      Outside_Ordinary_Hours_Boundary
+
+      // Clause 22.8(d) is not a standalone overtime-hours trigger.
+      Do not move these hours to Overtime_Hours unless the employee&#x27;s
+      applicable overtime trigger below is also satisfied.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Full-time daily authorised work</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 25.1(a)(i)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;full-time&quot;:
+
+      FOR each calendar date:
+          Identify authorised worked hour units performed in addition to
+          the employee&#x27;s rostered ordinary hours for that date.
+
+          IF Authorised_Work_Indicator = TRUE:
+              Move only those identified hour units still in Unallocated_Hours
+              to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Part-time weekly and fortnightly thresholds</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 25.1(b)(i)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;part-time&quot;:
+
+      IF Weekly_Worked_Hours &gt; 38 hours:
+          Identify hours exceeding 38 hours in the relevant week.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+
+      IF Fortnightly_Worked_Hours &gt; 76 hours:
+          Identify hours exceeding 76 hours in the relevant fortnight.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Part-time daily threshold</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 25.1(b)(ii)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;part-time&quot;:
+
+      FOR each calendar date:
+          IF Daily_Worked_Hours &gt; 10 hours:
+              Identify hours exceeding 10 hours on that date.
+              Move only those hour units still in Unallocated_Hours
+              to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Part-time hours above agreed daily roster</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 10.3(b), 10.3(c), and 25.1(b)(iii)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;part-time&quot;:
+
+      FOR each calendar date:
+          Calculate hours worked above Agreed_Part_Time_Rostered_Hours.
+
+          IF hours worked exceed agreed rostered hours
+             AND Documented_Written_Part_Time_Variation_Indicator = FALSE:
+
+              Move only the excess hour units still in Unallocated_Hours
+              to Overtime_Hours.
+
+          IF Documented_Written_Part_Time_Variation_Indicator = TRUE:
+              do not create overtime under this agreed-rostered-hours rule
+              for the varied hours.
+</code></pre>
+<pre><code class="pseudocode">
+  // Clauses 10.3(b), 10.3(c), and 25.1(b)(iii)
+  A roster or agreement change without documented written variation does not
+  satisfy the exception.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Casual weekly and fortnightly thresholds</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clauses 10.4(a), 10.4(c), and 25.1(c)(i)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;casual&quot;:
+
+      IF Weekly_Worked_Hours &gt; 38 hours:
+          Identify hours exceeding 38 hours in the relevant week.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+
+      IF Fortnightly_Worked_Hours &gt; 76 hours:
+          Identify hours exceeding 76 hours in the relevant fortnight.
+          Move only those hour units still in Unallocated_Hours
+          to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Casual daily threshold</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Clause 25.1(c)(ii)
+  IF Employee Type - Full Time/PartTime/Casual = &quot;casual&quot;:
+
+      FOR each calendar date:
+          IF Daily_Worked_Hours &gt; 10 hours:
+              Identify hours exceeding 10 hours on that date.
+              Move only those hour units still in Unallocated_Hours
+              to Overtime_Hours.
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Final ordinary-hours allocation</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  // Applies after all overtime triggers
+  Ordinary_Hours = Unallocated_Hours
+  Unallocated_Hours = empty
+</code></pre>
+<ul>
+<li class="indent-0"><strong>Output validation</strong></li>
+</ul>
+<pre><code class="pseudocode">
+  ASSERT every worked hour is in exactly one of:
+      Overtime_Hours
+      Ordinary_Hours
+
+  ASSERT no hour unit appears more than once in Overtime_Hours
+  ASSERT Unallocated_Hours is empty
+</code></pre>
+<h2>Conditions not considered by the pseudocode</h2>
+<ul>
+<li class="indent-0"><strong>Clause 22.1</strong></li>
+<li class="indent-1">Business rule: the applicable ordinary-hours model may be 38 hours per week, 76 hours per fortnight, 114 hours over 21 days, or 152 hours over four weeks.</li>
+<li class="indent-1">Reason not directly determined from available fields: the selected model is an employee or work-arrangement configuration not contained in the supplied fields.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clauses 22.1(a) and 22.1(b)</strong></li>
+<li class="indent-1">Business rule: the 28-calendar-day roster cycle may contain no more than 20 work days, or 19 work days plus an accrued paid day off on the twentieth day.</li>
+<li class="indent-1">Reason not directly determined from available fields: the roster-cycle arrangement and accrued paid day off are not supplied.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clause 25.1(a)(i)</strong></li>
+<li class="indent-1">Business rule: full-time overtime requires authorised work in addition to rostered ordinary hours.</li>
+<li class="indent-1">Reason not directly determined from available fields: authorisation is not represented by the supplied fields.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clauses 10.3(b), 10.3(c), and 25.1(b)(iii)</strong></li>
+<li class="indent-1">Business rule: part-time hours above agreed daily rostered hours are overtime unless a documented written variation exists.</li>
+<li class="indent-1">Reason not directly determined from available fields: the documented written-variation status and agreed rostered hours are not fully represented by <code>Roster_Start</code> and <code>Roster_End</code>.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clauses 22.9, 22.9(a), 22.9(g)(i), and 22.9(h)</strong></li>
+<li class="indent-1">Business rule: a qualifying full-time sleepover must be an 8-to-10-hour overnight required sleepover, immediately before or after the shift, with continuity permitted where applicable.</li>
+<li class="indent-1">Reason not directly determined from available fields: sleepover status, on-call emergency requirement, sleepover duration, and continuity permission are not supplied.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clause 22.9(g)(ii)</strong></li>
+<li class="indent-1">Business rule: permanent part-time sleepover overtime uses the full-time employee daily-hours comparator, or 11 hours if no full-time employee exists.</li>
+<li class="indent-1">Reason not directly determined from available fields: the system-recorded full-time daily comparator and permanent part-time status are not supplied.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clauses 22.9(g)(iii) and 22.9(k)</strong></li>
+<li class="indent-1">Business rule: casual sleepovers are permitted only where full-time and permanent part-time employees are unavailable and not where the casual is used exclusively or almost exclusively for sleepovers.</li>
+<li class="indent-1">Reason not directly determined from available fields: employee availability and the casual employee’s sleepover usage pattern are not supplied.</li>
+</ul>
+<ul>
+<li class="indent-0"><strong>Clauses 22.8(a), 22.8(b), 22.8(d), and 22.8(f)</strong></li>
+<li class="indent-1">Business rule: a mutually agreed broken shift requires non-meal breaks of no more than four hours, compliant minimum engagement for each portion, and a span of no more than 12 hours; work beyond 12 hours is subject to a payment consequence but is not independently an overtime trigger.</li>
+<li class="indent-1">Reason not directly determined from available fields: broken-shift agreement, break classification, minimum-engagement compliance, and total broken-shift span are not supplied.</li>
+</ul>
+<h2>Implementation notes</h2>
+<ul>
+<li class="indent-0">The <code>Outside_Ordinary_Hours_Boundary</code> field must not independently create overtime because clauses <code>22.1</code>, <code>22.1(a)</code>, <code>22.1(b)</code>, <code>22.1(c)</code>, <code>22.2(a)</code>, and <code>25.1</code> require the applicable cohort-specific overtime trigger to be satisfied.</li>
+<li class="indent-0"><code>Shift_Worker_Status</code> should be used to identify shift workers. The source provides no separate shift-worker ordinary-hours span.</li>
+<li class="indent-0"><code>Public_Holiday_Indicator</code>, <code>Previous_Shift_End</code>, and <code>Shift_Day</code> do not create overtime under the reviewed rules and are not used as standalone triggers.</li>
+<li class="indent-0">The broken-shift rule must not classify hours beyond 12 hours as overtime solely because clause <code>22.8(d)</code> applies.</li>
+<li class="indent-0">Sleepover hours must be included in the relevant daily, weekly, and fortnightly totals before applying the sleepover-specific thresholds.</li>
+<li class="indent-0">Apply the relevant weekly and fortnightly thresholds to the same worked-hour population only once. When a daily and a weekly or fortnightly rule identifies the same hour, retain one overtime classification.</li>
+<li class="indent-0">Do not calculate overtime multipliers, double-time amounts, penalty amounts, allowances, or other payment outcomes.</li>
+</ul>
+    </article>
+  </main>
+</body>
+</html>

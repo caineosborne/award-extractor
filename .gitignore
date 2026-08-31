@@ -48,6 +48,8 @@ jupyter/
 !/frontend/images/product-screens/
 !/frontend/images/product-screens/*.png
 !/frontend/images/product-screens/*.svg
+!/frontend/sample-outputs/
+!/frontend/sample-outputs/**
 
 # Local historical and working material that is not published to GitHub
 /archive/
